@@ -1,0 +1,81 @@
+// Aircraft type → specs database
+// pax: typical passenger capacity, range: nm, mfr: manufacturer, name: common name
+const DB = {
+  // Narrowbody
+  A318: { pax: 132, range: 3100, mfr: 'Airbus', name: 'A318' },
+  A319: { pax: 156, range: 3700, mfr: 'Airbus', name: 'A319' },
+  A320: { pax: 180, range: 3300, mfr: 'Airbus', name: 'A320' },
+  A20N: { pax: 194, range: 3500, mfr: 'Airbus', name: 'A320neo' },
+  A321: { pax: 220, range: 3200, mfr: 'Airbus', name: 'A321' },
+  A21N: { pax: 244, range: 4000, mfr: 'Airbus', name: 'A321neo' },
+  B737: { pax: 162, range: 3115, mfr: 'Boeing', name: '737-800' },
+  B738: { pax: 189, range: 3115, mfr: 'Boeing', name: '737-800' },
+  B739: { pax: 220, range: 3200, mfr: 'Boeing', name: '737-900ER' },
+  B38M: { pax: 210, range: 3550, mfr: 'Boeing', name: '737 MAX 8' },
+  B39M: { pax: 230, range: 3550, mfr: 'Boeing', name: '737 MAX 9' },
+  B3XM: { pax: 230, range: 3850, mfr: 'Boeing', name: '737 MAX 10' },
+  B752: { pax: 200, range: 3900, mfr: 'Boeing', name: '757-200' },
+  B753: { pax: 280, range: 3400, mfr: 'Boeing', name: '757-300' },
+  BCS1: { pax: 133, range: 3100, mfr: 'Airbus', name: 'A220-100' },
+  BCS3: { pax: 160, range: 3350, mfr: 'Airbus', name: 'A220-300' },
+  // Widebody twin
+  A332: { pax: 277, range: 6750, mfr: 'Airbus', name: 'A330-200' },
+  A333: { pax: 335, range: 5750, mfr: 'Airbus', name: 'A330-300' },
+  A338: { pax: 287, range: 7200, mfr: 'Airbus', name: 'A330-800neo' },
+  A339: { pax: 310, range: 7200, mfr: 'Airbus', name: 'A330-900neo' },
+  A359: { pax: 325, range: 8100, mfr: 'Airbus', name: 'A350-900' },
+  A35K: { pax: 369, range: 8700, mfr: 'Airbus', name: 'A350-1000' },
+  B762: { pax: 255, range: 6600, mfr: 'Boeing', name: '767-200ER' },
+  B763: { pax: 290, range: 5990, mfr: 'Boeing', name: '767-300ER' },
+  B764: { pax: 375, range: 5625, mfr: 'Boeing', name: '767-400ER' },
+  B772: { pax: 314, range: 5240, mfr: 'Boeing', name: '777-200' },
+  B77L: { pax: 314, range: 7700, mfr: 'Boeing', name: '777-200LR' },
+  B77W: { pax: 365, range: 7370, mfr: 'Boeing', name: '777-300ER' },
+  B778: { pax: 384, range: 8730, mfr: 'Boeing', name: '777-8' },
+  B779: { pax: 426, range: 7285, mfr: 'Boeing', name: '777-9' },
+  B788: { pax: 242, range: 7355, mfr: 'Boeing', name: '787-8' },
+  B789: { pax: 290, range: 7635, mfr: 'Boeing', name: '787-9' },
+  B78X: { pax: 330, range: 7635, mfr: 'Boeing', name: '787-10' },
+  // Widebody quad
+  A388: { pax: 555, range: 8000, mfr: 'Airbus', name: 'A380-800' },
+  B744: { pax: 416, range: 7260, mfr: 'Boeing', name: '747-400' },
+  B748: { pax: 410, range: 7730, mfr: 'Boeing', name: '747-8i' },
+  A342: { pax: 253, range: 6700, mfr: 'Airbus', name: 'A340-200' },
+  A343: { pax: 295, range: 6700, mfr: 'Airbus', name: 'A340-300' },
+  A345: { pax: 313, range: 8500, mfr: 'Airbus', name: 'A340-500' },
+  A346: { pax: 380, range: 7900, mfr: 'Airbus', name: 'A340-600' },
+  // Regional
+  CRJ2: { pax: 50, range: 1700, mfr: 'Bombardier', name: 'CRJ-200' },
+  CRJ7: { pax: 70, range: 1600, mfr: 'Bombardier', name: 'CRJ-700' },
+  CRJ9: { pax: 90, range: 1550, mfr: 'Bombardier', name: 'CRJ-900' },
+  CRJX: { pax: 104, range: 1600, mfr: 'Bombardier', name: 'CRJ-1000' },
+  E170: { pax: 72, range: 2100, mfr: 'Embraer', name: 'E170' },
+  E75L: { pax: 88, range: 2200, mfr: 'Embraer', name: 'E175' },
+  E75S: { pax: 88, range: 2200, mfr: 'Embraer', name: 'E175' },
+  E190: { pax: 100, range: 2450, mfr: 'Embraer', name: 'E190' },
+  E195: { pax: 124, range: 2300, mfr: 'Embraer', name: 'E195' },
+  E290: { pax: 120, range: 2600, mfr: 'Embraer', name: 'E190-E2' },
+  E295: { pax: 146, range: 2600, mfr: 'Embraer', name: 'E195-E2' },
+  AT72: { pax: 72, range: 825, mfr: 'ATR', name: 'ATR 72' },
+  AT76: { pax: 72, range: 825, mfr: 'ATR', name: 'ATR 72-600' },
+  DH8D: { pax: 78, range: 1100, mfr: 'De Havilland', name: 'Dash 8-400' },
+  // Bizjet
+  GL5T: { pax: 16, range: 5700, mfr: 'Bombardier', name: 'Global 5500' },
+  GL7T: { pax: 19, range: 7700, mfr: 'Bombardier', name: 'Global 7500' },
+  GLEX: { pax: 19, range: 6150, mfr: 'Bombardier', name: 'Global Express' },
+  GLF4: { pax: 14, range: 4350, mfr: 'Gulfstream', name: 'G450' },
+  GLF5: { pax: 16, range: 5800, mfr: 'Gulfstream', name: 'G550' },
+  GLF6: { pax: 19, range: 6500, mfr: 'Gulfstream', name: 'G650' },
+  C68A: { pax: 12, range: 3500, mfr: 'Cessna', name: 'Citation Longitude' },
+  C700: { pax: 12, range: 3500, mfr: 'Cessna', name: 'Citation Latitude' },
+  LJ45: { pax: 9, range: 2300, mfr: 'Learjet', name: 'Learjet 45' },
+  // Cargo
+  B74S: { pax: 0, range: 4445, mfr: 'Boeing', name: '747-400F', cargo: true },
+  B77F: { pax: 0, range: 4900, mfr: 'Boeing', name: '777F', cargo: true },
+  A30B: { pax: 0, range: 2870, mfr: 'Airbus', name: 'A300-600F', cargo: true },
+};
+
+export function getAircraftSpecs(typeCode) {
+  if (!typeCode) return null;
+  return DB[typeCode.toUpperCase()] || null;
+}

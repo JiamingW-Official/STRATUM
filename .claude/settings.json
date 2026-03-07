@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lsof -ti :5173)",
+      "Bash(curl -s \"http://localhost:5173/api/adsbx/v2/point/40.7128/-74.0060/150\" --max-time 10)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''{len\\(d.get\\(\"\"ac\"\",[]\\)\\)} aircraft''\\)\")",
+      "Bash(lsof -i :5173)",
+      "Bash(for i in 1 2 3 4 5)",
+      "Bash(do curl -s -o /dev/null -w \"Attempt $i: HTTP %{http_code} \\(%{time_total}s\\)\\\\n\" \"http://localhost:5173/api/adsbx/v2/point/40.7128/-74.0060/150\" --max-time 15)",
+      "Bash(done)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" \"https://api.airplanes.live/v2/point/40.7128/-74.0060/150\" --max-time 10)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" \"https://api.airplanes.live/v2/hex/a3ee7a/trace\" --max-time 10)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" \"https://globe.airplanes.live/data/traces/7a/trace_full_a3ee7a.json\" --max-time 10)",
+      "Bash(curl -s \"http://localhost:5173/api/trace/data/traces/7a/trace_full_a3ee7a.json\" --max-time 10)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''Trace: {len\\(d.get\\(\"\"trace\"\",[]\\)\\)} points, icao={d.get\\(\"\"icao\"\",\"\"?\"\"\\)}''\\)\")",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code} \\(%{time_total}s\\)\" \"https://api.adsb.fi/v2/lat/40.7128/lon/-74.0060/dist/150\" --max-time 10)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code} \\(%{time_total}s\\)\" \"https://opendata.adsb.fi/api/v2/lat/40.7128/lon/-74.0060/dist/150\" --max-time 10)",
+      "Bash(curl -s \"https://opendata.adsb.fi/api/v2/lat/40.7128/lon/-74.0060/dist/150\" --max-time 10)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''{len\\(d.get\\(\"\"aircraft\"\",[]\\)\\)} aircraft''\\)\")",
+      "Bash(curl -sI \"https://opendata.adsb.fi/api/v2/lat/40.7128/lon/-74.0060/dist/150\" --max-time 10)",
+      "Bash(for i in 1 2 3 4 5 6 7 8)",
+      "Bash(do curl -s -o /dev/null -w \"Attempt $i: HTTP %{http_code} \\(%{time_total}s\\)\\\\n\" \"https://opendata.adsb.fi/api/v2/lat/40.7128/lon/-74.0060/dist/150\" --max-time 10)",
+      "Bash(curl -s \"https://opendata.adsb.fi/api/v2/hex/a35220\" --max-time 10)",
+      "Bash(curl -s \"http://localhost:5173/api/adsbfi/api/v2/lat/40.7128/lon/-74.0060/dist/150\" --max-time 10)",
+      "Bash(do curl -s -o /dev/null -w \"$i: HTTP %{http_code} \\(%{time_total}s\\)\\\\n\" \"http://localhost:5173/api/adsbfi/api/v2/lat/40.7128/lon/-74.0060/dist/150\" --max-time 10)",
+      "Bash(curl -s \"http://localhost:5173/api/adsbfi/api/v2/lat/40.7128/lon/-74.0060/dist/50\" --max-time 10)",
+      "Bash(python3 -c \":*)",
+      "Bash(curl -s \"https://overpass-api.de/api/interpreter?data=[out:json];node[aeroway=aerodrome]\\(39.5,-75,41.5,-73\\);out;\" --max-time 10)",
+      "Bash(curl -s --data-urlencode 'data=[out:json];node[aeroway=aerodrome][iata]\\(39.5,-75,41.5,-73\\);out;' \"https://overpass-api.de/api/interpreter\" --max-time 15)",
+      "Bash(npx vite build --logLevel error)",
+      "Bash(npx vite)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"http://localhost:5173/api/overpass/api/interpreter\" -d 'data=%5Bout%3Ajson%5D%5Btimeout%3A5%5D%3Bnode%5B%22aeroway%22%3D%22aerodrome%22%5D\\(40.0%2C-74.5%2C41.0%2C-73.5\\)%3Bout%20body%20geom%3B' -H 'Content-Type: application/x-www-form-urlencoded')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --max-time 10 -X POST \"https://overpass-api.de/api/interpreter\" -d 'data=%5Bout%3Ajson%5D%5Btimeout%3A5%5D%3Bnode%5B%22aeroway%22%3D%22aerodrome%22%5D\\(40.0%2C-74.5%2C41.0%2C-73.5\\)%3Bout%20body%3B' -H 'Content-Type: application/x-www-form-urlencoded')",
+      "Bash(curl -s -w \"\\\\n%{http_code}\" --max-time 12 -X POST \"http://localhost:5173/api/overpass2/api/interpreter\" -d 'data=%5Bout%3Ajson%5D%5Btimeout%3A10%5D%3Bnode%5B%22aeroway%22%3D%22aerodrome%22%5D\\(40.0%2C-74.5%2C41.0%2C-73.5\\)%3Bout%20body%3B' -H 'Content-Type: application/x-www-form-urlencoded')",
+      "Bash(curl -s -w \"\\\\nHTTP_CODE:%{http_code}\" --max-time 15 -X POST \"http://localhost:5173/api/ovp-kumi/api/interpreter\" -d 'data=%5Bout%3Ajson%5D%5Btimeout%3A10%5D%3Bnode%5B%22aeroway%22%3D%22aerodrome%22%5D\\(40.0%2C-74.5%2C41.0%2C-73.5\\)%3Bout%20body%3B' -H 'Content-Type: application/x-www-form-urlencoded')",
+      "Bash(curl -s -w \"\\\\nHTTP_CODE:%{http_code}\" --max-time 15 -X POST \"http://localhost:5173/api/ovp-ru/api/interpreter\" -d 'data=%5Bout%3Ajson%5D%5Btimeout%3A10%5D%3Bnode%5B%22aeroway%22%3D%22aerodrome%22%5D\\(40.0%2C-74.5%2C41.0%2C-73.5\\)%3Bout%20body%3B' -H 'Content-Type: application/x-www-form-urlencoded')",
+      "Bash(curl -s --max-time 15 -X POST \"http://localhost:5173/api/ovp-ru/api/interpreter\" -d 'data=%5Bout%3Ajson%5D%5Btimeout%3A10%5D%3Bnode%5B%22aeroway%22%3D%22aerodrome%22%5D\\(40.0%2C-74.5%2C41.0%2C-73.5\\)%3Bout%20body%3B' -H 'Content-Type: application/x-www-form-urlencoded')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''{len\\(d[\"\"elements\"\"]\\)} airports found''\\); [print\\(f''  {e[\"\"tags\"\"].get\\(\"\"name\"\",\"\"?\"\"\\)} \\({e[\"\"tags\"\"].get\\(\"\"iata\"\",\"\"\"\"\\)} / {e[\"\"tags\"\"].get\\(\"\"icao\"\",\"\"\"\"\\)}\\)''\\) for e in d[''elements''][:5]]\")"
+    ]
+  }
+}

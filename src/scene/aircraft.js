@@ -2,35 +2,49 @@ import * as THREE from 'three';
 import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { getTrack, getTrackVersion } from '../data/opensky.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { getTrack, getTrackVersion, getRoute } from '../data/opensky.js';
+import { getAircraftSpecs } from '../data/aircraftDb.js';
+import { getAircraftMeta, queueHexLookup } from '../data/hexdb.js';
 
 const METERS_TO_FEET = 3.28084;
 const MS_TO_KMH = 3.6;
 const DEG_TO_RAD = Math.PI / 180;
 
-const GEO_SCALE = 20;
+const GEO_SCALE = 40;
 const METERS_PER_UNIT = 111000 / GEO_SCALE;
-const ALT_SCALE = 0.35; // compress vertical axis
+const ALT_SCALE = 0.06; // compress vertical axis
 
 const COLOR_CRUISE = new THREE.Color(0xffffff);
 const COLOR_CLIMB = new THREE.Color(0xff9d4d);
 const COLOR_DESCEND = new THREE.Color(0x4db8ff);
-const COLOR_TRAIL = new THREE.Color(0x7eb8ff);
+
+// Speed-based trail colors (m/s thresholds) — smooth gradient, aviation-inspired
+// Taxi/slow → approach → cruise → fast cruise → overspeed
+const SPEED_STOPS = [
+  { speed: 0,   color: new THREE.Color(0x4a7fff) },  // calm blue — ground/slow
+  { speed: 80,  color: new THREE.Color(0x44ddbb) },  // teal — approach ~155 kts
+  { speed: 140, color: new THREE.Color(0x66eea0) },  // soft green — climb ~270 kts
+  { speed: 200, color: new THREE.Color(0xeedd55) },  // warm gold — cruise ~390 kts
+  { speed: 260, color: new THREE.Color(0xee8833) },  // deep orange — fast cruise ~505 kts
+  { speed: 310, color: new THREE.Color(0xdd4455) },  // muted red — overspeed ~600 kts
+];
 
 const VS_THRESHOLD = 1.5;
 
-// Trail config — 20 min
-const TRAIL_SAMPLE_INTERVAL = 0.2;      // 5Hz live sampling
-const TRAIL_MAX_POINTS = 6000;          // 20 min at 5Hz
-const SYNTHETIC_TRAIL_SECONDS = 60;     // short stub — real trail grows from live data
-const SYNTHETIC_TRAIL_STEP = 0.3;
-const TRAIL_REBUILD_INTERVAL = 0.5;     // rebuild geometry 2x/sec
-const TRACK_REFRESH_INTERVAL = 120;     // re-check track API every 2 min
+// Trail config — 7 min
+const TRAIL_SAMPLE_INTERVAL = 0.3;      // ~3Hz live sampling
+const TRAIL_MAX_POINTS = 1400;          // 7 min at ~3Hz
+const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real track
+const SYNTHETIC_TRAIL_STEP = 0.5;
+const TRAIL_REBUILD_INTERVAL = 1.0;     // rebuild geometry 1x/sec
+const TRACK_REFRESH_INTERVAL = 120;     // re-check track API every 2 min (once loaded)
+const TRACK_INITIAL_CHECK_INTERVAL = 2; // check every 2s until track arrives
+const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
 
 // --- Cached geometry / textures ---
 
-let aircraftGeo = null;
+const geoCache = {};
 let glowTex = null;
 
 let resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
@@ -38,64 +52,168 @@ window.addEventListener('resize', () => {
   resolution.set(window.innerWidth, window.innerHeight);
 });
 
-function getAircraftGeometry() {
-  if (aircraftGeo) return aircraftGeo;
+// Aircraft type classification
+const TYPE_REGIONAL = 'regional';    // CRJ, ERJ, E-jets, ATR, Dash 8
+const TYPE_NARROW = 'narrow';        // A320, B737, A321, B757
+const TYPE_WIDE_TWIN = 'wideTwin';   // A330, A350, B777, B787
+const TYPE_WIDE_QUAD = 'wideQuad';   // A380, B747
+const TYPE_BIZJET = 'bizjet';        // Gulfstream, Learjet, Citation, Global
+const TYPE_PROP = 'prop';            // small propeller aircraft
 
-  try {
-    // Fuselage — tapered cylinder along +X
-    const fuselage = new THREE.CylinderGeometry(0.05, 0.08, 1.1, 8);
-    fuselage.rotateZ(Math.PI / 2);
+const REGIONAL_TYPES = new Set(['CRJ2','CRJ7','CRJ9','CRJX','E135','E145','E170','E75L','E75S','E190','E195','E290','E295','AT43','AT45','AT72','AT76','DH8A','DH8B','DH8C','DH8D','SF34']);
+const NARROW_TYPES = new Set(['A318','A319','A320','A20N','A321','A21N','B731','B732','B733','B734','B735','B736','B737','B738','B739','B38M','B39M','BCS1','BCS3','B752','B753','MD80','MD81','MD82','MD83','MD87','MD88','MD90','B712','C919']);
+const WIDE_TWIN_TYPES = new Set(['A332','A333','A338','A339','A359','A35K','B762','B763','B764','B772','B773','B77L','B77W','B788','B789','B78X']);
+const WIDE_QUAD_TYPES = new Set(['A380','A388','B741','B742','B743','B744','B748']);
+const BIZJET_TYPES = new Set(['GLF4','GLF5','GLF6','GL5T','GL7T','GLEX','C510','C525','C525','C550','C560','C56X','C680','C68A','C700','LJ35','LJ45','LJ60','LJ75','CL30','CL35','CL60','FA50','FA7X','FA8X','F900','F2TH','E35L','E50P','E545','E55P','H25B','H25C','ASTR','G150','G200','G280','GALX','PC12','PC24','PRM1']);
 
-    // Nose cone
-    const nose = new THREE.ConeGeometry(0.05, 0.3, 8);
-    nose.rotateZ(-Math.PI / 2);
-    nose.translate(0.7, 0, 0);
+function classifyAircraftType(typeCode) {
+  if (!typeCode) return TYPE_NARROW;
+  const t = typeCode.toUpperCase();
+  if (REGIONAL_TYPES.has(t)) return TYPE_REGIONAL;
+  if (NARROW_TYPES.has(t)) return TYPE_NARROW;
+  if (WIDE_TWIN_TYPES.has(t)) return TYPE_WIDE_TWIN;
+  if (WIDE_QUAD_TYPES.has(t)) return TYPE_WIDE_QUAD;
+  if (BIZJET_TYPES.has(t)) return TYPE_BIZJET;
+  // Heuristics for unknown types
+  if (t.startsWith('P') || t.startsWith('C1') || t.startsWith('C2') || t.startsWith('SR2') || t.startsWith('DA')) return TYPE_PROP;
+  return TYPE_NARROW;
+}
 
-    // Wings — swept back
-    const wings = new THREE.BoxGeometry(0.35, 0.012, 0.95);
-    const wp = wings.attributes.position;
-    for (let i = 0; i < wp.count; i++) {
-      const z = wp.getZ(i);
-      wp.setX(i, wp.getX(i) - Math.abs(z) * 0.3);
-    }
-    wp.needsUpdate = true;
-    wings.translate(-0.02, 0, 0);
+// --- GLB Model Loading System ---
 
-    // Engine nacelles
-    const eng1 = new THREE.CylinderGeometry(0.025, 0.02, 0.14, 6);
-    eng1.rotateZ(Math.PI / 2);
-    eng1.translate(0.02, -0.04, 0.22);
-    const eng2 = new THREE.CylinderGeometry(0.025, 0.02, 0.14, 6);
-    eng2.rotateZ(Math.PI / 2);
-    eng2.translate(0.02, -0.04, -0.22);
+const MODEL_SCALE = 0.25;
+const gltfLoader = new GLTFLoader();
 
-    // Vertical stabilizer
-    const vStab = new THREE.BoxGeometry(0.22, 0.22, 0.012);
-    vStab.translate(-0.48, 0.12, 0);
+// Map aircraft categories to GLB file paths
+const MODEL_FILES = {
+  [TYPE_NARROW]:    '/airplane_model/Airplane_Model_B737.glb',    // B737 for narrowbody
+  [TYPE_WIDE_TWIN]: '/airplane_model/Airplane_Model_B777.glb',    // B777 for wide twin
+  [TYPE_WIDE_QUAD]: '/airplane_model/Airplane_Model_A340.glb',    // A340 for quad engine
+  [TYPE_REGIONAL]:  '/airplane_model/Airplane_Model_Regional_CRJ.glb',
+  [TYPE_BIZJET]:    '/airplane_model/Airplane_Model_Regional_CRJ.glb', // CRJ as stand-in
+  [TYPE_PROP]:      '/airplane_model/Airplane_Model_Regional_CRJ.glb',
+};
 
-    // Horizontal stabilizer — swept
-    const hStab = new THREE.BoxGeometry(0.14, 0.01, 0.38);
-    const hp = hStab.attributes.position;
-    for (let i = 0; i < hp.count; i++) {
-      const z = hp.getZ(i);
-      hp.setX(i, hp.getX(i) - Math.abs(z) * 0.25);
-    }
-    hp.needsUpdate = true;
-    hStab.translate(-0.48, 0.04, 0);
+// Specific type code overrides — more accurate model selection
+const TYPE_CODE_MODEL_OVERRIDE = {
+  'A318': '/airplane_model/Airplane_Model_A320.glb',
+  'A319': '/airplane_model/Airplane_Model_A320.glb',
+  'A320': '/airplane_model/Airplane_Model_A320.glb',
+  'A20N': '/airplane_model/Airplane_Model_A320.glb',
+  'A321': '/airplane_model/Airplane_Model_A320.glb',
+  'A21N': '/airplane_model/Airplane_Model_A320.glb',
+  'BCS1': '/airplane_model/Airplane_Model_A320.glb',
+  'BCS3': '/airplane_model/Airplane_Model_A320.glb',
+  'A332': '/airplane_model/Airplane_Model_A330.glb',
+  'A333': '/airplane_model/Airplane_Model_A330.glb',
+  'A338': '/airplane_model/Airplane_Model_A330.glb',
+  'A339': '/airplane_model/Airplane_Model_A330.glb',
+  'A359': '/airplane_model/Airplane_Model_A350.glb',
+  'A35K': '/airplane_model/Airplane_Model_A350.glb',
+  'A380': '/airplane_model/Airplane_Model_A340.glb',
+  'A388': '/airplane_model/Airplane_Model_A340.glb',
+  'B741': '/airplane_model/Airplane_Model_A340.glb',
+  'B742': '/airplane_model/Airplane_Model_A340.glb',
+  'B743': '/airplane_model/Airplane_Model_A340.glb',
+  'B744': '/airplane_model/Airplane_Model_A340.glb',
+  'B748': '/airplane_model/Airplane_Model_A340.glb',
+  'B772': '/airplane_model/Airplane_Model_B777.glb',
+  'B773': '/airplane_model/Airplane_Model_B777.glb',
+  'B77L': '/airplane_model/Airplane_Model_B777.glb',
+  'B77W': '/airplane_model/Airplane_Model_B777.glb',
+  'B788': '/airplane_model/Airplane_Model_A350.glb',
+  'B789': '/airplane_model/Airplane_Model_A350.glb',
+  'B78X': '/airplane_model/Airplane_Model_A350.glb',
+};
 
-    const merged = mergeGeometries([fuselage, nose, wings, eng1, eng2, vStab, hStab]);
-    if (merged) {
-      aircraftGeo = merged;
-      return aircraftGeo;
-    }
-  } catch (err) {
-    console.warn('[STRATUM] mergeGeometries failed, using fallback:', err);
+// Cache loaded scenes per file path
+const _modelCache = {};       // path → Promise<THREE.Group>
+const _modelSceneCache = {};  // path → resolved THREE.Group (template)
+
+function getModelPath(typeCode) {
+  if (typeCode) {
+    const t = typeCode.toUpperCase();
+    if (TYPE_CODE_MODEL_OVERRIDE[t]) return TYPE_CODE_MODEL_OVERRIDE[t];
   }
+  const category = classifyAircraftType(typeCode);
+  return MODEL_FILES[category] || MODEL_FILES[TYPE_NARROW];
+}
 
-  // Fallback — simple shape if merge fails
-  aircraftGeo = new THREE.ConeGeometry(0.15, 1.0, 6);
-  aircraftGeo.rotateZ(-Math.PI / 2);
-  return aircraftGeo;
+function loadModel(path) {
+  if (_modelCache[path]) return _modelCache[path];
+
+  _modelCache[path] = new Promise((resolve) => {
+    gltfLoader.load(
+      path,
+      (gltf) => {
+        const scene = gltf.scene;
+        // Normalize model: compute bounding box, center and scale to unit size
+        const box = new THREE.Box3().setFromObject(scene);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = MODEL_SCALE / maxDim;
+        scene.scale.set(scale, scale, scale);
+
+        // Center the model
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        scene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+
+        // Rotate +90° around Y then flip 180° → nose points +X
+        const container = new THREE.Group();
+        container.add(scene);
+        container.rotation.y = -Math.PI / 2;
+
+        _modelSceneCache[path] = container;
+        console.log(`[STRATUM] Model loaded: ${path} (${size.x.toFixed(1)}x${size.y.toFixed(1)}x${size.z.toFixed(1)})`);
+        resolve(scene);
+      },
+      undefined,
+      (err) => {
+        console.warn(`[STRATUM] Model load failed: ${path}`, err);
+        resolve(null);
+      }
+    );
+  });
+
+  return _modelCache[path];
+}
+
+// Pre-load all unique model files
+const _uniqueModelPaths = new Set(Object.values(MODEL_FILES));
+for (const path of Object.values(TYPE_CODE_MODEL_OVERRIDE)) {
+  _uniqueModelPaths.add(path);
+}
+for (const path of _uniqueModelPaths) {
+  loadModel(path);
+}
+
+function cloneModelForAircraft(typeCode) {
+  const path = getModelPath(typeCode);
+  const template = _modelSceneCache[path];
+  if (!template) return null;
+
+  const clone = template.clone();
+  // Deep clone materials so each aircraft can have its own color/opacity
+  clone.traverse((child) => {
+    if (child.isMesh) {
+      child.material = child.material.clone();
+      child.material.transparent = true;
+      child.material.opacity = 0;
+    }
+  });
+  return clone;
+}
+
+// Fallback: tiny cone geometry for models that haven't loaded yet
+function getFallbackGeometry() {
+  if (!geoCache._fallback) {
+    const fb = new THREE.ConeGeometry(0.015, 0.1, 8);
+    fb.rotateZ(-Math.PI / 2);
+    geoCache._fallback = fb;
+  }
+  return geoCache._fallback;
 }
 
 function getGlowTexture() {
@@ -121,6 +239,23 @@ function getAircraftColor(verticalRate) {
   if (verticalRate > VS_THRESHOLD) return COLOR_CLIMB;
   if (verticalRate < -VS_THRESHOLD) return COLOR_DESCEND;
   return COLOR_CRUISE;
+}
+
+const _tmpColorA = new THREE.Color();
+const _tmpColorB = new THREE.Color();
+
+function getSpeedColor(speed) {
+  if (speed == null) speed = 0;
+  const stops = SPEED_STOPS;
+  if (speed <= stops[0].speed) return _tmpColorA.copy(stops[0].color);
+  if (speed >= stops[stops.length - 1].speed) return _tmpColorA.copy(stops[stops.length - 1].color);
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (speed <= stops[i + 1].speed) {
+      const t = (speed - stops[i].speed) / (stops[i + 1].speed - stops[i].speed);
+      return _tmpColorA.copy(stops[i].color).lerp(stops[i + 1].color, t);
+    }
+  }
+  return _tmpColorA.copy(stops[stops.length - 1].color);
 }
 
 function getStatusLabel(verticalRate) {
@@ -206,6 +341,7 @@ export class AircraftManager {
     this.userLon = userLon;
     this.aircraft = new Map();
     this.raycasterTargets = [];
+    this._highlightSet = null;
   }
 
   updateUserLocation(lat, lon) {
@@ -252,8 +388,16 @@ export class AircraftManager {
 
   animate(delta, elapsed) {
     for (const ac of this.aircraft.values()) {
-      ac.animate(delta, elapsed);
+      ac.animate(delta, elapsed, this._highlightSet);
     }
+  }
+
+  setHighlight(icao24Set) {
+    this._highlightSet = icao24Set;
+  }
+
+  clearHighlight() {
+    this._highlightSet = null;
   }
 
   getByHitMesh(mesh) {
@@ -269,6 +413,28 @@ export class AircraftManager {
       if (!ac.fadingOut) count++;
     }
     return count;
+  }
+
+  getByIcao(icao24) {
+    return this.aircraft.get(icao24) || null;
+  }
+
+  search(query, limit = 6) {
+    const results = [];
+    const q = query.toUpperCase();
+    for (const ac of this.aircraft.values()) {
+      if (ac.fadingOut) continue;
+      const d = ac.data;
+      const cs = (d.callsign || '').toUpperCase();
+      const reg = (d.registration || '').toUpperCase();
+      const type = (d.aircraftType || '').toUpperCase();
+      const icao = (d.icao24 || '').toUpperCase();
+      if (cs.includes(q) || reg.includes(q) || type.includes(q) || icao.includes(q)) {
+        results.push(ac);
+        if (results.length >= limit) break;
+      }
+    }
+    return results;
   }
 }
 
@@ -286,6 +452,7 @@ class AircraftObject {
     this.fadingOut = false;
     this.removed = false;
     this.fadeProgress = 0;
+    this._createdAt = Date.now();
     this.trailPositions = [];
     this.lastTrailSampleTime = 0;
     this.masterOpacity = 0;
@@ -293,65 +460,101 @@ class AircraftObject {
     this._appliedTrackVersion = 0;
     this._lastTrackCheckTime = 0;
     this._liveStartIndex = 0;
+    this._gaps = [];
 
     this.group = new THREE.Group();
     this.group.position.copy(position);
+    this.group.renderOrder = 1000;
 
-    const color = getAircraftColor(data.verticalRate);
+    const color = getSpeedColor(data.velocity);
 
-    // Realistic aircraft mesh
-    this.bodyMat = new THREE.MeshPhongMaterial({
-      color, emissive: color, emissiveIntensity: 0.5,
-      transparent: true, opacity: 0,
-    });
-    this.bodyMesh = new THREE.Mesh(getAircraftGeometry(), this.bodyMat);
-    this.bodyMesh.scale.set(1.0, 1.0, 1.0);
-    this.group.add(this.bodyMesh);
+    // GLB model (or fallback)
+    this._modelGroup = null;
+    this._useGLB = false;
 
-    // Circular glow (no more square artifact)
-    this.glowMat = new THREE.SpriteMaterial({
-      map: getGlowTexture(),
-      color, transparent: true, opacity: 0, depthWrite: false,
-    });
-    this.glow = new THREE.Sprite(this.glowMat);
-    this.glow.scale.set(3, 3, 1);
-    this.group.add(this.glow);
+    const glbClone = cloneModelForAircraft(data.aircraftType);
+    if (glbClone) {
+      this._modelGroup = glbClone;
+      this._useGLB = true;
+      this.group.add(glbClone);
+      this._setModelColor(color);
+    } else {
+      // Fallback: small procedural cone until GLB loads
+      this.bodyMat = new THREE.MeshPhongMaterial({
+        color, emissive: color, emissiveIntensity: 2.5,
+        transparent: true, opacity: 0,
+      });
+      this.bodyMesh = new THREE.Mesh(getFallbackGeometry(), this.bodyMat);
+      this.group.add(this.bodyMesh);
 
-    this.labelSprite = this._createLabelSprite(data.callsign || data.icao24);
-    this.labelSprite.position.set(0, 1.8, 0);
+      // Try async load → swap from cached container (includes rotation)
+      const modelPath = getModelPath(data.aircraftType);
+      loadModel(modelPath).then(() => {
+        const cachedContainer = _modelSceneCache[modelPath];
+        if (cachedContainer && !this.removed) {
+          const clone = cachedContainer.clone();
+          clone.traverse((child) => {
+            if (child.isMesh) {
+              child.material = child.material.clone();
+              child.material.transparent = true;
+              child.material.opacity = this.masterOpacity;
+            }
+          });
+          this.group.remove(this.bodyMesh);
+          this._modelGroup = clone;
+          this._useGLB = true;
+          this.group.add(clone);
+          this._lastColorR = -1; // force color update
+          this._setModelColor(getSpeedColor(this.data.velocity));
+        }
+      });
+    }
+
+    this.labelSprite = this._createInfoLabel(data);
+    this.labelSprite.position.set(0, 0.18, 0);
     this.group.add(this.labelSprite);
 
-    const hitGeo = new THREE.SphereGeometry(1.5, 8, 8);
+    const hitGeo = new THREE.SphereGeometry(2.0, 8, 8);
     const hitMat = new THREE.MeshBasicMaterial({ visible: false });
     this.hitMesh = new THREE.Mesh(hitGeo, hitMat);
     this.hitMesh.userData.icao24 = data.icao24;
     this.group.add(this.hitMesh);
 
     if (data.trueTrack != null) {
-      this.group.rotation.y = -data.trueTrack * DEG_TO_RAD;
+      this.group.rotation.y = -Math.PI / 2 - data.trueTrack * DEG_TO_RAD;
     }
 
     this.trailLine = null;
     this._trailDirty = false;
     this._lastTrailRebuildTime = 0;
     this.trailLineMat = new LineMaterial({
-      color: 0xffffff, linewidth: 2.5, vertexColors: true,
-      transparent: true, opacity: 0, depthWrite: false,
+      color: 0xffffff, linewidth: 1.5, vertexColors: true,
+      transparent: true, opacity: 0,
+      depthWrite: false, depthTest: false,
+      alphaToCoverage: true,
       resolution: resolution,
     });
 
     this.dropGeometry = new THREE.BufferGeometry();
     this.dropMaterial = new THREE.LineDashedMaterial({
-      color: 0x4d9fff, transparent: true, opacity: 0,
-      dashSize: 0.5, gapSize: 0.5,
+      color: 0x3a6a9f, transparent: true, opacity: 0,
+      dashSize: 0.15, gapSize: 0.25,
+      depthTest: false, depthWrite: false,
     });
     this.dropLine = new THREE.LineSegments(this.dropGeometry, this.dropMaterial);
+    this.dropLine.renderOrder = 998;
+
+    // Gap line — dashed gray for ADS-B signal gaps
+    this._gapLine = null;
     this.updateDropLine(position);
     scene.add(this.dropLine);
     scene.add(this.group);
 
     this._initTrail(position, data);
     this.rebuildTrail();
+
+    // Queue hexdb metadata lookup for operator/type info
+    queueHexLookup(data.icao24);
   }
 
   _initTrail(position, data) {
@@ -360,8 +563,8 @@ class AircraftObject {
       this._applyRealTrack(track);
       this._appliedTrackVersion = getTrackVersion(data.icao24) || Date.now();
     } else {
-      // Short synthetic stub — real trail grows from live data
-      this._synthesizeBackTrail(position, data);
+      // No trail until real track data arrives — synthetic trails look fake
+      this.trailPositions.push({ pos: position.clone(), speed: data.velocity });
     }
     this._liveStartIndex = this.trailPositions.length;
   }
@@ -372,25 +575,94 @@ class AircraftObject {
    */
   _applyRealTrack(waypoints) {
     const now = Math.floor(Date.now() / 1000);
-    const cutoff = now - 1200; // last 20 minutes
+    const cutoff = now - 420; // last 7 minutes
 
     let rawPoints;
     const recent = waypoints.filter((wp) => wp.time >= cutoff);
     if (recent.length < 2) {
-      rawPoints = waypoints.slice(-200);
+      rawPoints = waypoints.slice(-100);
     } else {
       rawPoints = recent;
     }
 
-    const scenePoints = rawPoints.map((wp) => waypointToScenePos(wp, this.userLat, this.userLon));
+    // Compute real speed from lat/lon distance and time delta (m/s)
+    // Also detect signal gaps (>30s between points)
+    const GAP_THRESHOLD = 30; // seconds
+    const withSpeed = [];
+    for (let i = 0; i < rawPoints.length; i++) {
+      const wp = rawPoints[i];
+      let speed = null;
+      let isGapStart = false;
+      if (i > 0) {
+        const prev = rawPoints[i - 1];
+        const dt = wp.time - prev.time;
+        if (dt > GAP_THRESHOLD) {
+          isGapStart = true;
+        }
+        if (dt > 0) {
+          const dlat = (wp.latitude - prev.latitude) * 111000;
+          const dlon = (wp.longitude - prev.longitude) * 111000 * Math.cos(wp.latitude * DEG_TO_RAD);
+          const dist = Math.sqrt(dlat * dlat + dlon * dlon);
+          speed = dist / dt;
+        }
+      }
+      withSpeed.push({ pos: waypointToScenePos(wp, this.userLat, this.userLon), speed, isGapStart });
+    }
 
-    // Catmull-Rom spline: 15 segments per span for smooth curves
-    const interpolated = scenePoints.length >= 2
-      ? catmullRomInterpolate(scenePoints, 15)
-      : scenePoints;
+    // Chaikin corner-cutting: smooths sharp turns without overshoot.
+    // 2 passes is enough — each pass doubles point count and rounds corners.
+    // Split into segments at gap boundaries, smooth each separately
+    const segments = [[]];
+    for (const p of withSpeed) {
+      if (p.isGapStart && segments[segments.length - 1].length > 0) {
+        segments.push([]);
+      }
+      segments[segments.length - 1].push(p);
+    }
 
-    for (const p of interpolated) {
-      this.trailPositions.push(p);
+    // Store gap connections (last point of prev segment → first point of next segment)
+    this._gaps = [];
+    for (let s = 1; s < segments.length; s++) {
+      const prevSeg = segments[s - 1];
+      const nextSeg = segments[s];
+      if (prevSeg.length > 0 && nextSeg.length > 0) {
+        this._gaps.push({
+          from: prevSeg[prevSeg.length - 1].pos.clone(),
+          to: nextSeg[0].pos.clone(),
+        });
+      }
+    }
+
+    // Chaikin smooth each continuous segment, then concatenate
+    for (const seg of segments) {
+      let pts = seg;
+      for (let pass = 0; pass < 2; pass++) {
+        if (pts.length < 3) break;
+        const next = [pts[0]];
+        for (let i = 0; i < pts.length - 1; i++) {
+          const a = pts[i], b = pts[i + 1];
+          const spd = a.speed != null && b.speed != null ? (a.speed + b.speed) / 2 : (a.speed || b.speed);
+          next.push({
+            pos: new THREE.Vector3(
+              a.pos.x * 0.75 + b.pos.x * 0.25,
+              a.pos.y * 0.75 + b.pos.y * 0.25,
+              a.pos.z * 0.75 + b.pos.z * 0.25,
+            ), speed: spd,
+          });
+          next.push({
+            pos: new THREE.Vector3(
+              a.pos.x * 0.25 + b.pos.x * 0.75,
+              a.pos.y * 0.25 + b.pos.y * 0.75,
+              a.pos.z * 0.25 + b.pos.z * 0.75,
+            ), speed: spd,
+          });
+        }
+        next.push(pts[pts.length - 1]);
+        pts = next;
+      }
+      for (const p of pts) {
+        this.trailPositions.push(p);
+      }
     }
 
     this.hasRealTrack = true;
@@ -398,39 +670,125 @@ class AircraftObject {
 
   _synthesizeBackTrail(currentPos, data) {
     if (data.velocity == null || data.trueTrack == null) {
-      this.trailPositions.push(currentPos.clone());
+      this.trailPositions.push({ pos: currentPos.clone(), speed: data.velocity });
       return;
     }
 
     for (let t = SYNTHETIC_TRAIL_SECONDS; t >= 0; t -= SYNTHETIC_TRAIL_STEP) {
-      this.trailPositions.push(
-        extrapolatePosition(currentPos, data.velocity, data.trueTrack, data.verticalRate || 0, -t)
-      );
+      this.trailPositions.push({
+        pos: extrapolatePosition(currentPos, data.velocity, data.trueTrack, data.verticalRate || 0, -t),
+        speed: data.velocity,
+      });
     }
-    this.trailPositions.push(currentPos.clone());
+    this.trailPositions.push({ pos: currentPos.clone(), speed: data.velocity });
   }
 
-  _createLabelSprite(text) {
+  _createInfoLabel(data) {
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d');
-    ctx.font = 'bold 28px JetBrains Mono, monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text || '----', 128, 32);
+    canvas.width = 1024;
+    canvas.height = 256;
+    this._labelCanvas = canvas;
+    this._labelCtx = canvas.getContext('2d');
+    this._labelDirty = false;
+    this._lastLabelUpdate = 0;
+    this._drawInfoLabel(data);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = 4;
     const mat = new THREE.SpriteMaterial({
       map: texture, transparent: true, opacity: 0,
       depthWrite: false, sizeAttenuation: true,
     });
     this._labelMat = mat;
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(5, 1.25, 1);
+    sprite.scale.set(2.2, 0.55, 1);
     return sprite;
+  }
+
+  _drawInfoLabel(data) {
+    const ctx = this._labelCtx;
+    const w = this._labelCanvas.width;
+    const h = this._labelCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const altFt = data.baroAltitude != null ? Math.round(data.baroAltitude * METERS_TO_FEET) : null;
+    const speedKts = data.velocity != null ? Math.round(data.velocity * 1.94384) : null;
+    const hdg = data.trueTrack != null ? Math.round(data.trueTrack) : null;
+    const vsFtMin = data.verticalRate != null ? Math.round(data.verticalRate * METERS_TO_FEET * 60) : null;
+
+    // Line 1: Callsign + Registration + Type
+    ctx.font = 'bold 44px JetBrains Mono, monospace';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    let line1 = data.callsign || data.icao24;
+    if (data.registration && data.registration !== line1) line1 += ` ${data.registration}`;
+    if (data.aircraftType) line1 += ` ${data.aircraftType}`;
+    ctx.fillText(line1, 16, 52);
+
+    // Line 2: Route (if available) + Alt + Speed + Heading
+    ctx.font = '38px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(180,210,255,0.9)';
+    let line2 = '';
+    const route = getRoute(data.callsign);
+    const labelOrigin = data.origin || (route && route.origin) || null;
+    const labelDest = data.destination || (route && route.destination) || null;
+    if (labelOrigin || labelDest) {
+      line2 += `${labelOrigin || '?'}\u2192${labelDest || '?'} `;
+    }
+    if (altFt != null) {
+      line2 += altFt >= 18000 ? `FL${String(Math.round(altFt / 100)).padStart(3, '0')}` : `${altFt.toLocaleString()}ft`;
+    }
+    if (speedKts != null) line2 += ` ${speedKts}kt`;
+    if (hdg != null) line2 += ` ${String(hdg).padStart(3, '0')}\u00b0`;
+    ctx.fillText(line2, 16, 112);
+
+    // Line 3: Vertical speed (colored by direction)
+    if (vsFtMin != null && Math.abs(vsFtMin) > 100) {
+      ctx.font = '38px JetBrains Mono, monospace';
+      const arrow = vsFtMin > 0 ? '\u2191' : '\u2193';
+      ctx.fillStyle = vsFtMin > 0 ? '#ff9d4d' : '#4db8ff';
+      ctx.fillText(`${arrow}${Math.abs(vsFtMin).toLocaleString()} fpm`, 16, 168);
+    }
+  }
+
+  _refreshInfoLabel() {
+    this._drawInfoLabel(this.data);
+    this._labelMat.map.needsUpdate = true;
+    this._labelDirty = false;
+  }
+
+  _setModelOpacity(opacity) {
+    if (this._useGLB && this._modelGroup) {
+      this._modelGroup.traverse((child) => {
+        if (child.isMesh) child.material.opacity = opacity;
+      });
+    } else if (this.bodyMat) {
+      this.bodyMat.opacity = opacity;
+    }
+  }
+
+  _setModelColor(color) {
+    // Skip if color hasn't changed (avoid expensive traverse every frame)
+    if (this._lastColorR === color.r && this._lastColorG === color.g && this._lastColorB === color.b) return;
+    this._lastColorR = color.r;
+    this._lastColorG = color.g;
+    this._lastColorB = color.b;
+
+    if (this._useGLB && this._modelGroup) {
+      this._modelGroup.traverse((child) => {
+        if (child.isMesh) {
+          child.material.emissive = child.material.emissive || new THREE.Color();
+          child.material.emissive.copy(color);
+          child.material.emissiveIntensity = 2.5;
+          child.material.color.copy(color);
+        }
+      });
+    } else if (this.bodyMat) {
+      this.bodyMat.color.copy(color);
+      this.bodyMat.emissive.copy(color);
+    }
   }
 
   setTarget(pos, data) {
@@ -438,10 +796,9 @@ class AircraftObject {
     this.lastApiTime = performance.now() / 1000;
     this.data = data;
 
-    const color = getAircraftColor(data.verticalRate);
-    this.bodyMat.color.copy(color);
-    this.bodyMat.emissive.copy(color);
-    this.glowMat.color.copy(color);
+    const color = getSpeedColor(data.velocity);
+    this._setModelColor(color);
+    this._labelDirty = true;
   }
 
   _getExtrapolatedTarget() {
@@ -458,7 +815,8 @@ class AircraftObject {
    * Replaces backfill with real data; preserves accumulated live samples.
    */
   _checkForTrackUpdate(elapsed) {
-    if (elapsed - this._lastTrackCheckTime < TRACK_REFRESH_INTERVAL) return;
+    const interval = this.hasRealTrack ? TRACK_REFRESH_INTERVAL : TRACK_INITIAL_CHECK_INTERVAL;
+    if (elapsed - this._lastTrackCheckTime < interval) return;
     this._lastTrackCheckTime = elapsed;
 
     const version = getTrackVersion(this.data.icao24);
@@ -467,14 +825,14 @@ class AircraftObject {
     const track = getTrack(this.data.icao24);
     if (!track || track.length < 2) return;
 
-    // Preserve live-sampled positions
-    const liveSamples = this.trailPositions.slice(this._liveStartIndex);
-
+    // Discard old live samples — real track covers recent history.
+    // Live samples from before the track arrived often create seam zigzags.
     this.trailPositions = [];
     this._applyRealTrack(track);
     this._appliedTrackVersion = version;
 
     const newLiveStart = this.trailPositions.length;
+    const liveSamples = []; // intentionally empty — fresh live sampling starts from here
     for (const p of liveSamples) {
       this.trailPositions.push(p);
     }
@@ -489,8 +847,8 @@ class AircraftObject {
     this._trailDirty = true;
   }
 
-  sampleTrailPoint(pos) {
-    this.trailPositions.push(pos.clone());
+  sampleTrailPoint(pos, speed) {
+    this.trailPositions.push({ pos: pos.clone(), speed: speed });
     if (this.trailPositions.length > TRAIL_MAX_POINTS) {
       const excess = this.trailPositions.length - TRAIL_MAX_POINTS;
       this.trailPositions.splice(0, excess);
@@ -500,23 +858,113 @@ class AircraftObject {
   }
 
   rebuildTrail() {
-    const n = this.trailPositions.length;
-    if (n < 2) return;
+    const raw = this.trailPositions;
+    if (raw.length < 2) return;
+
+    // Don't render trail until we have real track data or enough live samples (~30s)
+    if (!this.hasRealTrack && raw.length < 60) {
+      if (this.trailLine) this.trailLine.visible = false;
+      return;
+    }
+    if (this.trailLine) this.trailLine.visible = true;
+
+    // Subsample dense data to manageable key points
+    let keyPoints;
+    if (raw.length > 600) {
+      keyPoints = [];
+      const step = Math.max(Math.floor(raw.length / 400), 1);
+      for (let i = 0; i < raw.length - 1; i += step) {
+        keyPoints.push(raw[i]);
+      }
+      keyPoints.push(raw[raw.length - 1]);
+    } else {
+      keyPoints = raw;
+    }
+
+    // Moving-average position smoothing to remove jitter from
+    // dead-reckoning jumps before Chaikin subdivision
+    const kn = keyPoints.length;
+    const smoothed = new Array(kn);
+    const R = 6;
+    for (let i = 0; i < kn; i++) {
+      let sx = 0, sy = 0, sz = 0, ss = 0, cnt = 0;
+      for (let j = Math.max(0, i - R); j <= Math.min(kn - 1, i + R); j++) {
+        sx += keyPoints[j].pos.x;
+        sy += keyPoints[j].pos.y;
+        sz += keyPoints[j].pos.z;
+        if (keyPoints[j].speed != null) ss += keyPoints[j].speed;
+        cnt++;
+      }
+      smoothed[i] = {
+        pos: new THREE.Vector3(sx / cnt, sy / cnt, sz / cnt),
+        speed: ss / cnt,
+      };
+    }
+    // Keep first and last points exact
+    smoothed[0] = keyPoints[0];
+    smoothed[kn - 1] = keyPoints[kn - 1];
+
+    // 4 passes of Chaikin corner-cutting for smooth curves
+    let display = smoothed;
+    for (let pass = 0; pass < 4; pass++) {
+      if (display.length < 3) break;
+      // Cap point count to avoid explosion (4 passes can grow fast)
+      if (display.length > 3000) break;
+      const next = [display[0]];
+      for (let i = 0; i < display.length - 1; i++) {
+        const a = display[i], b = display[i + 1];
+        const spd = a.speed != null && b.speed != null ? (a.speed + b.speed) / 2 : (a.speed || b.speed);
+        next.push({
+          pos: new THREE.Vector3(
+            a.pos.x * 0.75 + b.pos.x * 0.25,
+            a.pos.y * 0.75 + b.pos.y * 0.25,
+            a.pos.z * 0.75 + b.pos.z * 0.25,
+          ), speed: spd,
+        });
+        next.push({
+          pos: new THREE.Vector3(
+            a.pos.x * 0.25 + b.pos.x * 0.75,
+            a.pos.y * 0.25 + b.pos.y * 0.75,
+            a.pos.z * 0.25 + b.pos.z * 0.75,
+          ), speed: spd,
+        });
+      }
+      next.push(display[display.length - 1]);
+      display = next;
+    }
+
+    const pts = display.map(p => ({
+      x: p.pos.x, y: p.pos.y, z: p.pos.z, speed: p.speed,
+    }));
+
+    // Smooth speed values — wide window for natural color transitions
+    const n = pts.length;
+    const smoothRadius = Math.max(Math.floor(n * 0.06), 3);
+    const smoothedSpeed = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      let sum = 0, count = 0;
+      for (let j = Math.max(0, i - smoothRadius); j <= Math.min(n - 1, i + smoothRadius); j++) {
+        if (pts[j].speed != null) { sum += pts[j].speed; count++; }
+      }
+      smoothedSpeed[i] = count > 0 ? sum / count : 0;
+    }
 
     const positions = new Float32Array(n * 3);
     const colors = new Float32Array(n * 3);
 
     for (let i = 0; i < n; i++) {
-      const p = this.trailPositions[i];
+      const p = pts[i];
       const i3 = i * 3;
       positions[i3] = p.x;
       positions[i3 + 1] = p.y;
       positions[i3 + 2] = p.z;
 
       const t = i / (n - 1);
-      colors[i3] = COLOR_TRAIL.r * t;
-      colors[i3 + 1] = COLOR_TRAIL.g * t;
-      colors[i3 + 2] = COLOR_TRAIL.b * t;
+      const fade = 0.05 + 0.95 * (t * t * (3 - 2 * t));
+      const sc = getSpeedColor(smoothedSpeed[i]);
+      colors[i3] = sc.r * fade;
+      colors[i3 + 1] = sc.g * fade;
+      colors[i3 + 2] = sc.b * fade;
     }
 
     if (this.trailLine) {
@@ -530,7 +978,42 @@ class AircraftObject {
 
     this.trailLine = new Line2(geo, this.trailLineMat);
     this.trailLine.computeLineDistances();
+    this.trailLine.renderOrder = 999;
+    this.trailLine.frustumCulled = false;
     this.scene.add(this.trailLine);
+
+    // Render gap lines (dashed gray) for ADS-B signal interruptions
+    this._rebuildGapLines();
+  }
+
+  _rebuildGapLines() {
+    if (this._gapLine) {
+      this.scene.remove(this._gapLine);
+      this._gapLine.geometry.dispose();
+      this._gapLine.material.dispose();
+      this._gapLine = null;
+    }
+
+    if (!this._gaps || this._gaps.length === 0) return;
+
+    const verts = [];
+    for (const gap of this._gaps) {
+      verts.push(gap.from.x, gap.from.y, gap.from.z);
+      verts.push(gap.to.x, gap.to.y, gap.to.z);
+    }
+
+    const gapGeo = new THREE.BufferGeometry();
+    gapGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    const gapMat = new THREE.LineDashedMaterial({
+      color: 0x667788, transparent: true, opacity: 0.3,
+      dashSize: 0.15, gapSize: 0.2,
+      depthTest: false, depthWrite: false,
+    });
+    this._gapLine = new THREE.LineSegments(gapGeo, gapMat);
+    this._gapLine.computeLineDistances();
+    this._gapLine.renderOrder = 998;
+    this._gapLine.frustumCulled = false;
+    this.scene.add(this._gapLine);
   }
 
   updateDropLine(pos) {
@@ -545,35 +1028,47 @@ class AircraftObject {
     this.fadeProgress = 1;
   }
 
-  animate(delta, elapsed) {
+  animate(delta, elapsed, highlightSet) {
     if (this.fadingIn) {
-      this.fadeProgress = Math.min(this.fadeProgress + delta * 0.5, 1);
+      this.fadeProgress = Math.min(this.fadeProgress + delta * 1.2, 1);
       if (this.fadeProgress >= 1) this.fadingIn = false;
     }
 
     if (this.fadingOut) {
-      this.fadeProgress = Math.max(this.fadeProgress - delta * 0.33, 0);
+      this.fadeProgress = Math.max(this.fadeProgress - delta * 0.6, 0);
       if (this.fadeProgress <= 0) { this.removed = true; return; }
     }
 
-    this.masterOpacity = this.fadeProgress;
-    this.bodyMat.opacity = this.masterOpacity;
-    this.glowMat.opacity = this.masterOpacity * 0.25;
-    this._labelMat.opacity = this.masterOpacity * 0.7;
-    this.trailLineMat.opacity = this.masterOpacity * 0.9;
-    this.dropMaterial.opacity = this.masterOpacity * 0.2;
+    if (highlightSet && !highlightSet.has(this.data.icao24)) {
+      this.masterOpacity = this.fadeProgress * 0.08;
+    } else {
+      this.masterOpacity = this.fadeProgress;
+    }
+    this._setModelOpacity(this.masterOpacity);
+    this._labelMat.opacity = this.masterOpacity * 0.75;
+    this.trailLineMat.opacity = this.masterOpacity * 0.85;
+    this.dropMaterial.opacity = this.masterOpacity * 0.15;
+    if (this._gapLine) this._gapLine.material.opacity = this.masterOpacity * 0.3;
 
-    // Dead-reckoning
+    // Sync model + glow color to current speed
+    const speedCol = getSpeedColor(this.data.velocity);
+    this._setModelColor(speedCol);
+
+    // Dead-reckoning — very smooth lerp to avoid sharp angle in trail
     const predictedTarget = this._getExtrapolatedTarget();
-    this.group.position.lerp(predictedTarget, Math.min(delta * 3, 1));
+    this.group.position.lerp(predictedTarget, Math.min(delta * 3, 0.3));
 
-    // Heading
+    // Heading — model nose is +X, north is -Z → offset by π/2
     if (this.data.trueTrack != null) {
-      const targetRotY = -this.data.trueTrack * DEG_TO_RAD;
+      const targetRotY = -Math.PI / 2 - this.data.trueTrack * DEG_TO_RAD;
       let diff = targetRotY - this.group.rotation.y;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      this.group.rotation.y += diff * delta * 2;
+      if (Math.abs(diff) < 0.005) {
+        this.group.rotation.y = targetRotY;
+      } else {
+        this.group.rotation.y += diff * Math.min(delta * 3, 0.25);
+      }
     }
 
     // Periodically check for updated track data
@@ -582,7 +1077,7 @@ class AircraftObject {
     // Sample live trail
     if (elapsed - this.lastTrailSampleTime >= TRAIL_SAMPLE_INTERVAL) {
       this.lastTrailSampleTime = elapsed;
-      this.sampleTrailPoint(this.group.position);
+      this.sampleTrailPoint(this.group.position, this.data.velocity);
     }
 
     // Rebuild trail geometry at throttled rate
@@ -590,6 +1085,12 @@ class AircraftObject {
       this._lastTrailRebuildTime = elapsed;
       this._trailDirty = false;
       this.rebuildTrail();
+    }
+
+    // Refresh info label periodically
+    if (this._labelDirty && elapsed - this._lastLabelUpdate >= LABEL_UPDATE_INTERVAL) {
+      this._lastLabelUpdate = elapsed;
+      this._refreshInfoLabel();
     }
 
     this.updateDropLine(this.group.position);
@@ -605,8 +1106,22 @@ class AircraftObject {
     scene.remove(this.dropLine);
     this.dropGeometry.dispose();
     this.dropMaterial.dispose();
-    this.bodyMat.dispose();
-    this.glowMat.dispose();
+    if (this._gapLine) {
+      scene.remove(this._gapLine);
+      this._gapLine.geometry.dispose();
+      this._gapLine.material.dispose();
+    }
+    if (this._useGLB && this._modelGroup) {
+      this._modelGroup.traverse((child) => {
+        if (child.isMesh) {
+          if (child.material.map) child.material.map.dispose();
+          child.material.dispose();
+          if (child.geometry) child.geometry.dispose();
+        }
+      });
+    } else if (this.bodyMat) {
+      this.bodyMat.dispose();
+    }
     if (this._labelMat) {
       if (this._labelMat.map) this._labelMat.map.dispose();
       this._labelMat.dispose();
@@ -623,10 +1138,33 @@ class AircraftObject {
     const heading = this.data.trueTrack != null
       ? Math.round(this.data.trueTrack) : null;
 
+    const specs = getAircraftSpecs(this.data.aircraftType);
+    const trackedMin = Math.floor((Date.now() - this._createdAt) / 60000);
+    const meta = getAircraftMeta(this.data.icao24);
+
+    // Aircraft age from API year field or hexdb
+    const year = this.data.year || null;
+    let age = null;
+    if (year) {
+      age = new Date().getFullYear() - year;
+    }
+
+    // Operator: prefer API data, fallback to hexdb
+    const operator = this.data.operator || (meta && meta.operator) || null;
+
+    // Route: prefer API oa/da, fallback to adsbdb route cache
+    const route = getRoute(this.data.callsign);
+    const origin = this.data.origin || (route && route.origin) || null;
+    const destination = this.data.destination || (route && route.destination) || null;
+
     return {
       callsign: this.data.callsign || this.data.icao24,
       icao24: this.data.icao24,
       originCountry: this.data.originCountry || '--',
+      aircraftType: this.data.aircraftType || null,
+      registration: this.data.registration || null,
+      origin,
+      destination,
       altitude: altFt != null ? `${altFt.toLocaleString()} ft` : '--',
       speed: speedKmh != null ? `${speedKmh} km/h` : '--',
       heading: heading != null ? `${String(heading).padStart(3, '0')}  ${headingToCardinal(heading)}` : '--',
@@ -634,6 +1172,15 @@ class AircraftObject {
       status: getStatusLabel(this.data.verticalRate),
       latitude: this.data.latitude,
       longitude: this.data.longitude,
+      // Enhanced data
+      specs,
+      trackedTime: trackedMin < 1 ? 'Just now' : trackedMin < 60 ? `${trackedMin}m` : `${Math.floor(trackedMin / 60)}h ${trackedMin % 60}m`,
+      operator,
+      year,
+      age,
+      typeDesc: this.data.typeDesc || (meta && meta.typeName) || null,
+      _rawAlt: this.data.baroAltitude,
+      _rawSpd: this.data.velocity,
     };
   }
 }

@@ -32,11 +32,7 @@ function loadImage(url) {
   });
 }
 
-/**
- * Load tiles at a specific zoom level for a geographic region.
- * Returns { canvas, lonMin, lonMax, latMin, latMax } or null on failure.
- */
-async function loadTilesForRegion(centerLat, centerLon, halfDeg, zoom) {
+async function loadTilesForRegion(centerLat, centerLon, halfDeg, zoom, maxTiles = 600) {
   const lonMin = centerLon - halfDeg;
   const lonMax = centerLon + halfDeg;
   const latMin = centerLat - halfDeg;
@@ -44,16 +40,15 @@ async function loadTilesForRegion(centerLat, centerLon, halfDeg, zoom) {
 
   const txMin = lonToTileX(lonMin, zoom);
   const txMax = lonToTileX(lonMax, zoom);
-  const tyMin = latToTileY(latMax, zoom); // north = smaller tile Y
-  const tyMax = latToTileY(latMin, zoom); // south = larger tile Y
+  const tyMin = latToTileY(latMax, zoom);
+  const tyMax = latToTileY(latMin, zoom);
 
   const tilesX = txMax - txMin + 1;
   const tilesY = tyMax - tyMin + 1;
   const totalTiles = tilesX * tilesY;
 
-  // Safety: cap at 400 tiles to prevent browser overload
-  if (totalTiles > 400) {
-    console.warn(`[MapTiles] Skipping zoom ${zoom}: ${totalTiles} tiles exceeds limit`);
+  if (totalTiles > maxTiles) {
+    console.warn(`[MapTiles] Skipping zoom ${zoom}: ${totalTiles} tiles exceeds ${maxTiles}`);
     return null;
   }
 
@@ -67,8 +62,7 @@ async function loadTilesForRegion(centerLat, centerLon, halfDeg, zoom) {
   ctx.fillStyle = '#050d1a';
   ctx.fillRect(0, 0, cw, ch);
 
-  // Fetch all tiles in parallel with concurrency batching
-  const BATCH_SIZE = 16;
+  const BATCH_SIZE = 24;
   const tasks = [];
   for (let ty = tyMin; ty <= tyMax; ty++) {
     for (let tx = txMin; tx <= txMax; tx++) {
@@ -82,14 +76,13 @@ async function loadTilesForRegion(centerLat, centerLon, halfDeg, zoom) {
       const px = (tx - txMin) * TILE_SIZE;
       const py = (ty - tyMin) * TILE_SIZE;
       const sub = 'abcd'[(tx + ty) % 4];
-      const url = `https://${sub}.basemaps.cartocdn.com/dark_all/${zoom}/${tx}/${ty}.png`;
+      const url = `https://${sub}.basemaps.cartocdn.com/dark_all/${zoom}/${tx}/${ty}@2x.png`;
       return loadImage(url).then((img) => {
-        if (img) ctx.drawImage(img, px, py);
+        if (img) ctx.drawImage(img, px, py, TILE_SIZE, TILE_SIZE);
       });
     }));
   }
 
-  // Geographic bounds of the full tile grid
   const canvasLonMin = tileXToLon(txMin, zoom);
   const canvasLonMax = tileXToLon(txMax + 1, zoom);
   const canvasLatMax = tileYToLat(tyMin, zoom);
@@ -103,6 +96,7 @@ function createTextureFromRegion(result, lonMin, lonMax, latMin, latMax) {
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
 
   const uOffset = (lonMin - result.canvasLonMin) / (result.canvasLonMax - result.canvasLonMin);
   const vOffset = (latMin - result.canvasLatMin) / (result.canvasLatMax - result.canvasLatMin);
@@ -118,15 +112,10 @@ function createTextureFromRegion(result, lonMin, lonMax, latMin, latMax) {
 }
 
 /**
- * Load map tiles with progressive LOD:
- * 1. Immediately returns zoom 8 texture (fast, ~64 tiles)
- * 2. Then async loads zoom 12 for center area and calls onUpgrade
- *
- * @param {number} centerLat
- * @param {number} centerLon
- * @param {number} degreesExtent - total degrees covered by ground plane
- * @param {function} onUpgrade - callback(texture) when higher-res tiles are ready
- * @returns {Promise<THREE.Texture>} initial low-res texture
+ * Progressive LOD map loading:
+ * Phase 1: zoom 12 @2x (fast base)
+ * Phase 2: zoom 14 @2x (full area, high detail)
+ * Phase 3: zoom 16 @2x (center area, street-level detail)
  */
 export async function loadMapTexture(centerLat, centerLon, degreesExtent, onUpgrade) {
   const half = degreesExtent / 2;
@@ -135,14 +124,11 @@ export async function loadMapTexture(centerLat, centerLon, degreesExtent, onUpgr
   const latMin = centerLat - half;
   const latMax = centerLat + half;
 
-  // --- Phase 1: Zoom 8 (fast, full area) ---
-  const lo = await loadTilesForRegion(centerLat, centerLon, half, 8);
+  // Phase 1: Zoom 10 @2x — fast base layer (~50 tiles for 2° extent)
+  const lo = await loadTilesForRegion(centerLat, centerLon, half, 10);
   if (!lo) throw new Error('Failed to load base map tiles');
   const baseTexture = createTextureFromRegion(lo, lonMin, lonMax, latMin, latMax);
 
-  // --- Phase 2: Zoom 12 (high detail, full area loaded in grid chunks) ---
-  // Zoom 12 for the full 10-degree extent would be ~16k tiles — too many.
-  // Instead, composite: zoom 10 for the full area, zoom 12 for center 2 degrees.
   if (onUpgrade) {
     loadHighResAsync(centerLat, centerLon, half, lonMin, lonMax, latMin, latMax, onUpgrade);
   }
@@ -152,51 +138,36 @@ export async function loadMapTexture(centerLat, centerLon, degreesExtent, onUpgr
 
 async function loadHighResAsync(centerLat, centerLon, half, lonMin, lonMax, latMin, latMax, onUpgrade) {
   try {
-    // Step 1: Zoom 10 for full area (~250 tiles for 10 degrees)
-    const mid = await loadTilesForRegion(centerLat, centerLon, half, 10);
+    // Phase 2: Zoom 12 — full area detail
+    const mid = await loadTilesForRegion(centerLat, centerLon, half, 12, 1000);
     if (mid) {
-      const midTexture = createTextureFromRegion(mid, lonMin, lonMax, latMin, latMax);
-      onUpgrade(midTexture);
+      onUpgrade(createTextureFromRegion(mid, lonMin, lonMax, latMin, latMax));
     }
 
-    // Step 2: Zoom 12 composited onto mid-res canvas for center 3 degrees
-    const hiHalf = 1.5; // ±1.5 degrees from center = 3-degree window
-    const hi = await loadTilesForRegion(centerLat, centerLon, hiHalf, 12);
-    if (hi && mid) {
-      // Composite hi-res center onto mid-res full canvas
-      const compositeCanvas = document.createElement('canvas');
-      compositeCanvas.width = mid.canvas.width;
-      compositeCanvas.height = mid.canvas.height;
-      const ctx = compositeCanvas.getContext('2d');
+    // Phase 3: Zoom 14 — high detail, 0.3° around center
+    const hiHalf = 0.3;
+    const hiLonMin = centerLon - hiHalf;
+    const hiLonMax = centerLon + hiHalf;
+    const hiLatMin = centerLat - hiHalf;
+    const hiLatMax = centerLat + hiHalf;
+    const hi = await loadTilesForRegion(centerLat, centerLon, hiHalf, 14, 1200);
+    if (hi) {
+      onUpgrade(createTextureFromRegion(hi, hiLonMin, hiLonMax, hiLatMin, hiLatMax), {
+        lonMin: hiLonMin, lonMax: hiLonMax, latMin: hiLatMin, latMax: hiLatMax,
+      });
+    }
 
-      // Draw mid-res base
-      ctx.drawImage(mid.canvas, 0, 0);
-
-      // Calculate where center hi-res region maps onto mid canvas
-      const hiLonMin = centerLon - hiHalf;
-      const hiLonMax = centerLon + hiHalf;
-      const hiLatMin = centerLat - hiHalf;
-      const hiLatMax = centerLat + hiHalf;
-
-      // Map geographic coords to pixel coords on mid canvas
-      const midW = mid.canvasLonMax - mid.canvasLonMin;
-      const midH = mid.canvasLatMax - mid.canvasLatMin;
-      const px = (hi.canvasLonMin - mid.canvasLonMin) / midW * mid.canvas.width;
-      const py = (1 - (hi.canvasLatMax - mid.canvasLatMin) / midH) * mid.canvas.height;
-      const pw = (hi.canvasLonMax - hi.canvasLonMin) / midW * mid.canvas.width;
-      const ph = (hi.canvasLatMax - hi.canvasLatMin) / midH * mid.canvas.height;
-
-      ctx.drawImage(hi.canvas, px, py, pw, ph);
-
-      const compositeResult = {
-        canvas: compositeCanvas,
-        canvasLonMin: mid.canvasLonMin,
-        canvasLonMax: mid.canvasLonMax,
-        canvasLatMin: mid.canvasLatMin,
-        canvasLatMax: mid.canvasLatMax,
-      };
-      const finalTexture = createTextureFromRegion(compositeResult, lonMin, lonMax, latMin, latMax);
-      onUpgrade(finalTexture);
+    // Phase 4: Zoom 16 — street-level, 0.08° (~9km) around center
+    const ultraHalf = 0.08;
+    const uLonMin = centerLon - ultraHalf;
+    const uLonMax = centerLon + ultraHalf;
+    const uLatMin = centerLat - ultraHalf;
+    const uLatMax = centerLat + ultraHalf;
+    const ultra = await loadTilesForRegion(centerLat, centerLon, ultraHalf, 16, 1500);
+    if (ultra) {
+      onUpgrade(createTextureFromRegion(ultra, uLonMin, uLonMax, uLatMin, uLatMax), {
+        lonMin: uLonMin, lonMax: uLonMax, latMin: uLatMin, latMax: uLatMax,
+      });
     }
   } catch (err) {
     console.warn('[MapTiles] High-res load failed:', err.message);

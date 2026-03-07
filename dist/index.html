@@ -6,9 +6,9 @@
   <title>STRATUM</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/assets/index-Z2Mit0if.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CMrrCEXV.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <script type="module" crossorigin src="/assets/index-DSqnxz3B.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-C4t8cszV.css">
 </head>
 <body>
   <canvas id="scene"></canvas>
@@ -17,63 +17,199 @@
   <div id="hud" class="glass-panel">
     <div class="hud-title">
       <span class="hud-brand">STRATUM</span>
-      <span class="hud-live-dot"></span>
-      <span class="hud-live-text">LIVE</span>
+      <div class="hud-status">
+        <span class="hud-live-dot"></span>
+        <span class="hud-live-text">LIVE</span>
+      </div>
     </div>
     <div class="hud-divider"></div>
-    <div class="hud-row">
-      <span class="hud-icon">&#8593;</span>
-      <span id="hud-count">0 aircraft</span>
+    <div class="hud-stats">
+      <div class="hud-stat">
+        <span class="hud-stat-value" id="hud-count">0</span>
+        <span class="hud-stat-label">aircraft</span>
+      </div>
+      <div class="hud-stat">
+        <span class="hud-stat-value" id="hud-airports">--</span>
+        <span class="hud-stat-label">airports</span>
+      </div>
     </div>
-    <div class="hud-row">
-      <span class="hud-icon">&#8857;</span>
-      <span id="hud-location">Locating...</span>
-    </div>
-    <div class="hud-row">
-      <span class="hud-icon">&#8634;</span>
-      <span id="hud-updated">Waiting...</span>
+    <div class="hud-divider"></div>
+    <div class="hud-meta">
+      <span id="hud-location" class="hud-coord">Locating...</span>
+      <span id="hud-updated" class="hud-time">Waiting...</span>
     </div>
   </div>
 
   <!-- Detail Panel - right side -->
   <div id="detail-panel" class="glass-panel detail-panel hidden">
     <div class="detail-header">
-      <span id="detail-callsign" class="detail-callsign">--</span>
+      <div class="detail-header-left">
+        <span id="detail-callsign" class="detail-callsign">--</span>
+        <span id="detail-type" class="detail-type-badge"></span>
+      </div>
       <button id="detail-close" class="detail-close">&times;</button>
     </div>
     <div class="hud-divider"></div>
     <div class="detail-route">
-      <span id="detail-origin">---</span>
-      <span class="detail-arrow">&#9654;</span>
-      <span id="detail-dest">---</span>
+      <div class="detail-route-endpoint">
+        <span class="detail-route-label">FROM</span>
+        <span id="detail-origin" class="detail-route-code">---</span>
+      </div>
+      <div class="detail-route-line">
+        <span class="detail-route-dot"></span>
+        <span class="detail-route-dash"></span>
+        <span class="detail-route-plane">&#9992;</span>
+        <span class="detail-route-dash"></span>
+        <span class="detail-route-dot"></span>
+      </div>
+      <div class="detail-route-endpoint">
+        <span class="detail-route-label">TO</span>
+        <span id="detail-dest" class="detail-route-code">---</span>
+      </div>
     </div>
+    <div class="hud-divider"></div>
     <div class="detail-grid">
-      <div class="detail-label">ALT</div>
-      <div id="detail-alt" class="detail-value">--</div>
-      <div class="detail-label">SPD</div>
-      <div id="detail-spd" class="detail-value">--</div>
-      <div class="detail-label">HDG</div>
-      <div id="detail-hdg" class="detail-value">--</div>
-      <div class="detail-label">V/S</div>
-      <div id="detail-vs" class="detail-value">--</div>
+      <div class="detail-cell">
+        <div class="detail-label">ALT</div>
+        <div id="detail-alt" class="detail-value">--</div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">SPD</div>
+        <div id="detail-spd" class="detail-value">--</div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">HDG</div>
+        <div id="detail-hdg" class="detail-value">--</div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">V/S</div>
+        <div id="detail-vs" class="detail-value">--</div>
+      </div>
+    </div>
+    <div class="hud-divider"></div>
+    <!-- Aircraft specs -->
+    <div id="detail-specs" class="detail-specs hidden">
+      <div class="detail-specs-row">
+        <span id="detail-aircraft-name" class="detail-specs-name"></span>
+        <span id="detail-mfr" class="detail-specs-mfr"></span>
+      </div>
+      <div class="detail-specs-badges">
+        <span id="detail-pax" class="detail-badge"></span>
+        <span id="detail-range" class="detail-badge"></span>
+        <span id="detail-tracked" class="detail-badge"></span>
+      </div>
+    </div>
+    <div id="detail-specs-divider" class="hud-divider hidden"></div>
+    <div class="detail-meta">
+      <div class="detail-meta-row">
+        <span class="detail-meta-label">ICAO</span>
+        <span id="detail-icao" class="detail-meta-value">--</span>
+      </div>
+      <div class="detail-meta-row">
+        <span class="detail-meta-label">REG</span>
+        <span id="detail-reg" class="detail-meta-value">--</span>
+      </div>
+      <div id="detail-operator-row" class="detail-meta-row hidden">
+        <span class="detail-meta-label">OPR</span>
+        <span id="detail-operator" class="detail-meta-value">--</span>
+      </div>
+      <div id="detail-age-row" class="detail-meta-row hidden">
+        <span class="detail-meta-label">AGE</span>
+        <span id="detail-age" class="detail-meta-value">--</span>
+      </div>
     </div>
     <div class="hud-divider"></div>
     <div class="detail-footer">
-      <div id="detail-distance" class="detail-distance">-- km from you</div>
+      <div class="detail-footer-top">
+        <div id="detail-distance" class="detail-distance">-- km away</div>
+        <button type="button" id="detail-radio" class="detail-radio-btn hidden" title="Listen to ATC">&#9399; ATC</button>
+      </div>
+      <div id="detail-status" class="detail-status"></div>
     </div>
   </div>
 
-  <!-- Minimap - bottom left -->
-  <div id="minimap-container" class="glass-panel">
-    <div id="minimap"></div>
+  <!-- Spotter Panel - top right -->
+  <div id="spotter-panel" class="glass-panel spotter-panel">
+    <div class="spotter-header">
+      <span id="spotter-level" class="spotter-level">LV1</span>
+      <span id="spotter-score" class="spotter-score-value">0</span>
+      <span class="spotter-xp-label">XP</span>
+      <span id="spotter-streak" class="spotter-streak"></span>
+    </div>
+    <div class="spotter-xp-bar"><div id="spotter-xp-fill" class="spotter-xp-fill"></div></div>
+    <div class="spotter-stats">
+      <div class="spotter-stat">
+        <span id="spotter-count" class="spotter-stat-value">0</span>
+        <span class="spotter-stat-label">spotted</span>
+      </div>
+      <div class="spotter-stat">
+        <span id="spotter-types" class="spotter-stat-value">0</span>
+        <span class="spotter-stat-label">types</span>
+      </div>
+    </div>
   </div>
+
+  <!-- Active Challenge -->
+  <div id="challenge-panel" class="glass-panel challenge-panel hidden">
+    <div class="challenge-header">
+      <span class="challenge-tag">MISSION</span>
+      <span class="challenge-timer"></span>
+    </div>
+    <div class="challenge-label">--</div>
+    <div class="challenge-desc">--</div>
+  </div>
+
+  <!-- Spot feedback (floating +XP) -->
+  <div id="spot-feedback" class="spot-feedback"></div>
+
+  <!-- Radar Minimap - bottom left -->
+  <div id="radar-panel" class="glass-panel radar-panel">
+    <canvas id="radar-canvas" width="280" height="280"></canvas>
+    <div class="radar-label">RADAR</div>
+  </div>
+
+  <!-- Compass Rose - bottom right above search -->
+  <div id="compass" class="compass">
+    <svg viewBox="0 0 60 60" class="compass-svg">
+      <circle cx="30" cy="30" r="28" fill="none" stroke="rgba(90,172,255,0.12)" stroke-width="1"/>
+      <line id="compass-needle" x1="30" y1="30" x2="30" y2="8" stroke="rgba(90,172,255,0.6)" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="30" cy="30" r="2" fill="rgba(90,172,255,0.4)"/>
+      <text id="compass-heading" x="30" y="55" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="8" font-family="JetBrains Mono, monospace">N</text>
+    </svg>
+  </div>
+
+  <!-- Achievement Toast -->
+  <div id="toast" class="toast hidden">
+    <div class="toast-icon">&#9733;</div>
+    <div class="toast-body">
+      <div class="toast-title">ACHIEVEMENT</div>
+      <div class="toast-desc">Description</div>
+    </div>
+    <div class="toast-points">+50 XP</div>
+  </div>
+
+  <!-- Follow Mode indicator -->
+  <div id="follow-indicator" class="follow-indicator hidden">
+    <span class="follow-dot"></span>
+    <span class="follow-text">TRACKING</span>
+    <span class="follow-callsign" id="follow-callsign">--</span>
+    <span class="follow-hint">ESC to exit</span>
+  </div>
+
+  <!-- Search bar -->
+  <div id="search-bar" class="glass-panel search-bar">
+    <input id="search-input" type="text" placeholder="Search callsign, reg, type..." autocomplete="off" spellcheck="false" />
+    <div id="search-results" class="search-results"></div>
+  </div>
+
+  <div class="search-hint">/ search  |  dbl-click track  |  WASD move  |  shift sprint  |  Q/E altitude</div>
 
   <!-- Signal Lost overlay -->
   <div id="signal-lost" class="signal-lost hidden">
     <div class="signal-lost-content glass-panel">
       <div class="signal-lost-icon">&#9632;</div>
       <div class="signal-lost-title">SIGNAL LOST</div>
-      <div class="signal-lost-sub">Unable to reach OpenSky Network</div>
+      <div class="signal-lost-sub">Unable to reach flight data API</div>
       <div id="signal-lost-retry" class="signal-lost-retry">Retrying...</div>
     </div>
   </div>
