@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>STRATUM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <script type="module" crossorigin src="/assets/index-Z2Mit0if.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CMrrCEXV.css">
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <!-- HUD Overlay - top left -->
+  <div id="hud" class="glass-panel">
+    <div class="hud-title">
+      <span class="hud-brand">STRATUM</span>
+      <span class="hud-live-dot"></span>
+      <span class="hud-live-text">LIVE</span>
+    </div>
+    <div class="hud-divider"></div>
+    <div class="hud-row">
+      <span class="hud-icon">&#8593;</span>
+      <span id="hud-count">0 aircraft</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-icon">&#8857;</span>
+      <span id="hud-location">Locating...</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-icon">&#8634;</span>
+      <span id="hud-updated">Waiting...</span>
+    </div>
+  </div>
+
+  <!-- Detail Panel - right side -->
+  <div id="detail-panel" class="glass-panel detail-panel hidden">
+    <div class="detail-header">
+      <span id="detail-callsign" class="detail-callsign">--</span>
+      <button id="detail-close" class="detail-close">&times;</button>
+    </div>
+    <div class="hud-divider"></div>
+    <div class="detail-route">
+      <span id="detail-origin">---</span>
+      <span class="detail-arrow">&#9654;</span>
+      <span id="detail-dest">---</span>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-label">ALT</div>
+      <div id="detail-alt" class="detail-value">--</div>
+      <div class="detail-label">SPD</div>
+      <div id="detail-spd" class="detail-value">--</div>
+      <div class="detail-label">HDG</div>
+      <div id="detail-hdg" class="detail-value">--</div>
+      <div class="detail-label">V/S</div>
+      <div id="detail-vs" class="detail-value">--</div>
+    </div>
+    <div class="hud-divider"></div>
+    <div class="detail-footer">
+      <div id="detail-distance" class="detail-distance">-- km from you</div>
+    </div>
+  </div>
+
+  <!-- Minimap - bottom left -->
+  <div id="minimap-container" class="glass-panel">
+    <div id="minimap"></div>
+  </div>
+
+  <!-- Signal Lost overlay -->
+  <div id="signal-lost" class="signal-lost hidden">
+    <div class="signal-lost-content glass-panel">
+      <div class="signal-lost-icon">&#9632;</div>
+      <div class="signal-lost-title">SIGNAL LOST</div>
+      <div class="signal-lost-sub">Unable to reach OpenSky Network</div>
+      <div id="signal-lost-retry" class="signal-lost-retry">Retrying...</div>
+    </div>
+  </div>
+
+</body>
+</html>
