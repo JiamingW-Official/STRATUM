@@ -419,6 +419,98 @@ export class AircraftManager {
     return this.aircraft.get(icao24) || null;
   }
 
+  // --- Selection ring ---
+  selectAircraft(ac) {
+    this.deselectAircraft();
+    if (!ac) return;
+    this._selectedAc = ac;
+    // Glowing ring that follows the aircraft
+    const ringGeo = new THREE.RingGeometry(0.18, 0.22, 48);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x5aacff, transparent: true, opacity: 0.7,
+      side: THREE.DoubleSide, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this._selRing = new THREE.Mesh(ringGeo, ringMat);
+    this._selRing.rotation.x = -Math.PI / 2;
+    ac.group.add(this._selRing);
+    this._selRingMat = ringMat;
+
+    // Heading prediction line — dashed line extending forward
+    this._createPredictionLine(ac);
+  }
+
+  _createPredictionLine(ac) {
+    this._removePredictionLine();
+    const data = ac.data;
+    if (data.trueTrack == null || data.velocity == null) return;
+
+    // Predict 60s ahead, converted to scene units
+    const dist = (data.velocity * 60) / METERS_PER_UNIT;
+    const clampedDist = Math.min(dist, 12); // cap visual length
+    if (clampedDist < 0.3) return;
+
+    const segments = 24;
+    const positions = [];
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      positions.push(t * clampedDist, 0, 0); // local space, +X is forward (matches model orientation)
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const mat = new THREE.LineDashedMaterial({
+      color: 0x5aacff, transparent: true, opacity: 0.3,
+      dashSize: 0.15, gapSize: 0.1,
+      depthWrite: false, fog: false,
+    });
+    const line = new THREE.Line(geo, mat);
+    line.computeLineDistances();
+    ac.group.add(line);
+    this._predLine = line;
+    this._predLineMat = mat;
+  }
+
+  _removePredictionLine() {
+    if (this._predLine && this._selectedAc) {
+      this._selectedAc.group.remove(this._predLine);
+      this._predLine.geometry.dispose();
+      this._predLineMat.dispose();
+    }
+    this._predLine = null;
+    this._predLineMat = null;
+  }
+
+  deselectAircraft() {
+    this._removePredictionLine();
+    if (this._selRing && this._selectedAc) {
+      this._selectedAc.group.remove(this._selRing);
+      this._selRing.geometry.dispose();
+      this._selRingMat.dispose();
+    }
+    this._selRing = null;
+    this._selRingMat = null;
+    this._selectedAc = null;
+  }
+
+  animateSelection(elapsed) {
+    if (this._selRing && this._selRingMat) {
+      const pulse = 0.5 + 0.4 * Math.sin(elapsed * 3);
+      this._selRingMat.opacity = pulse;
+      const s = 1 + 0.15 * Math.sin(elapsed * 2);
+      this._selRing.scale.set(s, s, 1);
+    }
+    // Animate prediction line — gentle pulse and update length if speed changed
+    if (this._predLineMat) {
+      this._predLineMat.opacity = 0.15 + 0.15 * Math.sin(elapsed * 2);
+    }
+    // Rebuild prediction line periodically (speed/heading changes)
+    if (this._selectedAc && elapsed - (this._lastPredRebuild || 0) > 5) {
+      this._lastPredRebuild = elapsed;
+      this._createPredictionLine(this._selectedAc);
+    }
+  }
+
   search(query, limit = 6) {
     const results = [];
     const q = query.toUpperCase();
@@ -519,6 +611,39 @@ class AircraftObject {
     this.hitMesh = new THREE.Mesh(hitGeo, hitMat);
     this.hitMesh.userData.icao24 = data.icao24;
     this.group.add(this.hitMesh);
+
+    // Navigation lights — port (red), starboard (green), tail strobe (white)
+    const navGlowTex = getGlowTexture();
+    const wingSpan = MODEL_SCALE * 0.6;
+    this._navLights = [];
+
+    const portLight = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: navGlowTex, color: 0xff2233, transparent: true, opacity: 0,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    portLight.scale.set(0.06, 0.06, 1);
+    portLight.position.set(0, 0, wingSpan);
+    this.group.add(portLight);
+    this._navLights.push(portLight);
+
+    const starboardLight = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: navGlowTex, color: 0x22ff44, transparent: true, opacity: 0,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    starboardLight.scale.set(0.06, 0.06, 1);
+    starboardLight.position.set(0, 0, -wingSpan);
+    this.group.add(starboardLight);
+    this._navLights.push(starboardLight);
+
+    const tailStrobe = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: navGlowTex, color: 0xffffff, transparent: true, opacity: 0,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    tailStrobe.scale.set(0.04, 0.04, 1);
+    tailStrobe.position.set(-MODEL_SCALE * 0.4, 0.02, 0);
+    this.group.add(tailStrobe);
+    this._navLights.push(tailStrobe);
+    this._tailStrobe = tailStrobe;
 
     if (data.trueTrack != null) {
       this.group.rotation.y = -Math.PI / 2 - data.trueTrack * DEG_TO_RAD;
@@ -1050,6 +1175,16 @@ class AircraftObject {
     this.dropMaterial.opacity = this.masterOpacity * 0.15;
     if (this._gapLine) this._gapLine.material.opacity = this.masterOpacity * 0.3;
 
+    // Navigation lights — steady port/starboard, strobing tail
+    for (const nl of this._navLights) {
+      nl.material.opacity = this.masterOpacity * 0.8;
+    }
+    if (this._tailStrobe) {
+      // 1Hz strobe with sharp on/off
+      const strobePhase = (elapsed * 1.2 + this.data.icao24.charCodeAt(0) * 0.1) % 1;
+      this._tailStrobe.material.opacity = strobePhase < 0.1 ? this.masterOpacity : 0;
+    }
+
     // Sync model + glow color to current speed
     const speedCol = getSpeedColor(this.data.velocity);
     this._setModelColor(speedCol);
@@ -1125,6 +1260,9 @@ class AircraftObject {
     if (this._labelMat) {
       if (this._labelMat.map) this._labelMat.map.dispose();
       this._labelMat.dispose();
+    }
+    for (const nl of this._navLights) {
+      nl.material.dispose();
     }
   }
 

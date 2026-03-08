@@ -45,6 +45,33 @@ export function createEnvironment(scene) {
   vignette.position.y = 0.01;
   scene.add(vignette);
 
+  // Gradient sky dome
+  const skyGeo = new THREE.SphereGeometry(95, 64, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  const skyVerts = skyGeo.attributes.position;
+  const skyColors = new Float32Array(skyVerts.count * 3);
+  for (let i = 0; i < skyVerts.count; i++) {
+    const y = skyVerts.getY(i);
+    const t = Math.max(0, y / 95);
+    skyColors[i * 3] = 0.008 + t * 0.012;
+    skyColors[i * 3 + 1] = 0.035 + t * 0.03;
+    skyColors[i * 3 + 2] = 0.07 + t * 0.06;
+  }
+  skyGeo.setAttribute('color', new THREE.Float32BufferAttribute(skyColors, 3));
+  const skyMat = new THREE.MeshBasicMaterial({
+    vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false,
+  });
+  const skyDome = new THREE.Mesh(skyGeo, skyMat);
+  skyDome.renderOrder = -100;
+  scene.add(skyDome);
+
+  // Subtle ground grid for depth
+  const gridHelper = new THREE.GridHelper(GROUND_SIZE, 80, 0x0a1e3a, 0x0a1e3a);
+  gridHelper.material.transparent = true;
+  gridHelper.material.opacity = 0.08;
+  gridHelper.material.depthWrite = false;
+  gridHelper.position.y = 0.005;
+  scene.add(gridHelper);
+
   // User location — refined crosshair + gentle pulse
   const pulseGroup = new THREE.Group();
   pulseGroup.name = 'userPulse';
@@ -186,25 +213,52 @@ export async function loadAirports(scene, userLat, userLon) {
     airportGroup.name = 'airports';
     airportGroup.renderOrder = 50;
 
+    // Terminals first (lowest layer)
+    if (airportData.terminals) {
+      for (const term of airportData.terminals) {
+        renderTerminal(term, userLat, userLon);
+      }
+    }
+
+    // Taxiways
+    if (airportData.taxiways) {
+      renderTaxiwaysBatched(airportData.taxiways, userLat, userLon);
+    }
+
+    // Runways + approach lights
     for (const rwy of airportData.runways) {
       renderRunway(rwy, userLat, userLon);
+      renderApproachLights(rwy, userLat, userLon);
     }
+
+    // Runway edge lights (batched for all runways)
+    renderRunwayEdgeLights(airportData.runways, userLat, userLon);
 
     for (const apt of airportData.airports) {
       renderAirportLabel(apt, userLat, userLon);
     }
 
     scene.add(airportGroup);
-    console.log(`[STRATUM] Loaded ${airportData.airports.length} airports, ${airportData.runways.length} runways`);
+    const txCount = airportData.taxiways?.length || 0;
+    const tmCount = airportData.terminals?.length || 0;
+    console.log(`[STRATUM] Loaded ${airportData.airports.length} airports, ${airportData.runways.length} runways, ${txCount} taxiways, ${tmCount} terminals`);
   } catch (err) {
     console.warn('[STRATUM] Airport data fetch failed:', err.message);
   }
 }
 
+// ---- Geo helpers ----
+
+function geoToScene(lat, lon, userLat, userLon) {
+  return {
+    x: (lon - userLon) * GEO_SCALE,
+    z: -(lat - userLat) * GEO_SCALE,
+  };
+}
+
 // ---- Runway Rendering ----
 
 function renderRunway(rwy, userLat, userLon) {
-  // Compute from projected start/end coordinates to match map projection
   const startX = (rwy.startLon - userLon) * GEO_SCALE;
   const startZ = -(rwy.startLat - userLat) * GEO_SCALE;
   const endX = (rwy.endLon - userLon) * GEO_SCALE;
@@ -213,14 +267,14 @@ function renderRunway(rwy, userLat, userLon) {
   const dx = endX - startX;
   const dz = endZ - startZ;
   const rLen = Math.sqrt(dx * dx + dz * dz);
-  const rWid = Math.max((rwy.width / METERS_PER_UNIT) * 4, 0.08);
+  const rWid = Math.max(rwy.width / METERS_PER_UNIT, 0.012);
   const headingRad = Math.atan2(-dz, dx);
 
   const cx = (startX + endX) / 2;
   const cz = (startZ + endZ) / 2;
 
   // Main runway surface
-  const canvas = createRunwayTexture(rwy.ref, rwy.length);
+  const canvas = createRunwayTexture(rwy.ref, rwy.length, rwy.width);
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
@@ -228,7 +282,7 @@ function renderRunway(rwy, userLat, userLon) {
 
   const geo = new THREE.PlaneGeometry(rLen, rWid);
   const mat = new THREE.MeshBasicMaterial({
-    map: texture, transparent: true, opacity: 0.8,
+    map: texture, transparent: true, opacity: 0.85,
     side: THREE.DoubleSide, depthWrite: false,
   });
   const mesh = new THREE.Mesh(geo, mat);
@@ -238,95 +292,403 @@ function renderRunway(rwy, userLat, userLon) {
   airportGroup.add(mesh);
 }
 
-// ---- Runway Texture (2K — fast, sharp) ----
+// ---- Runway Texture (realistic markings) ----
 
-function createRunwayTexture(ref, lengthMeters) {
+function createRunwayTexture(ref, lengthMeters, widthMeters) {
   const W = 2048;
-  const H = 128;
+  const H = 160;
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d');
   const ppm = W / lengthMeters;
 
-  // Transparent base — only markings render
   ctx.clearRect(0, 0, W, H);
 
-  // Subtle asphalt strip
-  ctx.fillStyle = 'rgba(20, 28, 40, 0.7)';
+  // Asphalt base — slightly noisy for realism
+  ctx.fillStyle = 'rgba(18, 24, 36, 0.75)';
   ctx.fillRect(0, 0, W, H);
 
-  // Edge lines
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillRect(0, 4, W, 2);
-  ctx.fillRect(0, H - 6, W, 2);
-
-  // Threshold bars (10 bars at each end)
-  const barW = 6;
-  const barGap = 5;
-  const barH = H * 0.45;
-  const barY = (H - barH) / 2;
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  for (let i = 0; i < 10; i++) {
-    ctx.fillRect(20 + i * (barW + barGap), barY, barW, barH);
-    ctx.fillRect(W - 20 - (i + 1) * (barW + barGap), barY, barW, barH);
+  // Subtle asphalt texture noise
+  ctx.fillStyle = 'rgba(255,255,255,0.015)';
+  for (let i = 0; i < 200; i++) {
+    const nx = Math.random() * W;
+    const ny = Math.random() * H;
+    ctx.fillRect(nx, ny, 2 + Math.random() * 4, 1);
   }
 
-  // Runway designator numbers
+  // White edge lines (continuous, per spec)
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  const edgeW = Math.max(H * 0.025, 2);
+  ctx.fillRect(0, 2, W, edgeW);
+  ctx.fillRect(0, H - 2 - edgeW, W, edgeW);
+
+  // Threshold stripes (piano keys) — variable bar count based on runway width
+  const numBars = widthMeters >= 45 ? 12 : widthMeters >= 30 ? 8 : 6;
+  const barW = Math.max(ppm * 1.5, 5);
+  const barH = H * 0.06;
+  const barGap = (H * 0.7) / numBars;
+  const barStartY = (H - numBars * barGap) / 2;
+  const thresholdDepth = Math.max(ppm * 12, 30); // ~12m from edge
+
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  for (let i = 0; i < numBars; i++) {
+    const by = barStartY + i * barGap;
+    // Left threshold
+    ctx.fillRect(thresholdDepth, by, barW * 8, barH);
+    // Right threshold
+    ctx.fillRect(W - thresholdDepth - barW * 8, by, barW * 8, barH);
+  }
+
+  // Runway designator numbers — positioned after threshold stripes
   const parts = ref.split('/');
-  const fontSize = Math.floor(H * 0.45);
+  const fontSize = Math.floor(H * 0.55);
   ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  if (parts[0]) ctx.fillText(parts[0], W * 0.09, H / 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  const numOffset = thresholdDepth + barW * 10;
+  if (parts[0]) ctx.fillText(parts[0], numOffset, H / 2);
   if (parts[1]) {
     ctx.save();
-    ctx.translate(W * 0.91, H / 2);
+    ctx.translate(W - numOffset, H / 2);
     ctx.rotate(Math.PI);
     ctx.fillText(parts[1], 0, 0);
     ctx.restore();
   }
 
-  // Centerline dashes
-  const dashPx = Math.max(30 * ppm, 15);
-  const gapPx = Math.max(20 * ppm, 10);
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.lineWidth = 2;
+  // Centerline dashes — standard 30m dash, 20m gap
+  const dashPx = Math.max(30 * ppm, 12);
+  const gapPx = Math.max(20 * ppm, 8);
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = Math.max(H * 0.02, 2);
   ctx.setLineDash([dashPx, gapPx]);
   ctx.beginPath();
-  ctx.moveTo(W * 0.15, H / 2);
-  ctx.lineTo(W * 0.85, H / 2);
+  ctx.moveTo(W * 0.14, H / 2);
+  ctx.lineTo(W * 0.86, H / 2);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Touchdown zone markings
+  // Touchdown zone markings (pairs of rectangular blocks)
   const tdzStart = 300 * ppm;
   const tdzSpacing = 150 * ppm;
-  const tdzW = Math.max(22 * ppm, 16);
-  const tdzH = H * 0.14;
+  const tdzW = Math.max(22 * ppm, 14);
+  const tdzH = H * 0.10;
   ctx.fillStyle = 'rgba(255,255,255,0.3)';
   for (let i = 0; i < 3; i++) {
     const xOff = tdzStart + i * tdzSpacing;
     if (xOff + tdzW > W * 0.4) break;
-    ctx.fillRect(xOff, H * 0.22, tdzW, tdzH);
-    ctx.fillRect(xOff, H * 0.64, tdzW, tdzH);
+    // Top pair
+    ctx.fillRect(xOff, H * 0.20, tdzW, tdzH);
+    ctx.fillRect(xOff, H * 0.70, tdzW, tdzH);
+    // Mirror at other end
     const xM = W - xOff - tdzW;
-    ctx.fillRect(xM, H * 0.22, tdzW, tdzH);
-    ctx.fillRect(xM, H * 0.64, tdzW, tdzH);
+    ctx.fillRect(xM, H * 0.20, tdzW, tdzH);
+    ctx.fillRect(xM, H * 0.70, tdzW, tdzH);
   }
 
-  // Aiming points
-  const aimDist = 300 * ppm;
-  if (aimDist > 40 && aimDist < W * 0.35) {
-    const aimW = Math.min(45 * ppm, 60);
-    const aimH = H * 0.28;
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  // Aiming point markers (fixed distance markings — bold rectangles)
+  const aimDist = Math.max(300 * ppm, 60);
+  if (aimDist < W * 0.35) {
+    const aimW = Math.min(45 * ppm, 55);
+    const aimH = H * 0.30;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillRect(aimDist, (H - aimH) / 2, aimW, aimH);
     ctx.fillRect(W - aimDist - aimW, (H - aimH) / 2, aimW, aimH);
   }
 
   return canvas;
+}
+
+// ---- Approach Lights (ALSF-2 style) ----
+
+function renderApproachLights(rwy, userLat, userLon) {
+  const s = geoToScene(rwy.startLat, rwy.startLon, userLat, userLon);
+  const e = geoToScene(rwy.endLat, rwy.endLon, userLat, userLon);
+
+  // Direction vectors: outward from each threshold
+  const dx = e.x - s.x;
+  const dz = e.z - s.z;
+  const len = Math.sqrt(dx * dx + dz * dz);
+  if (len < 0.1) return;
+  const nx = dx / len, nz = dz / len; // unit vector start→end
+
+  // Generate approach lights from both ends
+  _renderApproachLightRow(s.x, s.z, -nx, -nz, len);
+  _renderApproachLightRow(e.x, e.z, nx, nz, len);
+}
+
+function _renderApproachLightRow(threshX, threshZ, dirX, dirZ, rwyLen) {
+  // ALSF-2: centerline lights every ~30m for 900m, crossbars at 300m and 150m
+  const approachLen = 900 / METERS_PER_UNIT; // ~900m in scene units
+  const lightSpacing = 30 / METERS_PER_UNIT;
+  const numLights = Math.floor(approachLen / lightSpacing);
+
+  const positions = [];
+  const colors = [];
+
+  // Perpendicular direction for crossbars
+  const perpX = -dirZ, perpZ = dirX;
+
+  for (let i = 1; i <= numLights; i++) {
+    const dist = i * lightSpacing;
+    const px = threshX + dirX * dist;
+    const pz = threshZ + dirZ * dist;
+
+    // Centerline light
+    positions.push(px, 0.03, pz);
+    const distM = dist * METERS_PER_UNIT;
+    if (distM < 300) {
+      colors.push(1.0, 0.2, 0.2); // red close to threshold
+    } else {
+      colors.push(1.0, 1.0, 0.85); // white/warm further out
+    }
+
+    // Crossbars at ~150m and ~300m from threshold
+    if (Math.abs(distM - 150) < 20 || Math.abs(distM - 300) < 20) {
+      const crossWidth = 27 / METERS_PER_UNIT; // ~27m real ALSF-2 crossbar span
+      const crossSteps = 4;
+      for (let j = -crossSteps; j <= crossSteps; j++) {
+        if (j === 0) continue;
+        const cx = px + perpX * j * (crossWidth / crossSteps);
+        const cz = pz + perpZ * j * (crossWidth / crossSteps);
+        positions.push(cx, 0.03, cz);
+        colors.push(1.0, 1.0, 0.85);
+      }
+    }
+  }
+
+  if (positions.length === 0) return;
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+  const mat = new THREE.PointsMaterial({
+    size: 0.012, transparent: true, opacity: 0.6,
+    vertexColors: true, sizeAttenuation: true,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.name = 'approachLights';
+  airportGroup.add(points);
+}
+
+// ---- Runway Edge Lights (batched) ----
+
+function renderRunwayEdgeLights(runways, userLat, userLon) {
+  const positions = [];
+  const colors = [];
+
+  for (const rwy of runways) {
+    const s = geoToScene(rwy.startLat, rwy.startLon, userLat, userLon);
+    const e = geoToScene(rwy.endLat, rwy.endLon, userLat, userLon);
+
+    const dx = e.x - s.x, dz = e.z - s.z;
+    const len = Math.sqrt(dx * dx + dz * dz);
+    if (len < 0.1) continue;
+    const nx = dx / len, nz = dz / len;
+    const perpX = -nz, perpZ = nx;
+
+    const halfW = Math.max((rwy.width / METERS_PER_UNIT) * 0.5, 0.006);
+    const spacing = 60 / METERS_PER_UNIT; // lights every ~60m
+    const numLights = Math.floor(len / spacing);
+
+    for (let i = 0; i <= numLights; i++) {
+      const t = i / numLights;
+      const px = s.x + dx * t;
+      const pz = s.z + dz * t;
+
+      // Both edges
+      positions.push(px + perpX * halfW, 0.035, pz + perpZ * halfW);
+      positions.push(px - perpX * halfW, 0.035, pz - perpZ * halfW);
+
+      // Edge color: white along most, yellow last 600m, red last 300m from each end
+      const distFromStart = t * len * METERS_PER_UNIT;
+      const distFromEnd = (1 - t) * len * METERS_PER_UNIT;
+      const minDist = Math.min(distFromStart, distFromEnd);
+
+      let r, g, b;
+      if (minDist < 300) {
+        r = 1.0; g = 0.15; b = 0.1; // red
+      } else if (minDist < 600) {
+        r = 1.0; g = 0.8; b = 0.2; // amber/yellow
+      } else {
+        r = 0.9; g = 0.95; b = 1.0; // white
+      }
+      colors.push(r, g, b, r, g, b);
+    }
+  }
+
+  if (positions.length === 0) return;
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+  const mat = new THREE.PointsMaterial({
+    size: 0.008, transparent: true, opacity: 0.5,
+    vertexColors: true, sizeAttenuation: true,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.name = 'runwayEdgeLights';
+  airportGroup.add(points);
+}
+
+// ---- Taxiway Rendering (batched) ----
+
+function renderTaxiwaysBatched(taxiways, userLat, userLon) {
+  if (!taxiways || taxiways.length === 0) return;
+
+  const allPositions = [];
+  const allColors = [];
+
+  for (const twy of taxiways) {
+    if (twy.geometry.length < 2) continue;
+
+    const scenePoints = twy.geometry.map(p => geoToScene(p.lat, p.lon, userLat, userLon));
+    const twyWidth = Math.max(twy.width / METERS_PER_UNIT, 0.008);
+
+    for (let i = 0; i < scenePoints.length - 1; i++) {
+      const a = scenePoints[i], b = scenePoints[i + 1];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const segLen = Math.sqrt(dx * dx + dz * dz);
+      if (segLen < 0.001) continue;
+
+      const nx = dx / segLen, nz = dz / segLen;
+      const perpX = -nz * twyWidth * 0.5;
+      const perpZ = nx * twyWidth * 0.5;
+
+      // Two triangles forming a quad strip
+      allPositions.push(
+        a.x + perpX, 0.025, a.z + perpZ,
+        a.x - perpX, 0.025, a.z - perpZ,
+        b.x + perpX, 0.025, b.z + perpZ,
+        b.x + perpX, 0.025, b.z + perpZ,
+        a.x - perpX, 0.025, a.z - perpZ,
+        b.x - perpX, 0.025, b.z - perpZ,
+      );
+      // Taxiway color — dark blue-gray
+      for (let j = 0; j < 6; j++) {
+        allColors.push(0.08, 0.12, 0.18);
+      }
+    }
+  }
+
+  if (allPositions.length === 0) return;
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(allPositions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(allColors, 3));
+
+  const mat = new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0.55,
+    side: THREE.DoubleSide, depthWrite: false,
+  });
+
+  const mesh = new THREE.Mesh(geo, mat);
+  airportGroup.add(mesh);
+
+  // Taxiway centerline lights (green)
+  renderTaxiwayCenterlineLights(taxiways, userLat, userLon);
+}
+
+function renderTaxiwayCenterlineLights(taxiways, userLat, userLon) {
+  const positions = [];
+
+  for (const twy of taxiways) {
+    if (twy.geometry.length < 2) continue;
+    const scenePoints = twy.geometry.map(p => geoToScene(p.lat, p.lon, userLat, userLon));
+    const spacing = 30 / METERS_PER_UNIT;
+
+    let accumDist = 0;
+    for (let i = 0; i < scenePoints.length - 1; i++) {
+      const a = scenePoints[i], b = scenePoints[i + 1];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const segLen = Math.sqrt(dx * dx + dz * dz);
+      if (segLen < 0.001) continue;
+
+      while (accumDist < segLen) {
+        const t = accumDist / segLen;
+        positions.push(a.x + dx * t, 0.028, a.z + dz * t);
+        accumDist += spacing;
+      }
+      accumDist -= segLen;
+    }
+  }
+
+  if (positions.length === 0) return;
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+
+  const mat = new THREE.PointsMaterial({
+    color: 0x22cc66, size: 0.006, transparent: true, opacity: 0.35,
+    sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.name = 'taxiwayLights';
+  airportGroup.add(points);
+}
+
+// ---- Terminal Building Rendering ----
+
+function renderTerminal(term, userLat, userLon) {
+  if (!term.geometry || term.geometry.length < 3) return;
+
+  const scenePoints = term.geometry.map(p => geoToScene(p.lat, p.lon, userLat, userLon));
+
+  // Build 2D shape for extrusion
+  const shape = new THREE.Shape();
+  shape.moveTo(scenePoints[0].x, -scenePoints[0].z); // Shape uses XY, we map X→X, Z→-Y
+  for (let i = 1; i < scenePoints.length; i++) {
+    shape.lineTo(scenePoints[i].x, -scenePoints[i].z);
+  }
+  shape.closePath();
+
+  // Flat footprint on ground
+  const footGeo = new THREE.ShapeGeometry(shape);
+  const footMat = new THREE.MeshBasicMaterial({
+    color: 0x1a2840, transparent: true, opacity: 0.6,
+    side: THREE.DoubleSide, depthWrite: false,
+  });
+  const footMesh = new THREE.Mesh(footGeo, footMat);
+  footMesh.rotation.x = -Math.PI / 2;
+  footMesh.position.y = 0.02;
+  airportGroup.add(footMesh);
+
+  // Extruded volume — subtle height
+  const extGeo = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.04, bevelEnabled: false,
+  });
+  const extMat = new THREE.MeshBasicMaterial({
+    color: 0x1e3050, transparent: true, opacity: 0.35,
+    side: THREE.DoubleSide, depthWrite: false,
+  });
+  const extMesh = new THREE.Mesh(extGeo, extMat);
+  extMesh.rotation.x = -Math.PI / 2;
+  extMesh.position.y = 0.02;
+  airportGroup.add(extMesh);
+
+  // Glowing edge outline for visibility
+  const edgeVerts = [];
+  for (let i = 0; i < scenePoints.length; i++) {
+    const p = scenePoints[i];
+    const next = scenePoints[(i + 1) % scenePoints.length];
+    edgeVerts.push(p.x, 0.065, p.z, next.x, 0.065, next.z);
+  }
+  const edgeGeo = new THREE.BufferGeometry();
+  edgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgeVerts, 3));
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: 0x5588aa, transparent: true, opacity: 0.2,
+    depthWrite: false,
+  });
+  const edgeLine = new THREE.LineSegments(edgeGeo, edgeMat);
+  airportGroup.add(edgeLine);
 }
 
 // ---- Airport Label (clean text, no background) ----
@@ -467,11 +829,17 @@ export function updatePulse(scene, time) {
     pulseRing.material.opacity = 0.15 * (1 - cycle * cycle);
   }
 
-  // Airport beacon pulse
+  // Airport beacon pulse + approach light shimmer
   if (airportGroup) {
     airportGroup.children.forEach(child => {
       if (child.name === 'aptBeacon') {
         child.material.opacity = 0.15 + 0.1 * Math.sin(time * 1.5);
+      } else if (child.name === 'approachLights') {
+        child.material.opacity = 0.4 + 0.2 * Math.sin(time * 2);
+      } else if (child.name === 'runwayEdgeLights') {
+        child.material.opacity = 0.35 + 0.15 * Math.sin(time * 1.8 + 0.5);
+      } else if (child.name === 'taxiwayLights') {
+        child.material.opacity = 0.25 + 0.1 * Math.sin(time * 1.2 + 1);
       }
     });
   }

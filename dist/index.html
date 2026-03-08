@@ -7,11 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/assets/index-DSqnxz3B.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-C4t8cszV.css">
+  <script type="module" crossorigin src="/assets/index-DIRROgC4.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-COwbk8Nz.css">
 </head>
 <body>
   <canvas id="scene"></canvas>
+  <div id="vignette" class="vignette"></div>
+  <div id="speed-lines" class="speed-lines"></div>
 
   <!-- HUD Overlay - top left -->
   <div id="hud" class="glass-panel">
@@ -202,7 +204,29 @@
     <div id="search-results" class="search-results"></div>
   </div>
 
-  <div class="search-hint">/ search  |  dbl-click track  |  WASD move  |  shift sprint  |  Q/E altitude</div>
+  <div class="search-hint">? help  |  / search  |  dbl-click track  |  T tour</div>
+
+  <!-- Help overlay -->
+  <div id="help-overlay" class="help-overlay hidden">
+    <div class="help-content glass-panel">
+      <div class="help-title">CONTROLS</div>
+      <div class="hud-divider"></div>
+      <div class="help-grid">
+        <div class="help-row"><kbd>WASD</kbd><span>Pan camera</span></div>
+        <div class="help-row"><kbd>Q / E</kbd><span>Lower / raise altitude</span></div>
+        <div class="help-row"><kbd>Shift</kbd><span>Sprint</span></div>
+        <div class="help-row"><kbd>Click</kbd><span>Select aircraft</span></div>
+        <div class="help-row"><kbd>Dbl-click</kbd><span>Track aircraft</span></div>
+        <div class="help-row"><kbd>Scroll</kbd><span>Zoom (distance in track mode)</span></div>
+        <div class="help-row"><kbd>T</kbd><span>Auto-tour mode</span></div>
+        <div class="help-row"><kbd>/</kbd><span>Search callsign, reg, type</span></div>
+        <div class="help-row"><kbd>Esc</kbd><span>Exit track / search / tour</span></div>
+        <div class="help-row"><kbd>?</kbd><span>Toggle this overlay</span></div>
+      </div>
+      <div class="hud-divider"></div>
+      <div class="help-hint">Press ? or click anywhere to close</div>
+    </div>
+  </div>
 
   <!-- Signal Lost overlay -->
   <div id="signal-lost" class="signal-lost hidden">

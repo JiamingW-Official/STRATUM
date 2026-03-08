@@ -203,7 +203,29 @@
     <div id="search-results" class="search-results"></div>
   </div>
 
-  <div class="search-hint">/ search  |  dbl-click track  |  WASD move  |  shift sprint  |  Q/E altitude</div>
+  <div class="search-hint">? help  |  / search  |  dbl-click track  |  T tour</div>
+
+  <!-- Help overlay -->
+  <div id="help-overlay" class="help-overlay hidden">
+    <div class="help-content glass-panel">
+      <div class="help-title">CONTROLS</div>
+      <div class="hud-divider"></div>
+      <div class="help-grid">
+        <div class="help-row"><kbd>WASD</kbd><span>Pan camera</span></div>
+        <div class="help-row"><kbd>Q / E</kbd><span>Lower / raise altitude</span></div>
+        <div class="help-row"><kbd>Shift</kbd><span>Sprint</span></div>
+        <div class="help-row"><kbd>Click</kbd><span>Select aircraft</span></div>
+        <div class="help-row"><kbd>Dbl-click</kbd><span>Track aircraft</span></div>
+        <div class="help-row"><kbd>Scroll</kbd><span>Zoom (distance in track mode)</span></div>
+        <div class="help-row"><kbd>T</kbd><span>Auto-tour mode</span></div>
+        <div class="help-row"><kbd>/</kbd><span>Search callsign, reg, type</span></div>
+        <div class="help-row"><kbd>Esc</kbd><span>Exit track / search / tour</span></div>
+        <div class="help-row"><kbd>?</kbd><span>Toggle this overlay</span></div>
+      </div>
+      <div class="hud-divider"></div>
+      <div class="help-hint">Press ? or click anywhere to close</div>
+    </div>
+  </div>
 
   <!-- Signal Lost overlay -->
   <div id="signal-lost" class="signal-lost hidden">

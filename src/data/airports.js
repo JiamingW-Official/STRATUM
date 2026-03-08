@@ -33,6 +33,9 @@ async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
 [out:json][timeout:30];
 (
   way["aeroway"="runway"](${south},${west},${north},${east});
+  way["aeroway"="taxiway"](${south},${west},${north},${east});
+  way["aeroway"="terminal"](${south},${west},${north},${east});
+  way["building"]["aeroway"](${south},${west},${north},${east});
   node["aeroway"="aerodrome"](${south},${west},${north},${east});
   way["aeroway"="aerodrome"](${south},${west},${north},${east});
   relation["aeroway"="aerodrome"](${south},${west},${north},${east});
@@ -68,6 +71,8 @@ out body geom;
 function parseOverpassData(data) {
   const airportMap = new Map();
   const runways = [];
+  const taxiways = [];
+  const terminals = [];
 
   for (const el of data.elements) {
     // Aerodrome nodes/ways/relations
@@ -128,9 +133,27 @@ function parseOverpassData(data) {
         surface: el.tags?.surface || 'asphalt',
       });
     }
+
+    // Taxiway ways
+    if (el.type === 'way' && el.tags?.aeroway === 'taxiway' && el.geometry?.length >= 2) {
+      taxiways.push({
+        ref: el.tags?.ref || '',
+        width: parseFloat(el.tags?.width) || 20,
+        geometry: el.geometry.map(n => ({ lat: n.lat, lon: n.lon })),
+      });
+    }
+
+    // Terminal buildings
+    if (el.type === 'way' && el.geometry?.length >= 3 &&
+        (el.tags?.aeroway === 'terminal' || (el.tags?.building && el.tags?.aeroway))) {
+      terminals.push({
+        name: el.tags?.name || '',
+        geometry: el.geometry.map(n => ({ lat: n.lat, lon: n.lon })),
+      });
+    }
   }
 
-  return { airports: [...airportMap.values()], runways };
+  return { airports: [...airportMap.values()], runways, taxiways, terminals };
 }
 
 function haversine(lat1, lon1, lat2, lon2) {
