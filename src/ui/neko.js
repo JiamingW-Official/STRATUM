@@ -95,8 +95,8 @@ export function nekoTrackAircraft(d) {
   const callsign = (d.callsign || d.icao24 || 'UNKNWN').trim();
   const rawAlt = d._rawAlt; // metres
   const status = d.status;
-  const origin = d.origin;
-  const dest = d.destination;
+  const origin = d.originCity || d.origin;
+  const dest   = d.destCity   || d.destination;
 
   let text;
 

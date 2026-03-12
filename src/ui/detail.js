@@ -48,20 +48,27 @@ export function showDetail(aircraftObj, userLat, userLon) {
     elType.style.display = 'none';
   }
 
-  elOrigin.textContent = d.origin || '---';
-  elDest.textContent = d.destination || '---';
+  // City name preferred over raw ICAO code; ICAO as title tooltip
+  function fmtAirport(icao, city, el) {
+    el.textContent = city || icao || '---';
+    el.title = icao || '';
+  }
+  fmtAirport(d.origin, d.originCity, elOrigin);
+  fmtAirport(d.destination, d.destCity, elDest);
 
-  // Fetch route from airplanes.live callsign endpoint when panel first opens for this aircraft
+  // Fetch route (adsbdb primary → airplanes.live fallback) when panel first opens
   if (isNew && (!d.origin || !d.destination) && d.callsign) {
     fetchRouteNow(d.callsign).then(() => {
       if (selectedAircraft !== aircraftObj) return;
       const route = getRoute(d.callsign);
-      if (route?.origin) elOrigin.textContent = route.origin;
-      if (route?.destination) elDest.textContent = route.destination;
-      if (route?.origin || route?.destination) {
-        const atc = route.origin || route.destination;
+      if (route) {
+        fmtAirport(route.origin, route.originCity, elOrigin);
+        fmtAirport(route.destination, route.destCity, elDest);
+      }
+      const icao = route?.origin || route?.destination;
+      if (icao) {
         elRadio.classList.remove('hidden');
-        elRadio.onclick = () => window.open(`https://www.liveatc.net/search/?icao=${encodeURIComponent(atc)}`, '_blank');
+        elRadio.onclick = () => window.open(`https://www.liveatc.net/search/?icao=${encodeURIComponent(icao)}`, '_blank');
       }
     });
   }

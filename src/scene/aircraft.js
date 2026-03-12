@@ -1327,10 +1327,12 @@ class AircraftObject {
     // Operator: prefer API data, fallback to hexdb
     const operator = this.data.operator || (meta && meta.operator) || null;
 
-    // Route: prefer API oa/da, fallback to adsbdb route cache
+    // Route: prefer API oa/da, then adsbdb route cache (has city names)
     const route = getRoute(this.data.callsign);
     const origin = this.data.origin || (route && route.origin) || null;
     const destination = this.data.destination || (route && route.destination) || null;
+    const originCity = (route && route.originCity) || null;
+    const destCity   = (route && route.destCity)   || null;
 
     return {
       callsign: this.data.callsign || this.data.icao24,
@@ -1340,6 +1342,8 @@ class AircraftObject {
       registration: this.data.registration || null,
       origin,
       destination,
+      originCity,
+      destCity,
       altitude: altFt != null ? `${altFt.toLocaleString()} ft` : '--',
       speed: speedKmh != null ? `${speedKmh} km/h` : '--',
       heading: heading != null ? `${String(heading).padStart(3, '0')}  ${headingToCardinal(heading)}` : '--',

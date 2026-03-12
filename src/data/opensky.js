@@ -4,6 +4,7 @@ const ADSB_FI_BASE   = '/api/adsbfi/api/v2';
 const ADSB_LOL_BASE  = '/api/adsblo/api/0';
 const ADSBX_BASE     = '/api/adsbx/v2';
 const TRACE_BASE     = '/api/trace/data/traces';
+const ADSBDB_BASE    = '/api/adsbdb';
 const FETCH_TIMEOUT_MS = 3500;
 const POLL_INTERVAL  = 3000;   // 3s — stays within user's 4s budget, avoids 429
 const BBOX_RADIUS_NM = 100;
@@ -274,23 +275,41 @@ const routeFetchPromises = new Map();
 async function fetchRouteAsync(callsign) {
   routeFetchQueue.add(callsign);
   try {
-    // airplanes.live callsign endpoint returns full aircraft record including oa/da
-    const res = await fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`);
-    if (res.ok) {
-      const json = await res.json();
-      const ac = (json.ac || json.aircraft || [])[0];
+    // Primary: adsbdb — large historical route DB, returns full airport objects with city names
+    try {
+      const res = await fetch(`${ADSBDB_BASE}/v2/callsign/${encodeURIComponent(callsign.trim())}`);
+      if (res.ok) {
+        const json = await res.json();
+        const fr = json.response?.flightroute;
+        if (fr && (fr.origin || fr.destination)) {
+          routeCache.set(callsign, {
+            origin:      fr.origin?.icao_code      || null,
+            destination: fr.destination?.icao_code || null,
+            originCity:  fr.origin?.municipality   || null,
+            destCity:    fr.destination?.municipality || null,
+            fetchedAt:   Date.now(),
+          });
+          return;
+        }
+      }
+    } catch { /* fall through */ }
+
+    // Fallback: airplanes.live callsign endpoint (live oa/da fields)
+    const res2 = await fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`);
+    if (res2.ok) {
+      const json2 = await res2.json();
+      const ac = (json2.ac || json2.aircraft || [])[0];
       if (ac && (ac.oa || ac.da)) {
         routeCache.set(callsign, {
-          origin: ac.oa || null,
-          destination: ac.da || null,
-          fetchedAt: Date.now(),
+          origin: ac.oa || null, destination: ac.da || null,
+          originCity: null, destCity: null, fetchedAt: Date.now(),
         });
         return;
       }
     }
-    routeCache.set(callsign, { origin: null, destination: null, fetchedAt: Date.now() });
+    routeCache.set(callsign, { origin: null, destination: null, originCity: null, destCity: null, fetchedAt: Date.now() });
   } catch {
-    routeCache.set(callsign, { origin: null, destination: null, fetchedAt: Date.now() });
+    routeCache.set(callsign, { origin: null, destination: null, originCity: null, destCity: null, fetchedAt: Date.now() });
   } finally {
     routeFetchQueue.delete(callsign);
   }
