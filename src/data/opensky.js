@@ -294,7 +294,7 @@ const ROUTE_NULL_TTL = 30000; // 30 s retry window for failed lookups
 
 // On-demand route fetch — called when user opens detail panel.
 let _adsbxCallsignPausedUntil = 0;
-let _adsbFiHexPausedUntil = 0;
+let _openskyFlightsPausedUntil = 0;
 
 async function fetchRouteAsync(callsign, icao24) {
   routeFetchQueue.add(callsign);
@@ -306,19 +306,22 @@ async function fetchRouteAsync(callsign, icao24) {
       const now = Math.floor(Date.now() / 1000);
       const begin = now - 14400; // 4 hours back
 
-      // Fire all sources in parallel, then merge best results
-      const [flightsResult, routesResult, adsbxResult, adsbfiResult] = await Promise.allSettled([
-        // Source A: OpenSky flights/aircraft — actual departure from flight tracking
-        icao24
+      // Fire sources in parallel, merge best origin + destination from any
+      const [flightsResult, routesResult, adsbxResult] = await Promise.allSettled([
+        // Source A: OpenSky flights/aircraft — actual departure from real tracking
+        icao24 && Date.now() > _openskyFlightsPausedUntil
           ? fetch(`${OPENSKY_BASE}/api/flights/aircraft?icao24=${encodeURIComponent(icao24)}&begin=${begin}&end=${now}`, { cache: 'no-store' })
-              .then(r => r.ok ? r.json() : null)
+              .then(r => {
+                if (r.status === 429) { _openskyFlightsPausedUntil = Date.now() + 60000; return null; }
+                return r.ok ? r.json() : null;
+              })
               .then(arr => {
                 if (!Array.isArray(arr) || arr.length === 0) return null;
-                const fl = arr[arr.length - 1]; // most recent flight
+                const fl = arr[arr.length - 1];
                 return { origin: fl.estDepartureAirport || null, destination: fl.estArrivalAirport || null };
               })
           : Promise.resolve(null),
-        // Source B: OpenSky routes — scheduled route (gives destination for many callsigns)
+        // Source B: OpenSky routes — scheduled route, has destination for many callsigns
         fetch(`${OPENSKY_BASE}/api/routes?callsign=${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' })
           .then(r => r.ok ? r.json() : null)
           .then(j => j?.route?.length >= 2 ? { origin: j.route[0], destination: j.route[1] } : null),
@@ -334,23 +337,11 @@ async function fetchRouteAsync(callsign, icao24) {
                 return (ac?.oa || ac?.da) ? { origin: ac.oa || null, destination: ac.da || null } : null;
               })
           : Promise.resolve(null),
-        // Source D: adsb.fi hex — most complete transponder data including FMS destination
-        icao24 && Date.now() > _adsbFiHexPausedUntil
-          ? fetch(`${ADSB_FI_BASE}/hex/${encodeURIComponent(icao24)}`, { cache: 'no-store' })
-              .then(r => {
-                if (r.status === 429) { _adsbFiHexPausedUntil = Date.now() + 30000; return null; }
-                return r.ok ? r.json() : null;
-              })
-              .then(j => {
-                const ac = (j?.ac || [])[0];
-                return (ac?.oa || ac?.da) ? { origin: ac.oa || null, destination: ac.da || null } : null;
-              })
-          : Promise.resolve(null),
       ]);
 
-      // Merge: collect best origin and destination from any source
+      // Merge: pick best origin AND best destination from any source
       let origin = null, destination = null;
-      for (const r of [flightsResult, routesResult, adsbxResult, adsbfiResult]) {
+      for (const r of [flightsResult, routesResult, adsbxResult]) {
         const v = r.status === 'fulfilled' ? r.value : null;
         if (!v) continue;
         if (!origin && v.origin) origin = v.origin;
