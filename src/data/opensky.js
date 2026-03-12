@@ -1,7 +1,7 @@
 // Position APIs (proxied — no CORS from browser)
-// Primary: adsb.fi   Fallback: adsb.one (same openapi format, different provider)
+// Primary: adsb.fi   Fallback: adsb.one (same openapi format, same /api/v2 path)
 const ADSB_FI_BASE   = '/api/adsbfi/api/v2';
-const ADSB_ONE_BASE  = '/api/adsboe/v2';
+const ADSB_ONE_BASE  = '/api/adsboe/api/v2';
 const ADSBX_BASE     = '/api/adsbx/v2';
 const TRACE_BASE     = '/api/trace/data/traces';
 const ADSBDB_BASE    = '/api/adsbdb';
@@ -288,55 +288,42 @@ const routeFetchPromises = new Map();
 const ROUTE_NULL_TTL = 30000; // 30 s retry window for failed lookups
 
 // On-demand route fetch — called when user opens detail panel.
-// Step 1: adsb.fi callsign endpoint (same source as position poll, includes oa/da).
-// Step 2: airplanes.live callsign endpoint (fallback, rate-limited).
-// Step 3: adsbdb for city-name enrichment (works server-side on Vercel).
+// Runs adsb.fi and airplanes.live callsign lookups IN PARALLEL (first hit wins).
+// Then tries adsbdb for city-name enrichment.
 let _adsbxCallsignPausedUntil = 0;
 
-async function fetchRouteAsync(callsign, icao24) {
+// Fetch one callsign from a given base URL; returns raw aircraft record or null.
+async function _callsignFetch(base, callsign) {
+  const r = await fetch(`${base}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' });
+  if (r.status === 429) { _adsbxCallsignPausedUntil = Date.now() + 5000; return null; }
+  if (!r.ok) return null;
+  const j = await r.json();
+  const ac = (j.ac || j.aircraft || [])[0];
+  return (ac?.oa || ac?.da) ? ac : null;
+}
+
+async function fetchRouteAsync(callsign) {
   routeFetchQueue.add(callsign);
   try {
     const before = routeCache.get(callsign);
-    const needsCodes = !before?.origin && !before?.destination;
 
-    if (needsCodes) {
-      // Step 1: adsb.fi callsign — reliable, same data source as position poll
-      try {
-        const r1 = await fetch(`${ADSB_FI_BASE}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' });
-        if (r1.ok) {
-          const j1 = await r1.json();
-          const a1 = (j1.ac || j1.aircraft || [])[0];
-          if (a1?.oa || a1?.da) {
-            routeCache.set(callsign, {
-              origin: a1.oa || null, destination: a1.da || null,
-              originCity: null, destCity: null, fetchedAt: Date.now(),
-            });
-          }
-        }
-      } catch { /* fall through */ }
+    // Step 1: race adsb.fi and airplanes.live callsign endpoints simultaneously
+    if (!before?.origin && !before?.destination) {
+      const sources = [_callsignFetch(ADSB_FI_BASE, callsign).catch(() => null)];
+      if (Date.now() > _adsbxCallsignPausedUntil)
+        sources.push(_callsignFetch(ADSBX_BASE, callsign).catch(() => null));
+
+      const results = await Promise.all(sources);
+      const hit = results.find(r => r != null);
+      if (hit) {
+        routeCache.set(callsign, {
+          origin: hit.oa || null, destination: hit.da || null,
+          originCity: null, destCity: null, fetchedAt: Date.now(),
+        });
+      }
     }
 
-    // Step 2: airplanes.live callsign — only if still no codes and not rate-limited
-    if (!routeCache.get(callsign)?.origin && !routeCache.get(callsign)?.destination
-        && Date.now() > _adsbxCallsignPausedUntil) {
-      try {
-        const r2 = await fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' });
-        if (r2.status === 429) {
-          _adsbxCallsignPausedUntil = Date.now() + 30000;
-        } else if (r2.ok) {
-          const j2 = await r2.json();
-          const a2 = (j2.ac || j2.aircraft || [])[0];
-          if (a2?.oa || a2?.da) {
-            routeCache.set(callsign, {
-              origin: a2.oa || null, destination: a2.da || null,
-              originCity: null, destCity: null, fetchedAt: Date.now(),
-            });
-          }
-        }
-      } catch { /* fall through */ }
-    }
-
-    // Step 3: adsbdb city-name enrichment (content-type guard against HTML redirect)
+    // Step 2: adsbdb city-name enrichment (content-type guard against HTML redirect)
     try {
       const r2 = await fetch(`${ADSBDB_BASE}/v2/callsign/${encodeURIComponent(callsign.trim())}`);
       const ct = r2.headers.get('content-type') || '';
@@ -383,7 +370,7 @@ export async function fetchRouteNow(callsign, icao24) {
     return;
   }
 
-  const p = fetchRouteAsync(callsign, icao24).finally(() => routeFetchPromises.delete(callsign));
+  const p = fetchRouteAsync(callsign).finally(() => routeFetchPromises.delete(callsign));
   routeFetchPromises.set(callsign, p);
   await p;
 }
