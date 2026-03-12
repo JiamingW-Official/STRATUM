@@ -271,20 +271,56 @@ export function getPollInterval() {
 // that returns oa/da fields without hammering the main area endpoint.
 
 const routeFetchPromises = new Map();
+const ROUTE_NULL_TTL = 30000; // 30 s retry window for failed lookups
 
-async function fetchRouteAsync(callsign) {
+async function fetchRouteAsync(callsign, icao24) {
   routeFetchQueue.add(callsign);
   try {
-    // Primary: adsbdb — large historical route DB, returns full airport objects with city names
+    // Step 1: airplanes.live /hex/{icao24} — most reliable, we know the aircraft is active
+    if (icao24) {
+      try {
+        const r0 = await fetch(`${ADSBX_BASE}/hex/${icao24}`);
+        if (r0.ok) {
+          const j0 = await r0.json();
+          const a0 = (j0.ac || j0.aircraft || [])[0];
+          if (a0 && (a0.oa || a0.da)) {
+            routeCache.set(callsign, {
+              origin: a0.oa || null, destination: a0.da || null,
+              originCity: null, destCity: null, fetchedAt: Date.now(),
+            });
+          }
+        }
+      } catch { /* fall through */ }
+    }
+
+    // Step 2: airplanes.live /callsign/{cs} — catches flights the hex lookup missed
+    if (!routeCache.get(callsign)?.origin && !routeCache.get(callsign)?.destination && callsign !== icao24) {
+      try {
+        const r1 = await fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`);
+        if (r1.ok) {
+          const j1 = await r1.json();
+          const a1 = (j1.ac || j1.aircraft || [])[0];
+          if (a1 && (a1.oa || a1.da)) {
+            routeCache.set(callsign, {
+              origin: a1.oa || null, destination: a1.da || null,
+              originCity: null, destCity: null, fetchedAt: Date.now(),
+            });
+          }
+        }
+      } catch { /* fall through */ }
+    }
+
+    // Step 3: adsbdb — historical route DB with city names; guard against HTML redirects
     try {
-      const res = await fetch(`${ADSBDB_BASE}/v2/callsign/${encodeURIComponent(callsign.trim())}`);
-      if (res.ok) {
-        const json = await res.json();
-        const fr = json.response?.flightroute;
+      const r2 = await fetch(`${ADSBDB_BASE}/v2/callsign/${encodeURIComponent(callsign.trim())}`);
+      const ct = r2.headers.get('content-type') || '';
+      if (r2.ok && ct.includes('json')) {
+        const j2 = await r2.json();
+        const fr = j2.response?.flightroute;
         if (fr && (fr.origin || fr.destination)) {
           routeCache.set(callsign, {
-            origin:      fr.origin?.icao_code      || null,
-            destination: fr.destination?.icao_code || null,
+            origin:      fr.origin?.icao_code      || routeCache.get(callsign)?.origin      || null,
+            destination: fr.destination?.icao_code || routeCache.get(callsign)?.destination || null,
             originCity:  fr.origin?.municipality   || null,
             destCity:    fr.destination?.municipality || null,
             fetchedAt:   Date.now(),
@@ -294,30 +330,26 @@ async function fetchRouteAsync(callsign) {
       }
     } catch { /* fall through */ }
 
-    // Fallback: airplanes.live callsign endpoint (live oa/da fields)
-    const res2 = await fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`);
-    if (res2.ok) {
-      const json2 = await res2.json();
-      const ac = (json2.ac || json2.aircraft || [])[0];
-      if (ac && (ac.oa || ac.da)) {
-        routeCache.set(callsign, {
-          origin: ac.oa || null, destination: ac.da || null,
-          originCity: null, destCity: null, fetchedAt: Date.now(),
-        });
-        return;
-      }
-    }
-    routeCache.set(callsign, { origin: null, destination: null, originCity: null, destCity: null, fetchedAt: Date.now() });
+    // Keep any ICAO codes we found in steps 1-2
+    if (routeCache.get(callsign)?.origin || routeCache.get(callsign)?.destination) return;
+
+    // Nothing found — cache briefly so we retry after 30 s, not 10 min
+    routeCache.set(callsign, {
+      origin: null, destination: null, originCity: null, destCity: null,
+      fetchedAt: Date.now() - ROUTE_CACHE_TTL + ROUTE_NULL_TTL,
+    });
   } catch {
-    routeCache.set(callsign, { origin: null, destination: null, originCity: null, destCity: null, fetchedAt: Date.now() });
+    routeCache.set(callsign, {
+      origin: null, destination: null, originCity: null, destCity: null,
+      fetchedAt: Date.now() - ROUTE_CACHE_TTL + ROUTE_NULL_TTL,
+    });
   } finally {
     routeFetchQueue.delete(callsign);
   }
 }
 
 // On-demand route fetch — triggered once when user opens detail panel.
-// Uses airplanes.live callsign endpoint (different from area poll, separate rate limit bucket).
-export async function fetchRouteNow(callsign) {
+export async function fetchRouteNow(callsign, icao24) {
   if (!callsign || callsign.length < 3) return;
 
   const entry = routeCache.get(callsign);
@@ -328,7 +360,7 @@ export async function fetchRouteNow(callsign) {
     return;
   }
 
-  const p = fetchRouteAsync(callsign).finally(() => routeFetchPromises.delete(callsign));
+  const p = fetchRouteAsync(callsign, icao24).finally(() => routeFetchPromises.delete(callsign));
   routeFetchPromises.set(callsign, p);
   await p;
 }

@@ -58,7 +58,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
 
   // Fetch route when panel first opens, or when city names are missing
   if (isNew && (!d.origin || !d.destination || !d.originCity) && d.callsign) {
-    fetchRouteNow(d.callsign).then(() => {
+    fetchRouteNow(d.callsign, d.icao24).then(() => {
       if (selectedAircraft !== aircraftObj) return;
       const route = getRoute(d.callsign);
       if (route) {
