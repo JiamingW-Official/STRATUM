@@ -225,6 +225,20 @@ async function poll() {
     lastFetchTime = Date.now();
     if (onDataCallback) onDataCallback(aircraft);
 
+    // Populate route cache from poll data — adsb.fi includes oa/da for many flights.
+    // This means FROM/TO shows immediately on click without needing a separate API call.
+    for (const ac of aircraft) {
+      const cs = ac.callsign;
+      if (!cs || cs.length < 3 || cs === ac.icao24) continue; // skip if no real callsign
+      if (!ac.origin && !ac.destination) continue;            // skip if no route data
+      const ex = routeCache.get(cs);
+      if (ex && (ex.originCity || ex.destCity)) continue;     // keep city names if present
+      routeCache.set(cs, {
+        origin: ac.origin || null, destination: ac.destination || null,
+        originCity: null, destCity: null, fetchedAt: Date.now(),
+      });
+    }
+
     // Queue trace fetches for aircraft that don't have cached tracks
     for (const ac of aircraft) {
       if (ac.icao24) {
@@ -274,21 +288,22 @@ const routeFetchPromises = new Map();
 const ROUTE_NULL_TTL = 30000; // 30 s retry window for failed lookups
 
 // On-demand route fetch — called when user opens detail panel.
-// Step 1: airplanes.live callsign endpoint for ICAO codes (only if not already known).
-// Step 2: adsbdb for city-name enrichment (works server-side on Vercel).
+// Step 1: adsb.fi callsign endpoint (same source as position poll, includes oa/da).
+// Step 2: airplanes.live callsign endpoint (fallback, rate-limited).
+// Step 3: adsbdb for city-name enrichment (works server-side on Vercel).
 let _adsbxCallsignPausedUntil = 0;
 
 async function fetchRouteAsync(callsign, icao24) {
   routeFetchQueue.add(callsign);
   try {
-    // Step 1: airplanes.live callsign → oa/da (skip if already have codes)
     const before = routeCache.get(callsign);
-    if (!before?.origin && !before?.destination && Date.now() > _adsbxCallsignPausedUntil) {
+    const needsCodes = !before?.origin && !before?.destination;
+
+    if (needsCodes) {
+      // Step 1: adsb.fi callsign — reliable, same data source as position poll
       try {
-        const r1 = await fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' });
-        if (r1.status === 429) {
-          _adsbxCallsignPausedUntil = Date.now() + 30000; // back off 30 s on rate limit
-        } else if (r1.ok) {
+        const r1 = await fetch(`${ADSB_FI_BASE}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' });
+        if (r1.ok) {
           const j1 = await r1.json();
           const a1 = (j1.ac || j1.aircraft || [])[0];
           if (a1?.oa || a1?.da) {
@@ -301,7 +316,27 @@ async function fetchRouteAsync(callsign, icao24) {
       } catch { /* fall through */ }
     }
 
-    // Step 2: adsbdb city-name enrichment (content-type guard against HTML redirect)
+    // Step 2: airplanes.live callsign — only if still no codes and not rate-limited
+    if (!routeCache.get(callsign)?.origin && !routeCache.get(callsign)?.destination
+        && Date.now() > _adsbxCallsignPausedUntil) {
+      try {
+        const r2 = await fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' });
+        if (r2.status === 429) {
+          _adsbxCallsignPausedUntil = Date.now() + 30000;
+        } else if (r2.ok) {
+          const j2 = await r2.json();
+          const a2 = (j2.ac || j2.aircraft || [])[0];
+          if (a2?.oa || a2?.da) {
+            routeCache.set(callsign, {
+              origin: a2.oa || null, destination: a2.da || null,
+              originCity: null, destCity: null, fetchedAt: Date.now(),
+            });
+          }
+        }
+      } catch { /* fall through */ }
+    }
+
+    // Step 3: adsbdb city-name enrichment (content-type guard against HTML redirect)
     try {
       const r2 = await fetch(`${ADSBDB_BASE}/v2/callsign/${encodeURIComponent(callsign.trim())}`);
       const ct = r2.headers.get('content-type') || '';
