@@ -1,7 +1,7 @@
 // Position APIs (proxied — no CORS from browser)
-// Primary: adsb.fi   Fallback: adsb.lol (same format, more permissive limits)
+// Primary: adsb.fi   Fallback: adsb.one (same openapi format, different provider)
 const ADSB_FI_BASE   = '/api/adsbfi/api/v2';
-const ADSB_LOL_BASE  = '/api/adsblo/api/v2';
+const ADSB_ONE_BASE  = '/api/adsboe/v2';
 const ADSBX_BASE     = '/api/adsbx/v2';
 const TRACE_BASE     = '/api/trace/data/traces';
 const ADSBDB_BASE    = '/api/adsbdb';
@@ -80,14 +80,14 @@ function parseAdsbResponse(data) {
 }
 
 let _adsbFiPausedUntil  = 0;
-let _adsbLolPausedUntil = 0;
+let _adsbOnePausedUntil = 0;
 
 async function _doFetch(url, pauseRef, label) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const r = await fetch(url, { cache: 'no-store', signal: controller.signal });
-    if (r.status === 429) { pauseRef.v = Date.now() + 5000; throw new Error(`${label} 429`); }
+    if (r.status === 429) { pauseRef.v = Date.now() + 30000; throw new Error(`${label} 429`); }
     if (!r.ok) throw new Error(`${label} HTTP ${r.status}`);
     return parseAdsbResponse(await r.json());
   } finally {
@@ -95,26 +95,26 @@ async function _doFetch(url, pauseRef, label) {
   }
 }
 
-// Race adsb.fi and adsb.lol — whichever isn't paused and responds first wins
+// Race adsb.fi and adsb.one — whichever isn't paused and responds first wins
 async function fetchStates() {
   const lat = userLat.toFixed(4);
   const lon = userLon.toFixed(4);
   const t   = Math.floor(Date.now() / 1000);
 
   const fiRef  = { v: _adsbFiPausedUntil };
-  const lolRef = { v: _adsbLolPausedUntil };
+  const oneRef = { v: _adsbOnePausedUntil };
 
   const candidates = [];
   if (Date.now() >= _adsbFiPausedUntil)
     candidates.push(_doFetch(`${ADSB_FI_BASE}/lat/${lat}/lon/${lon}/dist/${BBOX_RADIUS_NM}?_t=${t}`, fiRef, 'adsb.fi'));
-  if (Date.now() >= _adsbLolPausedUntil)
-    candidates.push(_doFetch(`${ADSB_LOL_BASE}/lat/${lat}/lon/${lon}/dist/${BBOX_RADIUS_NM}?_t=${t}`, lolRef, 'adsb.lol'));
+  if (Date.now() >= _adsbOnePausedUntil)
+    candidates.push(_doFetch(`${ADSB_ONE_BASE}/lat/${lat}/lon/${lon}/dist/${BBOX_RADIUS_NM}?_t=${t}`, oneRef, 'adsb.one'));
 
   if (candidates.length === 0) throw new Error('all sources rate-limited');
 
   const result = await Promise.any(candidates);
   _adsbFiPausedUntil  = fiRef.v;
-  _adsbLolPausedUntil = lolRef.v;
+  _adsbOnePausedUntil = oneRef.v;
   return result;
 }
 
@@ -216,7 +216,7 @@ async function poll() {
   // Safety: force-reset if a previous poll has been stuck for >5s
   if (pollInFlight && Date.now() - _pollStarted > 5000) pollInFlight = false;
   if (pollInFlight) return;
-  if (Date.now() < _adsbFiPausedUntil && Date.now() < _adsbLolPausedUntil) return;
+  if (Date.now() < _adsbFiPausedUntil && Date.now() < _adsbOnePausedUntil) return;
   pollInFlight = true;
   _pollStarted = Date.now();
   try {

@@ -9,10 +9,10 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/adsbfi/, ''),
       },
-      '/api/adsblo': {
-        target: 'https://api.adsb.lol',
+      '/api/adsboe': {
+        target: 'https://api.adsb.one',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/adsblo/, ''),
+        rewrite: (path) => path.replace(/^\/api\/adsboe/, ''),
       },
       '/api/adsbx': {
         target: 'https://api.airplanes.live',
