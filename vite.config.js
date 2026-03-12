@@ -48,6 +48,7 @@ export default defineConfig({
         target: 'https://api.adsbdb.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/adsbdb/, ''),
+        followRedirects: true,  // adsbdb 301s unknown callsigns to www.adsbdb.com
       },
     },
   },

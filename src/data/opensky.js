@@ -288,40 +288,35 @@ const routeFetchPromises = new Map();
 const ROUTE_NULL_TTL = 30000; // 30 s retry window for failed lookups
 
 // On-demand route fetch — called when user opens detail panel.
-// Runs adsb.fi and airplanes.live callsign lookups IN PARALLEL (first hit wins).
-// Then tries adsbdb for city-name enrichment.
+// Uses airplanes.live callsign lookup for ICAO codes, then adsbdb for city names.
+// adsb.fi is NOT used here — its rate limit is reserved for the position poll.
 let _adsbxCallsignPausedUntil = 0;
-
-// Fetch one callsign from a given base URL; returns raw aircraft record or null.
-async function _callsignFetch(base, callsign) {
-  const r = await fetch(`${base}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' });
-  if (r.status === 429) { _adsbxCallsignPausedUntil = Date.now() + 5000; return null; }
-  if (!r.ok) return null;
-  const j = await r.json();
-  const ac = (j.ac || j.aircraft || [])[0];
-  return (ac?.oa || ac?.da) ? ac : null;
-}
 
 async function fetchRouteAsync(callsign) {
   routeFetchQueue.add(callsign);
   try {
     const before = routeCache.get(callsign);
 
-    // Step 1: race adsb.fi and airplanes.live callsign endpoints simultaneously
-    if (!before?.origin && !before?.destination) {
-      const sources = [_callsignFetch(ADSB_FI_BASE, callsign).catch(() => null)];
-      if (Date.now() > _adsbxCallsignPausedUntil)
-        sources.push(_callsignFetch(ADSBX_BASE, callsign).catch(() => null));
-
-      const results = await Promise.all(sources);
-      const hit = results.find(r => r != null);
-      if (hit) {
-        routeCache.set(callsign, {
-          origin: hit.oa || null, destination: hit.da || null,
-          originCity: null, destCity: null, fetchedAt: Date.now(),
-        });
-      }
+    // Step 1: airplanes.live callsign → oa/da (only when no codes yet and not paused)
+    if (!before?.origin && !before?.destination && Date.now() > _adsbxCallsignPausedUntil) {
+      try {
+        const r = await fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' });
+        if (r.status === 429) {
+          _adsbxCallsignPausedUntil = Date.now() + 5000;
+        } else if (r.ok) {
+          const j = await r.json();
+          const ac = (j.ac || j.aircraft || [])[0];
+          if (ac?.oa || ac?.da) {
+            routeCache.set(callsign, {
+              origin: ac.oa || null, destination: ac.da || null,
+              originCity: null, destCity: null, fetchedAt: Date.now(),
+            });
+          }
+        }
+      } catch { /* fall through */ }
     }
+
+    // Removed: adsb.fi callsign — it shares the area poll rate limit, causing 429s
 
     // Step 2: adsbdb city-name enrichment (content-type guard against HTML redirect)
     try {
@@ -359,11 +354,13 @@ async function fetchRouteAsync(callsign) {
 }
 
 // On-demand route fetch — triggered once when user opens detail panel.
-export async function fetchRouteNow(callsign, icao24) {
+export async function fetchRouteNow(callsign) {
   if (!callsign || callsign.length < 3) return;
 
   const entry = routeCache.get(callsign);
-  if (entry && Date.now() - entry.fetchedAt < ROUTE_CACHE_TTL) return;
+  const fresh = entry && Date.now() - entry.fetchedAt < ROUTE_CACHE_TTL;
+  // Skip only when entry is fresh AND already has city names (or confirmed empty)
+  if (fresh && (entry.originCity || entry.destCity || entry.origin === null)) return;
 
   if (routeFetchPromises.has(callsign)) {
     await routeFetchPromises.get(callsign);
