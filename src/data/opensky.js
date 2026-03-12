@@ -1,11 +1,12 @@
-// Primary: adsb.fi (free, no auth, no harsh rate limits)
-// Fallback: airplanes.live
-// Trace history: globe.airplanes.live (full flight path)
-const ADSB_FI_BASE = '/api/adsbfi/api/v2';
-const ADSBX_BASE = '/api/adsbx/v2';
-const TRACE_BASE = '/api/trace/data/traces';
-const POLL_INTERVAL = 1000;  // 1s — maximum update rate
-const BBOX_RADIUS_NM = 50;
+// Position APIs (proxied — no CORS from browser)
+// Primary: adsb.fi   Fallback: adsb.lol (same format, more permissive limits)
+const ADSB_FI_BASE   = '/api/adsbfi/api/v2';
+const ADSB_LOL_BASE  = '/api/adsblo/api/0';
+const ADSBX_BASE     = '/api/adsbx/v2';
+const TRACE_BASE     = '/api/trace/data/traces';
+const FETCH_TIMEOUT_MS = 3500;
+const POLL_INTERVAL  = 3000;   // 3s — stays within user's 4s budget, avoids 429
+const BBOX_RADIUS_NM = 100;
 
 let userLat = 40.7128;
 let userLon = -74.0060;
@@ -22,8 +23,8 @@ const routeFetchQueue = new Set();
 
 // Track cache — stores full trace history per aircraft
 const trackCache = new Map();
-const TRACK_CACHE_TTL = 420000;    // re-fetch trace every 7 min
-const TRACK_RETAIN_TTL = 420000;   // keep in cache 7 min
+const TRACK_CACHE_TTL = 900000;    // re-fetch trace every 15 min
+const TRACK_RETAIN_TTL = 1800000;  // keep in cache 30 min
 const trackFetchQueue = new Set();
 
 export function setUserLocation(lat, lon) {
@@ -72,40 +73,53 @@ function parseAircraft(ac) {
 
 // --- Fetch aircraft positions ---
 function parseAdsbResponse(data) {
-  // adsb.fi uses "aircraft", airplanes.live uses "ac"
   const list = data.ac || data.aircraft;
   if (!list || !Array.isArray(list)) return [];
-  return list
-    .map(parseAircraft)
-    .filter((a) => a != null && a.baroAltitude != null && a.baroAltitude > 100);
+  return list.map(parseAircraft).filter((a) => a != null && a.baroAltitude != null && a.baroAltitude > 100);
 }
 
-async function fetchFromAdsbFi() {
-  const url = `${ADSB_FI_BASE}/lat/${userLat.toFixed(4)}/lon/${userLon.toFixed(4)}/dist/${BBOX_RADIUS_NM}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`adsb.fi HTTP ${response.status}`);
-  return parseAdsbResponse(await response.json());
-}
+let _adsbFiPausedUntil  = 0;
+let _adsbLolPausedUntil = 0;
 
-async function fetchFromAdsbx() {
-  const url = `${ADSBX_BASE}/point/${userLat.toFixed(4)}/${userLon.toFixed(4)}/${BBOX_RADIUS_NM}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`airplanes.live HTTP ${response.status}`);
-  return parseAdsbResponse(await response.json());
-}
-
-// airplanes.live as sole primary — has oa/da route fields built in
-// adsb.fi only as fallback when airplanes.live fails
-let pollInFlight = false;
-
-async function fetchStates() {
+async function _doFetch(url, pauseRef, label) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    return await fetchFromAdsbx();
-  } catch (err) {
-    console.warn('[Data] airplanes.live failed, trying adsb.fi:', err.message);
-    return await fetchFromAdsbFi();
+    const r = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    if (r.status === 429) { pauseRef.v = Date.now() + 5000; throw new Error(`${label} 429`); }
+    if (!r.ok) throw new Error(`${label} HTTP ${r.status}`);
+    return parseAdsbResponse(await r.json());
+  } finally {
+    clearTimeout(timer);
   }
 }
+
+// Race adsb.fi and adsb.lol — whichever isn't paused and responds first wins
+async function fetchStates() {
+  const lat = userLat.toFixed(4);
+  const lon = userLon.toFixed(4);
+  const t   = Math.floor(Date.now() / 1000);
+
+  const fiRef  = { v: _adsbFiPausedUntil };
+  const lolRef = { v: _adsbLolPausedUntil };
+
+  const candidates = [];
+  if (Date.now() >= _adsbFiPausedUntil)
+    candidates.push(_doFetch(`${ADSB_FI_BASE}/lat/${lat}/lon/${lon}/dist/${BBOX_RADIUS_NM}?_t=${t}`, fiRef, 'adsb.fi'));
+  if (Date.now() >= _adsbLolPausedUntil)
+    candidates.push(_doFetch(`${ADSB_LOL_BASE}/lat/${lat}/lon/${lon}/dist/${BBOX_RADIUS_NM}?_t=${t}`, lolRef, 'adsb.lol'));
+
+  if (candidates.length === 0) throw new Error('all sources rate-limited');
+
+  const result = await Promise.any(candidates);
+  _adsbFiPausedUntil  = fiRef.v;
+  _adsbLolPausedUntil = lolRef.v;
+  return result;
+}
+
+// pollInFlight guard with 5s safety reset to prevent permanent stall
+let pollInFlight = false;
+let _pollStarted = 0;
 
 // --- Trace fetching (globe.airplanes.live) ---
 // Returns waypoints: [{latitude, longitude, baroAltitude, time}, ...]
@@ -126,7 +140,7 @@ async function fetchTraceAsync(icao24) {
 
     const baseTime = data.timestamp || 0;
     const now = Date.now() / 1000;
-    const cutoff = now - 420; // last 7 minutes
+    const cutoff = now - 1800; // last 30 minutes
 
     const waypoints = [];
     for (const pt of data.trace) {
@@ -147,7 +161,7 @@ async function fetchTraceAsync(icao24) {
       });
     }
 
-    if (waypoints.length >= 2) {
+    if (waypoints.length >= 1) {
       trackCache.set(icao24, {
         path: waypoints,
         fetchedAt: Date.now(),
@@ -173,7 +187,7 @@ function queueTraceFetch(icao24) {
   if (!traceBatchTimer) {
     // Process trace fetches in small batches to avoid hammering the server
     traceBatchTimer = setInterval(() => {
-      const batch = traceQueueBatch.splice(0, 20);
+      const batch = traceQueueBatch.splice(0, 5); // 5 at a time instead of 20
       if (batch.length === 0) {
         clearInterval(traceBatchTimer);
         traceBatchTimer = null;
@@ -182,13 +196,17 @@ function queueTraceFetch(icao24) {
       for (const hex of batch) {
         fetchTraceAsync(hex);
       }
-    }, 150);
+    }, 500); // 500ms gap between batches instead of 150ms
   }
 }
 
 async function poll() {
-  if (pollInFlight) return; // skip if previous request still pending
+  // Safety: force-reset if a previous poll has been stuck for >5s
+  if (pollInFlight && Date.now() - _pollStarted > 5000) pollInFlight = false;
+  if (pollInFlight) return;
+  if (Date.now() < _adsbFiPausedUntil && Date.now() < _adsbLolPausedUntil) return;
   pollInFlight = true;
+  _pollStarted = Date.now();
   try {
     const aircraft = await fetchStates();
     consecutiveErrors = 0;
@@ -196,16 +214,12 @@ async function poll() {
     if (onDataCallback) onDataCallback(aircraft);
 
     // Queue trace fetches for aircraft that don't have cached tracks
-    // Queue route lookups ONLY for aircraft missing origin/destination from API
     for (const ac of aircraft) {
       if (ac.icao24) {
         const cached = trackCache.get(ac.icao24);
         if (!cached || Date.now() - cached.fetchedAt > TRACK_CACHE_TTL) {
           queueTraceFetch(ac.icao24);
         }
-      }
-      if (ac.callsign && !ac.origin && !ac.destination) {
-        queueRouteFetch(ac.callsign);
       }
     }
   } catch (err) {
@@ -239,57 +253,54 @@ export function getPollInterval() {
   return POLL_INTERVAL;
 }
 
-// --- Route fetching (adsbdb.com) ---
-// Concurrent parallel fetching for fast loading
+// --- Route fetching ---
+// Strategy: position polls use adsb.fi (1s, permissive).
+// Route data uses airplanes.live /v2/callsign/{cs} — a targeted single-flight lookup
+// that returns oa/da fields without hammering the main area endpoint.
 
-const ADSBDB_BASE = '/api/adsbdb/v0';
-const ROUTE_CONCURRENCY = 20;
-let routeBurstRunning = false;
-const routePendingQueue = [];
+const routeFetchPromises = new Map();
 
 async function fetchRouteAsync(callsign) {
   routeFetchQueue.add(callsign);
   try {
-    const response = await fetch(`${ADSBDB_BASE}/callsign/${encodeURIComponent(callsign)}`);
-    if (response.ok) {
-      const data = await response.json();
-      const fr = data?.response?.flightroute;
-      if (fr && fr.origin && fr.destination) {
+    // airplanes.live callsign endpoint returns full aircraft record including oa/da
+    const res = await fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`);
+    if (res.ok) {
+      const json = await res.json();
+      const ac = (json.ac || json.aircraft || [])[0];
+      if (ac && (ac.oa || ac.da)) {
         routeCache.set(callsign, {
-          origin: fr.origin.iata_code || fr.origin.icao_code || null,
-          destination: fr.destination.iata_code || fr.destination.icao_code || null,
-          originName: fr.origin.name || null,
-          destName: fr.destination.name || null,
+          origin: ac.oa || null,
+          destination: ac.da || null,
           fetchedAt: Date.now(),
         });
-      } else {
-        routeCache.set(callsign, { origin: null, destination: null, fetchedAt: Date.now() });
+        return;
       }
     }
+    routeCache.set(callsign, { origin: null, destination: null, fetchedAt: Date.now() });
   } catch {
-    // silently fail
+    routeCache.set(callsign, { origin: null, destination: null, fetchedAt: Date.now() });
   } finally {
     routeFetchQueue.delete(callsign);
   }
 }
 
-async function drainRouteQueue() {
-  if (routeBurstRunning) return;
-  routeBurstRunning = true;
-  while (routePendingQueue.length > 0) {
-    const chunk = routePendingQueue.splice(0, ROUTE_CONCURRENCY);
-    await Promise.all(chunk.map(cs => fetchRouteAsync(cs)));
-  }
-  routeBurstRunning = false;
-}
-
-export function queueRouteFetch(callsign) {
+// On-demand route fetch — triggered once when user opens detail panel.
+// Uses airplanes.live callsign endpoint (different from area poll, separate rate limit bucket).
+export async function fetchRouteNow(callsign) {
   if (!callsign || callsign.length < 3) return;
+
   const entry = routeCache.get(callsign);
   if (entry && Date.now() - entry.fetchedAt < ROUTE_CACHE_TTL) return;
-  if (routeFetchQueue.has(callsign) || routePendingQueue.includes(callsign)) return;
-  routePendingQueue.push(callsign);
-  drainRouteQueue();
+
+  if (routeFetchPromises.has(callsign)) {
+    await routeFetchPromises.get(callsign);
+    return;
+  }
+
+  const p = fetchRouteAsync(callsign).finally(() => routeFetchPromises.delete(callsign));
+  routeFetchPromises.set(callsign, p);
+  await p;
 }
 
 export function getRoute(callsign) {
