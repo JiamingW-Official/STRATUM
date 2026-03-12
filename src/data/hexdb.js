@@ -1,6 +1,6 @@
 // Aircraft metadata lookup via hexdb.io
 // Provides: operator, built year, type description
-const HEXDB_BASE = '/api/hexdb/api/v1/aircraft';
+const HEXDB_BASE = '/api/hexdb/hex';
 const cache = new Map();
 const CACHE_TTL = 3600000; // 1 hour
 const fetchQueue = new Set();
