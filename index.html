@@ -129,46 +129,6 @@
     </div>
   </div>
 
-  <!-- Spotter Panel - top right -->
-  <div id="spotter-panel" class="glass-panel spotter-panel">
-    <div class="spotter-header">
-      <span id="spotter-level" class="spotter-level">LV1</span>
-      <span id="spotter-score" class="spotter-score-value">0</span>
-      <span class="spotter-xp-label">XP</span>
-      <span id="spotter-streak" class="spotter-streak"></span>
-    </div>
-    <div class="spotter-xp-bar"><div id="spotter-xp-fill" class="spotter-xp-fill"></div></div>
-    <div class="spotter-stats">
-      <div class="spotter-stat">
-        <span id="spotter-count" class="spotter-stat-value">0</span>
-        <span class="spotter-stat-label">spotted</span>
-      </div>
-      <div class="spotter-stat">
-        <span id="spotter-types" class="spotter-stat-value">0</span>
-        <span class="spotter-stat-label">types</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Active Challenge -->
-  <div id="challenge-panel" class="glass-panel challenge-panel hidden">
-    <div class="challenge-header">
-      <span class="challenge-tag">MISSION</span>
-      <span class="challenge-timer"></span>
-    </div>
-    <div class="challenge-label">--</div>
-    <div class="challenge-desc">--</div>
-  </div>
-
-  <!-- Spot feedback (floating +XP) -->
-  <div id="spot-feedback" class="spot-feedback"></div>
-
-  <!-- Radar Minimap - bottom left -->
-  <div id="radar-panel" class="glass-panel radar-panel">
-    <canvas id="radar-canvas" width="280" height="280"></canvas>
-    <div class="radar-label">RADAR</div>
-  </div>
-
   <!-- Compass Rose - bottom right above search -->
   <div id="compass" class="compass">
     <svg viewBox="0 0 60 60" class="compass-svg">
@@ -177,16 +137,6 @@
       <circle cx="30" cy="30" r="2" fill="rgba(90,172,255,0.4)"/>
       <text id="compass-heading" x="30" y="55" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="8" font-family="JetBrains Mono, monospace">N</text>
     </svg>
-  </div>
-
-  <!-- Achievement Toast -->
-  <div id="toast" class="toast hidden">
-    <div class="toast-icon">&#9733;</div>
-    <div class="toast-body">
-      <div class="toast-title">ACHIEVEMENT</div>
-      <div class="toast-desc">Description</div>
-    </div>
-    <div class="toast-points">+50 XP</div>
   </div>
 
   <!-- Follow Mode indicator -->
@@ -203,7 +153,7 @@
     <div id="search-results" class="search-results"></div>
   </div>
 
-  <div class="search-hint">? help  |  / search  |  dbl-click track  |  T tour</div>
+  <div class="search-hint">? help  |  / search  |  click track  |  ESC exit</div>
 
   <!-- Help overlay -->
   <div id="help-overlay" class="help-overlay hidden">
@@ -214,10 +164,8 @@
         <div class="help-row"><kbd>WASD</kbd><span>Pan camera</span></div>
         <div class="help-row"><kbd>Q / E</kbd><span>Lower / raise altitude</span></div>
         <div class="help-row"><kbd>Shift</kbd><span>Sprint</span></div>
-        <div class="help-row"><kbd>Click</kbd><span>Select aircraft</span></div>
-        <div class="help-row"><kbd>Dbl-click</kbd><span>Track aircraft</span></div>
+        <div class="help-row"><kbd>Click</kbd><span>Track aircraft</span></div>
         <div class="help-row"><kbd>Scroll</kbd><span>Zoom (distance in track mode)</span></div>
-        <div class="help-row"><kbd>T</kbd><span>Auto-tour mode</span></div>
         <div class="help-row"><kbd>/</kbd><span>Search callsign, reg, type</span></div>
         <div class="help-row"><kbd>Esc</kbd><span>Exit track / search / tour</span></div>
         <div class="help-row"><kbd>?</kbd><span>Toggle this overlay</span></div>
@@ -235,6 +183,54 @@
       <div class="signal-lost-sub">Unable to reach flight data API</div>
       <div id="signal-lost-retry" class="signal-lost-retry">Retrying...</div>
     </div>
+  </div>
+
+  <!-- Neko — ATC Channel Log -->
+  <div id="neko-wrap">
+    <div id="neko-panel" class="neko-panel" role="log" aria-live="polite">
+      <!-- Topbar: LIVE · frequency · signal -->
+      <div class="neko-topbar">
+        <div class="neko-live">
+          <span class="neko-live-dot"></span>
+          <span class="neko-live-label">LIVE</span>
+        </div>
+        <div class="neko-channel">
+          <span class="neko-channel-tag">ATC</span>
+          <span class="neko-channel-freq">121.500</span>
+        </div>
+        <div class="neko-signal" aria-hidden="true">
+          <span class="neko-bar"></span>
+          <span class="neko-bar"></span>
+          <span class="neko-bar"></span>
+          <span class="neko-bar"></span>
+        </div>
+      </div>
+      <!-- Column headers -->
+      <div class="neko-col-heads" aria-hidden="true">
+        <span class="neko-col-time">UTC</span>
+        <span class="neko-col-cs">IDENT</span>
+        <span class="neko-col-msg">TRANSMISSION</span>
+      </div>
+      <!-- Log with top-fade overlay -->
+      <div class="neko-log-wrap">
+        <div class="neko-log-fade" aria-hidden="true"></div>
+        <div id="neko-log" class="neko-log"></div>
+      </div>
+      <!-- Footer -->
+      <div class="neko-footer" aria-hidden="true">
+        <span class="neko-footer-text">PASSIVE MONITOR</span>
+        <span class="neko-footer-text">READ ONLY</span>
+      </div>
+    </div>
+    <!-- Toggle pill -->
+    <button id="neko-toggle" type="button" class="neko-toggle" aria-expanded="false" title="ATC channel log">
+      <span class="neko-toggle-accent" aria-hidden="true"></span>
+      <div class="neko-toggle-body">
+        <span class="neko-toggle-label">ATC LOG</span>
+        <span class="neko-toggle-sub">NEKO</span>
+      </div>
+      <span id="neko-badge" class="neko-badge hidden" aria-label="unread messages"></span>
+    </button>
   </div>
 
   <script type="module" src="/src/main.js"></script>

@@ -2,20 +2,19 @@ import * as THREE from 'three';
 import { loadMapTexture } from './mapTiles.js';
 import { fetchAirportData, categorizeFlights } from '../data/airports.js';
 
-export const ALT_LEVELS = [
-  { ft: 10000, y: 0.6, label: '10,000 ft', color: 0x4a3a1a },
-  { ft: 18000, y: 1.08, label: '18,000 ft', color: 0x1a3a6b },
-  { ft: 35000, y: 2.1, label: '35,000 ft', color: 0x1a3a6b },
-  { ft: 40000, y: 2.4, label: '40,000 ft', color: 0x0a1a3b },
-];
 
-const GROUND_SIZE = 80;
+const GROUND_SIZE = 160;
 const GEO_SCALE = 40;
 
 let groundMaterial = null;
+let groundMesh = null;
+let _cosLat = 1; // cos(userLat) — corrects E-W longitude scale
 const hiResOverlays = [];
 
 export function createEnvironment(scene) {
+  // Horizon fog — fades map edges into sky for infinity/depth-of-field effect
+  scene.fog = new THREE.FogExp2(new THREE.Color(0.008, 0.032, 0.068), 0.013);
+
   const ambient = new THREE.AmbientLight(0x3a5577, 0.7);
   scene.add(ambient);
 
@@ -27,26 +26,16 @@ export function createEnvironment(scene) {
   groundMaterial = new THREE.MeshBasicMaterial({
     color: 0xffffff, transparent: true, opacity: 0.95,
   });
-  const ground = new THREE.Mesh(groundGeo, groundMaterial);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = 0;
-  ground.name = 'ground';
+  groundMesh = new THREE.Mesh(groundGeo, groundMaterial);
+  groundMesh.rotation.x = -Math.PI / 2;
+  groundMesh.position.y = 0;
+  groundMesh.name = 'ground';
   groundMaterial.__scene = scene;
-  scene.add(ground);
+  scene.add(groundMesh);
 
-  // Subtle vignette ring around map edge for depth
-  const vignetteGeo = new THREE.RingGeometry(GROUND_SIZE * 0.38, GROUND_SIZE * 0.52, 64);
-  const vignetteMat = new THREE.MeshBasicMaterial({
-    color: 0x020a14, transparent: true, opacity: 0.6,
-    side: THREE.DoubleSide, depthWrite: false,
-  });
-  const vignette = new THREE.Mesh(vignetteGeo, vignetteMat);
-  vignette.rotation.x = -Math.PI / 2;
-  vignette.position.y = 0.01;
-  scene.add(vignette);
 
   // Gradient sky dome
-  const skyGeo = new THREE.SphereGeometry(95, 64, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  const skyGeo = new THREE.SphereGeometry(185, 64, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
   const skyVerts = skyGeo.attributes.position;
   const skyColors = new Float32Array(skyVerts.count * 3);
   for (let i = 0; i < skyVerts.count; i++) {
@@ -65,7 +54,7 @@ export function createEnvironment(scene) {
   scene.add(skyDome);
 
   // Subtle ground grid for depth
-  const gridHelper = new THREE.GridHelper(GROUND_SIZE, 80, 0x0a1e3a, 0x0a1e3a);
+  const gridHelper = new THREE.GridHelper(GROUND_SIZE, 160, 0x0a1e3a, 0x0a1e3a);
   gridHelper.material.transparent = true;
   gridHelper.material.opacity = 0.08;
   gridHelper.material.depthWrite = false;
@@ -112,41 +101,22 @@ export function createEnvironment(scene) {
   pulseRing.rotation.x = -Math.PI / 2;
   pulseRing.position.y = 0.04;
   pulseRing.name = 'pulseRing';
+  _pulseRingRef = pulseRing;
   pulseGroup.add(pulseRing);
 
   scene.add(pulseGroup);
 
-  ALT_LEVELS.forEach((level) => {
-    const planeGeo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
-    const planeMat = new THREE.MeshBasicMaterial({
-      color: level.color, transparent: true, opacity: 0.03,
-      side: THREE.DoubleSide, depthWrite: false,
-    });
-    const plane = new THREE.Mesh(planeGeo, planeMat);
-    plane.rotation.x = -Math.PI / 2;
-    plane.position.y = level.y;
-    scene.add(plane);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 48;
-    const ctx = canvas.getContext('2d');
-    ctx.font = '24px JetBrains Mono, monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.fillText(level.label, 8, 32);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    const spriteMat = new THREE.SpriteMaterial({
-      map: texture, transparent: true, depthWrite: false,
-    });
-    const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(12, 2.5, 1);
-    sprite.position.set(-GROUND_SIZE / 2 + 8, level.y + 0.5, -GROUND_SIZE / 2 + 4);
-    scene.add(sprite);
-  });
 }
 
 export async function loadGroundMap(lat, lon) {
+  // Apply cos(lat) correction: 1° longitude = cos(lat) * 111.3 km, not 111.3 km
+  _cosLat = Math.cos(lat * Math.PI / 180);
+  // Resize ground plane to correct geographic aspect ratio
+  if (groundMesh) {
+    groundMesh.geometry.dispose();
+    groundMesh.geometry = new THREE.PlaneGeometry(GROUND_SIZE * _cosLat, GROUND_SIZE);
+  }
+
   const degreesExtent = GROUND_SIZE / GEO_SCALE;
   try {
     const texture = await loadMapTexture(lat, lon, degreesExtent, (upgradedTexture, bounds) => {
@@ -154,9 +124,9 @@ export async function loadGroundMap(lat, lon) {
         // High-res overlay — stacks on top, each higher zoom slightly above previous
         const scene = groundMaterial?.__scene;
         if (!scene) return;
-        const sizeX = (bounds.lonMax - bounds.lonMin) * GEO_SCALE;
+        const sizeX = (bounds.lonMax - bounds.lonMin) * GEO_SCALE * _cosLat;
         const sizeZ = (bounds.latMax - bounds.latMin) * GEO_SCALE;
-        const cx = ((bounds.lonMin + bounds.lonMax) / 2 - lon) * GEO_SCALE;
+        const cx = ((bounds.lonMin + bounds.lonMax) / 2 - lon) * GEO_SCALE * _cosLat;
         const cz = -((bounds.latMin + bounds.latMax) / 2 - lat) * GEO_SCALE;
 
         const yLevel = 0.003 + hiResOverlays.length * 0.002;
@@ -203,9 +173,21 @@ let _userLon = 0;
 let selectedHighlight = null;
 let _selectionAnimObjects = [];
 
+// Cached animated objects — populated at load time, iterated in updatePulse
+let _aptBeacons = [];
+let _approachLightMeshes = [];
+let _runwayEdgeLightMesh = null;
+let _taxiwayLightMesh = null;
+let _pulseRingRef = null;
+
 export async function loadAirports(scene, userLat, userLon) {
   _userLat = userLat;
   _userLon = userLon;
+
+  _aptBeacons = [];
+  _approachLightMeshes = [];
+  _runwayEdgeLightMesh = null;
+  _taxiwayLightMesh = null;
 
   try {
     airportData = await fetchAirportData(userLat, userLon, 1.2);
@@ -251,7 +233,7 @@ export async function loadAirports(scene, userLat, userLon) {
 
 function geoToScene(lat, lon, userLat, userLon) {
   return {
-    x: (lon - userLon) * GEO_SCALE,
+    x: (lon - userLon) * GEO_SCALE * _cosLat,
     z: -(lat - userLat) * GEO_SCALE,
   };
 }
@@ -259,9 +241,9 @@ function geoToScene(lat, lon, userLat, userLon) {
 // ---- Runway Rendering ----
 
 function renderRunway(rwy, userLat, userLon) {
-  const startX = (rwy.startLon - userLon) * GEO_SCALE;
+  const startX = (rwy.startLon - userLon) * GEO_SCALE * _cosLat;
   const startZ = -(rwy.startLat - userLat) * GEO_SCALE;
-  const endX = (rwy.endLon - userLon) * GEO_SCALE;
+  const endX = (rwy.endLon - userLon) * GEO_SCALE * _cosLat;
   const endZ = -(rwy.endLat - userLat) * GEO_SCALE;
 
   const dx = endX - startX;
@@ -472,6 +454,7 @@ function _renderApproachLightRow(threshX, threshZ, dirX, dirZ, rwyLen) {
 
   const points = new THREE.Points(geo, mat);
   points.name = 'approachLights';
+  _approachLightMeshes.push(points);
   airportGroup.add(points);
 }
 
@@ -535,6 +518,7 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
 
   const points = new THREE.Points(geo, mat);
   points.name = 'runwayEdgeLights';
+  _runwayEdgeLightMesh = points;
   airportGroup.add(points);
 }
 
@@ -632,6 +616,7 @@ function renderTaxiwayCenterlineLights(taxiways, userLat, userLon) {
 
   const points = new THREE.Points(geo, mat);
   points.name = 'taxiwayLights';
+  _taxiwayLightMesh = points;
   airportGroup.add(points);
 }
 
@@ -694,7 +679,7 @@ function renderTerminal(term, userLat, userLon) {
 // ---- Airport Label (clean text, no background) ----
 
 function renderAirportLabel(apt, userLat, userLon) {
-  const cx = (apt.lon - userLon) * GEO_SCALE;
+  const cx = (apt.lon - userLon) * GEO_SCALE * _cosLat;
   const cz = -(apt.lat - userLat) * GEO_SCALE;
 
   const code = apt.iata || apt.icao;
@@ -754,6 +739,7 @@ function renderAirportLabel(apt, userLat, userLon) {
   const marker = new THREE.LineSegments(markerShape, markerMat);
   marker.position.set(cx, 0.04, cz);
   marker.name = 'aptBeacon';
+  _aptBeacons.push(marker);
   airportGroup.add(marker);
 
   // Hit target for raycasting
@@ -771,7 +757,7 @@ function renderAirportLabel(apt, userLat, userLon) {
 export function selectAirport(scene, airport) {
   deselectAirport(scene);
 
-  const cx = (airport.lon - _userLon) * GEO_SCALE;
+  const cx = (airport.lon - _userLon) * GEO_SCALE * _cosLat;
   const cz = -(airport.lat - _userLat) * GEO_SCALE;
   _selectionAnimObjects = [];
 
@@ -821,36 +807,42 @@ export function deselectAirport(scene) {
 // ---- Pulse animation (called from main loop) ----
 
 export function updatePulse(scene, time) {
-  const pulseRing = scene.getObjectByName('pulseRing');
-  if (pulseRing) {
+  // User location pulse ring — cached ref, no scene traversal
+  if (_pulseRingRef) {
     const cycle = (time % 5) / 5;
     const scale = 1 + cycle * 3;
-    pulseRing.scale.set(scale, scale, 1);
-    pulseRing.material.opacity = 0.15 * (1 - cycle * cycle);
+    _pulseRingRef.scale.set(scale, scale, 1);
+    _pulseRingRef.material.opacity = 0.15 * (1 - cycle * cycle);
   }
 
-  // Airport beacon pulse + approach light shimmer
-  if (airportGroup) {
-    airportGroup.children.forEach(child => {
-      if (child.name === 'aptBeacon') {
-        child.material.opacity = 0.15 + 0.1 * Math.sin(time * 1.5);
-      } else if (child.name === 'approachLights') {
-        child.material.opacity = 0.4 + 0.2 * Math.sin(time * 2);
-      } else if (child.name === 'runwayEdgeLights') {
-        child.material.opacity = 0.35 + 0.15 * Math.sin(time * 1.8 + 0.5);
-      } else if (child.name === 'taxiwayLights') {
-        child.material.opacity = 0.25 + 0.1 * Math.sin(time * 1.2 + 1);
-      }
-    });
+  // Airport beacon pulse — iterate cached array, no forEach with string compare
+  const beaconOpacity = 0.15 + 0.1 * Math.sin(time * 1.5);
+  for (let i = 0; i < _aptBeacons.length; i++) {
+    _aptBeacons[i].material.opacity = beaconOpacity;
   }
 
-  // Selection pulse
+  // Approach light shimmer — one value shared across all approach light batches
+  const approachOpacity = 0.4 + 0.2 * Math.sin(time * 2);
+  for (let i = 0; i < _approachLightMeshes.length; i++) {
+    _approachLightMeshes[i].material.opacity = approachOpacity;
+  }
+
+  // Runway edge lights — single batched mesh
+  if (_runwayEdgeLightMesh) {
+    _runwayEdgeLightMesh.material.opacity = 0.35 + 0.15 * Math.sin(time * 1.8 + 0.5);
+  }
+
+  // Taxiway lights — single batched mesh
+  if (_taxiwayLightMesh) {
+    _taxiwayLightMesh.material.opacity = 0.25 + 0.1 * Math.sin(time * 1.2 + 1);
+  }
+
+  // Selection pulse — _selPulse is always index 1 when present
   if (selectedHighlight) {
     for (const obj of selectedHighlight.objects) {
       if (obj.name === '_selPulse') {
         const pCycle = (time % 2) / 2;
-        const pScale = 1 + pCycle * 0.5;
-        obj.scale.set(pScale, 1, pScale);
+        obj.scale.set(1 + pCycle * 0.5, 1, 1 + pCycle * 0.5);
         obj.material.opacity = 0.2 * (1 - pCycle);
       }
     }

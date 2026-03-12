@@ -1,4 +1,5 @@
 import { haversineDistance } from '../scene/aircraft.js';
+import { fetchRouteNow, getRoute } from '../data/opensky.js';
 
 const panel = document.getElementById('detail-panel');
 const elCallsign = document.getElementById('detail-callsign');
@@ -34,6 +35,7 @@ let selectedAircraft = null;
 elClose.addEventListener('click', () => closeDetail());
 
 export function showDetail(aircraftObj, userLat, userLon) {
+  const isNew = selectedAircraft !== aircraftObj;
   selectedAircraft = aircraftObj;
   const d = aircraftObj.getDisplayData();
 
@@ -48,6 +50,21 @@ export function showDetail(aircraftObj, userLat, userLon) {
 
   elOrigin.textContent = d.origin || '---';
   elDest.textContent = d.destination || '---';
+
+  // Fetch route from airplanes.live callsign endpoint when panel first opens for this aircraft
+  if (isNew && (!d.origin || !d.destination) && d.callsign) {
+    fetchRouteNow(d.callsign).then(() => {
+      if (selectedAircraft !== aircraftObj) return;
+      const route = getRoute(d.callsign);
+      if (route?.origin) elOrigin.textContent = route.origin;
+      if (route?.destination) elDest.textContent = route.destination;
+      if (route?.origin || route?.destination) {
+        const atc = route.origin || route.destination;
+        elRadio.classList.remove('hidden');
+        elRadio.onclick = () => window.open(`https://www.liveatc.net/search/?icao=${encodeURIComponent(atc)}`, '_blank');
+      }
+    });
+  }
 
   elAlt.textContent = d.altitude;
   elSpd.textContent = d.speed;

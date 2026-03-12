@@ -37,12 +37,12 @@ html, body {
 
 #scene { position: fixed; inset: 0; display: block; }
 
-/* ── Cinematic Vignette ── */
+/* ── Cinematic Vignette — subtle 2D screen-edge darkening; 3D fog handles the horizon effect ── */
 .vignette {
   position: fixed; inset: 0;
   pointer-events: none;
   z-index: 1;
-  background: radial-gradient(ellipse at center, transparent 60%, rgba(2,10,20,0.3) 100%);
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(1, 4, 10, 0.6) 100%);
 }
 
 /* ── Speed Lines (fly-to effect) ── */
@@ -1042,4 +1042,371 @@ html, body {
   #radar-canvas { width: 104px; height: 104px; }
   .compass { bottom: 68px; right: 12px; width: 40px; height: 40px; }
   .follow-indicator { left: 12px; }
+  #neko-wrap { bottom: 164px; left: 12px; }
+  .neko-panel { width: 260px; }
+  .neko-channel-freq { font-size: 10px; }
+}
+
+/* ── Neko — ATC Channel Log ── */
+#neko-wrap {
+  position: fixed;
+  bottom: 208px;   /* above radar: 20 + 176 + 12 */
+  left: 20px;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: none;
+}
+
+/* ── Panel shell — custom glass, not glass-panel base ── */
+.neko-panel {
+  width: 300px;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  border-radius: 12px;
+  background: rgba(3, 9, 20, 0.78);
+  -webkit-backdrop-filter: blur(36px) saturate(1.5);
+  backdrop-filter: blur(36px) saturate(1.5);
+  border: 1px solid rgba(90, 172, 255, 0.08);
+  /* Top accent line */
+  border-top: 1px solid rgba(90, 172, 255, 0.22);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(90, 172, 255, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 40px rgba(90, 172, 255, 0.05);
+  transition:
+    max-height 0.45s var(--ease),
+    opacity 0.3s ease,
+    transform 0.4s var(--ease);
+}
+
+.neko-panel.open {
+  max-height: 360px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* ── Topbar: LIVE + channel + signal bars ── */
+.neko-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px 10px;
+}
+
+.neko-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.neko-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+  animation: blink 2.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.neko-live-label {
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--success);
+}
+
+.neko-channel {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.neko-channel-tag {
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  color: var(--ui-text-muted);
+}
+
+.neko-channel-freq {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent-bright);
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 4-bar signal indicator */
+.neko-signal {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.neko-bar {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--accent);
+  opacity: 0.5;
+}
+.neko-bar:nth-child(1) { height: 4px;  opacity: 0.3; }
+.neko-bar:nth-child(2) { height: 7px;  opacity: 0.5; }
+.neko-bar:nth-child(3) { height: 10px; opacity: 0.7; }
+.neko-bar:nth-child(4) {
+  height: 13px;
+  opacity: 0.9;
+  animation: signal-top 3s ease-in-out infinite;
+}
+
+@keyframes signal-top {
+  0%, 100% { opacity: 0.9; }
+  50%       { opacity: 0.3; }
+}
+
+/* ── Column header strip ── */
+.neko-col-heads {
+  display: flex;
+  padding: 0 14px 8px;
+  border-bottom: 1px solid rgba(90, 172, 255, 0.07);
+  margin: 0 0 0;
+}
+
+.neko-col-time {
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: var(--ui-text-muted);
+  width: 40px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.neko-col-cs {
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: var(--ui-text-muted);
+  width: 66px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.neko-col-msg {
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: var(--ui-text-muted);
+  flex: 1;
+  opacity: 0.6;
+}
+
+/* ── Log scroll area with top fade mask ── */
+.neko-log-wrap {
+  position: relative;
+}
+
+.neko-log-fade {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 28px;
+  background: linear-gradient(to bottom, rgba(3, 9, 20, 0.85), transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.neko-log {
+  height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  scroll-behavior: smooth;
+}
+
+.neko-log::-webkit-scrollbar { width: 2px; }
+.neko-log::-webkit-scrollbar-track { background: transparent; }
+.neko-log::-webkit-scrollbar-thumb {
+  background: rgba(90, 172, 255, 0.15);
+  border-radius: 2px;
+}
+
+/* ── Log rows ── */
+.neko-row {
+  display: flex;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  animation: neko-row-in 0.3s var(--ease) both;
+  will-change: opacity;
+}
+
+.neko-row:last-child { border-bottom: none; }
+
+@keyframes neko-row-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Squelch: left-border flash on newest entry */
+.neko-row.squelch {
+  animation: neko-squelch 0.8s var(--ease) forwards;
+}
+
+@keyframes neko-squelch {
+  0%   { background: rgba(90, 172, 255, 0.1); border-radius: 3px; }
+  100% { background: transparent; }
+}
+
+.neko-zulu {
+  font-size: 8px;
+  color: var(--ui-text-muted);
+  width: 40px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+  opacity: 0.55;
+}
+
+.neko-cs {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--accent-bright);
+  width: 66px;
+  flex-shrink: 0;
+  letter-spacing: 0.8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.neko-cs--sys {
+  color: var(--ui-text-muted);
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+.neko-text {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.72);
+  flex: 1;
+  line-height: 1.5;
+}
+
+/* ── Footer strip ── */
+.neko-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 14px 9px;
+  border-top: 1px solid rgba(90, 172, 255, 0.06);
+}
+
+.neko-footer-text {
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: var(--ui-text-muted);
+  opacity: 0.4;
+}
+
+/* ── Toggle pill ── */
+.neko-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(3, 9, 20, 0.7);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(90, 172, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04);
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  overflow: hidden;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.neko-toggle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(90,172,255,0.04), transparent 60%);
+  pointer-events: none;
+}
+
+.neko-toggle:hover,
+.neko-toggle.active {
+  border-color: rgba(90, 172, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(90,172,255,0.08), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+/* Left accent block */
+.neko-toggle-accent {
+  width: 3px;
+  align-self: stretch;
+  background: linear-gradient(to bottom, var(--accent), rgba(90,172,255,0.3));
+  flex-shrink: 0;
+}
+
+.neko-toggle-body {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px 8px 10px;
+  gap: 2px;
+}
+
+.neko-toggle-label {
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--accent-bright);
+  line-height: 1;
+}
+
+.neko-toggle-sub {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: var(--ui-text-muted);
+  opacity: 0.5;
+  line-height: 1;
+}
+
+.neko-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  background: var(--accent);
+  color: #020a14;
+  font-size: 8px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  border-radius: 9px;
+  border: 1.5px solid rgba(3, 9, 20, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: neko-badge-pop 0.35s var(--ease-spring) both;
+}
+
+.neko-badge.hidden { display: none; }
+
+@keyframes neko-badge-pop {
+  from { transform: scale(0.3); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
 }

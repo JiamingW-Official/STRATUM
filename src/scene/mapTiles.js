@@ -93,10 +93,11 @@ async function loadTilesForRegion(centerLat, centerLon, halfDeg, zoom, maxTiles 
 
 function createTextureFromRegion(result, lonMin, lonMax, latMin, latMax) {
   const texture = new THREE.CanvasTexture(result.canvas);
-  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = 16;
 
   const uOffset = (lonMin - result.canvasLonMin) / (result.canvasLonMax - result.canvasLonMin);
   const vOffset = (latMin - result.canvasLatMin) / (result.canvasLatMax - result.canvasLatMin);
@@ -138,35 +139,40 @@ export async function loadMapTexture(centerLat, centerLon, degreesExtent, onUpgr
 
 async function loadHighResAsync(centerLat, centerLon, half, lonMin, lonMax, latMin, latMax, onUpgrade) {
   try {
-    // Phase 2: Zoom 12 — full area detail
-    const mid = await loadTilesForRegion(centerLat, centerLon, half, 12, 1000);
-    if (mid) {
-      onUpgrade(createTextureFromRegion(mid, lonMin, lonMax, latMin, latMax));
-    }
-
-    // Phase 3: Zoom 14 — high detail, 0.3° around center
-    const hiHalf = 0.3;
-    const hiLonMin = centerLon - hiHalf;
-    const hiLonMax = centerLon + hiHalf;
-    const hiLatMin = centerLat - hiHalf;
-    const hiLatMax = centerLat + hiHalf;
-    const hi = await loadTilesForRegion(centerLat, centerLon, hiHalf, 14, 1200);
-    if (hi) {
-      onUpgrade(createTextureFromRegion(hi, hiLonMin, hiLonMax, hiLatMin, hiLatMax), {
-        lonMin: hiLonMin, lonMax: hiLonMax, latMin: hiLatMin, latMax: hiLatMax,
+    // Phase 2: Zoom 12, 1° half — covers inner 2°×2° area (~529 tiles, feasible)
+    // Outer ring stays at zoom 10 but scene fog hides it at the edges
+    const h2 = Math.min(half, 1.0);
+    const r2 = await loadTilesForRegion(centerLat, centerLon, h2, 12, 1000);
+    if (r2) {
+      onUpgrade(createTextureFromRegion(r2, centerLon - h2, centerLon + h2, centerLat - h2, centerLat + h2), {
+        lonMin: centerLon - h2, lonMax: centerLon + h2, latMin: centerLat - h2, latMax: centerLat + h2,
       });
     }
 
-    // Phase 4: Zoom 16 — street-level, 0.08° (~9km) around center
-    const ultraHalf = 0.08;
-    const uLonMin = centerLon - ultraHalf;
-    const uLonMax = centerLon + ultraHalf;
-    const uLatMin = centerLat - ultraHalf;
-    const uLatMax = centerLat + ultraHalf;
-    const ultra = await loadTilesForRegion(centerLat, centerLon, ultraHalf, 16, 1500);
-    if (ultra) {
-      onUpgrade(createTextureFromRegion(ultra, uLonMin, uLonMax, uLatMin, uLatMax), {
-        lonMin: uLonMin, lonMax: uLonMax, latMin: uLatMin, latMax: uLatMax,
+    // Phase 3: Zoom 13, 0.55° half — ~25×25 = 625 tiles
+    const h3 = 0.55;
+    const r3 = await loadTilesForRegion(centerLat, centerLon, h3, 13, 1000);
+    if (r3) {
+      onUpgrade(createTextureFromRegion(r3, centerLon - h3, centerLon + h3, centerLat - h3, centerLat + h3), {
+        lonMin: centerLon - h3, lonMax: centerLon + h3, latMin: centerLat - h3, latMax: centerLat + h3,
+      });
+    }
+
+    // Phase 4: Zoom 14, 0.35° half — ~32×32 = 1024 tiles
+    const h4 = 0.35;
+    const r4 = await loadTilesForRegion(centerLat, centerLon, h4, 14, 2000);
+    if (r4) {
+      onUpgrade(createTextureFromRegion(r4, centerLon - h4, centerLon + h4, centerLat - h4, centerLat + h4), {
+        lonMin: centerLon - h4, lonMax: centerLon + h4, latMin: centerLat - h4, latMax: centerLat + h4,
+      });
+    }
+
+    // Phase 5: Zoom 16, 0.12° half — street level center
+    const h5 = 0.12;
+    const r5 = await loadTilesForRegion(centerLat, centerLon, h5, 16, 2000);
+    if (r5) {
+      onUpgrade(createTextureFromRegion(r5, centerLon - h5, centerLon + h5, centerLat - h5, centerLat + h5), {
+        lonMin: centerLon - h5, lonMax: centerLon + h5, latMin: centerLat - h5, latMax: centerLat + h5,
       });
     }
   } catch (err) {

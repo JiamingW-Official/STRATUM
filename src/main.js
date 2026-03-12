@@ -10,8 +10,7 @@ import { AircraftManager } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling } from './data/opensky.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft } from './ui/detail.js';
-import { spotAircraft, updateLiveData, onFollowStart, onFollowStop } from './ui/spotter.js';
-import { initRadar, updateRadarBlips, drawRadar } from './ui/radar.js';
+import { initNeko, nekoTrackAircraft } from './ui/neko.js';
 
 // --- Cinematic post-processing shader ---
 const CinematicShader = {
@@ -92,10 +91,10 @@ const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, null); // camera set later
 composer.addPass(renderPass);
 const bloomPass = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.7,   // strength
-  0.5,   // radius — soft spread
-  0.8,   // threshold
+  new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5), // half-res for performance
+  0.65,  // strength
+  0.4,   // radius
+  0.82,  // threshold
 );
 composer.addPass(bloomPass);
 const colorGradePass = new ShaderPass(CinematicShader);
@@ -112,11 +111,11 @@ renderPass.camera = camera;
 // --- Controls ---
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-controls.dampingFactor = 0.08;
+controls.dampingFactor = 0.09;
 controls.target.set(0, 0, 0);
 controls.minDistance = 0.05;
 controls.maxDistance = 60;
-controls.maxPolarAngle = Math.PI * 0.85;
+controls.maxPolarAngle = Math.PI / 2 - (20 * Math.PI / 180); // 20° above horizontal, prevents seeing under map
 controls.autoRotate = false;
 controls.autoRotateSpeed = 0.3;
 controls.enabled = false; // disabled during intro
@@ -126,10 +125,36 @@ let introActive = true;
 const introStart = performance.now();
 const INTRO_DURATION = 3200; // ms
 const introFrom = { x: 0, y: 35, z: 0.1, tx: 0, ty: 0, tz: 0 };
-const introTo = { x: 8, y: 2, z: 12, tx: 0, ty: 1, tz: 0 };
+const introTo = { x: 8, y: 9, z: 12, tx: 0, ty: 1, tz: 0 }; // ~60° polar angle
 
 function easeOutExpo(t) {
   return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+// Unity-style SmoothDamp for a single axis — tracks velocity for natural spring feel
+function smoothDamp(current, target, vel, smoothTime, dt) {
+  smoothTime = Math.max(0.0001, smoothTime);
+  const omega = 2 / smoothTime;
+  const x = omega * dt;
+  const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const change = current - target;
+  const temp = (vel + omega * change) * dt;
+  const newVel = (vel - omega * temp) * exp;
+  const output = target + (change + temp) * exp;
+  return { value: output, vel: newVel };
+}
+
+// Vector3 SmoothDamp — mutates both current and velVec in place, no allocation
+function smoothDampVec3(current, target, velVec, smoothTime, dt) {
+  const rx = smoothDamp(current.x, target.x, velVec.x, smoothTime, dt);
+  const ry = smoothDamp(current.y, target.y, velVec.y, smoothTime, dt);
+  const rz = smoothDamp(current.z, target.z, velVec.z, smoothTime, dt);
+  velVec.set(rx.vel, ry.vel, rz.vel);
+  current.set(rx.value, ry.value, rz.value);
 }
 
 function updateIntro() {
@@ -154,110 +179,39 @@ function updateIntro() {
   }
 }
 
-// --- Camera fly-to ---
-let flyTo = null;
-let pendingFollow = null; // aircraft to follow after fly-to completes
-const BASE_FOV = 50;
+// --- Camera follow mode ---
+// OrbitControls is NEVER disabled — no toggle = no stutter.
+// Two springs run every frame:
+//   1. controls.target → aircraft position (always, keeps orbit pivot on aircraft)
+//   2. camera.position → zoom goal (phase 1 only, until camera arrives)
+// After zoom arrives, camera translates rigidly with the orbit target.
+
+const FOLLOW_ZOOM_DIST = 7;   // fixed zoom distance when focusing
+const FOLLOW_SMOOTH_TIME = 0.28;  // spring settle time for orbit target
+const FOCUS_CAM_SMOOTH_TIME = 0.45; // spring settle time for camera zoom (slightly slower = cinematic)
 const speedLinesEl = document.getElementById('speed-lines');
 
-function startFlyTo(targetPos, distance = 5) {
-  const dir = new THREE.Vector3().subVectors(camera.position, targetPos);
-  const travelDist = dir.length();
-  dir.normalize();
+let followTarget = null;
+let followVelocity = new THREE.Vector3();    // spring vel: controls.target → aircraft
+let focusCamVelocity = new THREE.Vector3();  // spring vel: camera → zoom position
+let focusGoalDir = null;   // approach direction (aircraft→camera), fixed at click time
+let focusZooming = false;  // true while camera is still zooming in
 
-  // Place camera at `distance` from target, keeping current viewing angle
-  const camDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
-  const endPos = new THREE.Vector3().copy(targetPos).addScaledVector(camDir, distance);
-
-  // Arc height: gentle lift during mid-flight
-  const arcHeight = Math.min(travelDist * 0.08, 2);
-
-  // Duration scales with distance so far targets don't feel rushed
-  const duration = Math.max(600, Math.min(1600, travelDist * 60));
-
-  // FOV punch scales with travel distance (subtle)
-  const fovPunch = Math.min(travelDist * 0.3, 6);
-
-  controls.enabled = false; // prevent OrbitControls from fighting animation
-  if (speedLinesEl) speedLinesEl.classList.add('active');
-
-  flyTo = {
-    startPos: camera.position.clone(),
-    startTarget: controls.target.clone(),
-    endTarget: targetPos.clone(),
-    endPos: endPos,
-    arcHeight,
-    fovPunch,
-    startTime: performance.now(),
-    duration,
-  };
-}
-
-function updateFlyTo() {
-  if (!flyTo) return false;
-  const raw = Math.min((performance.now() - flyTo.startTime) / flyTo.duration, 1);
-  const t = easeOutExpo(raw);
-
-  camera.position.lerpVectors(flyTo.startPos, flyTo.endPos, t);
-  controls.target.lerpVectors(flyTo.startTarget, flyTo.endTarget, t);
-
-  // Arc: raise camera during mid-flight (parabolic: peaks at t=0.5)
-  const arc = flyTo.arcHeight * 4 * raw * (1 - raw);
-  camera.position.y += arc;
-
-  // FOV punch: widen during travel, snap back on arrival
-  const fovCurve = 4 * raw * (1 - raw); // parabola peaking at 0.5
-  camera.fov = BASE_FOV + flyTo.fovPunch * fovCurve;
-  camera.updateProjectionMatrix();
-
-  if (raw >= 1) {
-    camera.fov = BASE_FOV;
-    camera.updateProjectionMatrix();
-    if (speedLinesEl) speedLinesEl.classList.remove('active');
-    flyTo = null;
-    controls.enabled = true;
-    controls.update();
-    // Activate pending follow after camera arrives
-    if (pendingFollow) {
-      startFollow(pendingFollow);
-      pendingFollow = null;
-    }
-  }
-  return true;
-}
-
-// --- Camera follow mode ---
-let followTarget = null; // AircraftObject being followed
-let followDistance = 3;
 const followIndicator = document.getElementById('follow-indicator');
 const followCallsignEl = document.getElementById('follow-callsign');
 
-function startFollow(aircraftObj) {
-  const wasFollowing = followTarget != null;
-  followTarget = aircraftObj;
-  flyTo = null;
-  pendingFollow = null;
-  controls.enabled = true;
-  if (followIndicator) {
-    const d = aircraftObj.getDisplayData();
-    followCallsignEl.textContent = d.callsign || d.icao24;
-    followIndicator.classList.remove('hidden');
-  }
-  followDistance = camera.position.distanceTo(aircraftObj.group.position);
-  followDistance = Math.max(1.5, Math.min(followDistance, 6));
-  if (!wasFollowing) onFollowStart();
-}
-
-// Fly to an aircraft, then start following it on arrival
 function flyToThenFollow(aircraftObj) {
-  // Stop current follow immediately so fly-to can take over camera
-  if (followTarget) {
-    followTarget = null;
-    // Don't call onFollowStop — we're transferring, not stopping
-  }
-  pendingFollow = aircraftObj;
-  startFlyTo(aircraftObj.group.position);
-  // Show indicator immediately for responsiveness
+  followTarget = aircraftObj;
+  followVelocity.set(0, 0, 0);
+  focusCamVelocity.set(0, 0, 0);
+  focusZooming = true;
+  // Flush any residual OrbitControls damping so it doesn't fight the spring
+  controls.saveState();
+  controls.reset();
+  // Fixed direction: from aircraft toward camera at the moment of click
+  focusGoalDir = new THREE.Vector3()
+    .subVectors(camera.position, aircraftObj.group.position)
+    .normalize();
   if (followIndicator) {
     const d = aircraftObj.getDisplayData();
     followCallsignEl.textContent = d.callsign || d.icao24;
@@ -266,29 +220,40 @@ function flyToThenFollow(aircraftObj) {
 }
 
 function stopFollow() {
-  if (followTarget) onFollowStop();
   followTarget = null;
-  pendingFollow = null;
-  flyTo = null;
-  controls.enabled = true;
-  if (speedLinesEl) speedLinesEl.classList.remove('active');
+  focusZooming = false;
   if (followIndicator) followIndicator.classList.add('hidden');
 }
 
-function updateFollow(delta) {
-  if (!followTarget || followTarget.removed) {
-    stopFollow();
-    return;
-  }
-  const targetPos = followTarget.group.position;
-  const dir = new THREE.Vector3().subVectors(camera.position, targetPos).normalize();
-  const desiredPos = new THREE.Vector3().copy(targetPos).addScaledVector(dir, followDistance);
+// Pre-allocated scratch vectors — zero GC pressure in the hot path
+const _fPrevTarget = new THREE.Vector3();
+const _fTargetDelta = new THREE.Vector3();
+const _fGoalCamPos = new THREE.Vector3();
 
-  // Framerate-independent smooth lerp
-  const posSmooth = 1 - Math.pow(0.001, delta);  // ~0.08 at 60fps
-  const tgtSmooth = 1 - Math.pow(0.0003, delta); // ~0.12 at 60fps
-  camera.position.lerp(desiredPos, posSmooth);
-  controls.target.lerp(targetPos, tgtSmooth);
+function updateFollow(delta) {
+  if (!followTarget || followTarget.removed) { stopFollow(); return; }
+  const aircraftPos = followTarget.group.position;
+
+  // Spring 1: orbit target smoothly chases aircraft
+  _fPrevTarget.copy(controls.target);
+  smoothDampVec3(controls.target, aircraftPos, followVelocity, FOLLOW_SMOOTH_TIME, delta);
+  _fTargetDelta.subVectors(controls.target, _fPrevTarget);
+
+  if (focusZooming) {
+    // Spring 2: camera zooms toward fixed-distance goal along approach direction
+    _fGoalCamPos.copy(aircraftPos).addScaledVector(focusGoalDir, FOLLOW_ZOOM_DIST);
+    smoothDampVec3(camera.position, _fGoalCamPos, focusCamVelocity, FOCUS_CAM_SMOOTH_TIME, delta);
+    // Switch to rigid-follow once settled — snap exactly to avoid sub-pixel drift
+    if (focusCamVelocity.lengthSq() < 0.0004) {
+      camera.position.copy(_fGoalCamPos);
+      focusCamVelocity.set(0, 0, 0);
+      focusZooming = false;
+    }
+  } else {
+    // Rigid follow: translate camera with target delta — angle and distance stay fixed
+    camera.position.add(_fTargetDelta);
+  }
+
   controls.update();
 }
 
@@ -297,10 +262,11 @@ const compassNeedle = document.getElementById('compass-needle');
 const compassHeading = document.getElementById('compass-heading');
 let cameraHeading = 0;
 
+const _compassDir = new THREE.Vector3();
+
 function updateCompass() {
-  // Camera heading: angle of camera direction projected onto XZ plane
-  const dir = new THREE.Vector3();
-  camera.getWorldDirection(dir);
+  camera.getWorldDirection(_compassDir);
+  const dir = _compassDir;
   cameraHeading = Math.atan2(dir.x, dir.z);
   const deg = ((-cameraHeading * 180 / Math.PI) + 360) % 360;
 
@@ -374,28 +340,36 @@ function resetIdleTimer() {
   if (autoTour) stopAutoTour();
 }
 
-canvas.addEventListener('pointerdown', resetIdleTimer);
+let pointerDownX = 0;
+let pointerDownY = 0;
+canvas.addEventListener('pointerdown', (e) => {
+  resetIdleTimer();
+  pointerDownX = e.clientX;
+  pointerDownY = e.clientY;
+});
+const _hoverPointer = new THREE.Vector2();
+let _lastHoverTime = 0;
 canvas.addEventListener('pointermove', (e) => {
   if (e.buttons > 0) resetIdleTimer();
-  // Hover cursor — show pointer when over interactive objects
+  // Throttle hover raycasting to once per frame (~16ms)
+  const now = performance.now();
+  if (now - _lastHoverTime < 16) return;
+  _lastHoverTime = now;
   if (aircraftManager) {
-    const hx = (e.clientX / window.innerWidth) * 2 - 1;
-    const hy = -(e.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera({ x: hx, y: hy }, camera);
+    _hoverPointer.set(
+      (e.clientX / window.innerWidth) * 2 - 1,
+      -(e.clientY / window.innerHeight) * 2 + 1,
+    );
+    raycaster.setFromCamera(_hoverPointer, camera);
     const hits = raycaster.intersectObjects(aircraftManager.raycasterTargets, false);
-    const aptHits = getAirportHitTargets().length > 0 ? raycaster.intersectObjects(getAirportHitTargets(), false) : [];
+    const aptTargets = getAirportHitTargets();
+    const aptHits = aptTargets.length > 0 ? raycaster.intersectObjects(aptTargets, false) : [];
     canvas.style.cursor = (hits.length > 0 || aptHits.length > 0) ? 'pointer' : '';
   }
 });
-canvas.addEventListener('wheel', (e) => {
+canvas.addEventListener('wheel', () => {
   resetIdleTimer();
-  // In follow mode, scroll adjusts follow distance instead of OrbitControls zoom
-  if (followTarget) {
-    e.preventDefault();
-    const zoomDelta = e.deltaY * 0.005;
-    followDistance = Math.max(0.8, Math.min(12, followDistance + zoomDelta));
-  }
-}, { passive: false });
+}, { passive: true });
 
 // --- Raycasting for aircraft selection ---
 const raycaster = new THREE.Raycaster();
@@ -408,9 +382,9 @@ let selectedAirportState = null;
 function handleAircraftSelect(ac) {
   const { lat, lon } = getUserLocation();
   showDetail(ac, lat, lon);
-  spotAircraft(ac.getDisplayData(), lat, lon);
   aircraftManager.selectAircraft(ac);
   flyToThenFollow(ac);
+  nekoTrackAircraft(ac.getDisplayData());
   if (selectedAirportState) {
     deselectAirport(scene);
     aircraftManager.clearHighlight();
@@ -421,14 +395,23 @@ function handleAircraftSelect(ac) {
 function raycastAircraft(e) {
   pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
   pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  scene.updateMatrixWorld(true);
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObjects(aircraftManager.raycasterTargets, false);
-  return hits.length > 0 ? aircraftManager.getByHitMesh(hits[0].object) : null;
+  if (hits.length === 0) return null;
+  // Prefer an aircraft different from the currently followed one,
+  // so that clicking on a distant aircraft while following another works correctly.
+  for (const hit of hits) {
+    const ac = aircraftManager.getByHitMesh(hit.object);
+    if (ac && ac !== followTarget) return ac;
+  }
+  return aircraftManager.getByHitMesh(hits[0].object);
 }
 
 canvas.addEventListener('click', (e) => {
   if (!aircraftManager) return;
+  const dx = e.clientX - pointerDownX;
+  const dy = e.clientY - pointerDownY;
+  if (dx * dx + dy * dy > 25) return; // drag — skip selection
 
   const ac = raycastAircraft(e);
   if (ac) {
@@ -535,9 +518,6 @@ function handleData(dataList) {
     updateHUD(aircraftManager.getCount(), lat, lon);
     refreshDetail(aircraftManager, lat, lon);
 
-    // Gamification: update radar + challenge system (passive, no XP)
-    updateLiveData(dataList);
-    updateRadarBlips(dataList, lat, lon, cameraHeading);
   }
 }
 
@@ -554,7 +534,7 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
-  bloomPass.resolution.set(window.innerWidth, window.innerHeight);
+  bloomPass.resolution.set(window.innerWidth * 0.5, window.innerHeight * 0.5);
   colorGradePass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
 });
 
@@ -565,8 +545,8 @@ setInterval(updateHUDTimer, 1000);
 const keysDown = new Set();
 const MOVE_BASE_SPEED = 10;
 const MOVE_SPRINT_MULT = 2.5;
-const MOVE_ACCEL = 6;     // ramp-up per second (0→1 in ~0.17s)
-const MOVE_DECEL = 8;     // ramp-down per second
+const MOVE_ACCEL = 9;     // ramp-up per second (0→1 in ~0.11s)
+const MOVE_DECEL = 6;     // ramp-down per second (slower coast-out = natural feel)
 let moveVelocity = 0;     // 0–1 smooth factor
 let shiftHeld = false;
 
@@ -636,21 +616,23 @@ document.addEventListener('keyup', (e) => {
 // Clear keys on window blur to prevent stuck keys
 window.addEventListener('blur', () => { keysDown.clear(); shiftHeld = false; });
 
-function getWASDInput() {
-  const forward = new THREE.Vector3();
-  camera.getWorldDirection(forward);
-  forward.y = 0;
-  forward.normalize();
-  const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+const _wForward = new THREE.Vector3();
+const _wRight = new THREE.Vector3();
+const _wMove = new THREE.Vector3();
 
-  const move = new THREE.Vector3();
-  if (keysDown.has('w')) move.add(forward);
-  if (keysDown.has('s')) move.sub(forward);
-  if (keysDown.has('d')) move.add(right);
-  if (keysDown.has('a')) move.sub(right);
-  if (keysDown.has('q')) move.y -= 1;
-  if (keysDown.has('e')) move.y += 1;
-  return move;
+function getWASDInput() {
+  camera.getWorldDirection(_wForward);
+  _wForward.y = 0;
+  _wForward.normalize();
+  _wRight.crossVectors(_wForward, camera.up).normalize();
+  _wMove.set(0, 0, 0);
+  if (keysDown.has('w')) _wMove.add(_wForward);
+  if (keysDown.has('s')) _wMove.sub(_wForward);
+  if (keysDown.has('d')) _wMove.add(_wRight);
+  if (keysDown.has('a')) _wMove.sub(_wRight);
+  if (keysDown.has('q')) _wMove.y -= 1;
+  if (keysDown.has('e')) _wMove.y += 1;
+  return _wMove;
 }
 
 function updateWASD(delta) {
@@ -666,17 +648,10 @@ function updateWASD(delta) {
   }
 
   resetIdleTimer();
-  // Cancel fly-to on manual movement
-  if (flyTo) {
-    flyTo = null;
-    pendingFollow = null;
-    controls.enabled = true;
-    if (speedLinesEl) speedLinesEl.classList.remove('active');
-    camera.fov = BASE_FOV;
-    camera.updateProjectionMatrix();
-  }
 
-  const speed = MOVE_BASE_SPEED * (shiftHeld ? MOVE_SPRINT_MULT : 1);
+  // Speed scales with camera height for consistent feel at all altitudes
+  const heightScale = Math.max(0.2, Math.min(3.0, camera.position.y / 8));
+  const speed = MOVE_BASE_SPEED * heightScale * (shiftHeld ? MOVE_SPRINT_MULT : 1);
   // Ease curve for natural feel
   const factor = moveVelocity * moveVelocity * (3 - 2 * moveVelocity); // smoothstep
   if (hasInput) input.normalize();
@@ -751,15 +726,18 @@ function animate() {
   // Cinematic intro
   if (introActive) {
     updateIntro();
-  } else if (flyTo) {
-    // Fly-to takes priority (click-to-select, switching targets)
-    updateFlyTo();
-    lastInteractionTime = Date.now(); // keep idle timer fresh without killing auto-tour
   } else if (followTarget) {
-    // Follow mode — smoothly track aircraft, WASD orbits around it
-    updateFollowWASD(delta);
-    updateFollow(delta);
-    lastInteractionTime = Date.now();
+    // If the user presses WASD, exit follow mode and switch to free navigation
+    if (getWASDInput().lengthSq() > 0) {
+      stopFollow();
+      closeDetail();
+      if (aircraftManager) aircraftManager.deselectAircraft();
+      updateWASD(delta);
+    } else {
+      // Follow mode — smoothly slide orbit target to aircraft, angle unchanged
+      updateFollow(delta);
+      lastInteractionTime = Date.now();
+    }
   } else {
     // WASD panning
     updateWASD(delta);
@@ -777,14 +755,10 @@ function animate() {
   // Compass
   updateCompass();
 
-  // Radar
-  drawRadar(elapsed);
-
-  // Animate particles — slow drift upward, streak during fly-to
+  // Animate particles — slow drift upward
   const posArr = particles.geometry.attributes.position.array;
-  const pSpeed = flyTo ? 8 : 1; // particles rush past during fly-to
   for (let i = 0; i < PARTICLE_COUNT; i++) {
-    posArr[i * 3 + 1] += particleSpeeds[i] * delta * pSpeed;
+    posArr[i * 3 + 1] += particleSpeeds[i] * delta;
     if (posArr[i * 3 + 1] > 5) {
       posArr[i * 3 + 1] = 0;
       posArr[i * 3] = (Math.random() - 0.5) * 60;
@@ -792,9 +766,8 @@ function animate() {
     }
   }
   particles.geometry.attributes.position.needsUpdate = true;
-  const baseOpacity = flyTo ? 0.2 : 0.08; // brighter particles during fly-to
-  particleMat.opacity = baseOpacity + 0.06 * Math.sin(elapsed * 0.4);
-  particleMat.size = flyTo ? 0.06 : 0.03; // larger during fly-to
+  particleMat.opacity = 0.08 + 0.06 * Math.sin(elapsed * 0.4);
+  particleMat.size = 0.03;
 
   // Star twinkling
   starMat.opacity = 0.3 + 0.15 * Math.sin(elapsed * 0.3);
@@ -851,8 +824,8 @@ function initSearch() {
           if (ac) {
             const { lat, lon } = getUserLocation();
             showDetail(ac, lat, lon);
-            spotAircraft(ac.getDisplayData(), lat, lon);
-            startFlyTo(ac.group.position);
+            aircraftManager.selectAircraft(ac);
+            flyToThenFollow(ac);
             input.value = '';
             results.innerHTML = '';
             results.classList.remove('open');
@@ -908,20 +881,9 @@ async function init() {
     if (aptData) updateHUDAirports(aptData.airports.length);
   });
 
-  // Init radar minimap — click a blip to select aircraft
-  initRadar((icao24) => {
-    if (!aircraftManager) return;
-    const ac = aircraftManager.getByIcao(icao24);
-    if (ac) {
-      const { lat, lon } = getUserLocation();
-      showDetail(ac, lat, lon);
-      spotAircraft(ac.getDisplayData(), lat, lon);
-      startFlyTo(ac.group.position);
-    }
-  });
-
   startPolling(handleData, handleError);
   initSearch();
+  initNeko();
   animate();
 }
 

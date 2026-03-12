@@ -32,13 +32,13 @@ const SPEED_STOPS = [
 
 const VS_THRESHOLD = 1.5;
 
-// Trail config — 7 min
+// Trail config — 30 min
 const TRAIL_SAMPLE_INTERVAL = 0.3;      // ~3Hz live sampling
-const TRAIL_MAX_POINTS = 1400;          // 7 min at ~3Hz
+const TRAIL_MAX_POINTS = 6000;          // 30 min at ~3Hz
 const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real track
 const SYNTHETIC_TRAIL_STEP = 0.5;
 const TRAIL_REBUILD_INTERVAL = 1.0;     // rebuild geometry 1x/sec
-const TRACK_REFRESH_INTERVAL = 120;     // re-check track API every 2 min (once loaded)
+const TRACK_REFRESH_INTERVAL = 300;     // re-check track API every 5 min (once loaded)
 const TRACK_INITIAL_CHECK_INTERVAL = 2; // check every 2s until track arrives
 const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
 
@@ -308,25 +308,29 @@ function catmullRomInterpolate(points, segmentsPerSpan) {
   return result;
 }
 
-function extrapolatePosition(pos, velocity, heading, verticalRate, dt) {
-  if (velocity == null || heading == null) return pos.clone();
+function extrapolatePosition(pos, velocity, heading, verticalRate, dt, out) {
+  if (velocity == null || heading == null) { out.copy(pos); return out; }
   const headRad = heading * DEG_TO_RAD;
   const speedUnits = velocity / METERS_PER_UNIT;
-  const dx = Math.sin(headRad) * speedUnits * dt;
-  const dz = -Math.cos(headRad) * speedUnits * dt;
-  const dy = ((verticalRate || 0) * METERS_TO_FEET) / 1000 * ALT_SCALE * dt;
-  return new THREE.Vector3(pos.x + dx, pos.y + dy, pos.z + dz);
+  out.set(
+    pos.x + Math.sin(headRad) * speedUnits * dt,
+    pos.y + ((verticalRate || 0) * METERS_TO_FEET) / 1000 * ALT_SCALE * dt,
+    pos.z - Math.cos(headRad) * speedUnits * dt,
+  );
+  return out;
 }
 
 export function dataToScenePos(data, userLat, userLon) {
-  const x = (data.longitude - userLon) * GEO_SCALE;
+  const cosLat = Math.cos(userLat * DEG_TO_RAD);
+  const x = (data.longitude - userLon) * GEO_SCALE * cosLat;
   const z = -(data.latitude - userLat) * GEO_SCALE;
   const y = (data.baroAltitude * METERS_TO_FEET) / 1000 * ALT_SCALE;
   return new THREE.Vector3(x, y, z);
 }
 
 function waypointToScenePos(wp, userLat, userLon) {
-  const x = (wp.longitude - userLon) * GEO_SCALE;
+  const cosLat = Math.cos(userLat * DEG_TO_RAD);
+  const x = (wp.longitude - userLon) * GEO_SCALE * cosLat;
   const z = -(wp.latitude - userLat) * GEO_SCALE;
   const y = wp.baroAltitude != null ? (wp.baroAltitude * METERS_TO_FEET) / 1000 * ALT_SCALE : 0;
   return new THREE.Vector3(x, y, z);
@@ -364,6 +368,7 @@ export class AircraftManager {
           const ac = new AircraftObject(data, targetPos, this.scene, this.userLat, this.userLon);
           this.aircraft.set(data.icao24, ac);
           this.raycasterTargets.push(ac.hitMesh);
+          this.raycasterTargets.push(ac.labelSprite);
         } catch (err) {
           console.error('[STRATUM] Failed to create aircraft:', data.icao24, err);
         }
@@ -382,6 +387,8 @@ export class AircraftManager {
         this.aircraft.delete(id);
         const idx = this.raycasterTargets.indexOf(ac.hitMesh);
         if (idx !== -1) this.raycasterTargets.splice(idx, 1);
+        const spriteIdx = this.raycasterTargets.indexOf(ac.labelSprite);
+        if (spriteIdx !== -1) this.raycasterTargets.splice(spriteIdx, 1);
       }
     }
   }
@@ -402,7 +409,7 @@ export class AircraftManager {
 
   getByHitMesh(mesh) {
     for (const ac of this.aircraft.values()) {
-      if (ac.hitMesh === mesh) return ac;
+      if (ac.hitMesh === mesh || ac.labelSprite === mesh) return ac;
     }
     return null;
   }
@@ -540,6 +547,7 @@ class AircraftObject {
     this.userLon = userLon;
     this.lastApiPos = position.clone();
     this.lastApiTime = performance.now() / 1000;
+    this._extrapolatedPos = new THREE.Vector3();
     this.fadingIn = true;
     this.fadingOut = false;
     this.removed = false;
@@ -563,17 +571,19 @@ class AircraftObject {
     // GLB model (or fallback)
     this._modelGroup = null;
     this._useGLB = false;
+    this._modelMeshes = []; // cached mesh list — avoids traverse every frame
 
     const glbClone = cloneModelForAircraft(data.aircraftType);
     if (glbClone) {
       this._modelGroup = glbClone;
       this._useGLB = true;
       this.group.add(glbClone);
+      glbClone.traverse(c => { if (c.isMesh) this._modelMeshes.push(c); });
       this._setModelColor(color);
     } else {
       // Fallback: small procedural cone until GLB loads
       this.bodyMat = new THREE.MeshPhongMaterial({
-        color, emissive: color, emissiveIntensity: 2.5,
+        color, emissive: color, emissiveIntensity: 1.5,
         transparent: true, opacity: 0,
       });
       this.bodyMesh = new THREE.Mesh(getFallbackGeometry(), this.bodyMat);
@@ -595,6 +605,8 @@ class AircraftObject {
           this.group.remove(this.bodyMesh);
           this._modelGroup = clone;
           this._useGLB = true;
+          this._modelMeshes = [];
+          clone.traverse(c => { if (c.isMesh) this._modelMeshes.push(c); });
           this.group.add(clone);
           this._lastColorR = -1; // force color update
           this._setModelColor(getSpeedColor(this.data.velocity));
@@ -645,6 +657,19 @@ class AircraftObject {
     this._navLights.push(tailStrobe);
     this._tailStrobe = tailStrobe;
 
+    // Body glow sprite — guaranteed glow for every aircraft regardless of model material type
+    // Centered on the aircraft, colored by speed, always visible
+    this._bodyGlowMat = new THREE.SpriteMaterial({
+      map: navGlowTex,
+      color: new THREE.Color(color.r, color.g, color.b),
+      transparent: true, opacity: 0,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    this._bodyGlow = new THREE.Sprite(this._bodyGlowMat);
+    this._bodyGlow.scale.set(0.45, 0.45, 1);
+    this._bodyGlow.position.set(0, 0.01, 0);
+    this.group.add(this._bodyGlow);
+
     if (data.trueTrack != null) {
       this.group.rotation.y = -Math.PI / 2 - data.trueTrack * DEG_TO_RAD;
     }
@@ -660,7 +685,9 @@ class AircraftObject {
       resolution: resolution,
     });
 
+    this._dropPosArray = new Float32Array(6);
     this.dropGeometry = new THREE.BufferGeometry();
+    this.dropGeometry.setAttribute('position', new THREE.BufferAttribute(this._dropPosArray, 3));
     this.dropMaterial = new THREE.LineDashedMaterial({
       color: 0x3a6a9f, transparent: true, opacity: 0,
       dashSize: 0.15, gapSize: 0.25,
@@ -668,6 +695,7 @@ class AircraftObject {
     });
     this.dropLine = new THREE.LineSegments(this.dropGeometry, this.dropMaterial);
     this.dropLine.renderOrder = 998;
+    this.dropLine.computeLineDistances();
 
     // Gap line — dashed gray for ADS-B signal gaps
     this._gapLine = null;
@@ -700,12 +728,12 @@ class AircraftObject {
    */
   _applyRealTrack(waypoints) {
     const now = Math.floor(Date.now() / 1000);
-    const cutoff = now - 420; // last 7 minutes
+    const cutoff = now - 1800; // last 30 minutes
 
     let rawPoints;
     const recent = waypoints.filter((wp) => wp.time >= cutoff);
     if (recent.length < 2) {
-      rawPoints = waypoints.slice(-100);
+      rawPoints = waypoints.slice(-400);
     } else {
       rawPoints = recent;
     }
@@ -734,9 +762,7 @@ class AircraftObject {
       withSpeed.push({ pos: waypointToScenePos(wp, this.userLat, this.userLon), speed, isGapStart });
     }
 
-    // Chaikin corner-cutting: smooths sharp turns without overshoot.
-    // 2 passes is enough — each pass doubles point count and rounds corners.
-    // Split into segments at gap boundaries, smooth each separately
+    // Split into segments at gap boundaries, interpolate each separately
     const segments = [[]];
     for (const p of withSpeed) {
       if (p.isGapStart && segments[segments.length - 1].length > 0) {
@@ -758,36 +784,33 @@ class AircraftObject {
       }
     }
 
-    // Chaikin smooth each continuous segment, then concatenate
+    // Catmull-Rom spline per segment — curves pass through actual GPS waypoints (realistic)
+    // 4 subdivisions per span gives smooth curves without over-inflating point count
+    const CR_SEGS = 4;
     for (const seg of segments) {
-      let pts = seg;
-      for (let pass = 0; pass < 2; pass++) {
-        if (pts.length < 3) break;
-        const next = [pts[0]];
-        for (let i = 0; i < pts.length - 1; i++) {
-          const a = pts[i], b = pts[i + 1];
-          const spd = a.speed != null && b.speed != null ? (a.speed + b.speed) / 2 : (a.speed || b.speed);
-          next.push({
-            pos: new THREE.Vector3(
-              a.pos.x * 0.75 + b.pos.x * 0.25,
-              a.pos.y * 0.75 + b.pos.y * 0.25,
-              a.pos.z * 0.75 + b.pos.z * 0.25,
-            ), speed: spd,
-          });
-          next.push({
-            pos: new THREE.Vector3(
-              a.pos.x * 0.25 + b.pos.x * 0.75,
-              a.pos.y * 0.25 + b.pos.y * 0.75,
-              a.pos.z * 0.25 + b.pos.z * 0.75,
-            ), speed: spd,
-          });
+      if (seg.length < 2) {
+        for (const p of seg) this.trailPositions.push(p);
+        continue;
+      }
+      const n = seg.length;
+      for (let i = 0; i < n - 1; i++) {
+        const p0 = seg[Math.max(i - 1, 0)].pos;
+        const p1 = seg[i].pos;
+        const p2 = seg[i + 1].pos;
+        const p3 = seg[Math.min(i + 2, n - 1)].pos;
+        const s1 = seg[i].speed;
+        const s2 = seg[i + 1].speed;
+        for (let s = 0; s < CR_SEGS; s++) {
+          const t = s / CR_SEGS;
+          const t2 = t * t, t3 = t2 * t;
+          const x = 0.5 * ((2*p1.x) + (-p0.x+p2.x)*t + (2*p0.x-5*p1.x+4*p2.x-p3.x)*t2 + (-p0.x+3*p1.x-3*p2.x+p3.x)*t3);
+          const y = 0.5 * ((2*p1.y) + (-p0.y+p2.y)*t + (2*p0.y-5*p1.y+4*p2.y-p3.y)*t2 + (-p0.y+3*p1.y-3*p2.y+p3.y)*t3);
+          const z = 0.5 * ((2*p1.z) + (-p0.z+p2.z)*t + (2*p0.z-5*p1.z+4*p2.z-p3.z)*t2 + (-p0.z+3*p1.z-3*p2.z+p3.z)*t3);
+          const spd = s1 != null && s2 != null ? s1*(1-t)+s2*t : (s1 || s2);
+          this.trailPositions.push({ pos: new THREE.Vector3(x, y, z), speed: spd });
         }
-        next.push(pts[pts.length - 1]);
-        pts = next;
       }
-      for (const p of pts) {
-        this.trailPositions.push(p);
-      }
+      this.trailPositions.push(seg[n - 1]);
     }
 
     this.hasRealTrack = true;
@@ -885,31 +908,27 @@ class AircraftObject {
   }
 
   _setModelOpacity(opacity) {
-    if (this._useGLB && this._modelGroup) {
-      this._modelGroup.traverse((child) => {
-        if (child.isMesh) child.material.opacity = opacity;
-      });
+    if (this._useGLB && this._modelMeshes.length > 0) {
+      for (const m of this._modelMeshes) m.material.opacity = opacity;
     } else if (this.bodyMat) {
       this.bodyMat.opacity = opacity;
     }
   }
 
   _setModelColor(color) {
-    // Skip if color hasn't changed (avoid expensive traverse every frame)
+    // Skip if color hasn't changed
     if (this._lastColorR === color.r && this._lastColorG === color.g && this._lastColorB === color.b) return;
     this._lastColorR = color.r;
     this._lastColorG = color.g;
     this._lastColorB = color.b;
 
-    if (this._useGLB && this._modelGroup) {
-      this._modelGroup.traverse((child) => {
-        if (child.isMesh) {
-          child.material.emissive = child.material.emissive || new THREE.Color();
-          child.material.emissive.copy(color);
-          child.material.emissiveIntensity = 2.5;
-          child.material.color.copy(color);
-        }
-      });
+    if (this._useGLB && this._modelMeshes.length > 0) {
+      for (const m of this._modelMeshes) {
+        m.material.emissive = m.material.emissive || new THREE.Color();
+        m.material.emissive.copy(color);
+        m.material.emissiveIntensity = 1.5;
+        m.material.color.copy(color);
+      }
     } else if (this.bodyMat) {
       this.bodyMat.color.copy(color);
       this.bodyMat.emissive.copy(color);
@@ -931,7 +950,7 @@ class AircraftObject {
     const dt = now - this.lastApiTime;
     return extrapolatePosition(
       this.lastApiPos, this.data.velocity, this.data.trueTrack,
-      this.data.verticalRate, dt
+      this.data.verticalRate, dt, this._extrapolatedPos
     );
   }
 
@@ -1010,7 +1029,7 @@ class AircraftObject {
     // dead-reckoning jumps before Chaikin subdivision
     const kn = keyPoints.length;
     const smoothed = new Array(kn);
-    const R = 6;
+    const R = this.hasRealTrack ? 2 : 5;  // real track already Catmull-Rom'd, less smoothing needed
     for (let i = 0; i < kn; i++) {
       let sx = 0, sy = 0, sz = 0, ss = 0, cnt = 0;
       for (let j = Math.max(0, i - R); j <= Math.min(kn - 1, i + R); j++) {
@@ -1029,33 +1048,42 @@ class AircraftObject {
     smoothed[0] = keyPoints[0];
     smoothed[kn - 1] = keyPoints[kn - 1];
 
-    // 4 passes of Chaikin corner-cutting for smooth curves
-    let display = smoothed;
-    for (let pass = 0; pass < 4; pass++) {
-      if (display.length < 3) break;
-      // Cap point count to avoid explosion (4 passes can grow fast)
-      if (display.length > 3000) break;
-      const next = [display[0]];
-      for (let i = 0; i < display.length - 1; i++) {
-        const a = display[i], b = display[i + 1];
-        const spd = a.speed != null && b.speed != null ? (a.speed + b.speed) / 2 : (a.speed || b.speed);
-        next.push({
-          pos: new THREE.Vector3(
-            a.pos.x * 0.75 + b.pos.x * 0.25,
-            a.pos.y * 0.75 + b.pos.y * 0.25,
-            a.pos.z * 0.75 + b.pos.z * 0.25,
-          ), speed: spd,
-        });
-        next.push({
-          pos: new THREE.Vector3(
-            a.pos.x * 0.25 + b.pos.x * 0.75,
-            a.pos.y * 0.25 + b.pos.y * 0.75,
-            a.pos.z * 0.25 + b.pos.z * 0.75,
-          ), speed: spd,
-        });
+    // Chaikin corner-cutting — flat arrays avoid per-point Vector3 allocation
+    // Each pass: [x,y,z,speed] packed into Float64Array for speed
+    let srcX = new Float64Array(smoothed.length);
+    let srcY = new Float64Array(smoothed.length);
+    let srcZ = new Float64Array(smoothed.length);
+    let srcS = new Float64Array(smoothed.length);
+    for (let i = 0; i < smoothed.length; i++) {
+      srcX[i] = smoothed[i].pos.x; srcY[i] = smoothed[i].pos.y;
+      srcZ[i] = smoothed[i].pos.z; srcS[i] = smoothed[i].speed || 0;
+    }
+    const chaikinPasses = this.hasRealTrack ? 2 : 4;
+    for (let pass = 0; pass < chaikinPasses; pass++) {
+      const n = srcX.length;
+      if (n < 3 || n > 3000) break;
+      const dstLen = (n - 1) * 2 + 2;
+      const dstX = new Float64Array(dstLen);
+      const dstY = new Float64Array(dstLen);
+      const dstZ = new Float64Array(dstLen);
+      const dstS = new Float64Array(dstLen);
+      dstX[0] = srcX[0]; dstY[0] = srcY[0]; dstZ[0] = srcZ[0]; dstS[0] = srcS[0];
+      for (let i = 0; i < n - 1; i++) {
+        const s = (srcS[i] + srcS[i + 1]) / 2;
+        const d = i * 2 + 1;
+        dstX[d]   = srcX[i]*0.75 + srcX[i+1]*0.25; dstY[d]   = srcY[i]*0.75 + srcY[i+1]*0.25;
+        dstZ[d]   = srcZ[i]*0.75 + srcZ[i+1]*0.25; dstS[d]   = s;
+        dstX[d+1] = srcX[i]*0.25 + srcX[i+1]*0.75; dstY[d+1] = srcY[i]*0.25 + srcY[i+1]*0.75;
+        dstZ[d+1] = srcZ[i]*0.25 + srcZ[i+1]*0.75; dstS[d+1] = s;
       }
-      next.push(display[display.length - 1]);
-      display = next;
+      const last = dstLen - 1;
+      dstX[last] = srcX[n-1]; dstY[last] = srcY[n-1]; dstZ[last] = srcZ[n-1]; dstS[last] = srcS[n-1];
+      srcX = dstX; srcY = dstY; srcZ = dstZ; srcS = dstS;
+    }
+    // Convert back to point array for downstream use
+    const display = [];
+    for (let i = 0; i < srcX.length; i++) {
+      display.push({ pos: new THREE.Vector3(srcX[i], srcY[i], srcZ[i]), speed: srcS[i] });
     }
 
     const pts = display.map(p => ({
@@ -1142,9 +1170,11 @@ class AircraftObject {
   }
 
   updateDropLine(pos) {
-    const positions = new Float32Array([pos.x, pos.y, pos.z, pos.x, 0, pos.z]);
-    this.dropGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    this.dropLine.computeLineDistances();
+    // Reuse pre-allocated buffer — no GC pressure per frame
+    const arr = this._dropPosArray;
+    arr[0] = pos.x; arr[1] = pos.y; arr[2] = pos.z;
+    arr[3] = pos.x; arr[4] = 0;     arr[5] = pos.z;
+    this.dropGeometry.getAttribute('position').needsUpdate = true;
   }
 
   startFadeOut() {
@@ -1188,6 +1218,12 @@ class AircraftObject {
     // Sync model + glow color to current speed
     const speedCol = getSpeedColor(this.data.velocity);
     this._setModelColor(speedCol);
+
+    // Body glow — guaranteed glow regardless of model material type
+    if (this._bodyGlow) {
+      this._bodyGlowMat.opacity = this.masterOpacity * 0.6;
+      this._bodyGlowMat.color.copy(speedCol);
+    }
 
     // Dead-reckoning — very smooth lerp to avoid sharp angle in trail
     const predictedTarget = this._getExtrapolatedTarget();
@@ -1264,6 +1300,7 @@ class AircraftObject {
     for (const nl of this._navLights) {
       nl.material.dispose();
     }
+    if (this._bodyGlowMat) this._bodyGlowMat.dispose();
   }
 
   getDisplayData() {
