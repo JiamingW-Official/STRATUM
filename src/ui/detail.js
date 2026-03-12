@@ -56,8 +56,8 @@ export function showDetail(aircraftObj, userLat, userLon) {
   fmtAirport(d.origin, d.originCity, elOrigin);
   fmtAirport(d.destination, d.destCity, elDest);
 
-  // Fetch route (adsbdb primary → airplanes.live fallback) when panel first opens
-  if (isNew && (!d.origin || !d.destination) && d.callsign) {
+  // Fetch route when panel first opens, or when city names are missing
+  if (isNew && (!d.origin || !d.destination || !d.originCity) && d.callsign) {
     fetchRouteNow(d.callsign).then(() => {
       if (selectedAircraft !== aircraftObj) return;
       const route = getRoute(d.callsign);
