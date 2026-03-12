@@ -90,7 +90,7 @@ async function _doFetch(url, pauseRef, label) {
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const r = await fetch(url, { cache: 'no-store', signal: controller.signal });
-    if (r.status === 429) { pauseRef.v = Date.now() + 30000; throw new Error(`${label} 429`); }
+    if (r.status === 429) { pauseRef.v = Date.now() + 120000; throw new Error(`${label} 429`); }
     if (!r.ok) throw new Error(`${label} HTTP ${r.status}`);
     return parseAdsbResponse(await r.json());
   } finally {
@@ -293,8 +293,8 @@ const routeFetchPromises = new Map();
 const ROUTE_NULL_TTL = 30000; // 30 s retry window for failed lookups
 
 // On-demand route fetch — called when user opens detail panel.
-let _adsbxCallsignPausedUntil = 0;
-let _openskyFlightsPausedUntil = 0;
+let _adsbxPausedUntil  = 0;
+let _openskyPausedUntil = 0;
 
 async function fetchRouteAsync(callsign, icao24) {
   routeFetchQueue.add(callsign);
@@ -303,33 +303,21 @@ async function fetchRouteAsync(callsign, icao24) {
     const needsCodes = !before?.origin && !before?.destination;
 
     if (needsCodes) {
-      const now = Math.floor(Date.now() / 1000);
-      const begin = now - 14400; // 4 hours back
-
-      // Fire sources in parallel, merge best origin + destination from any
-      const [flightsResult, routesResult, adsbxResult] = await Promise.allSettled([
-        // Source A: OpenSky flights/aircraft — actual departure from real tracking
-        icao24 && Date.now() > _openskyFlightsPausedUntil
-          ? fetch(`${OPENSKY_BASE}/api/flights/aircraft?icao24=${encodeURIComponent(icao24)}&begin=${begin}&end=${now}`, { cache: 'no-store' })
+      // Source A: OpenSky routes — 1 credit/call, gives both airports for scheduled flights
+      // Source B: airplanes.live hex — live transponder oa/da, no credit cost
+      const [routesResult, adsbxResult] = await Promise.allSettled([
+        Date.now() > _openskyPausedUntil
+          ? fetch(`${OPENSKY_BASE}/api/routes?callsign=${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' })
               .then(r => {
-                if (r.status === 429) { _openskyFlightsPausedUntil = Date.now() + 60000; return null; }
+                if (r.status === 429) { _openskyPausedUntil = Date.now() + 300000; return null; } // 5 min pause
                 return r.ok ? r.json() : null;
               })
-              .then(arr => {
-                if (!Array.isArray(arr) || arr.length === 0) return null;
-                const fl = arr[arr.length - 1];
-                return { origin: fl.estDepartureAirport || null, destination: fl.estArrivalAirport || null };
-              })
+              .then(j => j?.route?.length >= 2 ? { origin: j.route[0], destination: j.route[1] } : null)
           : Promise.resolve(null),
-        // Source B: OpenSky routes — scheduled route, has destination for many callsigns
-        fetch(`${OPENSKY_BASE}/api/routes?callsign=${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' })
-          .then(r => r.ok ? r.json() : null)
-          .then(j => j?.route?.length >= 2 ? { origin: j.route[0], destination: j.route[1] } : null),
-        // Source C: airplanes.live hex — live transponder oa/da
-        icao24 && Date.now() > _adsbxCallsignPausedUntil
+        icao24 && Date.now() > _adsbxPausedUntil
           ? fetch(`${ADSBX_BASE}/hex/${encodeURIComponent(icao24)}`, { cache: 'no-store' })
               .then(r => {
-                if (r.status === 429) { _adsbxCallsignPausedUntil = Date.now() + 10000; return null; }
+                if (r.status === 429) { _adsbxPausedUntil = Date.now() + 30000; return null; }
                 return r.ok ? r.json() : null;
               })
               .then(j => {
@@ -341,7 +329,7 @@ async function fetchRouteAsync(callsign, icao24) {
 
       // Merge: pick best origin AND best destination from any source
       let origin = null, destination = null;
-      for (const r of [flightsResult, routesResult, adsbxResult]) {
+      for (const r of [routesResult, adsbxResult]) {
         const v = r.status === 'fulfilled' ? r.value : null;
         if (!v) continue;
         if (!origin && v.origin) origin = v.origin;
