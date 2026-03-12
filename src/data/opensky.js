@@ -1,10 +1,11 @@
+import { getAirportCity } from './airportCities.js';
+
 // Position APIs (proxied — no CORS from browser)
 // Primary: adsb.fi   Fallback: adsb.one (same openapi format, same /api/v2 path)
 const ADSB_FI_BASE   = '/api/adsbfi/api/v2';
 const ADSB_ONE_BASE  = '/api/adsboe/api/v2';
 const ADSBX_BASE     = '/api/adsbx/v2';
 const TRACE_BASE     = '/api/trace/data/traces';
-const ADSBDB_BASE    = '/api/adsbdb';
 const FETCH_TIMEOUT_MS = 3500;
 const POLL_INTERVAL  = 3000;   // 3s — stays within user's 4s budget, avoids 429
 const BBOX_RADIUS_NM = 100;
@@ -235,7 +236,9 @@ async function poll() {
       if (ex && (ex.originCity || ex.destCity)) continue;     // keep city names if present
       routeCache.set(cs, {
         origin: ac.origin || null, destination: ac.destination || null,
-        originCity: null, destCity: null, fetchedAt: Date.now(),
+        originCity: getAirportCity(ac.origin),
+        destCity:   getAirportCity(ac.destination),
+        fetchedAt: Date.now(),
       });
     }
 
@@ -316,32 +319,17 @@ async function fetchRouteAsync(callsign) {
       } catch { /* fall through */ }
     }
 
-    // Removed: adsb.fi callsign — it shares the area poll rate limit, causing 429s
-
-    // Step 2: adsbdb city-name enrichment (content-type guard against HTML redirect)
-    try {
-      const r2 = await fetch(`${ADSBDB_BASE}/v2/callsign/${encodeURIComponent(callsign.trim())}`);
-      const ct = r2.headers.get('content-type') || '';
-      if (r2.ok && ct.includes('json')) {
-        const j2 = await r2.json();
-        const fr = j2.response?.flightroute;
-        if (fr && (fr.origin || fr.destination)) {
-          const ex = routeCache.get(callsign) || {};
-          routeCache.set(callsign, {
-            origin:      fr.origin?.icao_code        || ex.origin      || null,
-            destination: fr.destination?.icao_code   || ex.destination || null,
-            originCity:  fr.origin?.municipality     || null,
-            destCity:    fr.destination?.municipality || null,
-            fetchedAt:   Date.now(),
-          });
-          return;
-        }
-      }
-    } catch { /* fall through */ }
-
-    // Keep ICAO codes from step 1 if present
-    const after = routeCache.get(callsign);
-    if (after?.origin || after?.destination) return;
+    // Step 2: resolve city names from local lookup (no API call needed)
+    const entry = routeCache.get(callsign);
+    if (entry?.origin || entry?.destination) {
+      routeCache.set(callsign, {
+        ...entry,
+        originCity: entry.originCity || getAirportCity(entry.origin),
+        destCity:   entry.destCity   || getAirportCity(entry.destination),
+        fetchedAt:  Date.now(),
+      });
+      return;
+    }
 
     // Nothing found — short TTL so next click retries after 30 s
     routeCache.set(callsign, {
