@@ -1,9 +1,10 @@
 import { getAirportCity } from './airportCities.js';
 
 // Position APIs (proxied — no CORS from browser)
-// Primary: adsb.fi   Fallback: adsb.one (same openapi format, same /api/v2 path)
+// Primary: adsb.fi (/api/v2/lat/{lat}/lon/{lon}/dist/{nm})
+// Fallback: adsb.one (/v2/point/{lat}/{lon}/{nm} — different path format)
 const ADSB_FI_BASE   = '/api/adsbfi/api/v2';
-const ADSB_ONE_BASE  = '/api/adsboe/api/v2';
+const ADSB_ONE_BASE  = '/api/adsboe/v2';
 const ADSBX_BASE     = '/api/adsbx/v2';
 const TRACE_BASE     = '/api/trace/data/traces';
 const FETCH_TIMEOUT_MS = 3500;
@@ -109,7 +110,7 @@ async function fetchStates() {
   if (Date.now() >= _adsbFiPausedUntil)
     candidates.push(_doFetch(`${ADSB_FI_BASE}/lat/${lat}/lon/${lon}/dist/${BBOX_RADIUS_NM}?_t=${t}`, fiRef, 'adsb.fi'));
   if (Date.now() >= _adsbOnePausedUntil)
-    candidates.push(_doFetch(`${ADSB_ONE_BASE}/lat/${lat}/lon/${lon}/dist/${BBOX_RADIUS_NM}?_t=${t}`, oneRef, 'adsb.one'));
+    candidates.push(_doFetch(`${ADSB_ONE_BASE}/point/${lat}/${lon}/${BBOX_RADIUS_NM}?_t=${t}`, oneRef, 'adsb.one'));
 
   if (candidates.length === 0) throw new Error('all sources rate-limited');
 
