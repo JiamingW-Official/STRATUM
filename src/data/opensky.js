@@ -297,23 +297,36 @@ const ROUTE_NULL_TTL = 30000; // 30 s retry window for failed lookups
 // adsb.fi is NOT used here — its rate limit is reserved for the position poll.
 let _adsbxCallsignPausedUntil = 0;
 
-async function fetchRouteAsync(callsign) {
+async function fetchRouteAsync(callsign, icao24) {
   routeFetchQueue.add(callsign);
   try {
     const before = routeCache.get(callsign);
     const needsCodes = !before?.origin && !before?.destination;
 
-    // Race OpenSky routes + airplanes.live callsign in parallel when ICAO codes missing
     if (needsCodes) {
-      const results = await Promise.allSettled([
-        // Source A: OpenSky route database — best coverage for scheduled commercial flights
+      const now = Math.floor(Date.now() / 1000);
+      const begin = now - 14400; // 4 hours back
+
+      const sources = [
+        // Source A: OpenSky flights/aircraft — looks up actual departure by hex code
+        // Returns estDepartureAirport + estArrivalAirport from real flight tracking
+        icao24
+          ? fetch(`${OPENSKY_BASE}/api/flights/aircraft?icao24=${encodeURIComponent(icao24)}&begin=${begin}&end=${now}`, { cache: 'no-store' })
+              .then(r => r.ok ? r.json() : null)
+              .then(arr => {
+                if (!Array.isArray(arr) || arr.length === 0) return null;
+                // Most recent flight
+                const fl = arr[arr.length - 1];
+                const origin = fl.estDepartureAirport || null;
+                const destination = fl.estArrivalAirport || null;
+                return (origin || destination) ? { origin, destination } : null;
+              })
+          : Promise.resolve(null),
+        // Source B: OpenSky route database — scheduled route by callsign
         fetch(`${OPENSKY_BASE}/api/routes?callsign=${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' })
           .then(r => r.ok ? r.json() : null)
-          .then(j => {
-            if (j?.route?.length >= 2) return { origin: j.route[0], destination: j.route[1] };
-            return null;
-          }),
-        // Source B: airplanes.live callsign — live data, sometimes has oa/da
+          .then(j => (j?.route?.length >= 2) ? { origin: j.route[0], destination: j.route[1] } : null),
+        // Source C: airplanes.live — live oa/da from transponder
         Date.now() > _adsbxCallsignPausedUntil
           ? fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' })
               .then(r => {
@@ -325,9 +338,9 @@ async function fetchRouteAsync(callsign) {
                 return (ac?.oa || ac?.da) ? { origin: ac.oa || null, destination: ac.da || null } : null;
               })
           : Promise.resolve(null),
-      ]);
+      ];
 
-      // Use whichever source returned data first (prefer OpenSky then adsbx)
+      const results = await Promise.allSettled(sources);
       for (const r of results) {
         if (r.status === 'fulfilled' && r.value) {
           routeCache.set(callsign, {
@@ -363,7 +376,7 @@ async function fetchRouteAsync(callsign) {
 }
 
 // On-demand route fetch — triggered once when user opens detail panel.
-export async function fetchRouteNow(callsign) {
+export async function fetchRouteNow(callsign, icao24) {
   if (!callsign || callsign.length < 3) return;
 
   const entry = routeCache.get(callsign);
@@ -376,7 +389,7 @@ export async function fetchRouteNow(callsign) {
     return;
   }
 
-  const p = fetchRouteAsync(callsign).finally(() => routeFetchPromises.delete(callsign));
+  const p = fetchRouteAsync(callsign, icao24).finally(() => routeFetchPromises.delete(callsign));
   routeFetchPromises.set(callsign, p);
   await p;
 }
