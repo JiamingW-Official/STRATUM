@@ -2,11 +2,17 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   server: {
+    port: 4000,
     proxy: {
       '/api/adsbfi': {
         target: 'https://opendata.adsb.fi',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/adsbfi/, ''),
+      },
+      '/api/adsblo': {
+        target: 'https://api.adsb.lol',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/adsblo/, ''),
       },
       '/api/adsbx': {
         target: 'https://api.airplanes.live',
