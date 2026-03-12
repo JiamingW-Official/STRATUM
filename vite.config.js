@@ -44,11 +44,10 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/hexdb/, ''),
       },
-      '/api/adsbdb': {
-        target: 'https://api.adsbdb.com',
+      '/api/opensky': {
+        target: 'https://opensky-network.org',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/adsbdb/, ''),
-        followRedirects: true,  // adsbdb 301s unknown callsigns to www.adsbdb.com
+        rewrite: (path) => path.replace(/^\/api\/opensky/, ''),
       },
     },
   },

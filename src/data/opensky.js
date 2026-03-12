@@ -6,6 +6,7 @@ import { getAirportCity } from './airportCities.js';
 const ADSB_FI_BASE   = '/api/adsbfi/api/v2';
 const ADSB_ONE_BASE  = '/api/adsboe/v2';
 const ADSBX_BASE     = '/api/adsbx/v2';
+const OPENSKY_BASE   = '/api/opensky';
 const TRACE_BASE     = '/api/trace/data/traces';
 const FETCH_TIMEOUT_MS = 3500;
 const POLL_INTERVAL  = 3000;   // 3s — stays within user's 4s budget, avoids 429
@@ -300,27 +301,46 @@ async function fetchRouteAsync(callsign) {
   routeFetchQueue.add(callsign);
   try {
     const before = routeCache.get(callsign);
+    const needsCodes = !before?.origin && !before?.destination;
 
-    // Step 1: airplanes.live callsign → oa/da (only when no codes yet and not paused)
-    if (!before?.origin && !before?.destination && Date.now() > _adsbxCallsignPausedUntil) {
-      try {
-        const r = await fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' });
-        if (r.status === 429) {
-          _adsbxCallsignPausedUntil = Date.now() + 5000;
-        } else if (r.ok) {
-          const j = await r.json();
-          const ac = (j.ac || j.aircraft || [])[0];
-          if (ac?.oa || ac?.da) {
-            routeCache.set(callsign, {
-              origin: ac.oa || null, destination: ac.da || null,
-              originCity: null, destCity: null, fetchedAt: Date.now(),
-            });
-          }
+    // Race OpenSky routes + airplanes.live callsign in parallel when ICAO codes missing
+    if (needsCodes) {
+      const results = await Promise.allSettled([
+        // Source A: OpenSky route database — best coverage for scheduled commercial flights
+        fetch(`${OPENSKY_BASE}/api/routes?callsign=${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' })
+          .then(r => r.ok ? r.json() : null)
+          .then(j => {
+            if (j?.route?.length >= 2) return { origin: j.route[0], destination: j.route[1] };
+            return null;
+          }),
+        // Source B: airplanes.live callsign — live data, sometimes has oa/da
+        Date.now() > _adsbxCallsignPausedUntil
+          ? fetch(`${ADSBX_BASE}/callsign/${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' })
+              .then(r => {
+                if (r.status === 429) { _adsbxCallsignPausedUntil = Date.now() + 5000; return null; }
+                return r.ok ? r.json() : null;
+              })
+              .then(j => {
+                const ac = (j?.ac || j?.aircraft || [])[0];
+                return (ac?.oa || ac?.da) ? { origin: ac.oa || null, destination: ac.da || null } : null;
+              })
+          : Promise.resolve(null),
+      ]);
+
+      // Use whichever source returned data first (prefer OpenSky then adsbx)
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) {
+          routeCache.set(callsign, {
+            origin: r.value.origin || null,
+            destination: r.value.destination || null,
+            originCity: null, destCity: null, fetchedAt: Date.now(),
+          });
+          break;
         }
-      } catch { /* fall through */ }
+      }
     }
 
-    // Step 2: resolve city names from local lookup (no API call needed)
+    // Resolve city names from local lookup
     const entry = routeCache.get(callsign);
     if (entry?.origin || entry?.destination) {
       routeCache.set(callsign, {
