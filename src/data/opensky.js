@@ -98,27 +98,33 @@ async function _doFetch(url, pauseRef, label) {
   }
 }
 
-// Race adsb.fi and adsb.one — whichever isn't paused and responds first wins
+// Position poll: adsb.one primary, adsb.fi fallback only.
+// adsb.fi rate limit is reserved entirely for on-demand hex route lookups.
 async function fetchStates() {
   const lat = userLat.toFixed(4);
   const lon = userLon.toFixed(4);
   const t   = Math.floor(Date.now() / 1000);
 
-  const fiRef  = { v: _adsbFiPausedUntil };
   const oneRef = { v: _adsbOnePausedUntil };
 
-  const candidates = [];
-  if (Date.now() >= _adsbFiPausedUntil)
-    candidates.push(_doFetch(`${ADSB_FI_BASE}/lat/${lat}/lon/${lon}/dist/${BBOX_RADIUS_NM}?_t=${t}`, fiRef, 'adsb.fi'));
-  if (Date.now() >= _adsbOnePausedUntil)
-    candidates.push(_doFetch(`${ADSB_ONE_BASE}/point/${lat}/${lon}/${BBOX_RADIUS_NM}?_t=${t}`, oneRef, 'adsb.one'));
+  // Primary: adsb.one (no route data, but stable and no rate limit conflicts)
+  if (Date.now() >= _adsbOnePausedUntil) {
+    try {
+      const result = await _doFetch(`${ADSB_ONE_BASE}/point/${lat}/${lon}/${BBOX_RADIUS_NM}?_t=${t}`, oneRef, 'adsb.one');
+      _adsbOnePausedUntil = oneRef.v;
+      return result;
+    } catch { _adsbOnePausedUntil = oneRef.v; }
+  }
 
-  if (candidates.length === 0) throw new Error('all sources rate-limited');
+  // Fallback: adsb.fi (only when adsb.one is paused)
+  const fiRef = { v: _adsbFiPausedUntil };
+  if (Date.now() >= _adsbFiPausedUntil) {
+    const result = await _doFetch(`${ADSB_FI_BASE}/lat/${lat}/lon/${lon}/dist/${BBOX_RADIUS_NM}?_t=${t}`, fiRef, 'adsb.fi');
+    _adsbFiPausedUntil = fiRef.v;
+    return result;
+  }
 
-  const result = await Promise.any(candidates);
-  _adsbFiPausedUntil  = fiRef.v;
-  _adsbOnePausedUntil = oneRef.v;
-  return result;
+  throw new Error('all sources rate-limited');
 }
 
 // pollInFlight guard with 5s safety reset to prevent permanent stall
@@ -293,8 +299,10 @@ const routeFetchPromises = new Map();
 const ROUTE_NULL_TTL = 30000; // 30 s retry window for failed lookups
 
 // On-demand route fetch — called when user opens detail panel.
-let _adsbxPausedUntil  = 0;
+// adsb.fi rate limit is no longer shared with position poll, so hex lookups are safe.
+let _adsbxPausedUntil   = 0;
 let _openskyPausedUntil = 0;
+let _adsbFiRoutePausedUntil = 0;
 
 async function fetchRouteAsync(callsign, icao24) {
   routeFetchQueue.add(callsign);
@@ -303,17 +311,31 @@ async function fetchRouteAsync(callsign, icao24) {
     const needsCodes = !before?.origin && !before?.destination;
 
     if (needsCodes) {
-      // Source A: OpenSky routes — 1 credit/call, gives both airports for scheduled flights
-      // Source B: airplanes.live hex — live transponder oa/da, no credit cost
-      const [routesResult, adsbxResult] = await Promise.allSettled([
+      // Three sources in parallel, merge best origin + destination from any
+      const [adsbFiResult, openskyResult, adsbxResult] = await Promise.allSettled([
+        // Source A: adsb.fi hex — direct FMS broadcast (oa=origin, da=destination)
+        // Now safe to call: position poll uses adsb.one, not adsb.fi
+        icao24 && Date.now() > _adsbFiRoutePausedUntil
+          ? fetch(`${ADSB_FI_BASE}/hex/${encodeURIComponent(icao24)}`, { cache: 'no-store' })
+              .then(r => {
+                if (r.status === 429) { _adsbFiRoutePausedUntil = Date.now() + 60000; return null; }
+                return r.ok ? r.json() : null;
+              })
+              .then(j => {
+                const ac = (j?.ac || [])[0];
+                return (ac?.oa || ac?.da) ? { origin: ac.oa || null, destination: ac.da || null } : null;
+              })
+          : Promise.resolve(null),
+        // Source B: OpenSky routes — scheduled route database (both airports when found)
         Date.now() > _openskyPausedUntil
           ? fetch(`${OPENSKY_BASE}/api/routes?callsign=${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' })
               .then(r => {
-                if (r.status === 429) { _openskyPausedUntil = Date.now() + 300000; return null; } // 5 min pause
+                if (r.status === 429) { _openskyPausedUntil = Date.now() + 300000; return null; }
                 return r.ok ? r.json() : null;
               })
               .then(j => j?.route?.length >= 2 ? { origin: j.route[0], destination: j.route[1] } : null)
           : Promise.resolve(null),
+        // Source C: airplanes.live hex — fallback transponder data
         icao24 && Date.now() > _adsbxPausedUntil
           ? fetch(`${ADSBX_BASE}/hex/${encodeURIComponent(icao24)}`, { cache: 'no-store' })
               .then(r => {
@@ -329,7 +351,7 @@ async function fetchRouteAsync(callsign, icao24) {
 
       // Merge: pick best origin AND best destination from any source
       let origin = null, destination = null;
-      for (const r of [routesResult, adsbxResult]) {
+      for (const r of [adsbFiResult, openskyResult, adsbxResult]) {
         const v = r.status === 'fulfilled' ? r.value : null;
         if (!v) continue;
         if (!origin && v.origin) origin = v.origin;
