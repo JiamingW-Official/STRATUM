@@ -35,7 +35,12 @@
       "Bash(curl -s -w \"\\\\nHTTP_CODE:%{http_code}\" --max-time 15 -X POST \"http://localhost:5173/api/ovp-kumi/api/interpreter\" -d 'data=%5Bout%3Ajson%5D%5Btimeout%3A10%5D%3Bnode%5B%22aeroway%22%3D%22aerodrome%22%5D\\(40.0%2C-74.5%2C41.0%2C-73.5\\)%3Bout%20body%3B' -H 'Content-Type: application/x-www-form-urlencoded')",
       "Bash(curl -s -w \"\\\\nHTTP_CODE:%{http_code}\" --max-time 15 -X POST \"http://localhost:5173/api/ovp-ru/api/interpreter\" -d 'data=%5Bout%3Ajson%5D%5Btimeout%3A10%5D%3Bnode%5B%22aeroway%22%3D%22aerodrome%22%5D\\(40.0%2C-74.5%2C41.0%2C-73.5\\)%3Bout%20body%3B' -H 'Content-Type: application/x-www-form-urlencoded')",
       "Bash(curl -s --max-time 15 -X POST \"http://localhost:5173/api/ovp-ru/api/interpreter\" -d 'data=%5Bout%3Ajson%5D%5Btimeout%3A10%5D%3Bnode%5B%22aeroway%22%3D%22aerodrome%22%5D\\(40.0%2C-74.5%2C41.0%2C-73.5\\)%3Bout%20body%3B' -H 'Content-Type: application/x-www-form-urlencoded')",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''{len\\(d[\"\"elements\"\"]\\)} airports found''\\); [print\\(f''  {e[\"\"tags\"\"].get\\(\"\"name\"\",\"\"?\"\"\\)} \\({e[\"\"tags\"\"].get\\(\"\"iata\"\",\"\"\"\"\\)} / {e[\"\"tags\"\"].get\\(\"\"icao\"\",\"\"\"\"\\)}\\)''\\) for e in d[''elements''][:5]]\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''{len\\(d[\"\"elements\"\"]\\)} airports found''\\); [print\\(f''  {e[\"\"tags\"\"].get\\(\"\"name\"\",\"\"?\"\"\\)} \\({e[\"\"tags\"\"].get\\(\"\"iata\"\",\"\"\"\"\\)} / {e[\"\"tags\"\"].get\\(\"\"icao\"\",\"\"\"\"\\)}\\)''\\) for e in d[''elements''][:5]]\")",
+      "Bash(find /Users/jiamingw/Documents/GitHub/STRATUM/src -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js -o -name *.jsx \\\\\\))",
+      "Bash(wc -l /Users/jiamingw/Documents/GitHub/STRATUM/src/ui/*.js /Users/jiamingw/Documents/GitHub/STRATUM/src/scene/*.js /Users/jiamingw/Documents/GitHub/STRATUM/src/data/*.js /Users/jiamingw/Documents/GitHub/STRATUM/src/main.js)",
+      "mcp__claude_ai_Vercel__deploy_to_vercel",
+      "Bash(npm install:*)",
+      "Bash(vercel whoami:*)"
     ]
   }
 }
