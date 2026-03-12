@@ -39,7 +39,7 @@ const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real tra
 const SYNTHETIC_TRAIL_STEP = 0.5;
 const TRAIL_REBUILD_INTERVAL = 1.0;     // rebuild geometry 1x/sec
 const TRACK_REFRESH_INTERVAL = 300;     // re-check track API every 5 min (once loaded)
-const TRACK_INITIAL_CHECK_INTERVAL = 2; // check every 2s until track arrives
+const TRACK_INITIAL_CHECK_INTERVAL = 0.25; // check every 250ms until track arrives
 const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
 
 // --- Cached geometry / textures ---

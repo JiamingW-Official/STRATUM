@@ -185,19 +185,30 @@ function queueTraceFetch(icao24) {
   traceQueueBatch.push(icao24);
 
   if (!traceBatchTimer) {
-    // Process trace fetches in small batches to avoid hammering the server
-    traceBatchTimer = setInterval(() => {
-      const batch = traceQueueBatch.splice(0, 5); // 5 at a time instead of 20
+    // Fire the first batch immediately, then continue every 200ms
+    const processBatch = () => {
+      const batch = traceQueueBatch.splice(0, 8);
       if (batch.length === 0) {
         clearInterval(traceBatchTimer);
         traceBatchTimer = null;
         return;
       }
-      for (const hex of batch) {
-        fetchTraceAsync(hex);
-      }
-    }, 500); // 500ms gap between batches instead of 150ms
+      for (const hex of batch) fetchTraceAsync(hex);
+    };
+    processBatch(); // instant first batch — no 500ms wait
+    traceBatchTimer = setInterval(processBatch, 200);
   }
+}
+
+// Immediate priority fetch for the aircraft the user just selected.
+// Bypasses the batch queue entirely.
+export function priorityTraceFetch(icao24) {
+  if (!icao24) return;
+  if (trackFetchQueue.has(icao24)) return; // already in-flight
+  // Remove from the pending queue so we don't double-fetch
+  const idx = traceQueueBatch.indexOf(icao24);
+  if (idx !== -1) traceQueueBatch.splice(idx, 1);
+  fetchTraceAsync(icao24);
 }
 
 async function poll() {

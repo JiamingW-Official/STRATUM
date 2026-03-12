@@ -7,7 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createEnvironment, updatePulse, loadGroundMap, loadAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights } from './scene/environment.js';
 import { AircraftManager } from './scene/aircraft.js';
-import { setUserLocation, getUserLocation, startPolling } from './data/opensky.js';
+import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch } from './data/opensky.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft } from './ui/detail.js';
 import { initNeko, nekoTrackAircraft } from './ui/neko.js';
@@ -385,6 +385,7 @@ function handleAircraftSelect(ac) {
   aircraftManager.selectAircraft(ac);
   flyToThenFollow(ac);
   nekoTrackAircraft(ac.getDisplayData());
+  priorityTraceFetch(ac.data.icao24); // bypass queue — fetch trail immediately
   if (selectedAirportState) {
     deselectAirport(scene);
     aircraftManager.clearHighlight();
