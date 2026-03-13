@@ -901,6 +901,26 @@ function toggleHelp() {
 }
 document.getElementById('help-close')?.addEventListener('click', toggleHelp);
 
+// FIR toggle — shared by J key and button
+function _doToggleFIR() {
+  const btn = document.getElementById('fir-toggle');
+  toggleFIRBoundaries(scene).then(visible => {
+    if (btn) btn.classList.toggle('active', visible);
+    let lbl = document.getElementById('bloom-label');
+    if (!lbl) {
+      lbl = document.createElement('div');
+      lbl.id = 'bloom-label';
+      lbl.className = 'bloom-label';
+      document.body.appendChild(lbl);
+    }
+    lbl.textContent = visible ? 'ATC BOUNDARIES: ON' : 'ATC BOUNDARIES: OFF';
+    lbl.classList.remove('hidden');
+    clearTimeout(lbl._timer);
+    lbl._timer = setTimeout(() => lbl.classList.add('hidden'), 1800);
+  });
+}
+document.getElementById('fir-toggle')?.addEventListener('click', _doToggleFIR);
+
 document.addEventListener('keydown', (e) => {
   if (document.activeElement.tagName === 'INPUT') return;
   if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
@@ -979,22 +999,7 @@ document.addEventListener('keydown', (e) => {
   }
 
   // ATC FIR boundaries toggle
-  else if (k === 'a') {
-    toggleFIRBoundaries(scene).then(visible => {
-      let lbl = document.getElementById('bloom-label');
-      if (!lbl) {
-        lbl = document.createElement('div');
-        lbl.id = 'bloom-label';
-        lbl.className = 'bloom-label';
-        document.body.appendChild(lbl);
-      }
-      lbl.textContent = visible ? 'ATC BOUNDARIES: ON' : 'ATC BOUNDARIES: OFF';
-      lbl.classList.remove('hidden');
-      clearTimeout(lbl._timer);
-      lbl._timer = setTimeout(() => lbl.classList.add('hidden'), 1800);
-    });
-    return;
-  }
+  else if (k === 'j') { _doToggleFIR(); return; }
 
   // T2-18: Distance rings toggle
   else if (k === 'g') {
