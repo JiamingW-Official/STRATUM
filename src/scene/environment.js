@@ -1367,20 +1367,24 @@ async function loadFIRBoundaries(scene, lat, lon) {
   _firGroup = new THREE.Group();
   _firGroup.name = 'firBoundaries';
 
-  // Shared material for boundary lines
-  const lineMat = new THREE.LineBasicMaterial({
+  // Dashed material for boundary lines
+  const lineMat = new THREE.LineDashedMaterial({
     color: 0xc4a058,
     transparent: true,
-    opacity: 0.32,
+    opacity: 0.30,
     depthWrite: false,
+    dashSize: 0.3,
+    gapSize: 0.2,
   });
 
-  // Oceanic boundaries — subtler
-  const oceanicMat = new THREE.LineBasicMaterial({
+  // Oceanic boundaries — subtler, wider gaps
+  const oceanicMat = new THREE.LineDashedMaterial({
     color: 0x88aacc,
     transparent: true,
-    opacity: 0.12,
+    opacity: 0.10,
     depthWrite: false,
+    dashSize: 0.4,
+    gapSize: 0.35,
   });
 
   const GROUND_HALF = GROUND_SIZE / 2;
@@ -1398,7 +1402,9 @@ async function loadFIRBoundaries(scene, lat, lon) {
           if (vertices.length >= 6) {
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            _firGroup.add(new THREE.Line(geo, mat));
+            const line = new THREE.Line(geo, mat);
+            line.computeLineDistances();
+            _firGroup.add(line);
           }
           vertices.length = 0;
           continue;
@@ -1409,7 +1415,9 @@ async function loadFIRBoundaries(scene, lat, lon) {
       if (vertices.length >= 6) {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-        _firGroup.add(new THREE.Line(geo, mat));
+        const line = new THREE.Line(geo, mat);
+        line.computeLineDistances();
+        _firGroup.add(line);
       }
     }
 
