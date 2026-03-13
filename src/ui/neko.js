@@ -89,6 +89,46 @@ export function initNeko() {
   setTimeout(() => addEntry('CTR', 'Guard frequency 121.500 active. All stations, monitoring.'), 2000);
 }
 
+// Realistic ATC phraseology pools for varied radio chatter
+const _cruisePool = [
+  (d) => `Radar contact. ${d.altitude}${d.speed !== '--' ? `, ${d.speed}` : ''}.`,
+  () => `Maintain FL350 until advised.`,
+  () => `Radar contact, squawk 4521.`,
+  () => `Contact approach on 124.35.`,
+  () => `Roger, heavy wake turbulence caution.`,
+  (d) => `Radar contact, ${d.altitude !== '--' ? d.altitude : 'alt unknown'}. Squawk ident.`,
+  () => `Climb and maintain FL410, when able direct WOBUX.`,
+];
+
+const _routePool = [
+  (d, origin, dest, alt) => `Radar contact. ${origin} / ${dest}${alt}.`,
+  (d, origin, dest) => `Cleared ${origin} to ${dest}. Squawk ident.`,
+  (d, origin, dest) => `${origin} / ${dest}. Maintain present heading.`,
+];
+
+const _climbPool = [
+  (d) => `Climbing through ${d.altitude}, ${d.verticalSpeed}.`,
+  (d) => `Climb and maintain FL410. ${d.verticalSpeed}.`,
+  (d) => `Passing ${d.altitude}, climbing. When able direct.`,
+];
+
+const _descendPool = [
+  (d) => `Descending through ${d.altitude}, ${d.verticalSpeed}.`,
+  (d) => `Descend via STAR, expect runway 25R. ${d.verticalSpeed}.`,
+  (d) => `Turn left heading 270, vectors ILS runway 28L. ${d.verticalSpeed}.`,
+  (d) => `Cleared ILS runway 09L approach. ${d.altitude}.`,
+];
+
+const _lowPool = [
+  (d) => `Low altitude. ${d.altitude}. Traffic alert.`,
+  (d) => `Hold short runway 27, traffic on final. ${d.altitude}.`,
+  (d) => `Wind 280 at 12, cleared to land runway 28R.`,
+];
+
+function _pick(pool) {
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 export function nekoTrackAircraft(d) {
   if (!d) return;
 
@@ -102,17 +142,15 @@ export function nekoTrackAircraft(d) {
 
   if (origin && dest) {
     const alt = rawAlt != null ? `, ${d.altitude}` : '';
-    text = `Radar contact. ${origin} / ${dest}${alt}.`;
+    text = _pick(_routePool)(d, origin, dest, alt);
   } else if (rawAlt != null && rawAlt < 900 && rawAlt > 10) {
-    text = `Low altitude. ${d.altitude}. Traffic alert.`;
+    text = _pick(_lowPool)(d);
   } else if (status === 'CLIMBING') {
-    text = `Climbing through ${d.altitude}, ${d.verticalSpeed}.`;
+    text = _pick(_climbPool)(d);
   } else if (status === 'DESCENDING') {
-    text = `Descending through ${d.altitude}, ${d.verticalSpeed}.`;
+    text = _pick(_descendPool)(d);
   } else {
-    const spd = d.speed !== '--' ? `, ${d.speed}` : '';
-    const alt = d.altitude !== '--' ? d.altitude : 'alt unknown';
-    text = `Radar contact. ${alt}${spd}.`;
+    text = _pick(_cruisePool)(d);
   }
 
   addEntry(callsign, text);

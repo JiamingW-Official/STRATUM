@@ -11,6 +11,7 @@ import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch } fr
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft } from './ui/detail.js';
 import { initNeko, nekoTrackAircraft } from './ui/neko.js';
+import { initRouteInfer, triggerInference } from './data/routeInfer.js';
 
 // --- Cinematic post-processing shader ---
 const CinematicShader = {
@@ -393,6 +394,8 @@ let selectedAirportState = null;
 
 function handleAircraftSelect(ac) {
   const { lat, lon } = getUserLocation();
+  // 用户点击时触发本地路由推断（按需计算）
+  triggerInference(ac.data.icao24, ac.data.callsign);
   showDetail(ac, lat, lon);
   aircraftManager.selectAircraft(ac);
   flyToThenFollow(ac);
@@ -401,6 +404,7 @@ function handleAircraftSelect(ac) {
   if (selectedAirportState) {
     deselectAirport(scene);
     aircraftManager.clearHighlight();
+    hideAirportWidget();
     selectedAirportState = null;
   }
 }
@@ -446,6 +450,7 @@ canvas.addEventListener('click', (e) => {
   if (selectedAirportState) {
     deselectAirport(scene);
     aircraftManager.clearHighlight();
+    hideAirportWidget();
     selectedAirportState = null;
   }
 });
@@ -457,6 +462,64 @@ canvas.addEventListener('dblclick', (e) => {
   if (ac) handleAircraftSelect(ac);
 });
 
+function showAirportWidget(airport, arrivals, departures) {
+  const w = document.getElementById('airport-widget');
+  if (!w) return;
+  const code = airport.iata || airport.icao || '---';
+  document.getElementById('aw-iata').textContent = code;
+  document.getElementById('aw-icao').textContent = airport.icao || '';
+  document.getElementById('aw-name').textContent = airport.name || code;
+  document.getElementById('aw-arrivals').textContent = arrivals.length;
+  document.getElementById('aw-departures').textContent = departures.length;
+
+  // Lookup rich data from AIRPORT_DATA
+  const meta = typeof AIRPORT_DATA !== 'undefined' ? AIRPORT_DATA[code] : null;
+  document.getElementById('aw-elev').textContent = meta?.elev != null ? `${meta.elev.toLocaleString()} ft` : '--';
+  document.getElementById('aw-rwys').textContent = meta?.rwys ?? '--';
+
+  // Extended airport widget data
+  const awHub = document.getElementById('aw-hub');
+  if (awHub) awHub.textContent = meta?.hub || '--';
+  const awPax = document.getElementById('aw-pax');
+  if (awPax) awPax.textContent = meta?.pax != null ? `${meta.pax}M` : '--';
+
+  const lat = airport.lat, lon = airport.lon;
+  if (lat != null && lon != null) {
+    const la = `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}`;
+    const lo = `${Math.abs(lon).toFixed(2)}°${lon >= 0 ? 'E' : 'W'}`;
+    document.getElementById('aw-coord').textContent = `${la}  ${lo}`;
+  } else {
+    document.getElementById('aw-coord').textContent = '--';
+  }
+
+  // Tower frequency (approximate from airport data if available)
+  document.getElementById('aw-freq').textContent = meta?.icao ? `${meta.icao} TWR` : `${code} INFO`;
+
+  const factEl = document.getElementById('aw-fact');
+  if (meta?.fact) {
+    factEl.textContent = meta.fact;
+    factEl.classList.remove('hidden');
+  } else {
+    factEl.classList.add('hidden');
+  }
+
+  w.classList.remove('hidden');
+}
+
+function hideAirportWidget() {
+  const w = document.getElementById('airport-widget');
+  if (w) w.classList.add('hidden');
+}
+
+document.getElementById('aw-close')?.addEventListener('click', () => {
+  hideAirportWidget();
+  if (selectedAirportState) {
+    deselectAirport(scene);
+    aircraftManager?.clearHighlight();
+    selectedAirportState = null;
+  }
+});
+
 function handleAirportClick(airport) {
   const data = getAirportData();
   if (!data) return;
@@ -466,6 +529,7 @@ function handleAirportClick(airport) {
       selectedAirportState.icao === airport.icao) {
     deselectAirport(scene);
     aircraftManager.clearHighlight();
+    hideAirportWidget();
     selectedAirportState = null;
     return;
   }
@@ -487,6 +551,7 @@ function handleAirportClick(airport) {
 
   const code = airport.iata || airport.icao;
   console.log(`[STRATUM] ${code}: ${arrivals.length} arrivals, ${departures.length} departures`);
+  showAirportWidget(airport, arrivals, departures);
 }
 
 // --- Geolocation ---
@@ -756,476 +821,660 @@ function animate() {
 // --- City picker ---
 // 400 airports total: 98 Americas · 118 Europe · 23 Middle East · 43 Africa · 98 Asia · 20 Pacific
 const CITIES = [
-  // ── Americas (23 original) ─────────────────────────────────────────────────
-  { name: 'New York',        code: 'JFK', lat:  40.6413,  lon:  -73.7781, region: 'Americas' },
-  { name: 'Los Angeles',     code: 'LAX', lat:  33.9425,  lon: -118.4081, region: 'Americas' },
-  { name: 'Chicago',         code: 'ORD', lat:  41.9742,  lon:  -87.9073, region: 'Americas' },
-  { name: 'Miami',           code: 'MIA', lat:  25.7959,  lon:  -80.2870, region: 'Americas' },
-  { name: 'Dallas',          code: 'DFW', lat:  32.8998,  lon:  -97.0403, region: 'Americas' },
-  { name: 'Atlanta',         code: 'ATL', lat:  33.6407,  lon:  -84.4277, region: 'Americas' },
-  { name: 'San Francisco',   code: 'SFO', lat:  37.6213,  lon: -122.3790, region: 'Americas' },
-  { name: 'Seattle',         code: 'SEA', lat:  47.4502,  lon: -122.3088, region: 'Americas' },
-  { name: 'Denver',          code: 'DEN', lat:  39.8561,  lon: -104.6737, region: 'Americas' },
-  { name: 'Boston',          code: 'BOS', lat:  42.3656,  lon:  -71.0096, region: 'Americas' },
-  { name: 'Houston',         code: 'IAH', lat:  29.9902,  lon:  -95.3368, region: 'Americas' },
-  { name: 'Toronto',         code: 'YYZ', lat:  43.6777,  lon:  -79.6248, region: 'Americas' },
-  { name: 'Vancouver',       code: 'YVR', lat:  49.1947,  lon: -123.1792, region: 'Americas' },
-  { name: 'Montreal',        code: 'YUL', lat:  45.4706,  lon:  -73.7408, region: 'Americas' },
-  { name: 'Calgary',         code: 'YYC', lat:  51.1314,  lon: -114.0125, region: 'Americas' },
-  { name: 'Mexico City',     code: 'MEX', lat:  19.4363,  lon:  -99.0721, region: 'Americas' },
-  { name: 'Cancun',          code: 'CUN', lat:  21.0365,  lon:  -86.8771, region: 'Americas' },
-  { name: 'São Paulo',       code: 'GRU', lat: -23.4356,  lon:  -46.4731, region: 'Americas' },
-  { name: 'Rio de Janeiro',  code: 'GIG', lat: -22.8099,  lon:  -43.2505, region: 'Americas' },
-  { name: 'Buenos Aires',    code: 'EZE', lat: -34.8222,  lon:  -58.5358, region: 'Americas' },
-  { name: 'Bogotá',          code: 'BOG', lat:   4.7016,  lon:  -74.1469, region: 'Americas' },
-  { name: 'Lima',            code: 'LIM', lat: -12.0219,  lon:  -77.1143, region: 'Americas' },
-  { name: 'Santiago',        code: 'SCL', lat: -33.3930,  lon:  -70.7858, region: 'Americas' },
-
-  // ── Europe (34 original) ───────────────────────────────────────────────────
-  { name: 'London',          code: 'LHR', lat:  51.4775,  lon:   -0.4614, region: 'Europe' },
-  { name: 'Paris',           code: 'CDG', lat:  49.0097,  lon:    2.5479, region: 'Europe' },
-  { name: 'Frankfurt',       code: 'FRA', lat:  50.0379,  lon:    8.5622, region: 'Europe' },
-  { name: 'Amsterdam',       code: 'AMS', lat:  52.3105,  lon:    4.7683, region: 'Europe' },
-  { name: 'Istanbul',        code: 'IST', lat:  41.2608,  lon:   28.7418, region: 'Europe' },
-  { name: 'Madrid',          code: 'MAD', lat:  40.4983,  lon:   -3.5676, region: 'Europe' },
-  { name: 'Barcelona',       code: 'BCN', lat:  41.2971,  lon:    2.0785, region: 'Europe' },
-  { name: 'Rome',            code: 'FCO', lat:  41.8003,  lon:   12.2389, region: 'Europe' },
-  { name: 'Milan',           code: 'MXP', lat:  45.6306,  lon:    8.7281, region: 'Europe' },
-  { name: 'Munich',          code: 'MUC', lat:  48.3537,  lon:   11.7750, region: 'Europe' },
-  { name: 'Zurich',          code: 'ZRH', lat:  47.4647,  lon:    8.5492, region: 'Europe' },
-  { name: 'Vienna',          code: 'VIE', lat:  48.1103,  lon:   16.5697, region: 'Europe' },
-  { name: 'Brussels',        code: 'BRU', lat:  50.9014,  lon:    4.4844, region: 'Europe' },
-  { name: 'Copenhagen',      code: 'CPH', lat:  55.6179,  lon:   12.6560, region: 'Europe' },
-  { name: 'Stockholm',       code: 'ARN', lat:  59.6519,  lon:   17.9186, region: 'Europe' },
-  { name: 'Oslo',            code: 'OSL', lat:  60.1939,  lon:   11.1004, region: 'Europe' },
-  { name: 'Helsinki',        code: 'HEL', lat:  60.3172,  lon:   24.9633, region: 'Europe' },
-  { name: 'Dublin',          code: 'DUB', lat:  53.4213,  lon:   -6.2701, region: 'Europe' },
-  { name: 'Lisbon',          code: 'LIS', lat:  38.7742,  lon:   -9.1342, region: 'Europe' },
-  { name: 'Athens',          code: 'ATH', lat:  37.9364,  lon:   23.9445, region: 'Europe' },
-  { name: 'Warsaw',          code: 'WAW', lat:  52.1657,  lon:   20.9671, region: 'Europe' },
-  { name: 'Prague',          code: 'PRG', lat:  50.1008,  lon:   14.2600, region: 'Europe' },
-  { name: 'Budapest',        code: 'BUD', lat:  47.4369,  lon:   19.2556, region: 'Europe' },
-  { name: 'Bucharest',       code: 'OTP', lat:  44.5722,  lon:   26.1022, region: 'Europe' },
-  { name: 'Düsseldorf',      code: 'DUS', lat:  51.2895,  lon:    6.7668, region: 'Europe' },
-  { name: 'Hamburg',         code: 'HAM', lat:  53.6304,  lon:    9.9882, region: 'Europe' },
-  { name: 'Manchester',      code: 'MAN', lat:  53.3650,  lon:   -2.2729, region: 'Europe' },
-  { name: 'Edinburgh',       code: 'EDI', lat:  55.9500,  lon:   -3.3725, region: 'Europe' },
-  { name: 'Geneva',          code: 'GVA', lat:  46.2380,  lon:    6.1089, region: 'Europe' },
-  { name: 'Nice',            code: 'NCE', lat:  43.6584,  lon:    7.2159, region: 'Europe' },
-  { name: 'Reykjavik',       code: 'KEF', lat:  63.9850,  lon:  -22.6056, region: 'Europe' },
-  { name: 'Belgrade',        code: 'BEG', lat:  44.8184,  lon:   20.3091, region: 'Europe' },
-  { name: 'Sofia',           code: 'SOF', lat:  42.6967,  lon:   23.4114, region: 'Europe' },
-  { name: 'Riga',            code: 'RIX', lat:  56.9236,  lon:   23.9711, region: 'Europe' },
-
-  // ── Middle East (8 original) ───────────────────────────────────────────────
-  { name: 'Dubai',           code: 'DXB', lat:  25.2532,  lon:   55.3657, region: 'Middle East' },
-  { name: 'Abu Dhabi',       code: 'AUH', lat:  24.4330,  lon:   54.6511, region: 'Middle East' },
-  { name: 'Doha',            code: 'DOH', lat:  25.2731,  lon:   51.6080, region: 'Middle East' },
-  { name: 'Riyadh',          code: 'RUH', lat:  24.9576,  lon:   46.6988, region: 'Middle East' },
-  { name: 'Kuwait City',     code: 'KWI', lat:  29.2267,  lon:   47.9689, region: 'Middle East' },
-  { name: 'Muscat',          code: 'MCT', lat:  23.5933,  lon:   58.2844, region: 'Middle East' },
-  { name: 'Tel Aviv',        code: 'TLV', lat:  32.0114,  lon:   34.8867, region: 'Middle East' },
-  { name: 'Amman',           code: 'AMM', lat:  31.7226,  lon:   35.9932, region: 'Middle East' },
-
-  // ── Africa (8 original) ────────────────────────────────────────────────────
-  { name: 'Johannesburg',    code: 'JNB', lat: -26.1367,  lon:   28.2411, region: 'Africa' },
-  { name: 'Cape Town',       code: 'CPT', lat: -33.9648,  lon:   18.6017, region: 'Africa' },
-  { name: 'Cairo',           code: 'CAI', lat:  30.1219,  lon:   31.4056, region: 'Africa' },
-  { name: 'Casablanca',      code: 'CMN', lat:  33.3675,  lon:   -7.5897, region: 'Africa' },
-  { name: 'Nairobi',         code: 'NBO', lat:  -1.3192,  lon:   36.9275, region: 'Africa' },
-  { name: 'Addis Ababa',     code: 'ADD', lat:   8.9779,  lon:   38.7993, region: 'Africa' },
-  { name: 'Lagos',           code: 'LOS', lat:   6.5774,  lon:    3.3214, region: 'Africa' },
-  { name: 'Tunis',           code: 'TUN', lat:  36.8510,  lon:   10.2272, region: 'Africa' },
-
-  // ── Asia (22 original) ─────────────────────────────────────────────────────
-  { name: 'Singapore',       code: 'SIN', lat:   1.3644,  lon:  103.9915, region: 'Asia' },
-  { name: 'Hong Kong',       code: 'HKG', lat:  22.3080,  lon:  113.9185, region: 'Asia' },
-  { name: 'Tokyo',           code: 'HND', lat:  35.5493,  lon:  139.7798, region: 'Asia' },
-  { name: 'Seoul',           code: 'ICN', lat:  37.4602,  lon:  126.4407, region: 'Asia' },
-  { name: 'Bangkok',         code: 'BKK', lat:  13.6811,  lon:  100.7472, region: 'Asia' },
-  { name: 'Taipei',          code: 'TPE', lat:  25.0777,  lon:  121.2328, region: 'Asia' },
-  { name: 'Kuala Lumpur',    code: 'KUL', lat:   2.7456,  lon:  101.7099, region: 'Asia' },
-  { name: 'Manila',          code: 'MNL', lat:  14.5086,  lon:  121.0197, region: 'Asia' },
-  { name: 'Jakarta',         code: 'CGK', lat:  -6.1275,  lon:  106.6558, region: 'Asia' },
-  { name: 'Osaka',           code: 'KIX', lat:  34.4347,  lon:  135.2440, region: 'Asia' },
-  { name: 'Fukuoka',         code: 'FUK', lat:  33.5858,  lon:  130.4511, region: 'Asia' },
-  { name: 'Mumbai',          code: 'BOM', lat:  19.0896,  lon:   72.8656, region: 'Asia' },
-  { name: 'Delhi',           code: 'DEL', lat:  28.5562,  lon:   77.1000, region: 'Asia' },
-  { name: 'Bangalore',       code: 'BLR', lat:  13.1986,  lon:   77.7066, region: 'Asia' },
-  { name: 'Kolkata',         code: 'CCU', lat:  22.6547,  lon:   88.4467, region: 'Asia' },
-  { name: 'Chennai',         code: 'MAA', lat:  12.9900,  lon:   80.1693, region: 'Asia' },
-  { name: 'Colombo',         code: 'CMB', lat:   7.1808,  lon:   79.8841, region: 'Asia' },
-  { name: 'Karachi',         code: 'KHI', lat:  24.9065,  lon:   67.1608, region: 'Asia' },
-  { name: 'Islamabad',       code: 'ISB', lat:  33.6169,  lon:   73.0993, region: 'Asia' },
-  { name: 'Ho Chi Minh',     code: 'SGN', lat:  10.8188,  lon:  106.6520, region: 'Asia' },
-  { name: 'Hanoi',           code: 'HAN', lat:  21.2212,  lon:  105.8072, region: 'Asia' },
-  { name: 'Dhaka',           code: 'DAC', lat:  23.8433,  lon:   90.3978, region: 'Asia' },
-
-  // ── Pacific (5 original) ───────────────────────────────────────────────────
-  { name: 'Sydney',          code: 'SYD', lat: -33.9399,  lon:  151.1753, region: 'Pacific' },
-  { name: 'Melbourne',       code: 'MEL', lat: -37.6733,  lon:  144.8430, region: 'Pacific' },
-  { name: 'Brisbane',        code: 'BNE', lat: -27.3842,  lon:  153.1175, region: 'Pacific' },
-  { name: 'Perth',           code: 'PER', lat: -31.9403,  lon:  115.9669, region: 'Pacific' },
-  { name: 'Auckland',        code: 'AKL', lat: -37.0082,  lon:  174.7850, region: 'Pacific' },
-
-  // ══ NEW ADDITIONS ══════════════════════════════════════════════════════════
-
-  // ── Americas new (75) ──────────────────────────────────────────────────────
-  // US domestic secondaries
-  { name: 'Phoenix',         code: 'PHX', lat:  33.4373,  lon: -112.0078, region: 'Americas' },
-  { name: 'Las Vegas',       code: 'LAS', lat:  36.0840,  lon: -115.1537, region: 'Americas' },
-  { name: 'Minneapolis',     code: 'MSP', lat:  44.8848,  lon:  -93.2223, region: 'Americas' },
-  { name: 'Detroit',         code: 'DTW', lat:  42.2124,  lon:  -83.3534, region: 'Americas' },
-  { name: 'Philadelphia',    code: 'PHL', lat:  39.8719,  lon:  -75.2411, region: 'Americas' },
-  { name: 'Washington DC',   code: 'IAD', lat:  38.9531,  lon:  -77.4565, region: 'Americas' },
-  { name: 'Washington DCA',  code: 'DCA', lat:  38.8521,  lon:  -77.0377, region: 'Americas' },
-  { name: 'Charlotte',       code: 'CLT', lat:  35.2140,  lon:  -80.9431, region: 'Americas' },
-  { name: 'Orlando',         code: 'MCO', lat:  28.4294,  lon:  -81.3089, region: 'Americas' },
-  { name: 'Tampa',           code: 'TPA', lat:  27.9755,  lon:  -82.5332, region: 'Americas' },
-  { name: 'Portland',        code: 'PDX', lat:  45.5898,  lon: -122.5951, region: 'Americas' },
-  { name: 'San Diego',       code: 'SAN', lat:  32.7338,  lon: -117.1933, region: 'Americas' },
-  { name: 'Salt Lake City',  code: 'SLC', lat:  40.7884,  lon: -111.9778, region: 'Americas' },
-  { name: 'Austin',          code: 'AUS', lat:  30.1975,  lon:  -97.6664, region: 'Americas' },
-  { name: 'Kansas City',     code: 'MCI', lat:  39.2976,  lon:  -94.7139, region: 'Americas' },
-  { name: 'St. Louis',       code: 'STL', lat:  38.7487,  lon:  -90.3700, region: 'Americas' },
-  { name: 'Nashville',       code: 'BNA', lat:  36.1245,  lon:  -86.6782, region: 'Americas' },
-  { name: 'Raleigh',         code: 'RDU', lat:  35.8776,  lon:  -78.7875, region: 'Americas' },
-  { name: 'Pittsburgh',      code: 'PIT', lat:  40.4915,  lon:  -80.2329, region: 'Americas' },
-  { name: 'New Orleans',     code: 'MSY', lat:  29.9934,  lon:  -90.2580, region: 'Americas' },
-  { name: 'Honolulu',        code: 'HNL', lat:  21.3187,  lon: -157.9224, region: 'Americas' },
-  { name: 'Anchorage',       code: 'ANC', lat:  61.1743,  lon: -149.9963, region: 'Americas' },
+  // ── Americas — USA (sorted by passenger throughput) ────────────────────────
+  { name: 'Atlanta',           code: 'ATL', lat:  33.6407,  lon:  -84.4277, region: 'Americas', country: 'USA' },
+  { name: 'Chicago O\'Hare',   code: 'ORD', lat:  41.9742,  lon:  -87.9073, region: 'Americas', country: 'USA' },
+  { name: 'Dallas/Fort Worth', code: 'DFW', lat:  32.8998,  lon:  -97.0403, region: 'Americas', country: 'USA' },
+  { name: 'Denver',            code: 'DEN', lat:  39.8561,  lon: -104.6737, region: 'Americas', country: 'USA' },
+  { name: 'Los Angeles',       code: 'LAX', lat:  33.9425,  lon: -118.4081, region: 'Americas', country: 'USA' },
+  { name: 'Charlotte',         code: 'CLT', lat:  35.2140,  lon:  -80.9431, region: 'Americas', country: 'USA' },
+  { name: 'Las Vegas',         code: 'LAS', lat:  36.0840,  lon: -115.1537, region: 'Americas', country: 'USA' },
+  { name: 'Orlando',           code: 'MCO', lat:  28.4294,  lon:  -81.3089, region: 'Americas', country: 'USA' },
+  { name: 'Phoenix',           code: 'PHX', lat:  33.4373,  lon: -112.0078, region: 'Americas', country: 'USA' },
+  { name: 'Miami',             code: 'MIA', lat:  25.7959,  lon:  -80.2870, region: 'Americas', country: 'USA' },
+  { name: 'San Francisco',     code: 'SFO', lat:  37.6213,  lon: -122.3790, region: 'Americas', country: 'USA' },
+  { name: 'Seattle',           code: 'SEA', lat:  47.4502,  lon: -122.3088, region: 'Americas', country: 'USA' },
+  { name: 'Fort Lauderdale',   code: 'FLL', lat:  26.0742,  lon:  -80.1506, region: 'Americas', country: 'USA' },
+  { name: 'Newark',            code: 'EWR', lat:  40.6895,  lon:  -74.1745, region: 'Americas', country: 'USA' },
+  { name: 'New York JFK',      code: 'JFK', lat:  40.6413,  lon:  -73.7781, region: 'Americas', country: 'USA' },
+  { name: 'Minneapolis',       code: 'MSP', lat:  44.8848,  lon:  -93.2223, region: 'Americas', country: 'USA' },
+  { name: 'Detroit',           code: 'DTW', lat:  42.2124,  lon:  -83.3534, region: 'Americas', country: 'USA' },
+  { name: 'Boston',            code: 'BOS', lat:  42.3656,  lon:  -71.0096, region: 'Americas', country: 'USA' },
+  { name: 'Houston Bush',      code: 'IAH', lat:  29.9902,  lon:  -95.3368, region: 'Americas', country: 'USA' },
+  { name: 'New York LaGuardia',code: 'LGA', lat:  40.7772,  lon:  -73.8726, region: 'Americas', country: 'USA' },
+  { name: 'Philadelphia',      code: 'PHL', lat:  39.8719,  lon:  -75.2411, region: 'Americas', country: 'USA' },
+  { name: 'Washington Dulles', code: 'IAD', lat:  38.9531,  lon:  -77.4565, region: 'Americas', country: 'USA' },
+  { name: 'Washington Reagan', code: 'DCA', lat:  38.8521,  lon:  -77.0377, region: 'Americas', country: 'USA' },
+  { name: 'San Diego',         code: 'SAN', lat:  32.7338,  lon: -117.1933, region: 'Americas', country: 'USA' },
+  { name: 'Chicago Midway',    code: 'MDW', lat:  41.7868,  lon:  -87.7522, region: 'Americas', country: 'USA' },
+  { name: 'Tampa',             code: 'TPA', lat:  27.9755,  lon:  -82.5332, region: 'Americas', country: 'USA' },
+  { name: 'Fort Myers',        code: 'RSW', lat:  26.5362,  lon:  -81.7552, region: 'Americas', country: 'USA' },
+  { name: 'Salt Lake City',    code: 'SLC', lat:  40.7884,  lon: -111.9778, region: 'Americas', country: 'USA' },
+  { name: 'Nashville',         code: 'BNA', lat:  36.1245,  lon:  -86.6782, region: 'Americas', country: 'USA' },
+  { name: 'Austin',            code: 'AUS', lat:  30.1975,  lon:  -97.6664, region: 'Americas', country: 'USA' },
+  { name: 'Honolulu',          code: 'HNL', lat:  21.3187,  lon: -157.9224, region: 'Americas', country: 'USA' },
+  { name: 'Portland',          code: 'PDX', lat:  45.5898,  lon: -122.5951, region: 'Americas', country: 'USA' },
+  { name: 'Raleigh-Durham',    code: 'RDU', lat:  35.8776,  lon:  -78.7875, region: 'Americas', country: 'USA' },
+  { name: 'Orange County',     code: 'SNA', lat:  33.6762,  lon: -117.8674, region: 'Americas', country: 'USA' },
+  { name: 'Sacramento',        code: 'SMF', lat:  38.6954,  lon: -121.5908, region: 'Americas', country: 'USA' },
+  { name: 'San Jose',          code: 'SJC', lat:  37.3626,  lon: -121.9290, region: 'Americas', country: 'USA' },
+  { name: 'Oakland',           code: 'OAK', lat:  37.7213,  lon: -122.2208, region: 'Americas', country: 'USA' },
+  { name: 'Cleveland',         code: 'CLE', lat:  41.4117,  lon:  -81.8498, region: 'Americas', country: 'USA' },
+  { name: 'St. Louis',         code: 'STL', lat:  38.7487,  lon:  -90.3700, region: 'Americas', country: 'USA' },
+  { name: 'San Antonio',       code: 'SAT', lat:  29.5337,  lon:  -98.4698, region: 'Americas', country: 'USA' },
+  { name: 'New Orleans',       code: 'MSY', lat:  29.9934,  lon:  -90.2580, region: 'Americas', country: 'USA' },
+  { name: 'Reno',              code: 'RNO', lat:  39.4991,  lon: -119.7681, region: 'Americas', country: 'USA' },
+  { name: 'Cincinnati',        code: 'CVG', lat:  39.0488,  lon:  -84.6678, region: 'Americas', country: 'USA' },
+  { name: 'Kansas City',       code: 'MCI', lat:  39.2976,  lon:  -94.7139, region: 'Americas', country: 'USA' },
+  { name: 'Jacksonville',      code: 'JAX', lat:  30.4941,  lon:  -81.6879, region: 'Americas', country: 'USA' },
+  { name: 'Maui/Kahului',      code: 'OGG', lat:  20.8986,  lon: -156.4305, region: 'Americas', country: 'USA' },
+  { name: 'Columbus',          code: 'CMH', lat:  39.9980,  lon:  -82.8919, region: 'Americas', country: 'USA' },
+  { name: 'Milwaukee',         code: 'MKE', lat:  42.9472,  lon:  -87.8966, region: 'Americas', country: 'USA' },
+  { name: 'Albuquerque',       code: 'ABQ', lat:  35.0402,  lon: -106.6090, region: 'Americas', country: 'USA' },
+  { name: 'Indianapolis',      code: 'IND', lat:  39.7173,  lon:  -86.2944, region: 'Americas', country: 'USA' },
+  { name: 'Boise',             code: 'BOI', lat:  43.5644,  lon: -116.2228, region: 'Americas', country: 'USA' },
+  { name: 'Memphis',           code: 'MEM', lat:  35.0424,  lon:  -89.9767, region: 'Americas', country: 'USA' },
+  { name: 'Burbank',           code: 'BUR', lat:  34.2007,  lon: -118.3585, region: 'Americas', country: 'USA' },
+  { name: 'Ontario CA',        code: 'ONT', lat:  34.0560,  lon: -117.6012, region: 'Americas', country: 'USA' },
+  { name: 'Richmond VA',       code: 'RIC', lat:  37.5052,  lon:  -77.3197, region: 'Americas', country: 'USA' },
+  { name: 'Buffalo',           code: 'BUF', lat:  42.9405,  lon:  -78.7322, region: 'Americas', country: 'USA' },
+  { name: 'Hartford',          code: 'BDL', lat:  41.9389,  lon:  -72.6832, region: 'Americas', country: 'USA' },
+  { name: 'Pittsburgh',        code: 'PIT', lat:  40.4915,  lon:  -80.2329, region: 'Americas', country: 'USA' },
+  { name: 'Oklahoma City',     code: 'OKC', lat:  35.3931,  lon:  -97.6007, region: 'Americas', country: 'USA' },
+  { name: 'Tulsa',             code: 'TUL', lat:  36.1984,  lon:  -95.8881, region: 'Americas', country: 'USA' },
+  { name: 'St. Pete/Clearwater',code:'PIE', lat:  27.9102,  lon:  -82.6874, region: 'Americas', country: 'USA' },
+  { name: 'Sarasota',          code: 'SRQ', lat:  27.3954,  lon:  -82.5544, region: 'Americas', country: 'USA' },
+  { name: 'El Paso',           code: 'ELP', lat:  31.8072,  lon: -106.3779, region: 'Americas', country: 'USA' },
+  { name: 'Knoxville',         code: 'TYS', lat:  35.8110,  lon:  -83.9940, region: 'Americas', country: 'USA' },
+  { name: 'Savannah',          code: 'SAV', lat:  32.1276,  lon:  -81.2021, region: 'Americas', country: 'USA' },
+  { name: 'Charleston SC',     code: 'CHS', lat:  32.8986,  lon:  -80.0405, region: 'Americas', country: 'USA' },
+  { name: 'Norfolk',           code: 'ORF', lat:  36.8976,  lon:  -76.0132, region: 'Americas', country: 'USA' },
+  { name: 'Birmingham AL',     code: 'BHM', lat:  33.5629,  lon:  -86.7535, region: 'Americas', country: 'USA' },
+  { name: 'Grand Rapids',      code: 'GRR', lat:  42.8808,  lon:  -85.5228, region: 'Americas', country: 'USA' },
+  { name: 'Fresno',            code: 'FAT', lat:  36.7762,  lon: -119.7182, region: 'Americas', country: 'USA' },
+  { name: 'Kona',              code: 'KOA', lat:  19.7388,  lon: -156.0456, region: 'Americas', country: 'USA' },
+  { name: 'Omaha',             code: 'OMA', lat:  41.3032,  lon:  -95.8940, region: 'Americas', country: 'USA' },
+  { name: 'Louisville',        code: 'SDF', lat:  38.1744,  lon:  -85.7360, region: 'Americas', country: 'USA' },
+  { name: 'Providence',        code: 'PVD', lat:  41.7244,  lon:  -71.4328, region: 'Americas', country: 'USA' },
+  { name: 'Spokane',           code: 'GEG', lat:  47.6199,  lon: -117.5339, region: 'Americas', country: 'USA' },
+  { name: 'Greenville SC',     code: 'GSP', lat:  34.8957,  lon:  -82.2189, region: 'Americas', country: 'USA' },
+  { name: 'Pensacola',         code: 'PNS', lat:  30.4734,  lon:  -87.1866, region: 'Americas', country: 'USA' },
+  { name: 'Myrtle Beach',      code: 'MYR', lat:  33.6797,  lon:  -78.9283, region: 'Americas', country: 'USA' },
+  { name: 'Asheville',         code: 'AVL', lat:  35.4362,  lon:  -82.5418, region: 'Americas', country: 'USA' },
+  { name: 'Kauai/Lihue',       code: 'LIH', lat:  21.9759,  lon: -159.3390, region: 'Americas', country: 'USA' },
+  { name: 'Midland/Odessa',    code: 'MAF', lat:  31.9425,  lon: -102.2019, region: 'Americas', country: 'USA' },
+  { name: 'Bozeman',           code: 'BZN', lat:  45.7777,  lon: -111.1503, region: 'Americas', country: 'USA' },
+  { name: 'Rochester NY',      code: 'ROC', lat:  43.1189,  lon:  -77.6724, region: 'Americas', country: 'USA' },
+  { name: 'Syracuse',          code: 'SYR', lat:  43.1112,  lon:  -76.1063, region: 'Americas', country: 'USA' },
+  { name: 'Albany',            code: 'ALB', lat:  42.7483,  lon:  -73.8017, region: 'Americas', country: 'USA' },
+  { name: 'Des Moines',        code: 'DSM', lat:  41.5340,  lon:  -93.6631, region: 'Americas', country: 'USA' },
+  { name: 'Little Rock',       code: 'LIT', lat:  34.7294,  lon:  -92.2243, region: 'Americas', country: 'USA' },
+  { name: 'Colorado Springs',  code: 'COS', lat:  38.8058,  lon: -104.7006, region: 'Americas', country: 'USA' },
+  { name: 'Fayetteville AR',   code: 'XNA', lat:  36.2819,  lon:  -94.3068, region: 'Americas', country: 'USA' },
+  { name: 'Chattanooga',       code: 'CHA', lat:  35.0353,  lon:  -85.2039, region: 'Americas', country: 'USA' },
+  { name: 'Huntsville',        code: 'HSV', lat:  34.6372,  lon:  -86.7751, region: 'Americas', country: 'USA' },
+  { name: 'Anchorage',         code: 'ANC', lat:  61.1743,  lon: -149.9963, region: 'Americas', country: 'USA' },
+  { name: 'Eugene',            code: 'EUG', lat:  44.1246,  lon: -123.2119, region: 'Americas', country: 'USA' },
+  { name: 'Medford',           code: 'MFR', lat:  42.3742,  lon: -122.8735, region: 'Americas', country: 'USA' },
+  { name: 'Shreveport',        code: 'SHV', lat:  32.4466,  lon:  -93.8257, region: 'Americas', country: 'USA' },
+  { name: 'Baton Rouge',       code: 'BTR', lat:  30.5332,  lon:  -91.1496, region: 'Americas', country: 'USA' },
+  { name: 'Palm Springs',      code: 'PSP', lat:  33.8297,  lon: -116.5067, region: 'Americas', country: 'USA' },
+  { name: 'Santa Barbara',     code: 'SBA', lat:  34.4262,  lon: -119.8408, region: 'Americas', country: 'USA' },
+  { name: 'Cedar Rapids',      code: 'CID', lat:  41.8847,  lon:  -91.7108, region: 'Americas', country: 'USA' },
+  { name: 'Fargo',             code: 'FAR', lat:  46.9207,  lon:  -96.8158, region: 'Americas', country: 'USA' },
+  { name: 'Sioux Falls',       code: 'FSD', lat:  43.5820,  lon:  -96.7419, region: 'Americas', country: 'USA' },
+  { name: 'Bismarck',          code: 'BIS', lat:  46.7727,  lon: -100.7463, region: 'Americas', country: 'USA' },
+  { name: 'Billings',          code: 'BIL', lat:  45.8077,  lon: -108.5428, region: 'Americas', country: 'USA' },
+  { name: 'Dayton',            code: 'DAY', lat:  39.9024,  lon:  -84.2194, region: 'Americas', country: 'USA' },
+  { name: 'Wichita',           code: 'ICT', lat:  37.6499,  lon:  -97.4331, region: 'Americas', country: 'USA' },
+  { name: 'Wilmington NC',     code: 'ILM', lat:  34.2706,  lon:  -77.9026, region: 'Americas', country: 'USA' },
+  { name: 'Fairbanks',         code: 'FAI', lat:  64.8151,  lon: -147.8561, region: 'Americas', country: 'USA' },
+  { name: 'Missoula',          code: 'MSO', lat:  46.9163,  lon: -114.0906, region: 'Americas', country: 'USA' },
+  { name: 'Jackson Hole',      code: 'JAC', lat:  43.6073,  lon: -110.7377, region: 'Americas', country: 'USA' },
+  { name: 'Burlington VT',     code: 'BTV', lat:  44.4719,  lon:  -73.1533, region: 'Americas', country: 'USA' },
+  { name: 'Tallahassee',       code: 'TLH', lat:  30.3965,  lon:  -84.3503, region: 'Americas', country: 'USA' },
+  { name: 'Gulfport',          code: 'GPT', lat:  30.4073,  lon:  -89.0701, region: 'Americas', country: 'USA' },
+  { name: 'Jackson MS',        code: 'JAN', lat:  32.3112,  lon:  -90.0759, region: 'Americas', country: 'USA' },
+  { name: 'Mobile',            code: 'MOB', lat:  30.6913,  lon:  -88.2428, region: 'Americas', country: 'USA' },
+  { name: 'Lubbock',           code: 'LBB', lat:  33.6636,  lon: -101.8228, region: 'Americas', country: 'USA' },
+  { name: 'Corpus Christi',    code: 'CRP', lat:  27.7704,  lon:  -97.5012, region: 'Americas', country: 'USA' },
+  { name: 'Harlingen',         code: 'HRL', lat:  26.2285,  lon:  -97.6544, region: 'Americas', country: 'USA' },
+  { name: 'Allentown',         code: 'ABE', lat:  40.6521,  lon:  -75.4408, region: 'Americas', country: 'USA' },
+  { name: 'Harrisburg',        code: 'MDT', lat:  40.1935,  lon:  -76.7634, region: 'Americas', country: 'USA' },
+  { name: 'White Plains',      code: 'HPN', lat:  41.0670,  lon:  -73.7076, region: 'Americas', country: 'USA' },
+  { name: 'Long Island/Islip', code: 'ISP', lat:  40.7952,  lon:  -73.1002, region: 'Americas', country: 'USA' },
+  { name: 'Akron/Canton',      code: 'CAK', lat:  40.9161,  lon:  -81.4422, region: 'Americas', country: 'USA' },
+  { name: 'Lincoln NE',        code: 'LNK', lat:  40.8510,  lon:  -96.7592, region: 'Americas', country: 'USA' },
+  { name: 'Newport News',      code: 'PHF', lat:  37.1319,  lon:  -76.4930, region: 'Americas', country: 'USA' },
+  { name: 'Roanoke',           code: 'ROA', lat:  37.3255,  lon:  -79.9754, region: 'Americas', country: 'USA' },
+  { name: 'Great Falls',       code: 'GTF', lat:  47.4820,  lon: -111.3707, region: 'Americas', country: 'USA' },
+  { name: 'Rapid City',        code: 'RAP', lat:  44.0453,  lon: -103.0574, region: 'Americas', country: 'USA' },
+  { name: 'Grand Forks',       code: 'GFK', lat:  47.9493,  lon:  -97.1761, region: 'Americas', country: 'USA' },
+  { name: 'South Bend',        code: 'SBN', lat:  41.7087,  lon:  -86.3172, region: 'Americas', country: 'USA' },
+  { name: 'Fort Wayne',        code: 'FWA', lat:  40.9785,  lon:  -85.1951, region: 'Americas', country: 'USA' },
+  { name: 'Lafayette LA',      code: 'LFT', lat:  30.2053,  lon:  -91.9875, region: 'Americas', country: 'USA' },
+  { name: 'Manchester NH',     code: 'MHT', lat:  42.9326,  lon:  -71.4357, region: 'Americas', country: 'USA' },
+  { name: 'Portland ME',       code: 'PWM', lat:  43.6462,  lon:  -70.3093, region: 'Americas', country: 'USA' },
+  { name: 'Juneau',            code: 'JNU', lat:  58.3550,  lon: -134.5763, region: 'Americas', country: 'USA' },
+  { name: 'Tri-Cities TN',     code: 'TRI', lat:  36.4752,  lon:  -82.4074, region: 'Americas', country: 'USA' },
+  { name: 'Panama City Beach', code: 'ECP', lat:  30.3581,  lon:  -85.7995, region: 'Americas', country: 'USA' },
+  { name: 'Fort Walton/Destin',code: 'VPS', lat:  30.4833,  lon:  -86.5253, region: 'Americas', country: 'USA' },
+  { name: 'Scranton',          code: 'AVP', lat:  41.3385,  lon:  -75.7234, region: 'Americas', country: 'USA' },
+  { name: 'Gainesville FL',    code: 'GNV', lat:  29.6900,  lon:  -82.2717, region: 'Americas', country: 'USA' },
+  { name: 'Daytona Beach',     code: 'DAB', lat:  29.1799,  lon:  -81.0581, region: 'Americas', country: 'USA' },
+  { name: 'Quad Cities',       code: 'MLI', lat:  41.4485,  lon:  -90.5075, region: 'Americas', country: 'USA' },
+  { name: 'Monterey',          code: 'MRY', lat:  36.5870,  lon: -121.8437, region: 'Americas', country: 'USA' },
+  { name: 'Houston Hobby',     code: 'HOU', lat:  29.6454,  lon:  -95.2789, region: 'Americas', country: 'USA' },
+  { name: 'Greensboro',        code: 'GSO', lat:  36.0978,  lon:  -79.9373, region: 'Americas', country: 'USA' },
+  { name: 'Tucson',            code: 'TUS', lat:  32.1161,  lon: -110.9410, region: 'Americas', country: 'USA' },
+  { name: 'Spokane Felts',     code: 'SFF', lat:  47.6828,  lon: -117.3226, region: 'Americas', country: 'USA' },
+  { name: 'Redding',           code: 'RDD', lat:  40.5090,  lon: -122.2932, region: 'Americas', country: 'USA' },
+  { name: 'Orlando Sanford',   code: 'SFB', lat:  28.7776,  lon:  -81.2375, region: 'Americas', country: 'USA' },
   // Canada
-  { name: 'Edmonton',        code: 'YEG', lat:  53.3097,  lon: -113.5797, region: 'Americas' },
-  { name: 'Ottawa',          code: 'YOW', lat:  45.3225,  lon:  -75.6692, region: 'Americas' },
-  { name: 'Halifax',         code: 'YHZ', lat:  44.8808,  lon:  -63.5086, region: 'Americas' },
-  { name: 'Winnipeg',        code: 'YWG', lat:  49.9100,  lon:  -97.2398, region: 'Americas' },
+  { name: 'Toronto',           code: 'YYZ', lat:  43.6777,  lon:  -79.6248, region: 'Americas', country: 'Canada' },
+  { name: 'Vancouver',         code: 'YVR', lat:  49.1947,  lon: -123.1792, region: 'Americas', country: 'Canada' },
+  { name: 'Montreal',          code: 'YUL', lat:  45.4706,  lon:  -73.7408, region: 'Americas', country: 'Canada' },
+  { name: 'Calgary',           code: 'YYC', lat:  51.1314,  lon: -114.0125, region: 'Americas', country: 'Canada' },
+  { name: 'Edmonton',          code: 'YEG', lat:  53.3097,  lon: -113.5797, region: 'Americas', country: 'Canada' },
+  { name: 'Ottawa',            code: 'YOW', lat:  45.3225,  lon:  -75.6692, region: 'Americas', country: 'Canada' },
+  { name: 'Winnipeg',          code: 'YWG', lat:  49.9100,  lon:  -97.2398, region: 'Americas', country: 'Canada' },
+  { name: 'Halifax',           code: 'YHZ', lat:  44.8808,  lon:  -63.5086, region: 'Americas', country: 'Canada' },
+  { name: 'Quebec City',       code: 'YQB', lat:  46.7911,  lon:  -71.3933, region: 'Americas', country: 'Canada' },
+  { name: 'Victoria',          code: 'YYJ', lat:  48.6469,  lon: -123.4258, region: 'Americas', country: 'Canada' },
+  { name: 'Saskatoon',         code: 'YXE', lat:  52.1708,  lon: -106.6997, region: 'Americas', country: 'Canada' },
+  { name: 'Kelowna',           code: 'YLW', lat:  49.9561,  lon: -119.3778, region: 'Americas', country: 'Canada' },
   // Mexico
-  { name: 'Guadalajara',     code: 'GDL', lat:  20.5218,  lon: -103.3107, region: 'Americas' },
-  { name: 'Monterrey',       code: 'MTY', lat:  25.7785,  lon: -100.1069, region: 'Americas' },
-  { name: 'Tijuana',         code: 'TIJ', lat:  32.5411,  lon: -116.9700, region: 'Americas' },
-  // Central America & Caribbean
-  { name: 'Guatemala City',  code: 'GUA', lat:  14.5833,  lon:  -90.5275, region: 'Americas' },
-  { name: 'San José',        code: 'SJO', lat:   9.9939,  lon:  -84.2088, region: 'Americas' },
-  { name: 'Panama City',     code: 'PTY', lat:   9.0714,  lon:  -79.3835, region: 'Americas' },
-  { name: 'San Juan',        code: 'SJU', lat:  18.4394,  lon:  -66.0018, region: 'Americas' },
-  { name: 'Santo Domingo',   code: 'SDQ', lat:  18.4297,  lon:  -69.6689, region: 'Americas' },
-  { name: 'Havana',          code: 'HAV', lat:  22.9892,  lon:  -82.4091, region: 'Americas' },
-  { name: 'Kingston',        code: 'KIN', lat:  17.9357,  lon:  -76.7875, region: 'Americas' },
-  { name: 'Montego Bay',     code: 'MBJ', lat:  18.5037,  lon:  -77.9134, region: 'Americas' },
-  { name: 'Nassau',          code: 'NAS', lat:  25.0390,  lon:  -77.4662, region: 'Americas' },
-  { name: 'Bridgetown',      code: 'BGI', lat:  13.0746,  lon:  -59.4925, region: 'Americas' },
-  { name: 'Port of Spain',   code: 'POS', lat:  10.5954,  lon:  -61.3372, region: 'Americas' },
-  { name: 'Willemstad',      code: 'CUR', lat:  12.1889,  lon:  -68.9598, region: 'Americas' },
-  { name: 'Oranjestad',      code: 'AUA', lat:  12.5014,  lon:  -70.0152, region: 'Americas' },
-  { name: 'Sint Maarten',    code: 'SXM', lat:  18.0410,  lon:  -63.1089, region: 'Americas' },
-  { name: 'Belize City',     code: 'BZE', lat:  17.5391,  lon:  -88.3082, region: 'Americas' },
-  { name: 'Managua',         code: 'MGA', lat:  12.1415,  lon:  -86.1682, region: 'Americas' },
-  { name: 'San Salvador',    code: 'SAL', lat:  13.4409,  lon:  -89.0558, region: 'Americas' },
-  { name: 'Tegucigalpa',     code: 'TGU', lat:  14.0608,  lon:  -87.2172, region: 'Americas' },
-  { name: 'Martinique',      code: 'FDF', lat:  14.5910,  lon:  -61.0032, region: 'Americas' },
-  { name: 'Guadeloupe',      code: 'PTP', lat:  16.2653,  lon:  -61.5318, region: 'Americas' },
+  { name: 'Mexico City',       code: 'MEX', lat:  19.4363,  lon:  -99.0721, region: 'Americas', country: 'Mexico' },
+  { name: 'Cancún',            code: 'CUN', lat:  21.0365,  lon:  -86.8771, region: 'Americas', country: 'Mexico' },
+  { name: 'Guadalajara',       code: 'GDL', lat:  20.5218,  lon: -103.3107, region: 'Americas', country: 'Mexico' },
+  { name: 'Monterrey',         code: 'MTY', lat:  25.7785,  lon: -100.1069, region: 'Americas', country: 'Mexico' },
+  { name: 'Tijuana',           code: 'TIJ', lat:  32.5411,  lon: -116.9700, region: 'Americas', country: 'Mexico' },
+  { name: 'Puerto Vallarta',   code: 'PVR', lat:  20.6801,  lon: -105.2544, region: 'Americas', country: 'Mexico' },
+  { name: 'Los Cabos',         code: 'SJD', lat:  23.1518,  lon: -109.7210, region: 'Americas', country: 'Mexico' },
+  { name: 'Mérida',            code: 'MID', lat:  20.9370,  lon:  -89.6577, region: 'Americas', country: 'Mexico' },
+  { name: 'León',              code: 'BJX', lat:  20.9935,  lon: -101.4809, region: 'Americas', country: 'Mexico' },
+  { name: 'Hermosillo',        code: 'HMO', lat:  29.0959,  lon: -111.0479, region: 'Americas', country: 'Mexico' },
+  { name: 'Mazatlán',          code: 'MZT', lat:  23.1614,  lon: -106.2661, region: 'Americas', country: 'Mexico' },
+  { name: 'Acapulco',          code: 'ACA', lat:  16.7574,  lon:  -99.7540, region: 'Americas', country: 'Mexico' },
+  // Caribbean & Central America
+  { name: 'San Juan',          code: 'SJU', lat:  18.4394,  lon:  -66.0018, region: 'Americas', country: 'Puerto Rico' },
+  { name: 'Havana',            code: 'HAV', lat:  22.9892,  lon:  -82.4091, region: 'Americas', country: 'Cuba' },
+  { name: 'Santo Domingo',     code: 'SDQ', lat:  18.4297,  lon:  -69.6689, region: 'Americas', country: 'Dom. Rep.' },
+  { name: 'Punta Cana',        code: 'PUJ', lat:  18.5674,  lon:  -68.3634, region: 'Americas', country: 'Dom. Rep.' },
+  { name: 'Kingston',          code: 'KIN', lat:  17.9357,  lon:  -76.7875, region: 'Americas', country: 'Jamaica' },
+  { name: 'Montego Bay',       code: 'MBJ', lat:  18.5037,  lon:  -77.9134, region: 'Americas', country: 'Jamaica' },
+  { name: 'Nassau',            code: 'NAS', lat:  25.0390,  lon:  -77.4662, region: 'Americas', country: 'Bahamas' },
+  { name: 'Bridgetown',        code: 'BGI', lat:  13.0746,  lon:  -59.4925, region: 'Americas', country: 'Barbados' },
+  { name: 'Port of Spain',     code: 'POS', lat:  10.5954,  lon:  -61.3372, region: 'Americas', country: 'Trinidad' },
+  { name: 'Willemstad',        code: 'CUR', lat:  12.1889,  lon:  -68.9598, region: 'Americas', country: 'Curaçao' },
+  { name: 'Oranjestad',        code: 'AUA', lat:  12.5014,  lon:  -70.0152, region: 'Americas', country: 'Aruba' },
+  { name: 'Sint Maarten',      code: 'SXM', lat:  18.0410,  lon:  -63.1089, region: 'Americas', country: 'Sint Maarten' },
+  { name: 'Guatemala City',    code: 'GUA', lat:  14.5833,  lon:  -90.5275, region: 'Americas', country: 'Guatemala' },
+  { name: 'San José',          code: 'SJO', lat:   9.9939,  lon:  -84.2088, region: 'Americas', country: 'Costa Rica' },
+  { name: 'Panama City',       code: 'PTY', lat:   9.0714,  lon:  -79.3835, region: 'Americas', country: 'Panama' },
+  { name: 'Belize City',       code: 'BZE', lat:  17.5391,  lon:  -88.3082, region: 'Americas', country: 'Belize' },
+  { name: 'Managua',           code: 'MGA', lat:  12.1415,  lon:  -86.1682, region: 'Americas', country: 'Nicaragua' },
+  { name: 'San Salvador',      code: 'SAL', lat:  13.4409,  lon:  -89.0558, region: 'Americas', country: 'El Salvador' },
+  { name: 'Tegucigalpa',       code: 'TGU', lat:  14.0608,  lon:  -87.2172, region: 'Americas', country: 'Honduras' },
+  { name: 'Martinique',        code: 'FDF', lat:  14.5910,  lon:  -61.0032, region: 'Americas', country: 'Martinique' },
+  { name: 'Guadeloupe',        code: 'PTP', lat:  16.2653,  lon:  -61.5318, region: 'Americas', country: 'Guadeloupe' },
   // South America
-  { name: 'Quito',           code: 'UIO', lat:  -0.1292,  lon:  -78.3575, region: 'Americas' },
-  { name: 'Guayaquil',       code: 'GYE', lat:  -2.1574,  lon:  -79.8836, region: 'Americas' },
-  { name: 'Montevideo',      code: 'MVD', lat: -34.8384,  lon:  -56.0308, region: 'Americas' },
-  { name: 'Asunción',        code: 'ASU', lat: -25.2399,  lon:  -57.5198, region: 'Americas' },
-  { name: 'Brasília',        code: 'BSB', lat: -15.8711,  lon:  -47.9186, region: 'Americas' },
-  { name: 'Fortaleza',       code: 'FOR', lat:  -3.7762,  lon:  -38.5326, region: 'Americas' },
-  { name: 'Recife',          code: 'REC', lat:  -8.1265,  lon:  -34.9237, region: 'Americas' },
-  { name: 'Porto Alegre',    code: 'POA', lat: -29.9944,  lon:  -51.1714, region: 'Americas' },
-  { name: 'Medellín',        code: 'MDE', lat:   6.1645,  lon:  -75.4231, region: 'Americas' },
-  { name: 'Cartagena',       code: 'CTG', lat:  10.4424,  lon:  -75.5130, region: 'Americas' },
-  { name: 'Cali',            code: 'CLO', lat:   3.5432,  lon:  -76.3816, region: 'Americas' },
-  { name: 'La Paz',          code: 'LPB', lat: -16.5133,  lon:  -68.1923, region: 'Americas' },
-  { name: 'Santa Cruz',      code: 'VVI', lat: -17.6448,  lon:  -63.1354, region: 'Americas' },
-  { name: 'Caracas',         code: 'CCS', lat:  10.6031,  lon:  -66.9913, region: 'Americas' },
-  { name: 'Georgetown',      code: 'GEO', lat:   6.4986,  lon:  -58.2541, region: 'Americas' },
-  { name: 'Paramaribo',      code: 'PBM', lat:   5.4528,  lon:  -55.1878, region: 'Americas' },
-  { name: 'Cayenne',         code: 'CAY', lat:   4.8198,  lon:  -52.3605, region: 'Americas' },
-  { name: 'Manaus',          code: 'MAO', lat:  -3.0386,  lon:  -60.0497, region: 'Americas' },
-  { name: 'Belém',           code: 'BEL', lat:  -1.3792,  lon:  -48.4762, region: 'Americas' },
-  { name: 'Salvador',        code: 'SSA', lat: -12.9086,  lon:  -38.3225, region: 'Americas' },
-  { name: 'Córdoba',         code: 'COR', lat: -31.3236,  lon:  -64.2080, region: 'Americas' },
-  { name: 'Mendoza',         code: 'MDZ', lat: -32.8317,  lon:  -68.7929, region: 'Americas' },
-  { name: 'Arequipa',        code: 'AQP', lat: -16.3411,  lon:  -71.5830, region: 'Americas' },
-  { name: 'Jacksonville',    code: 'JAX', lat:  30.4941,  lon:  -81.6879, region: 'Americas' },
-  { name: 'San Antonio',     code: 'SAT', lat:  29.5337,  lon:  -98.4698, region: 'Americas' },
-  { name: 'Indianapolis',    code: 'IND', lat:  39.7173,  lon:  -86.2944, region: 'Americas' },
-
-  // ── Europe new (90) ───────────────────────────────────────────────────────
-  // Germany secondaries
-  { name: 'Berlin',          code: 'BER', lat:  52.3667,  lon:   13.5033, region: 'Europe' },
-  { name: 'Stuttgart',       code: 'STR', lat:  48.6899,  lon:    9.2220, region: 'Europe' },
-  { name: 'Cologne',         code: 'CGN', lat:  50.8659,  lon:    7.1427, region: 'Europe' },
-  { name: 'Nuremberg',       code: 'NUE', lat:  49.4987,  lon:   11.0669, region: 'Europe' },
-  { name: 'Hannover',        code: 'HAJ', lat:  52.4611,  lon:    9.6850, region: 'Europe' },
-  { name: 'Bremen',          code: 'BRE', lat:  53.0475,  lon:    8.7867, region: 'Europe' },
-  { name: 'Leipzig',         code: 'LEJ', lat:  51.4324,  lon:   12.2416, region: 'Europe' },
-  { name: 'Dresden',         code: 'DRS', lat:  51.1328,  lon:   13.7672, region: 'Europe' },
-  // UK regionaals
-  { name: 'London Gatwick',  code: 'LGW', lat:  51.1537,  lon:   -0.1821, region: 'Europe' },
-  { name: 'London Stansted', code: 'STN', lat:  51.8850,  lon:    0.2350, region: 'Europe' },
-  { name: 'London Luton',    code: 'LTN', lat:  51.8747,  lon:   -0.3683, region: 'Europe' },
-  { name: 'Birmingham',      code: 'BHX', lat:  52.4539,  lon:   -1.7480, region: 'Europe' },
-  { name: 'Bristol',         code: 'BRS', lat:  51.3827,  lon:   -2.7191, region: 'Europe' },
-  { name: 'Newcastle',       code: 'NCL', lat:  55.0375,  lon:   -1.6917, region: 'Europe' },
-  { name: 'Belfast',         code: 'BFS', lat:  54.6575,  lon:   -6.2158, region: 'Europe' },
-  { name: 'East Midlands',   code: 'EMA', lat:  52.8311,  lon:   -1.3281, region: 'Europe' },
-  { name: 'Glasgow',         code: 'GLA', lat:  55.8719,  lon:   -4.4331, region: 'Europe' },
+  { name: 'São Paulo GRU',     code: 'GRU', lat: -23.4356,  lon:  -46.4731, region: 'Americas', country: 'Brazil' },
+  { name: 'São Paulo Congonhas',code:'CGH', lat: -23.6261,  lon:  -46.6564, region: 'Americas', country: 'Brazil' },
+  { name: 'Rio de Janeiro',    code: 'GIG', lat: -22.8099,  lon:  -43.2505, region: 'Americas', country: 'Brazil' },
+  { name: 'Brasília',          code: 'BSB', lat: -15.8711,  lon:  -47.9186, region: 'Americas', country: 'Brazil' },
+  { name: 'Salvador',          code: 'SSA', lat: -12.9086,  lon:  -38.3225, region: 'Americas', country: 'Brazil' },
+  { name: 'Fortaleza',         code: 'FOR', lat:  -3.7762,  lon:  -38.5326, region: 'Americas', country: 'Brazil' },
+  { name: 'Recife',            code: 'REC', lat:  -8.1265,  lon:  -34.9237, region: 'Americas', country: 'Brazil' },
+  { name: 'Porto Alegre',      code: 'POA', lat: -29.9944,  lon:  -51.1714, region: 'Americas', country: 'Brazil' },
+  { name: 'Manaus',            code: 'MAO', lat:  -3.0386,  lon:  -60.0497, region: 'Americas', country: 'Brazil' },
+  { name: 'Belém',             code: 'BEL', lat:  -1.3792,  lon:  -48.4762, region: 'Americas', country: 'Brazil' },
+  { name: 'Belo Horizonte',    code: 'CNF', lat: -19.6244,  lon:  -43.9719, region: 'Americas', country: 'Brazil' },
+  { name: 'Natal',             code: 'NAT', lat:  -5.9114,  lon:  -35.2478, region: 'Americas', country: 'Brazil' },
+  { name: 'Curitiba',          code: 'CWB', lat: -25.5285,  lon:  -49.1758, region: 'Americas', country: 'Brazil' },
+  { name: 'Buenos Aires',      code: 'EZE', lat: -34.8222,  lon:  -58.5358, region: 'Americas', country: 'Argentina' },
+  { name: 'Córdoba',           code: 'COR', lat: -31.3236,  lon:  -64.2080, region: 'Americas', country: 'Argentina' },
+  { name: 'Mendoza',           code: 'MDZ', lat: -32.8317,  lon:  -68.7929, region: 'Americas', country: 'Argentina' },
+  { name: 'Bogotá',            code: 'BOG', lat:   4.7016,  lon:  -74.1469, region: 'Americas', country: 'Colombia' },
+  { name: 'Medellín',          code: 'MDE', lat:   6.1645,  lon:  -75.4231, region: 'Americas', country: 'Colombia' },
+  { name: 'Cartagena',         code: 'CTG', lat:  10.4424,  lon:  -75.5130, region: 'Americas', country: 'Colombia' },
+  { name: 'Cali',              code: 'CLO', lat:   3.5432,  lon:  -76.3816, region: 'Americas', country: 'Colombia' },
+  { name: 'Lima',              code: 'LIM', lat: -12.0219,  lon:  -77.1143, region: 'Americas', country: 'Peru' },
+  { name: 'Santiago',          code: 'SCL', lat: -33.3930,  lon:  -70.7858, region: 'Americas', country: 'Chile' },
+  { name: 'Quito',             code: 'UIO', lat:  -0.1292,  lon:  -78.3575, region: 'Americas', country: 'Ecuador' },
+  { name: 'Guayaquil',         code: 'GYE', lat:  -2.1574,  lon:  -79.8836, region: 'Americas', country: 'Ecuador' },
+  { name: 'Montevideo',        code: 'MVD', lat: -34.8384,  lon:  -56.0308, region: 'Americas', country: 'Uruguay' },
+  { name: 'Asunción',          code: 'ASU', lat: -25.2399,  lon:  -57.5198, region: 'Americas', country: 'Paraguay' },
+  { name: 'La Paz',            code: 'LPB', lat: -16.5133,  lon:  -68.1923, region: 'Americas', country: 'Bolivia' },
+  { name: 'Santa Cruz',        code: 'VVI', lat: -17.6448,  lon:  -63.1354, region: 'Americas', country: 'Bolivia' },
+  { name: 'Caracas',           code: 'CCS', lat:  10.6031,  lon:  -66.9913, region: 'Americas', country: 'Venezuela' },
+  { name: 'Arequipa',          code: 'AQP', lat: -16.3411,  lon:  -71.5830, region: 'Americas', country: 'Peru' },
+  { name: 'Georgetown',        code: 'GEO', lat:   6.4986,  lon:  -58.2541, region: 'Americas', country: 'Guyana' },
+  { name: 'Paramaribo',        code: 'PBM', lat:   5.4528,  lon:  -55.1878, region: 'Americas', country: 'Suriname' },
+  // ── Europe ────────────────────────────────────────────────────────────────
+  // UK
+  { name: 'London Heathrow',  code: 'LHR', lat:  51.4775,  lon:   -0.4614, region: 'Europe', country: 'UK' },
+  { name: 'London Gatwick',   code: 'LGW', lat:  51.1537,  lon:   -0.1821, region: 'Europe', country: 'UK' },
+  { name: 'London Stansted',  code: 'STN', lat:  51.8850,  lon:    0.2350, region: 'Europe', country: 'UK' },
+  { name: 'Manchester',       code: 'MAN', lat:  53.3650,  lon:   -2.2729, region: 'Europe', country: 'UK' },
+  { name: 'London Luton',     code: 'LTN', lat:  51.8747,  lon:   -0.3683, region: 'Europe', country: 'UK' },
+  { name: 'Edinburgh',        code: 'EDI', lat:  55.9500,  lon:   -3.3725, region: 'Europe', country: 'UK' },
+  { name: 'Birmingham',       code: 'BHX', lat:  52.4539,  lon:   -1.7480, region: 'Europe', country: 'UK' },
+  { name: 'Glasgow',          code: 'GLA', lat:  55.8719,  lon:   -4.4331, region: 'Europe', country: 'UK' },
+  { name: 'Bristol',          code: 'BRS', lat:  51.3827,  lon:   -2.7191, region: 'Europe', country: 'UK' },
+  { name: 'Newcastle',        code: 'NCL', lat:  55.0375,  lon:   -1.6917, region: 'Europe', country: 'UK' },
+  { name: 'Belfast',          code: 'BFS', lat:  54.6575,  lon:   -6.2158, region: 'Europe', country: 'UK' },
+  { name: 'East Midlands',    code: 'EMA', lat:  52.8311,  lon:   -1.3281, region: 'Europe', country: 'UK' },
+  { name: 'Aberdeen',         code: 'ABZ', lat:  57.2019,  lon:   -2.1978, region: 'Europe', country: 'UK' },
+  { name: 'Southampton',      code: 'SOU', lat:  50.9503,  lon:   -1.3568, region: 'Europe', country: 'UK' },
+  { name: 'Leeds Bradford',   code: 'LBA', lat:  53.8659,  lon:   -1.6606, region: 'Europe', country: 'UK' },
+  { name: 'Liverpool',        code: 'LPL', lat:  53.3336,  lon:   -2.8497, region: 'Europe', country: 'UK' },
+  // Germany
+  { name: 'Frankfurt',        code: 'FRA', lat:  50.0379,  lon:    8.5622, region: 'Europe', country: 'Germany' },
+  { name: 'Munich',           code: 'MUC', lat:  48.3537,  lon:   11.7750, region: 'Europe', country: 'Germany' },
+  { name: 'Berlin',           code: 'BER', lat:  52.3667,  lon:   13.5033, region: 'Europe', country: 'Germany' },
+  { name: 'Düsseldorf',       code: 'DUS', lat:  51.2895,  lon:    6.7668, region: 'Europe', country: 'Germany' },
+  { name: 'Hamburg',          code: 'HAM', lat:  53.6304,  lon:    9.9882, region: 'Europe', country: 'Germany' },
+  { name: 'Cologne',          code: 'CGN', lat:  50.8659,  lon:    7.1427, region: 'Europe', country: 'Germany' },
+  { name: 'Stuttgart',        code: 'STR', lat:  48.6899,  lon:    9.2220, region: 'Europe', country: 'Germany' },
+  { name: 'Nuremberg',        code: 'NUE', lat:  49.4987,  lon:   11.0669, region: 'Europe', country: 'Germany' },
+  { name: 'Hannover',         code: 'HAJ', lat:  52.4611,  lon:    9.6850, region: 'Europe', country: 'Germany' },
+  { name: 'Leipzig',          code: 'LEJ', lat:  51.4324,  lon:   12.2416, region: 'Europe', country: 'Germany' },
+  { name: 'Dresden',          code: 'DRS', lat:  51.1328,  lon:   13.7672, region: 'Europe', country: 'Germany' },
+  { name: 'Bremen',           code: 'BRE', lat:  53.0475,  lon:    8.7867, region: 'Europe', country: 'Germany' },
+  // France
+  { name: 'Paris CDG',        code: 'CDG', lat:  49.0097,  lon:    2.5479, region: 'Europe', country: 'France' },
+  { name: 'Paris Orly',       code: 'ORY', lat:  48.7233,  lon:    2.3794, region: 'Europe', country: 'France' },
+  { name: 'Nice',             code: 'NCE', lat:  43.6584,  lon:    7.2159, region: 'Europe', country: 'France' },
+  { name: 'Lyon',             code: 'LYS', lat:  45.7256,  lon:    5.0811, region: 'Europe', country: 'France' },
+  { name: 'Marseille',        code: 'MRS', lat:  43.4393,  lon:    5.2214, region: 'Europe', country: 'France' },
+  { name: 'Toulouse',         code: 'TLS', lat:  43.6291,  lon:    1.3638, region: 'Europe', country: 'France' },
+  { name: 'Bordeaux',         code: 'BOD', lat:  44.8283,  lon:   -0.7156, region: 'Europe', country: 'France' },
+  { name: 'Nantes',           code: 'NTE', lat:  47.1532,  lon:   -1.6108, region: 'Europe', country: 'France' },
+  { name: 'Strasbourg',       code: 'SXB', lat:  48.5383,  lon:    7.6283, region: 'Europe', country: 'France' },
+  { name: 'Montpellier',      code: 'MPL', lat:  43.5762,  lon:    3.9630, region: 'Europe', country: 'France' },
+  { name: 'Bastia',           code: 'BIA', lat:  42.5527,  lon:    9.4837, region: 'Europe', country: 'France' },
+  // Netherlands/Belgium/Luxembourg
+  { name: 'Amsterdam',        code: 'AMS', lat:  52.3105,  lon:    4.7683, region: 'Europe', country: 'Netherlands' },
+  { name: 'Eindhoven',        code: 'EIN', lat:  51.4501,  lon:    5.3745, region: 'Europe', country: 'Netherlands' },
+  { name: 'Rotterdam',        code: 'RTM', lat:  51.9569,  lon:    4.4372, region: 'Europe', country: 'Netherlands' },
+  { name: 'Brussels',         code: 'BRU', lat:  50.9014,  lon:    4.4844, region: 'Europe', country: 'Belgium' },
+  { name: 'Brussels South',   code: 'CRL', lat:  50.4592,  lon:    4.4528, region: 'Europe', country: 'Belgium' },
+  { name: 'Luxembourg',       code: 'LUX', lat:  49.6233,  lon:    6.2044, region: 'Europe', country: 'Luxembourg' },
+  // Spain
+  { name: 'Madrid',           code: 'MAD', lat:  40.4983,  lon:   -3.5676, region: 'Europe', country: 'Spain' },
+  { name: 'Barcelona',        code: 'BCN', lat:  41.2971,  lon:    2.0785, region: 'Europe', country: 'Spain' },
+  { name: 'Palma Mallorca',   code: 'PMI', lat:  39.5517,  lon:    2.7388, region: 'Europe', country: 'Spain' },
+  { name: 'Málaga',           code: 'AGP', lat:  36.6749,  lon:   -4.4991, region: 'Europe', country: 'Spain' },
+  { name: 'Alicante',         code: 'ALC', lat:  38.2822,  lon:   -0.5582, region: 'Europe', country: 'Spain' },
+  { name: 'Las Palmas',       code: 'LPA', lat:  27.9319,  lon:  -15.3866, region: 'Europe', country: 'Spain' },
+  { name: 'Tenerife South',   code: 'TFS', lat:  28.0445,  lon:  -16.5725, region: 'Europe', country: 'Spain' },
+  { name: 'Tenerife North',   code: 'TFN', lat:  28.4827,  lon:  -16.3414, region: 'Europe', country: 'Spain' },
+  { name: 'Seville',          code: 'SVQ', lat:  37.4180,  lon:   -5.8931, region: 'Europe', country: 'Spain' },
+  { name: 'Valencia',         code: 'VLC', lat:  39.4893,  lon:   -0.4816, region: 'Europe', country: 'Spain' },
+  { name: 'Lanzarote',        code: 'ACE', lat:  28.9455,  lon:  -13.6052, region: 'Europe', country: 'Spain' },
+  { name: 'Fuerteventura',    code: 'FUE', lat:  28.4527,  lon:  -13.8638, region: 'Europe', country: 'Spain' },
+  { name: 'Ibiza',            code: 'IBZ', lat:  38.8729,  lon:    1.3713, region: 'Europe', country: 'Spain' },
+  { name: 'Menorca',          code: 'MAH', lat:  39.8626,  lon:    4.2186, region: 'Europe', country: 'Spain' },
+  { name: 'Bilbao',           code: 'BIO', lat:  43.3011,  lon:   -2.9106, region: 'Europe', country: 'Spain' },
+  // Portugal
+  { name: 'Lisbon',           code: 'LIS', lat:  38.7742,  lon:   -9.1342, region: 'Europe', country: 'Portugal' },
+  { name: 'Porto',            code: 'OPO', lat:  41.2481,  lon:   -8.6814, region: 'Europe', country: 'Portugal' },
+  { name: 'Faro',             code: 'FAO', lat:  37.0144,  lon:   -7.9659, region: 'Europe', country: 'Portugal' },
+  { name: 'Funchal/Madeira',  code: 'FNC', lat:  32.6979,  lon:  -16.7745, region: 'Europe', country: 'Portugal' },
+  { name: 'Ponta Delgada',    code: 'PDL', lat:  37.7412,  lon:  -25.6979, region: 'Europe', country: 'Portugal' },
+  // Italy
+  { name: 'Rome Fiumicino',   code: 'FCO', lat:  41.8003,  lon:   12.2389, region: 'Europe', country: 'Italy' },
+  { name: 'Milan Malpensa',   code: 'MXP', lat:  45.6306,  lon:    8.7281, region: 'Europe', country: 'Italy' },
+  { name: 'Milan Linate',     code: 'LIN', lat:  45.4455,  lon:    9.2773, region: 'Europe', country: 'Italy' },
+  { name: 'Venice',           code: 'VCE', lat:  45.5053,  lon:   12.3519, region: 'Europe', country: 'Italy' },
+  { name: 'Naples',           code: 'NAP', lat:  40.8860,  lon:   14.2908, region: 'Europe', country: 'Italy' },
+  { name: 'Catania',          code: 'CTA', lat:  37.4668,  lon:   15.0664, region: 'Europe', country: 'Italy' },
+  { name: 'Bologna',          code: 'BLQ', lat:  44.5354,  lon:   11.2887, region: 'Europe', country: 'Italy' },
+  { name: 'Turin',            code: 'TRN', lat:  45.2008,  lon:    7.6497, region: 'Europe', country: 'Italy' },
+  { name: 'Florence',         code: 'FLR', lat:  43.8100,  lon:   11.2051, region: 'Europe', country: 'Italy' },
+  { name: 'Palermo',          code: 'PMO', lat:  38.1760,  lon:   13.0910, region: 'Europe', country: 'Italy' },
+  { name: 'Bari',             code: 'BRI', lat:  41.1389,  lon:   16.7606, region: 'Europe', country: 'Italy' },
+  { name: 'Olbia',            code: 'OLB', lat:  40.8987,  lon:    9.5177, region: 'Europe', country: 'Italy' },
+  { name: 'Cagliari',         code: 'CAG', lat:  39.2515,  lon:    9.0543, region: 'Europe', country: 'Italy' },
+  // Switzerland/Austria
+  { name: 'Zurich',           code: 'ZRH', lat:  47.4647,  lon:    8.5492, region: 'Europe', country: 'Switzerland' },
+  { name: 'Geneva',           code: 'GVA', lat:  46.2380,  lon:    6.1089, region: 'Europe', country: 'Switzerland' },
+  { name: 'Basel/Mulhouse',   code: 'BSL', lat:  47.5896,  lon:    7.5299, region: 'Europe', country: 'Switzerland' },
+  { name: 'Vienna',           code: 'VIE', lat:  48.1103,  lon:   16.5697, region: 'Europe', country: 'Austria' },
+  { name: 'Salzburg',         code: 'SZG', lat:  47.7933,  lon:   13.0043, region: 'Europe', country: 'Austria' },
+  { name: 'Innsbruck',        code: 'INN', lat:  47.2602,  lon:   11.3440, region: 'Europe', country: 'Austria' },
+  { name: 'Graz',             code: 'GRZ', lat:  46.9911,  lon:   15.4396, region: 'Europe', country: 'Austria' },
   // Scandinavia
-  { name: 'Gothenburg',      code: 'GOT', lat:  57.6628,  lon:   12.2798, region: 'Europe' },
-  { name: 'Bergen',          code: 'BGO', lat:  60.2934,  lon:    5.2181, region: 'Europe' },
-  { name: 'Stavanger',       code: 'SVG', lat:  58.8768,  lon:    5.6378, region: 'Europe' },
-  { name: 'Trondheim',       code: 'TRD', lat:  63.4578,  lon:   10.9239, region: 'Europe' },
-  // Baltics
-  { name: 'Tallinn',         code: 'TLL', lat:  59.4133,  lon:   24.8328, region: 'Europe' },
-  { name: 'Vilnius',         code: 'VNO', lat:  54.6341,  lon:   25.2858, region: 'Europe' },
-  { name: 'Kaunas',          code: 'KUN', lat:  54.9639,  lon:   24.0848, region: 'Europe' },
-  // Poland
-  { name: 'Wroclaw',         code: 'WRO', lat:  51.1027,  lon:   16.8858, region: 'Europe' },
-  { name: 'Kraków',          code: 'KRK', lat:  50.0777,  lon:   19.7848, region: 'Europe' },
-  { name: 'Gdansk',          code: 'GDN', lat:  54.3776,  lon:   18.4662, region: 'Europe' },
-  { name: 'Poznan',          code: 'POZ', lat:  52.4210,  lon:   16.8263, region: 'Europe' },
-  // Benelux/Low Countries
-  { name: 'Eindhoven',       code: 'EIN', lat:  51.4501,  lon:    5.3745, region: 'Europe' },
-  { name: 'Rotterdam',       code: 'RTM', lat:  51.9569,  lon:    4.4372, region: 'Europe' },
-  { name: 'Luxembourg',      code: 'LUX', lat:  49.6233,  lon:    6.2044, region: 'Europe' },
-  // Bratislava
-  { name: 'Bratislava',      code: 'BTS', lat:  48.1702,  lon:   17.2127, region: 'Europe' },
-  // Italy secondaries
-  { name: 'Venice',          code: 'VCE', lat:  45.5053,  lon:   12.3519, region: 'Europe' },
-  { name: 'Turin',           code: 'TRN', lat:  45.2008,  lon:    7.6497, region: 'Europe' },
-  { name: 'Naples',          code: 'NAP', lat:  40.8860,  lon:   14.2908, region: 'Europe' },
-  { name: 'Bologna',         code: 'BLQ', lat:  44.5354,  lon:   11.2887, region: 'Europe' },
-  { name: 'Florence',        code: 'FLR', lat:  43.8100,  lon:   11.2051, region: 'Europe' },
-  { name: 'Catania',         code: 'CTA', lat:  37.4668,  lon:   15.0664, region: 'Europe' },
-  { name: 'Palermo',         code: 'PMO', lat:  38.1760,  lon:   13.0910, region: 'Europe' },
-  { name: 'Bari',            code: 'BRI', lat:  41.1389,  lon:   16.7606, region: 'Europe' },
-  // Spain/Portugal secondaries
-  { name: 'Palma Mallorca',  code: 'PMI', lat:  39.5517,  lon:    2.7388, region: 'Europe' },
-  { name: 'Seville',         code: 'SVQ', lat:  37.4180,  lon:   -5.8931, region: 'Europe' },
-  { name: 'Valencia',        code: 'VLC', lat:  39.4893,  lon:   -0.4816, region: 'Europe' },
-  { name: 'Málaga',          code: 'AGP', lat:  36.6749,  lon:   -4.4991, region: 'Europe' },
-  { name: 'Tenerife South',  code: 'TFS', lat:  28.0445,  lon:  -16.5725, region: 'Europe' },
-  { name: 'Las Palmas',      code: 'LPA', lat:  27.9319,  lon:  -15.3866, region: 'Europe' },
-  { name: 'Porto',           code: 'OPO', lat:  41.2481,  lon:   -8.6814, region: 'Europe' },
-  { name: 'Faro',            code: 'FAO', lat:  37.0144,  lon:   -7.9659, region: 'Europe' },
-  // France secondaries
-  { name: 'Lyon',            code: 'LYS', lat:  45.7256,  lon:    5.0811, region: 'Europe' },
-  { name: 'Marseille',       code: 'MRS', lat:  43.4393,  lon:    5.2214, region: 'Europe' },
-  { name: 'Toulouse',        code: 'TLS', lat:  43.6291,  lon:    1.3638, region: 'Europe' },
-  { name: 'Bordeaux',        code: 'BOD', lat:  44.8283,  lon:   -0.7156, region: 'Europe' },
-  { name: 'Nantes',          code: 'NTE', lat:  47.1532,  lon:   -1.6108, region: 'Europe' },
-  // Greece/Cyprus/Malta
-  { name: 'Thessaloniki',    code: 'SKG', lat:  40.5197,  lon:   22.9709, region: 'Europe' },
-  { name: 'Heraklion',       code: 'HER', lat:  35.3397,  lon:   25.1803, region: 'Europe' },
-  { name: 'Rhodes',          code: 'RHO', lat:  36.4054,  lon:   28.0862, region: 'Europe' },
-  { name: 'Larnaca',         code: 'LCA', lat:  34.8751,  lon:   33.6249, region: 'Europe' },
-  { name: 'Malta',           code: 'MLA', lat:  35.8574,  lon:   14.4775, region: 'Europe' },
-  // Balkans
-  { name: 'Tirana',          code: 'TIA', lat:  41.4147,  lon:   19.7206, region: 'Europe' },
-  { name: 'Skopje',          code: 'SKP', lat:  41.9614,  lon:   21.6214, region: 'Europe' },
-  { name: 'Sarajevo',        code: 'SJJ', lat:  43.8246,  lon:   18.3315, region: 'Europe' },
-  { name: 'Zagreb',          code: 'ZAG', lat:  45.7429,  lon:   16.0688, region: 'Europe' },
-  { name: 'Ljubljana',       code: 'LJU', lat:  46.2237,  lon:   14.4576, region: 'Europe' },
-  { name: 'Podgorica',       code: 'TGD', lat:  42.3594,  lon:   19.2519, region: 'Europe' },
-  // Caucasus
-  { name: 'Tbilisi',         code: 'TBS', lat:  41.6692,  lon:   44.9547, region: 'Europe' },
-  { name: 'Yerevan',         code: 'EVN', lat:  40.1473,  lon:   44.3959, region: 'Europe' },
-  { name: 'Baku',            code: 'GYD', lat:  40.4675,  lon:   50.0467, region: 'Europe' },
-  // Moldova/Belarus
-  { name: 'Chisinau',        code: 'KIV', lat:  46.9277,  lon:   28.9310, region: 'Europe' },
-  { name: 'Minsk',           code: 'MSQ', lat:  53.8825,  lon:   28.0307, region: 'Europe' },
-  // Russia
-  { name: 'Moscow SVO',      code: 'SVO', lat:  55.9726,  lon:   37.4146, region: 'Europe' },
-  { name: 'Moscow DME',      code: 'DME', lat:  55.4088,  lon:   37.9063, region: 'Europe' },
-  { name: 'St Petersburg',   code: 'LED', lat:  59.8003,  lon:   30.2625, region: 'Europe' },
-  { name: 'Yekaterinburg',   code: 'SVX', lat:  56.8431,  lon:   60.8028, region: 'Europe' },
-  { name: 'Novosibirsk',     code: 'OVB', lat:  54.9663,  lon:   82.9067, region: 'Europe' },
-  { name: 'Ufa',             code: 'UFA', lat:  54.5575,  lon:   55.8744, region: 'Europe' },
-  { name: 'Kazan',           code: 'KZN', lat:  55.6063,  lon:   49.2787, region: 'Europe' },
-  { name: 'Sochi',           code: 'AER', lat:  43.4499,  lon:   39.9566, region: 'Europe' },
-  { name: 'Nizhny Novgorod', code: 'GOJ', lat:  56.2301,  lon:   43.7840, region: 'Europe' },
-  { name: 'Samara',          code: 'KUF', lat:  53.5050,  lon:   50.1642, region: 'Europe' },
-  // Istanbul second airport
-  { name: 'Istanbul SAW',    code: 'SAW', lat:  40.8985,  lon:   29.3092, region: 'Europe' },
-  { name: 'Krasnoyarsk',     code: 'KJA', lat:  56.1730,  lon:   92.4933, region: 'Europe' },
-  { name: 'Split',           code: 'SPU', lat:  43.5389,  lon:   16.2980, region: 'Europe' },
-  { name: 'Dubrovnik',       code: 'DBV', lat:  42.5614,  lon:   18.2681, region: 'Europe' },
-  { name: 'Pristina',        code: 'PRN', lat:  42.5728,  lon:   21.0358, region: 'Europe' },
+  { name: 'Copenhagen',       code: 'CPH', lat:  55.6179,  lon:   12.6560, region: 'Europe', country: 'Denmark' },
+  { name: 'Aalborg',          code: 'AAL', lat:  57.0928,  lon:    9.8492, region: 'Europe', country: 'Denmark' },
+  { name: 'Billund',          code: 'BLL', lat:  55.7403,  lon:    9.1518, region: 'Europe', country: 'Denmark' },
+  { name: 'Stockholm',        code: 'ARN', lat:  59.6519,  lon:   17.9186, region: 'Europe', country: 'Sweden' },
+  { name: 'Gothenburg',       code: 'GOT', lat:  57.6628,  lon:   12.2798, region: 'Europe', country: 'Sweden' },
+  { name: 'Malmö',            code: 'MMX', lat:  55.5363,  lon:   13.3762, region: 'Europe', country: 'Sweden' },
+  { name: 'Oslo',             code: 'OSL', lat:  60.1939,  lon:   11.1004, region: 'Europe', country: 'Norway' },
+  { name: 'Bergen',           code: 'BGO', lat:  60.2934,  lon:    5.2181, region: 'Europe', country: 'Norway' },
+  { name: 'Stavanger',        code: 'SVG', lat:  58.8768,  lon:    5.6378, region: 'Europe', country: 'Norway' },
+  { name: 'Trondheim',        code: 'TRD', lat:  63.4578,  lon:   10.9239, region: 'Europe', country: 'Norway' },
+  { name: 'Helsinki',         code: 'HEL', lat:  60.3172,  lon:   24.9633, region: 'Europe', country: 'Finland' },
+  { name: 'Oulu',             code: 'OUL', lat:  64.9301,  lon:   25.3546, region: 'Europe', country: 'Finland' },
+  { name: 'Rovaniemi',        code: 'RVN', lat:  66.5648,  lon:   25.8304, region: 'Europe', country: 'Finland' },
+  { name: 'Reykjavik',        code: 'KEF', lat:  63.9850,  lon:  -22.6056, region: 'Europe', country: 'Iceland' },
+  // Turkey
+  { name: 'Istanbul',         code: 'IST', lat:  41.2608,  lon:   28.7418, region: 'Europe', country: 'Turkey' },
+  { name: 'Istanbul Sabiha',  code: 'SAW', lat:  40.8985,  lon:   29.3092, region: 'Europe', country: 'Turkey' },
+  { name: 'Antalya',          code: 'AYT', lat:  36.8987,  lon:   30.7992, region: 'Europe', country: 'Turkey' },
+  { name: 'Ankara',           code: 'ESB', lat:  40.1281,  lon:   32.9951, region: 'Europe', country: 'Turkey' },
+  { name: 'Izmir',            code: 'ADB', lat:  38.2924,  lon:   27.1570, region: 'Europe', country: 'Turkey' },
+  { name: 'Gaziantep',        code: 'GZT', lat:  36.9473,  lon:   37.4787, region: 'Europe', country: 'Turkey' },
+  { name: 'Trabzon',          code: 'TZX', lat:  40.9950,  lon:   39.7897, region: 'Europe', country: 'Turkey' },
+  // Eastern Europe
+  { name: 'Warsaw',           code: 'WAW', lat:  52.1657,  lon:   20.9671, region: 'Europe', country: 'Poland' },
+  { name: 'Kraków',           code: 'KRK', lat:  50.0777,  lon:   19.7848, region: 'Europe', country: 'Poland' },
+  { name: 'Gdansk',           code: 'GDN', lat:  54.3776,  lon:   18.4662, region: 'Europe', country: 'Poland' },
+  { name: 'Wroclaw',          code: 'WRO', lat:  51.1027,  lon:   16.8858, region: 'Europe', country: 'Poland' },
+  { name: 'Katowice',         code: 'KTW', lat:  50.4743,  lon:   19.0800, region: 'Europe', country: 'Poland' },
+  { name: 'Poznan',           code: 'POZ', lat:  52.4210,  lon:   16.8263, region: 'Europe', country: 'Poland' },
+  { name: 'Prague',           code: 'PRG', lat:  50.1008,  lon:   14.2600, region: 'Europe', country: 'Czech Rep.' },
+  { name: 'Brno',             code: 'BRQ', lat:  49.1513,  lon:   16.6944, region: 'Europe', country: 'Czech Rep.' },
+  { name: 'Budapest',         code: 'BUD', lat:  47.4369,  lon:   19.2556, region: 'Europe', country: 'Hungary' },
+  { name: 'Bucharest',        code: 'OTP', lat:  44.5722,  lon:   26.1022, region: 'Europe', country: 'Romania' },
+  { name: 'Cluj-Napoca',      code: 'CLJ', lat:  46.7852,  lon:   23.6862, region: 'Europe', country: 'Romania' },
+  { name: 'Iași',             code: 'IAS', lat:  47.1783,  lon:   27.6206, region: 'Europe', country: 'Romania' },
+  { name: 'Timișoara',        code: 'TSR', lat:  45.8099,  lon:   21.3379, region: 'Europe', country: 'Romania' },
+  { name: 'Sofia',            code: 'SOF', lat:  42.6967,  lon:   23.4114, region: 'Europe', country: 'Bulgaria' },
+  { name: 'Varna',            code: 'VAR', lat:  43.2321,  lon:   27.8251, region: 'Europe', country: 'Bulgaria' },
+  { name: 'Burgas',           code: 'BOJ', lat:  42.5696,  lon:   27.5152, region: 'Europe', country: 'Bulgaria' },
+  { name: 'Athens',           code: 'ATH', lat:  37.9364,  lon:   23.9445, region: 'Europe', country: 'Greece' },
+  { name: 'Thessaloniki',     code: 'SKG', lat:  40.5197,  lon:   22.9709, region: 'Europe', country: 'Greece' },
+  { name: 'Heraklion',        code: 'HER', lat:  35.3397,  lon:   25.1803, region: 'Europe', country: 'Greece' },
+  { name: 'Rhodes',           code: 'RHO', lat:  36.4054,  lon:   28.0862, region: 'Europe', country: 'Greece' },
+  { name: 'Corfu',            code: 'CFU', lat:  39.6019,  lon:   19.9117, region: 'Europe', country: 'Greece' },
+  { name: 'Mykonos',          code: 'JMK', lat:  37.4351,  lon:   25.3481, region: 'Europe', country: 'Greece' },
+  { name: 'Santorini',        code: 'JTR', lat:  36.3992,  lon:   25.4793, region: 'Europe', country: 'Greece' },
+  { name: 'Kos',              code: 'KGS', lat:  36.7934,  lon:   26.9173, region: 'Europe', country: 'Greece' },
+  { name: 'Larnaca',          code: 'LCA', lat:  34.8751,  lon:   33.6249, region: 'Europe', country: 'Cyprus' },
+  { name: 'Malta',            code: 'MLA', lat:  35.8574,  lon:   14.4775, region: 'Europe', country: 'Malta' },
+  { name: 'Dublin',           code: 'DUB', lat:  53.4213,  lon:   -6.2701, region: 'Europe', country: 'Ireland' },
+  { name: 'Riga',             code: 'RIX', lat:  56.9236,  lon:   23.9711, region: 'Europe', country: 'Latvia' },
+  { name: 'Tallinn',          code: 'TLL', lat:  59.4133,  lon:   24.8328, region: 'Europe', country: 'Estonia' },
+  { name: 'Vilnius',          code: 'VNO', lat:  54.6341,  lon:   25.2858, region: 'Europe', country: 'Lithuania' },
+  { name: 'Bratislava',       code: 'BTS', lat:  48.1702,  lon:   17.2127, region: 'Europe', country: 'Slovakia' },
+  { name: 'Ljubljana',        code: 'LJU', lat:  46.2237,  lon:   14.4576, region: 'Europe', country: 'Slovenia' },
+  { name: 'Zagreb',           code: 'ZAG', lat:  45.7429,  lon:   16.0688, region: 'Europe', country: 'Croatia' },
+  { name: 'Split',            code: 'SPU', lat:  43.5389,  lon:   16.2980, region: 'Europe', country: 'Croatia' },
+  { name: 'Dubrovnik',        code: 'DBV', lat:  42.5614,  lon:   18.2681, region: 'Europe', country: 'Croatia' },
+  { name: 'Zadar',            code: 'ZAD', lat:  44.1083,  lon:   15.3467, region: 'Europe', country: 'Croatia' },
+  { name: 'Belgrade',         code: 'BEG', lat:  44.8184,  lon:   20.3091, region: 'Europe', country: 'Serbia' },
+  { name: 'Sarajevo',         code: 'SJJ', lat:  43.8246,  lon:   18.3315, region: 'Europe', country: 'Bosnia' },
+  { name: 'Tirana',           code: 'TIA', lat:  41.4147,  lon:   19.7206, region: 'Europe', country: 'Albania' },
+  { name: 'Skopje',           code: 'SKP', lat:  41.9614,  lon:   21.6214, region: 'Europe', country: 'N. Macedonia' },
+  { name: 'Pristina',         code: 'PRN', lat:  42.5728,  lon:   21.0358, region: 'Europe', country: 'Kosovo' },
+  { name: 'Podgorica',        code: 'TGD', lat:  42.3594,  lon:   19.2519, region: 'Europe', country: 'Montenegro' },
+  { name: 'Tbilisi',          code: 'TBS', lat:  41.6692,  lon:   44.9547, region: 'Europe', country: 'Georgia' },
+  { name: 'Yerevan',          code: 'EVN', lat:  40.1473,  lon:   44.3959, region: 'Europe', country: 'Armenia' },
+  { name: 'Baku',             code: 'GYD', lat:  40.4675,  lon:   50.0467, region: 'Europe', country: 'Azerbaijan' },
+  { name: 'Chisinau',         code: 'KIV', lat:  46.9277,  lon:   28.9310, region: 'Europe', country: 'Moldova' },
+  { name: 'Moscow Sheremetyevo',code:'SVO',lat:  55.9726,  lon:   37.4146, region: 'Europe', country: 'Russia' },
+  { name: 'Moscow Domodedovo',code: 'DME', lat:  55.4088,  lon:   37.9063, region: 'Europe', country: 'Russia' },
+  { name: 'Moscow Vnukovo',   code: 'VKO', lat:  55.5915,  lon:   37.2615, region: 'Europe', country: 'Russia' },
+  { name: 'St Petersburg',    code: 'LED', lat:  59.8003,  lon:   30.2625, region: 'Europe', country: 'Russia' },
+  { name: 'Yekaterinburg',    code: 'SVX', lat:  56.8431,  lon:   60.8028, region: 'Europe', country: 'Russia' },
+  { name: 'Novosibirsk',      code: 'OVB', lat:  54.9663,  lon:   82.9067, region: 'Europe', country: 'Russia' },
+  { name: 'Kazan',            code: 'KZN', lat:  55.6063,  lon:   49.2787, region: 'Europe', country: 'Russia' },
+  { name: 'Sochi',            code: 'AER', lat:  43.4499,  lon:   39.9566, region: 'Europe', country: 'Russia' },
+  { name: 'Krasnoyarsk',      code: 'KJA', lat:  56.1730,  lon:   92.4933, region: 'Europe', country: 'Russia' },
+  { name: 'Ufa',              code: 'UFA', lat:  54.5575,  lon:   55.8744, region: 'Europe', country: 'Russia' },
+  { name: 'Samara',           code: 'KUF', lat:  53.5050,  lon:   50.1642, region: 'Europe', country: 'Russia' },
+  { name: 'Nizhny Novgorod',  code: 'GOJ', lat:  56.2301,  lon:   43.7840, region: 'Europe', country: 'Russia' },
+  { name: 'Omsk',             code: 'OMS', lat:  54.9670,  lon:   73.3105, region: 'Europe', country: 'Russia' },
 
-  // ── Middle East new (15) ───────────────────────────────────────────────────
-  { name: 'Bahrain',         code: 'BAH', lat:  26.2708,  lon:   50.6336, region: 'Middle East' },
-  { name: 'Jeddah',          code: 'JED', lat:  21.6796,  lon:   39.1565, region: 'Middle East' },
-  { name: 'Dammam',          code: 'DMM', lat:  26.4712,  lon:   49.7979, region: 'Middle East' },
-  { name: 'Medina',          code: 'MED', lat:  24.5534,  lon:   39.7051, region: 'Middle East' },
-  { name: 'Sharjah',         code: 'SHJ', lat:  25.3286,  lon:   55.5172, region: 'Middle East' },
-  { name: 'Al Ain',          code: 'AAN', lat:  24.2617,  lon:   55.6092, region: 'Middle East' },
-  { name: 'Fujairah',        code: 'FJR', lat:  25.1122,  lon:   56.3240, region: 'Middle East' },
-  { name: 'Beirut',          code: 'BEY', lat:  33.8209,  lon:   35.4884, region: 'Middle East' },
-  { name: 'Sharm el-Sheikh', code: 'SSH', lat:  27.9773,  lon:   34.3950, region: 'Middle East' },
-  { name: 'Hurghada',        code: 'HRG', lat:  27.1783,  lon:   33.7994, region: 'Middle East' },
-  { name: 'Luxor',           code: 'LXR', lat:  25.6710,  lon:   32.7066, region: 'Middle East' },
-  { name: 'Erbil',           code: 'EBL', lat:  36.2376,  lon:   43.9632, region: 'Middle East' },
-  { name: 'Muscat Salalah',  code: 'SLL', lat:  17.0387,  lon:   54.0913, region: 'Middle East' },
-  { name: 'Tabuk',           code: 'TUU', lat:  28.3654,  lon:   36.6189, region: 'Middle East' },
-  { name: 'Abha',            code: 'AHB', lat:  18.2404,  lon:   42.6566, region: 'Middle East' },
+  // ── Middle East ────────────────────────────────────────────────────────────
+  { name: 'Dubai',            code: 'DXB', lat:  25.2532,  lon:   55.3657, region: 'Middle East', country: 'UAE' },
+  { name: 'Dubai Al Maktoum', code: 'DWC', lat:  24.8963,  lon:   55.1611, region: 'Middle East', country: 'UAE' },
+  { name: 'Abu Dhabi',        code: 'AUH', lat:  24.4330,  lon:   54.6511, region: 'Middle East', country: 'UAE' },
+  { name: 'Sharjah',         code: 'SHJ',  lat:  25.3286,  lon:   55.5172, region: 'Middle East', country: 'UAE' },
+  { name: 'Doha',             code: 'DOH', lat:  25.2731,  lon:   51.6080, region: 'Middle East', country: 'Qatar' },
+  { name: 'Riyadh',           code: 'RUH', lat:  24.9576,  lon:   46.6988, region: 'Middle East', country: 'Saudi Arabia' },
+  { name: 'Jeddah',           code: 'JED', lat:  21.6796,  lon:   39.1565, region: 'Middle East', country: 'Saudi Arabia' },
+  { name: 'Dammam',           code: 'DMM', lat:  26.4712,  lon:   49.7979, region: 'Middle East', country: 'Saudi Arabia' },
+  { name: 'Medina',           code: 'MED', lat:  24.5534,  lon:   39.7051, region: 'Middle East', country: 'Saudi Arabia' },
+  { name: 'Abha',             code: 'AHB', lat:  18.2404,  lon:   42.6566, region: 'Middle East', country: 'Saudi Arabia' },
+  { name: 'Tabuk',            code: 'TUU', lat:  28.3654,  lon:   36.6189, region: 'Middle East', country: 'Saudi Arabia' },
+  { name: 'Bahrain',          code: 'BAH', lat:  26.2708,  lon:   50.6336, region: 'Middle East', country: 'Bahrain' },
+  { name: 'Kuwait City',      code: 'KWI', lat:  29.2267,  lon:   47.9689, region: 'Middle East', country: 'Kuwait' },
+  { name: 'Muscat',           code: 'MCT', lat:  23.5933,  lon:   58.2844, region: 'Middle East', country: 'Oman' },
+  { name: 'Salalah',          code: 'SLL', lat:  17.0387,  lon:   54.0913, region: 'Middle East', country: 'Oman' },
+  { name: 'Tehran',           code: 'IKA', lat:  35.4161,  lon:   51.1522, region: 'Middle East', country: 'Iran' },
+  { name: 'Mashhad',          code: 'MHD', lat:  36.2352,  lon:   59.6410, region: 'Middle East', country: 'Iran' },
+  { name: 'Shiraz',           code: 'SYZ', lat:  29.5392,  lon:   52.5898, region: 'Middle East', country: 'Iran' },
+  { name: 'Isfahan',          code: 'IFN', lat:  32.7508,  lon:   51.8613, region: 'Middle East', country: 'Iran' },
+  { name: 'Tabriz',           code: 'TBZ', lat:  38.1339,  lon:   46.2350, region: 'Middle East', country: 'Iran' },
+  { name: 'Tel Aviv',         code: 'TLV', lat:  32.0114,  lon:   34.8867, region: 'Middle East', country: 'Israel' },
+  { name: 'Amman',            code: 'AMM', lat:  31.7226,  lon:   35.9932, region: 'Middle East', country: 'Jordan' },
+  { name: 'Aqaba',            code: 'AQJ', lat:  29.6116,  lon:   35.0181, region: 'Middle East', country: 'Jordan' },
+  { name: 'Beirut',           code: 'BEY', lat:  33.8209,  lon:   35.4884, region: 'Middle East', country: 'Lebanon' },
+  { name: 'Baghdad',          code: 'BGW', lat:  33.2626,  lon:   44.2346, region: 'Middle East', country: 'Iraq' },
+  { name: 'Erbil',            code: 'EBL', lat:  36.2376,  lon:   43.9632, region: 'Middle East', country: 'Iraq' },
+  { name: 'Cairo',            code: 'CAI', lat:  30.1219,  lon:   31.4056, region: 'Middle East', country: 'Egypt' },
+  { name: 'Sharm el-Sheikh',  code: 'SSH', lat:  27.9773,  lon:   34.3950, region: 'Middle East', country: 'Egypt' },
+  { name: 'Hurghada',         code: 'HRG', lat:  27.1783,  lon:   33.7994, region: 'Middle East', country: 'Egypt' },
+  { name: 'Luxor',            code: 'LXR', lat:  25.6710,  lon:   32.7066, region: 'Middle East', country: 'Egypt' },
+  { name: 'Alexandria',       code: 'HBE', lat:  30.9177,  lon:   29.6963, region: 'Middle East', country: 'Egypt' },
 
-  // ── Africa new (35) ───────────────────────────────────────────────────────
+  // ── Africa ─────────────────────────────────────────────────────────────────
   // North Africa
-  { name: 'Algiers',         code: 'ALG', lat:  36.6910,  lon:    3.2154, region: 'Africa' },
-  { name: 'Marrakech',       code: 'RAK', lat:  31.6069,  lon:   -8.0363, region: 'Africa' },
-  { name: 'Agadir',          code: 'AGA', lat:  30.3250,  lon:   -9.4130, region: 'Africa' },
-  { name: 'Fes',             code: 'FEZ', lat:  33.9273,  lon:   -4.9779, region: 'Africa' },
+  { name: 'Casablanca',       code: 'CMN', lat:  33.3675,  lon:   -7.5897, region: 'Africa', country: 'Morocco' },
+  { name: 'Marrakech',        code: 'RAK', lat:  31.6069,  lon:   -8.0363, region: 'Africa', country: 'Morocco' },
+  { name: 'Agadir',           code: 'AGA', lat:  30.3250,  lon:   -9.4130, region: 'Africa', country: 'Morocco' },
+  { name: 'Tangier',          code: 'TNG', lat:  35.7269,  lon:   -5.9168, region: 'Africa', country: 'Morocco' },
+  { name: 'Fes',              code: 'FEZ', lat:  33.9273,  lon:   -4.9779, region: 'Africa', country: 'Morocco' },
+  { name: 'Tunis',            code: 'TUN', lat:  36.8510,  lon:   10.2272, region: 'Africa', country: 'Tunisia' },
+  { name: 'Djerba',           code: 'DJE', lat:  33.8750,  lon:   10.7755, region: 'Africa', country: 'Tunisia' },
+  { name: 'Algiers',          code: 'ALG', lat:  36.6910,  lon:    3.2154, region: 'Africa', country: 'Algeria' },
+  { name: 'Oran',             code: 'ORN', lat:  35.6239,  lon:   -0.6212, region: 'Africa', country: 'Algeria' },
   // East Africa
-  { name: 'Mombasa',         code: 'MBA', lat:  -4.0348,  lon:   39.5942, region: 'Africa' },
-  { name: 'Entebbe',         code: 'EBB', lat:   0.0424,  lon:   32.4435, region: 'Africa' },
-  { name: 'Kigali',          code: 'KGL', lat:  -1.9686,  lon:   30.1395, region: 'Africa' },
-  { name: 'Dar es Salaam',   code: 'DAR', lat:  -6.8781,  lon:   39.2026, region: 'Africa' },
-  { name: 'Djibouti',        code: 'JIB', lat:  11.5473,  lon:   43.1595, region: 'Africa' },
+  { name: 'Nairobi',          code: 'NBO', lat:  -1.3192,  lon:   36.9275, region: 'Africa', country: 'Kenya' },
+  { name: 'Mombasa',          code: 'MBA', lat:  -4.0348,  lon:   39.5942, region: 'Africa', country: 'Kenya' },
+  { name: 'Addis Ababa',      code: 'ADD', lat:   8.9779,  lon:   38.7993, region: 'Africa', country: 'Ethiopia' },
+  { name: 'Dar es Salaam',    code: 'DAR', lat:  -6.8781,  lon:   39.2026, region: 'Africa', country: 'Tanzania' },
+  { name: 'Kilimanjaro',      code: 'JRO', lat:  -3.4294,  lon:   37.0745, region: 'Africa', country: 'Tanzania' },
+  { name: 'Zanzibar',         code: 'ZNZ', lat:  -6.2220,  lon:   39.2249, region: 'Africa', country: 'Tanzania' },
+  { name: 'Entebbe',          code: 'EBB', lat:   0.0424,  lon:   32.4435, region: 'Africa', country: 'Uganda' },
+  { name: 'Kigali',           code: 'KGL', lat:  -1.9686,  lon:   30.1395, region: 'Africa', country: 'Rwanda' },
+  { name: 'Djibouti',         code: 'JIB', lat:  11.5473,  lon:   43.1595, region: 'Africa', country: 'Djibouti' },
   // Southern Africa
-  { name: 'Harare',          code: 'HRE', lat: -17.9318,  lon:   31.0928, region: 'Africa' },
-  { name: 'Lusaka',          code: 'LUN', lat: -15.3308,  lon:   28.4526, region: 'Africa' },
-  { name: 'Windhoek',        code: 'WDH', lat: -22.4799,  lon:   17.4709, region: 'Africa' },
-  { name: 'Gaborone',        code: 'GBE', lat: -24.5552,  lon:   25.9182, region: 'Africa' },
-  { name: 'Lilongwe',        code: 'LLW', lat: -13.7894,  lon:   33.7810, region: 'Africa' },
-  { name: 'Maputo',          code: 'MPM', lat: -25.9208,  lon:   32.5726, region: 'Africa' },
-  { name: 'Victoria Falls',  code: 'VFA', lat: -18.0959,  lon:   25.8390, region: 'Africa' },
-  // Islands
-  { name: 'Mauritius',       code: 'MRU', lat: -20.4302,  lon:   57.6836, region: 'Africa' },
-  { name: 'Réunion',         code: 'RUN', lat: -20.8871,  lon:   55.5103, region: 'Africa' },
-  { name: 'Seychelles',      code: 'SEZ', lat:  -4.6743,  lon:   55.5218, region: 'Africa' },
-  { name: 'Antananarivo',    code: 'TNR', lat: -18.7969,  lon:   47.4788, region: 'Africa' },
+  { name: 'Johannesburg',     code: 'JNB', lat: -26.1367,  lon:   28.2411, region: 'Africa', country: 'South Africa' },
+  { name: 'Cape Town',        code: 'CPT', lat: -33.9648,  lon:   18.6017, region: 'Africa', country: 'South Africa' },
+  { name: 'Durban',           code: 'DUR', lat: -29.6144,  lon:   31.1197, region: 'Africa', country: 'South Africa' },
+  { name: 'Port Elizabeth',   code: 'PLZ', lat: -33.9849,  lon:   25.6173, region: 'Africa', country: 'South Africa' },
+  { name: 'Harare',           code: 'HRE', lat: -17.9318,  lon:   31.0928, region: 'Africa', country: 'Zimbabwe' },
+  { name: 'Victoria Falls',   code: 'VFA', lat: -18.0959,  lon:   25.8390, region: 'Africa', country: 'Zimbabwe' },
+  { name: 'Lusaka',           code: 'LUN', lat: -15.3308,  lon:   28.4526, region: 'Africa', country: 'Zambia' },
+  { name: 'Windhoek',         code: 'WDH', lat: -22.4799,  lon:   17.4709, region: 'Africa', country: 'Namibia' },
+  { name: 'Gaborone',         code: 'GBE', lat: -24.5552,  lon:   25.9182, region: 'Africa', country: 'Botswana' },
+  { name: 'Maputo',           code: 'MPM', lat: -25.9208,  lon:   32.5726, region: 'Africa', country: 'Mozambique' },
+  { name: 'Lilongwe',         code: 'LLW', lat: -13.7894,  lon:   33.7810, region: 'Africa', country: 'Malawi' },
+  { name: 'Antananarivo',     code: 'TNR', lat: -18.7969,  lon:   47.4788, region: 'Africa', country: 'Madagascar' },
+  { name: 'Mauritius',        code: 'MRU', lat: -20.4302,  lon:   57.6836, region: 'Africa', country: 'Mauritius' },
+  { name: 'Réunion',          code: 'RUN', lat: -20.8871,  lon:   55.5103, region: 'Africa', country: 'Réunion' },
+  { name: 'Seychelles',       code: 'SEZ', lat:  -4.6743,  lon:   55.5218, region: 'Africa', country: 'Seychelles' },
   // West Africa
-  { name: 'Accra',           code: 'ACC', lat:   5.6052,  lon:   -0.1668, region: 'Africa' },
-  { name: 'Abidjan',         code: 'ABJ', lat:   5.2613,  lon:   -3.9262, region: 'Africa' },
-  { name: 'Dakar',           code: 'DKR', lat:  14.6705,  lon:  -17.4902, region: 'Africa' },
-  { name: 'Abuja',           code: 'ABV', lat:   9.0068,  lon:    7.2632, region: 'Africa' },
-  { name: 'Monrovia',        code: 'ROB', lat:   6.2328,  lon:  -10.3623, region: 'Africa' },
-  { name: 'Freetown',        code: 'FNA', lat:   8.6164,  lon:  -13.1950, region: 'Africa' },
-  { name: 'Conakry',         code: 'CKY', lat:   9.5769,  lon:  -13.6120, region: 'Africa' },
-  { name: 'Banjul',          code: 'BJL', lat:  13.3380,  lon:  -16.6522, region: 'Africa' },
+  { name: 'Lagos',            code: 'LOS', lat:   6.5774,  lon:    3.3214, region: 'Africa', country: 'Nigeria' },
+  { name: 'Abuja',            code: 'ABV', lat:   9.0068,  lon:    7.2632, region: 'Africa', country: 'Nigeria' },
+  { name: 'Port Harcourt',    code: 'PHC', lat:   5.0155,  lon:    6.9496, region: 'Africa', country: 'Nigeria' },
+  { name: 'Kano',             code: 'KAN', lat:  12.0476,  lon:    8.5246, region: 'Africa', country: 'Nigeria' },
+  { name: 'Accra',            code: 'ACC', lat:   5.6052,  lon:   -0.1668, region: 'Africa', country: 'Ghana' },
+  { name: 'Abidjan',          code: 'ABJ', lat:   5.2613,  lon:   -3.9262, region: 'Africa', country: 'Côte d\'Ivoire' },
+  { name: 'Dakar',            code: 'DKR', lat:  14.6705,  lon:  -17.4902, region: 'Africa', country: 'Senegal' },
+  { name: 'Bamako',           code: 'BKO', lat:  12.5335,  lon:   -7.9499, region: 'Africa', country: 'Mali' },
+  { name: 'Ouagadougou',      code: 'OUA', lat:  12.3532,  lon:   -1.5124, region: 'Africa', country: 'Burkina Faso' },
+  { name: 'Niamey',           code: 'NIM', lat:  13.4815,  lon:    2.1836, region: 'Africa', country: 'Niger' },
+  { name: 'Conakry',          code: 'CKY', lat:   9.5769,  lon:  -13.6120, region: 'Africa', country: 'Guinea' },
+  { name: 'Freetown',         code: 'FNA', lat:   8.6164,  lon:  -13.1950, region: 'Africa', country: 'Sierra Leone' },
+  { name: 'Monrovia',         code: 'ROB', lat:   6.2328,  lon:  -10.3623, region: 'Africa', country: 'Liberia' },
+  { name: 'Banjul',           code: 'BJL', lat:  13.3380,  lon:  -16.6522, region: 'Africa', country: 'Gambia' },
   // Central Africa
-  { name: 'Kinshasa',        code: 'FIH', lat:  -4.3858,  lon:   15.4446, region: 'Africa' },
-  { name: 'Brazzaville',     code: 'BZV', lat:  -4.2517,  lon:   15.2531, region: 'Africa' },
-  { name: 'Douala',          code: 'DLA', lat:   4.0061,  lon:    9.7195, region: 'Africa' },
-  { name: 'Yaoundé',         code: 'NSI', lat:   3.7226,  lon:   11.5533, region: 'Africa' },
-  { name: 'Libreville',      code: 'LBV', lat:   0.4586,  lon:    9.4122, region: 'Africa' },
-  { name: 'Luanda',          code: 'LAD', lat:  -8.8583,  lon:   13.2312, region: 'Africa' },
-  { name: 'Khartoum North',  code: 'KHN', lat:  15.5895,  lon:   32.5532, region: 'Africa' },
+  { name: 'N\'Djamena',       code: 'NDJ', lat:  12.1337,  lon:   15.0340, region: 'Africa', country: 'Chad' },
+  { name: 'Kinshasa',         code: 'FIH', lat:  -4.3858,  lon:   15.4446, region: 'Africa', country: 'DR Congo' },
+  { name: 'Brazzaville',      code: 'BZV', lat:  -4.2517,  lon:   15.2531, region: 'Africa', country: 'Congo' },
+  { name: 'Douala',           code: 'DLA', lat:   4.0061,  lon:    9.7195, region: 'Africa', country: 'Cameroon' },
+  { name: 'Libreville',       code: 'LBV', lat:   0.4586,  lon:    9.4122, region: 'Africa', country: 'Gabon' },
+  { name: 'Luanda',           code: 'LAD', lat:  -8.8583,  lon:   13.2312, region: 'Africa', country: 'Angola' },
+  { name: 'Juba',             code: 'JUB', lat:   4.8720,  lon:   31.6011, region: 'Africa', country: 'South Sudan' },
 
-  // ── Asia new (70) ─────────────────────────────────────────────────────────
+  // ── Asia ───────────────────────────────────────────────────────────────────
   // Japan
-  { name: 'Tokyo Narita',    code: 'NRT', lat:  35.7653,  lon:  140.3856, region: 'Asia' },
-  { name: 'Sapporo',         code: 'CTS', lat:  42.7752,  lon:  141.6922, region: 'Asia' },
-  { name: 'Okinawa',         code: 'OKA', lat:  26.1958,  lon:  127.6461, region: 'Asia' },
-  { name: 'Nagoya',          code: 'NGO', lat:  34.8583,  lon:  136.8050, region: 'Asia' },
-  { name: 'Sendai',          code: 'SDJ', lat:  38.1397,  lon:  140.9170, region: 'Asia' },
-  { name: 'Hiroshima',       code: 'HIJ', lat:  34.4361,  lon:  132.9194, region: 'Asia' },
-  { name: 'Kagoshima',       code: 'KOJ', lat:  31.8034,  lon:  130.7194, region: 'Asia' },
-  { name: 'Nagasaki',        code: 'NGS', lat:  32.9169,  lon:  129.9139, region: 'Asia' },
-  { name: 'Kumamoto',        code: 'KMJ', lat:  32.8373,  lon:  130.8553, region: 'Asia' },
-  { name: 'Takamatsu',       code: 'TAK', lat:  34.2144,  lon:  134.0155, region: 'Asia' },
-  // Korea
-  { name: 'Seoul Gimpo',     code: 'GMP', lat:  37.5583,  lon:  126.7906, region: 'Asia' },
-  { name: 'Busan',           code: 'PUS', lat:  35.1795,  lon:  128.9382, region: 'Asia' },
-  { name: 'Jeju',            code: 'CJU', lat:  33.5113,  lon:  126.4930, region: 'Asia' },
-  // Southeast Asia — Thailand
-  { name: 'Bangkok DMK',     code: 'DMK', lat:  13.9126,  lon:  100.6067, region: 'Asia' },
-  { name: 'Chiang Mai',      code: 'CNX', lat:  18.7668,  lon:   98.9628, region: 'Asia' },
-  { name: 'Phuket',          code: 'HKT', lat:   8.1132,  lon:   98.3161, region: 'Asia' },
-  { name: 'Ko Samui',        code: 'USM', lat:   9.5478,  lon:  100.0630, region: 'Asia' },
-  { name: 'Hat Yai',         code: 'HDY', lat:   6.9332,  lon:  100.3930, region: 'Asia' },
-  // Malaysia
-  { name: 'Kota Kinabalu',   code: 'BKI', lat:   5.9372,  lon:  116.0508, region: 'Asia' },
-  { name: 'Kuching',         code: 'KCH', lat:   1.4847,  lon:  110.3469, region: 'Asia' },
-  { name: 'Penang',          code: 'PEN', lat:   5.2972,  lon:  100.2769, region: 'Asia' },
-  { name: 'Langkawi',        code: 'LGK', lat:   6.3297,  lon:   99.7286, region: 'Asia' },
-  { name: 'Johor Bahru',     code: 'JHB', lat:   1.6413,  lon:  103.6698, region: 'Asia' },
-  // Indonesia
-  { name: 'Bali',            code: 'DPS', lat:  -8.7481,  lon:  115.1670, region: 'Asia' },
-  { name: 'Surabaya',        code: 'SUB', lat:  -7.3798,  lon:  112.7869, region: 'Asia' },
-  { name: 'Yogyakarta',      code: 'JOG', lat:  -7.7882,  lon:  110.4317, region: 'Asia' },
-  { name: 'Makassar',        code: 'UPG', lat:  -5.0616,  lon:  119.5540, region: 'Asia' },
-  { name: 'Medan',           code: 'KNO', lat:   3.6422,  lon:   98.8853, region: 'Asia' },
-  { name: 'Balikpapan',      code: 'BPN', lat:   1.2683,  lon:  116.8944, region: 'Asia' },
-  { name: 'Palembang',       code: 'PLM', lat:  -2.8983,  lon:  104.6999, region: 'Asia' },
-  { name: 'Manado',          code: 'MDC', lat:   1.5495,  lon:  124.9260, region: 'Asia' },
-  { name: 'Batam',           code: 'BTH', lat:   1.1213,  lon:  104.1192, region: 'Asia' },
-  // Philippines
-  { name: 'Cebu',            code: 'CEB', lat:  10.3075,  lon:  123.9789, region: 'Asia' },
-  { name: 'Davao',           code: 'DVO', lat:   7.1255,  lon:  125.6458, region: 'Asia' },
-  { name: 'Iloilo',          code: 'ILO', lat:  10.8330,  lon:  122.4936, region: 'Asia' },
-  { name: 'Puerto Princesa', code: 'PPS', lat:   9.7421,  lon:  118.7590, region: 'Asia' },
-  { name: 'Kalibo',          code: 'KLO', lat:  11.6795,  lon:  122.3759, region: 'Asia' },
-  // Vietnam
-  { name: 'Da Nang',         code: 'DAD', lat:  16.0439,  lon:  108.1992, region: 'Asia' },
-  { name: 'Nha Trang',       code: 'CXR', lat:  11.9983,  lon:  109.2194, region: 'Asia' },
-  { name: 'Hue',             code: 'HUI', lat:  16.4015,  lon:  107.7033, region: 'Asia' },
-  { name: 'Can Tho',         code: 'VCA', lat:  10.0851,  lon:  105.7119, region: 'Asia' },
-  { name: 'Phu Quoc',        code: 'PQC', lat:  10.2270,  lon:  103.9670, region: 'Asia' },
-  // Myanmar/Laos/Cambodia
-  { name: 'Yangon',          code: 'RGN', lat:  16.9073,  lon:   96.1332, region: 'Asia' },
-  { name: 'Vientiane',       code: 'VTE', lat:  17.9883,  lon:  102.5633, region: 'Asia' },
-  { name: 'Phnom Penh',      code: 'PNH', lat:  11.5466,  lon:  104.8440, region: 'Asia' },
-  { name: 'Siem Reap',       code: 'REP', lat:  13.4107,  lon:  103.8127, region: 'Asia' },
-  // South Asia — India
-  { name: 'Hyderabad',       code: 'HYD', lat:  17.2313,  lon:   78.4298, region: 'Asia' },
-  { name: 'Kochi',           code: 'COK', lat:   9.9952,  lon:   76.2699, region: 'Asia' },
-  { name: 'Goa',             code: 'GOI', lat:  15.3808,  lon:   73.8314, region: 'Asia' },
-  { name: 'Ahmedabad',       code: 'AMD', lat:  23.0772,  lon:   72.6347, region: 'Asia' },
-  { name: 'Jaipur',          code: 'JAI', lat:  26.8242,  lon:   75.8122, region: 'Asia' },
-  { name: 'Lucknow',         code: 'LKO', lat:  26.7606,  lon:   80.8893, region: 'Asia' },
-  { name: 'Chandigarh',      code: 'IXC', lat:  30.6735,  lon:   76.7885, region: 'Asia' },
-  { name: 'Guwahati',        code: 'GAU', lat:  26.1061,  lon:   91.5859, region: 'Asia' },
-  { name: 'Bhubaneswar',     code: 'BBI', lat:  20.2444,  lon:   85.8178, region: 'Asia' },
-  { name: 'Thiruvananthapuram', code: 'TRV', lat:   8.4821,  lon:   76.9201, region: 'Asia' },
-  { name: 'Varanasi',        code: 'VNS', lat:  25.4524,  lon:   82.8593, region: 'Asia' },
-  { name: 'Amritsar',        code: 'ATQ', lat:  31.7096,  lon:   74.7973, region: 'Asia' },
-  // Nepal/Bhutan/Bangladesh
-  { name: 'Kathmandu',       code: 'KTM', lat:  27.6966,  lon:   85.3591, region: 'Asia' },
-  { name: 'Paro',            code: 'PBH', lat:  27.4033,  lon:   89.4242, region: 'Asia' },
-  { name: 'Chittagong',      code: 'CGP', lat:  22.2496,  lon:   91.8133, region: 'Asia' },
-  // Maldives
-  { name: 'Malé',            code: 'MLE', lat:   4.1918,  lon:   73.5290, region: 'Asia' },
+  { name: 'Tokyo Haneda',     code: 'HND', lat:  35.5493,  lon:  139.7798, region: 'Asia', country: 'Japan' },
+  { name: 'Tokyo Narita',     code: 'NRT', lat:  35.7653,  lon:  140.3856, region: 'Asia', country: 'Japan' },
+  { name: 'Osaka Kansai',     code: 'KIX', lat:  34.4347,  lon:  135.2440, region: 'Asia', country: 'Japan' },
+  { name: 'Osaka Itami',      code: 'ITM', lat:  34.7855,  lon:  135.4381, region: 'Asia', country: 'Japan' },
+  { name: 'Fukuoka',          code: 'FUK', lat:  33.5858,  lon:  130.4511, region: 'Asia', country: 'Japan' },
+  { name: 'Sapporo',          code: 'CTS', lat:  42.7752,  lon:  141.6922, region: 'Asia', country: 'Japan' },
+  { name: 'Nagoya',           code: 'NGO', lat:  34.8583,  lon:  136.8050, region: 'Asia', country: 'Japan' },
+  { name: 'Okinawa',          code: 'OKA', lat:  26.1958,  lon:  127.6461, region: 'Asia', country: 'Japan' },
+  { name: 'Kagoshima',        code: 'KOJ', lat:  31.8034,  lon:  130.7194, region: 'Asia', country: 'Japan' },
+  { name: 'Sendai',           code: 'SDJ', lat:  38.1397,  lon:  140.9170, region: 'Asia', country: 'Japan' },
+  { name: 'Hiroshima',        code: 'HIJ', lat:  34.4361,  lon:  132.9194, region: 'Asia', country: 'Japan' },
+  { name: 'Kumamoto',         code: 'KMJ', lat:  32.8373,  lon:  130.8553, region: 'Asia', country: 'Japan' },
+  { name: 'Nagasaki',         code: 'NGS', lat:  32.9169,  lon:  129.9139, region: 'Asia', country: 'Japan' },
+  { name: 'Miyazaki',         code: 'KMI', lat:  31.8772,  lon:  131.4486, region: 'Asia', country: 'Japan' },
+  // South Korea
+  { name: 'Seoul Incheon',    code: 'ICN', lat:  37.4602,  lon:  126.4407, region: 'Asia', country: 'South Korea' },
+  { name: 'Seoul Gimpo',      code: 'GMP', lat:  37.5583,  lon:  126.7906, region: 'Asia', country: 'South Korea' },
+  { name: 'Busan',            code: 'PUS', lat:  35.1795,  lon:  128.9382, region: 'Asia', country: 'South Korea' },
+  { name: 'Jeju',             code: 'CJU', lat:  33.5113,  lon:  126.4930, region: 'Asia', country: 'South Korea' },
+  { name: 'Daegu',            code: 'TAE', lat:  35.8941,  lon:  128.6586, region: 'Asia', country: 'South Korea' },
+  // Taiwan
+  { name: 'Taipei Taoyuan',   code: 'TPE', lat:  25.0777,  lon:  121.2328, region: 'Asia', country: 'Taiwan' },
+  { name: 'Taipei Songshan',  code: 'TSA', lat:  25.0694,  lon:  121.5522, region: 'Asia', country: 'Taiwan' },
+  { name: 'Kaohsiung',        code: 'KHH', lat:  22.5771,  lon:  120.3499, region: 'Asia', country: 'Taiwan' },
+  // Hong Kong / Macau
+  { name: 'Hong Kong',        code: 'HKG', lat:  22.3080,  lon:  113.9185, region: 'Asia', country: 'Hong Kong' },
+  { name: 'Macau',            code: 'MFM', lat:  22.1496,  lon:  113.5916, region: 'Asia', country: 'Macau' },
+  // Southeast Asia
+  { name: 'Singapore',        code: 'SIN', lat:   1.3644,  lon:  103.9915, region: 'Asia', country: 'Singapore' },
+  { name: 'Bangkok Suvarnabhumi',code:'BKK',lat: 13.6811,  lon:  100.7472, region: 'Asia', country: 'Thailand' },
+  { name: 'Bangkok Don Mueang',code:'DMK', lat:  13.9126,  lon:  100.6067, region: 'Asia', country: 'Thailand' },
+  { name: 'Phuket',           code: 'HKT', lat:   8.1132,  lon:   98.3161, region: 'Asia', country: 'Thailand' },
+  { name: 'Chiang Mai',       code: 'CNX', lat:  18.7668,  lon:   98.9628, region: 'Asia', country: 'Thailand' },
+  { name: 'Ko Samui',         code: 'USM', lat:   9.5478,  lon:  100.0630, region: 'Asia', country: 'Thailand' },
+  { name: 'Kuala Lumpur',     code: 'KUL', lat:   2.7456,  lon:  101.7099, region: 'Asia', country: 'Malaysia' },
+  { name: 'Penang',           code: 'PEN', lat:   5.2972,  lon:  100.2769, region: 'Asia', country: 'Malaysia' },
+  { name: 'Kota Kinabalu',    code: 'BKI', lat:   5.9372,  lon:  116.0508, region: 'Asia', country: 'Malaysia' },
+  { name: 'Kuching',          code: 'KCH', lat:   1.4847,  lon:  110.3469, region: 'Asia', country: 'Malaysia' },
+  { name: 'Johor Bahru',      code: 'JHB', lat:   1.6413,  lon:  103.6698, region: 'Asia', country: 'Malaysia' },
+  { name: 'Langkawi',         code: 'LGK', lat:   6.3297,  lon:   99.7286, region: 'Asia', country: 'Malaysia' },
+  { name: 'Jakarta',          code: 'CGK', lat:  -6.1275,  lon:  106.6558, region: 'Asia', country: 'Indonesia' },
+  { name: 'Bali',             code: 'DPS', lat:  -8.7481,  lon:  115.1670, region: 'Asia', country: 'Indonesia' },
+  { name: 'Surabaya',         code: 'SUB', lat:  -7.3798,  lon:  112.7869, region: 'Asia', country: 'Indonesia' },
+  { name: 'Medan',            code: 'KNO', lat:   3.6422,  lon:   98.8853, region: 'Asia', country: 'Indonesia' },
+  { name: 'Makassar',         code: 'UPG', lat:  -5.0616,  lon:  119.5540, region: 'Asia', country: 'Indonesia' },
+  { name: 'Balikpapan',       code: 'BPN', lat:   1.2683,  lon:  116.8944, region: 'Asia', country: 'Indonesia' },
+  { name: 'Yogyakarta',       code: 'JOG', lat:  -7.7882,  lon:  110.4317, region: 'Asia', country: 'Indonesia' },
+  { name: 'Palembang',        code: 'PLM', lat:  -2.8983,  lon:  104.6999, region: 'Asia', country: 'Indonesia' },
+  { name: 'Manado',           code: 'MDC', lat:   1.5495,  lon:  124.9260, region: 'Asia', country: 'Indonesia' },
+  { name: 'Batam',            code: 'BTH', lat:   1.1213,  lon:  104.1192, region: 'Asia', country: 'Indonesia' },
+  { name: 'Manila',           code: 'MNL', lat:  14.5086,  lon:  121.0197, region: 'Asia', country: 'Philippines' },
+  { name: 'Cebu',             code: 'CEB', lat:  10.3075,  lon:  123.9789, region: 'Asia', country: 'Philippines' },
+  { name: 'Davao',            code: 'DVO', lat:   7.1255,  lon:  125.6458, region: 'Asia', country: 'Philippines' },
+  { name: 'Iloilo',           code: 'ILO', lat:  10.8330,  lon:  122.4936, region: 'Asia', country: 'Philippines' },
+  { name: 'Ho Chi Minh City', code: 'SGN', lat:  10.8188,  lon:  106.6520, region: 'Asia', country: 'Vietnam' },
+  { name: 'Hanoi',            code: 'HAN', lat:  21.2212,  lon:  105.8072, region: 'Asia', country: 'Vietnam' },
+  { name: 'Da Nang',          code: 'DAD', lat:  16.0439,  lon:  108.1992, region: 'Asia', country: 'Vietnam' },
+  { name: 'Nha Trang',        code: 'CXR', lat:  11.9983,  lon:  109.2194, region: 'Asia', country: 'Vietnam' },
+  { name: 'Phnom Penh',       code: 'PNH', lat:  11.5466,  lon:  104.8440, region: 'Asia', country: 'Cambodia' },
+  { name: 'Siem Reap',        code: 'REP', lat:  13.4107,  lon:  103.8127, region: 'Asia', country: 'Cambodia' },
+  { name: 'Yangon',           code: 'RGN', lat:  16.9073,  lon:   96.1332, region: 'Asia', country: 'Myanmar' },
+  { name: 'Vientiane',        code: 'VTE', lat:  17.9883,  lon:  102.5633, region: 'Asia', country: 'Laos' },
+  { name: 'Phu Quoc',         code: 'PQC', lat:  10.2270,  lon:  103.9670, region: 'Asia', country: 'Vietnam' },
+  // India
+  { name: 'Delhi',            code: 'DEL', lat:  28.5562,  lon:   77.1000, region: 'Asia', country: 'India' },
+  { name: 'Mumbai',           code: 'BOM', lat:  19.0896,  lon:   72.8656, region: 'Asia', country: 'India' },
+  { name: 'Bangalore',        code: 'BLR', lat:  13.1986,  lon:   77.7066, region: 'Asia', country: 'India' },
+  { name: 'Hyderabad',        code: 'HYD', lat:  17.2313,  lon:   78.4298, region: 'Asia', country: 'India' },
+  { name: 'Chennai',          code: 'MAA', lat:  12.9900,  lon:   80.1693, region: 'Asia', country: 'India' },
+  { name: 'Kolkata',          code: 'CCU', lat:  22.6547,  lon:   88.4467, region: 'Asia', country: 'India' },
+  { name: 'Kochi',            code: 'COK', lat:   9.9952,  lon:   76.2699, region: 'Asia', country: 'India' },
+  { name: 'Ahmedabad',        code: 'AMD', lat:  23.0772,  lon:   72.6347, region: 'Asia', country: 'India' },
+  { name: 'Pune',             code: 'PNQ', lat:  18.5822,  lon:   73.9197, region: 'Asia', country: 'India' },
+  { name: 'Goa',              code: 'GOI', lat:  15.3808,  lon:   73.8314, region: 'Asia', country: 'India' },
+  { name: 'Jaipur',           code: 'JAI', lat:  26.8242,  lon:   75.8122, region: 'Asia', country: 'India' },
+  { name: 'Lucknow',          code: 'LKO', lat:  26.7606,  lon:   80.8893, region: 'Asia', country: 'India' },
+  { name: 'Amritsar',         code: 'ATQ', lat:  31.7096,  lon:   74.7973, region: 'Asia', country: 'India' },
+  { name: 'Bhubaneswar',      code: 'BBI', lat:  20.2444,  lon:   85.8178, region: 'Asia', country: 'India' },
+  { name: 'Kozhikode',        code: 'CCJ', lat:  11.1368,  lon:   75.9553, region: 'Asia', country: 'India' },
+  { name: 'Thiruvananthapuram',code:'TRV', lat:   8.4821,  lon:   76.9201, region: 'Asia', country: 'India' },
+  { name: 'Nagpur',           code: 'NAG', lat:  21.0922,  lon:   79.0472, region: 'Asia', country: 'India' },
+  { name: 'Coimbatore',       code: 'CJB', lat:  11.0300,  lon:   77.0434, region: 'Asia', country: 'India' },
+  { name: 'Varanasi',         code: 'VNS', lat:  25.4524,  lon:   82.8593, region: 'Asia', country: 'India' },
+  { name: 'Guwahati',         code: 'GAU', lat:  26.1061,  lon:   91.5859, region: 'Asia', country: 'India' },
+  { name: 'Patna',            code: 'PAT', lat:  25.5913,  lon:   85.0879, region: 'Asia', country: 'India' },
+  { name: 'Indore',           code: 'IDR', lat:  22.7218,  lon:   75.8011, region: 'Asia', country: 'India' },
+  { name: 'Chandigarh',       code: 'IXC', lat:  30.6735,  lon:   76.7885, region: 'Asia', country: 'India' },
+  { name: 'Visakhapatnam',    code: 'VTZ', lat:  17.7212,  lon:   83.2245, region: 'Asia', country: 'India' },
+  { name: 'Tiruchirappalli',  code: 'TRZ', lat:  10.7654,  lon:   78.7097, region: 'Asia', country: 'India' },
+  { name: 'Srinagar',         code: 'SXR', lat:  33.9871,  lon:   74.7742, region: 'Asia', country: 'India' },
+  // South Asia
+  { name: 'Karachi',          code: 'KHI', lat:  24.9065,  lon:   67.1608, region: 'Asia', country: 'Pakistan' },
+  { name: 'Lahore',           code: 'LHE', lat:  31.5216,  lon:   74.4036, region: 'Asia', country: 'Pakistan' },
+  { name: 'Islamabad',        code: 'ISB', lat:  33.6169,  lon:   73.0993, region: 'Asia', country: 'Pakistan' },
+  { name: 'Peshawar',         code: 'PEW', lat:  33.9939,  lon:   71.5146, region: 'Asia', country: 'Pakistan' },
+  { name: 'Multan',           code: 'MUX', lat:  30.2032,  lon:   71.4192, region: 'Asia', country: 'Pakistan' },
+  { name: 'Dhaka',            code: 'DAC', lat:  23.8433,  lon:   90.3978, region: 'Asia', country: 'Bangladesh' },
+  { name: 'Chittagong',       code: 'CGP', lat:  22.2496,  lon:   91.8133, region: 'Asia', country: 'Bangladesh' },
+  { name: 'Colombo',          code: 'CMB', lat:   7.1808,  lon:   79.8841, region: 'Asia', country: 'Sri Lanka' },
+  { name: 'Kathmandu',        code: 'KTM', lat:  27.6966,  lon:   85.3591, region: 'Asia', country: 'Nepal' },
+  { name: 'Malé',             code: 'MLE', lat:   4.1918,  lon:   73.5290, region: 'Asia', country: 'Maldives' },
+  { name: 'Paro',             code: 'PBH', lat:  27.4033,  lon:   89.4242, region: 'Asia', country: 'Bhutan' },
   // Central Asia
-  { name: 'Almaty',          code: 'ALA', lat:  43.3521,  lon:   77.0405, region: 'Asia' },
-  { name: 'Astana',          code: 'TSE', lat:  51.0222,  lon:   71.4669, region: 'Asia' },
-  { name: 'Tashkent',        code: 'TAS', lat:  41.2579,  lon:   69.2812, region: 'Asia' },
-  { name: 'Bishkek',         code: 'FRU', lat:  43.0612,  lon:   74.4776, region: 'Asia' },
-  { name: 'Dushanbe',        code: 'DYU', lat:  38.5433,  lon:   68.7750, region: 'Asia' },
-  { name: 'Ashgabat',        code: 'ASB', lat:  37.9868,  lon:   58.3610, region: 'Asia' },
-  // Mongolia
-  { name: 'Ulaanbaatar',     code: 'ULN', lat:  47.8431,  lon:  106.7664, region: 'Asia' },
+  { name: 'Almaty',           code: 'ALA', lat:  43.3521,  lon:   77.0405, region: 'Asia', country: 'Kazakhstan' },
+  { name: 'Astana',           code: 'TSE', lat:  51.0222,  lon:   71.4669, region: 'Asia', country: 'Kazakhstan' },
+  { name: 'Tashkent',         code: 'TAS', lat:  41.2579,  lon:   69.2812, region: 'Asia', country: 'Uzbekistan' },
+  { name: 'Samarkand',        code: 'SKD', lat:  39.7005,  lon:   66.9838, region: 'Asia', country: 'Uzbekistan' },
+  { name: 'Bishkek',          code: 'FRU', lat:  43.0612,  lon:   74.4776, region: 'Asia', country: 'Kyrgyzstan' },
+  { name: 'Dushanbe',         code: 'DYU', lat:  38.5433,  lon:   68.7750, region: 'Asia', country: 'Tajikistan' },
+  { name: 'Ashgabat',         code: 'ASB', lat:  37.9868,  lon:   58.3610, region: 'Asia', country: 'Turkmenistan' },
+  { name: 'Ulaanbaatar',      code: 'ULN', lat:  47.8431,  lon:  106.7664, region: 'Asia', country: 'Mongolia' },
   // Russia Far East
-  { name: 'Vladivostok',     code: 'VVO', lat:  43.3990,  lon:  132.1478, region: 'Asia' },
-  { name: 'Khabarovsk',      code: 'KHV', lat:  48.5280,  lon:  135.1883, region: 'Asia' },
-  { name: 'Irkutsk',         code: 'IKT', lat:  52.2680,  lon:  104.3889, region: 'Asia' },
-  { name: 'Yuzhno-Sakhalinsk', code: 'UUS', lat:  46.8887,  lon:  142.7183, region: 'Asia' },
-  { name: 'Nagpur',          code: 'NAG', lat:  21.0922,  lon:   79.0472, region: 'Asia' },
-  { name: 'Srinagar',        code: 'SXR', lat:  33.9871,  lon:   74.7742, region: 'Asia' },
-  { name: 'Tiruchirappalli', code: 'TRZ', lat:  10.7654,  lon:   78.7097, region: 'Asia' },
+  { name: 'Vladivostok',      code: 'VVO', lat:  43.3990,  lon:  132.1478, region: 'Asia', country: 'Russia' },
+  { name: 'Khabarovsk',       code: 'KHV', lat:  48.5280,  lon:  135.1883, region: 'Asia', country: 'Russia' },
+  { name: 'Irkutsk',          code: 'IKT', lat:  52.2680,  lon:  104.3889, region: 'Asia', country: 'Russia' },
+  { name: 'Yuzhno-Sakhalinsk',code: 'UUS', lat:  46.8887,  lon:  142.7183, region: 'Asia', country: 'Russia' },
 
-  // ── Pacific new (15) ──────────────────────────────────────────────────────
-  // Australia
-  { name: 'Adelaide',        code: 'ADL', lat: -34.9450,  lon:  138.5308, region: 'Pacific' },
-  { name: 'Canberra',        code: 'CBR', lat: -35.3069,  lon:  149.1950, region: 'Pacific' },
-  { name: 'Cairns',          code: 'CNS', lat: -16.8858,  lon:  145.7551, region: 'Pacific' },
-  { name: 'Gold Coast',      code: 'OOL', lat: -28.1644,  lon:  153.5047, region: 'Pacific' },
-  { name: 'Darwin',          code: 'DRW', lat: -12.4147,  lon:  130.8765, region: 'Pacific' },
-  { name: 'Hobart',          code: 'HBA', lat: -42.8361,  lon:  147.5078, region: 'Pacific' },
-  { name: 'Townsville',      code: 'TSV', lat: -19.2525,  lon:  146.7653, region: 'Pacific' },
-  { name: 'Alice Springs',   code: 'ASP', lat: -23.8067,  lon:  133.9022, region: 'Pacific' },
-  // New Zealand
-  { name: 'Christchurch',    code: 'CHC', lat: -43.4894,  lon:  172.5322, region: 'Pacific' },
-  { name: 'Wellington',      code: 'WLG', lat: -41.3272,  lon:  174.8050, region: 'Pacific' },
-  { name: 'Queenstown',      code: 'ZQN', lat: -45.0211,  lon:  168.7392, region: 'Pacific' },
-  // Pacific Islands
-  { name: 'Nadi',            code: 'NAN', lat: -17.7554,  lon:  177.4430, region: 'Pacific' },
-  { name: 'Papeete',         code: 'PPT', lat: -17.5534,  lon: -149.6067, region: 'Pacific' },
-  { name: 'Port Moresby',    code: 'POM', lat:  -9.4433,  lon:  147.2200, region: 'Pacific' },
-  { name: 'Guam',            code: 'GUM', lat:  13.4834,  lon:  144.7961, region: 'Pacific' },
+  // ── Pacific ────────────────────────────────────────────────────────────────
+  { name: 'Sydney',           code: 'SYD', lat: -33.9399,  lon:  151.1753, region: 'Pacific', country: 'Australia' },
+  { name: 'Melbourne',        code: 'MEL', lat: -37.6733,  lon:  144.8430, region: 'Pacific', country: 'Australia' },
+  { name: 'Brisbane',         code: 'BNE', lat: -27.3842,  lon:  153.1175, region: 'Pacific', country: 'Australia' },
+  { name: 'Perth',            code: 'PER', lat: -31.9403,  lon:  115.9669, region: 'Pacific', country: 'Australia' },
+  { name: 'Adelaide',         code: 'ADL', lat: -34.9450,  lon:  138.5308, region: 'Pacific', country: 'Australia' },
+  { name: 'Gold Coast',       code: 'OOL', lat: -28.1644,  lon:  153.5047, region: 'Pacific', country: 'Australia' },
+  { name: 'Cairns',           code: 'CNS', lat: -16.8858,  lon:  145.7551, region: 'Pacific', country: 'Australia' },
+  { name: 'Sunshine Coast',   code: 'MCY', lat: -26.6033,  lon:  153.0891, region: 'Pacific', country: 'Australia' },
+  { name: 'Canberra',         code: 'CBR', lat: -35.3069,  lon:  149.1950, region: 'Pacific', country: 'Australia' },
+  { name: 'Darwin',           code: 'DRW', lat: -12.4147,  lon:  130.8765, region: 'Pacific', country: 'Australia' },
+  { name: 'Hobart',           code: 'HBA', lat: -42.8361,  lon:  147.5078, region: 'Pacific', country: 'Australia' },
+  { name: 'Launceston',       code: 'LST', lat: -41.5453,  lon:  147.2143, region: 'Pacific', country: 'Australia' },
+  { name: 'Townsville',       code: 'TSV', lat: -19.2525,  lon:  146.7653, region: 'Pacific', country: 'Australia' },
+  { name: 'Alice Springs',    code: 'ASP', lat: -23.8067,  lon:  133.9022, region: 'Pacific', country: 'Australia' },
+  { name: 'Auckland',         code: 'AKL', lat: -37.0082,  lon:  174.7850, region: 'Pacific', country: 'New Zealand' },
+  { name: 'Christchurch',     code: 'CHC', lat: -43.4894,  lon:  172.5322, region: 'Pacific', country: 'New Zealand' },
+  { name: 'Wellington',       code: 'WLG', lat: -41.3272,  lon:  174.8050, region: 'Pacific', country: 'New Zealand' },
+  { name: 'Queenstown',       code: 'ZQN', lat: -45.0211,  lon:  168.7392, region: 'Pacific', country: 'New Zealand' },
+  { name: 'Dunedin',          code: 'DUD', lat: -45.9281,  lon:  170.1983, region: 'Pacific', country: 'New Zealand' },
+  { name: 'Nadi',             code: 'NAN', lat: -17.7554,  lon:  177.4430, region: 'Pacific', country: 'Fiji' },
+  { name: 'Papeete',          code: 'PPT', lat: -17.5534,  lon: -149.6067, region: 'Pacific', country: 'French Polynesia' },
+  { name: 'Port Moresby',     code: 'POM', lat:  -9.4433,  lon:  147.2200, region: 'Pacific', country: 'Papua New Guinea' },
+  { name: 'Guam',             code: 'GUM', lat:  13.4834,  lon:  144.7961, region: 'Pacific', country: 'Guam (US)' },
+  { name: 'Honiara',          code: 'HIR', lat:  -9.4280,  lon:  160.0547, region: 'Pacific', country: 'Solomon Islands' },
+  { name: 'Nouméa',           code: 'NOU', lat: -22.0146,  lon:  166.2129, region: 'Pacific', country: 'New Caledonia' },
+  { name: 'Apia',             code: 'APW', lat: -13.8300,  lon: -172.0083, region: 'Pacific', country: 'Samoa' },
 ];
+
+// Build lookup index for aircraft.js to find destination coordinates
+const _cityByCode = {};
+for (const c of CITIES) _cityByCode[c.code] = c;
+window._findCityByCode = (code) => _cityByCode[code] || null;
 
 let activeCity = null;
 
@@ -1257,6 +1506,7 @@ async function switchCity(city) {
   if (selectedAirportState) {
     deselectAirport(scene);
     if (aircraftManager) aircraftManager.clearHighlight();
+    hideAirportWidget();
     selectedAirportState = null;
   }
   if (aircraftManager) aircraftManager.clearAll(scene);
@@ -1293,12 +1543,41 @@ async function switchCity(city) {
   });
 }
 
+// ── Globe helpers ────────────────────────────────────────────────────────────
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371, t = Math.PI / 180;
+  const dLat = (lat2 - lat1) * t, dLon = (lon2 - lon1) * t;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*t)*Math.cos(lat2*t)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function greatCirclePts(lat1, lon1, lat2, lon2, n = 48) {
+  const t = Math.PI / 180, toDeg = r => r * 180 / Math.PI;
+  const φ1 = lat1*t, λ1 = lon1*t, φ2 = lat2*t, λ2 = lon2*t;
+  const d = 2*Math.asin(Math.sqrt(Math.sin((φ2-φ1)/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin((λ2-λ1)/2)**2));
+  if (d < 0.0001) return [];
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const f = i/n;
+    const A = Math.sin((1-f)*d)/Math.sin(d), B = Math.sin(f*d)/Math.sin(d);
+    const x = A*Math.cos(φ1)*Math.cos(λ1)+B*Math.cos(φ2)*Math.cos(λ2);
+    const y = A*Math.cos(φ1)*Math.sin(λ1)+B*Math.cos(φ2)*Math.sin(λ2);
+    const z = A*Math.sin(φ1)+B*Math.sin(φ2);
+    pts.push({ lat: toDeg(Math.atan2(z,Math.sqrt(x*x+y*y))), lon: toDeg(Math.atan2(y,x)) });
+  }
+  return pts;
+}
+
 // ── Globe View ──────────────────────────────────────────────────────────────
 class GlobeView {
   constructor(canvas, onSelect) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.onSelect = onSelect;
+    this.onHover = () => {};
+    this.focusedIdx = -1;
+    this._pulsePhase = 0;
+    this._nearbyIdxs = [];
     this.viewLon = 0; this.viewLat = 20;
     this._tLon = 0;   this._tLat = 20;
     this.activeRegion = 'All';
@@ -1311,7 +1590,24 @@ class GlobeView {
     this._paused = true;
     this._raf = null;
     this.cx = 0; this.cy = 0; this.R = 0;
+    this._baseR = 0; this._zoom = 1.0; this._targetZoom = 1.0;
+    this._landRings = null;
+    this._landGrid = null;
+    this._coastGrid = null;
+    this._landW = 0;
+    this._landH = 0;
+    this._landOC = null;
+    this._landCacheLon = NaN;
+    this._landCacheLat = NaN;
+    this._landCacheR = NaN;
+    this._dotSizes = null;
+    this._sinLat = null;
+    this._cosLat = null;
+    this._sinLon = null;
+    this._cosLon = null;
     this._bindEvents();
+    this._fetchLand();
+    this._computeDotSizes();
   }
 
   _resize() {
@@ -1323,7 +1619,8 @@ class GlobeView {
     this.canvas.height = Math.round(h * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.cx = w / 2; this.cy = h / 2;
-    this.R = Math.min(w, h) * 0.46;
+    this._baseR = Math.min(w, h) * 0.48;
+    this.R = this._baseR * this._zoom;
   }
 
   _proj(lat, lon) {
@@ -1344,101 +1641,476 @@ class GlobeView {
     const { cx, cy, R } = this;
     ctx.clearRect(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
 
-    // Globe fill
-    const fill = ctx.createRadialGradient(cx - R * 0.25, cy - R * 0.25, 0, cx, cy, R);
-    fill.addColorStop(0, '#0e1f3a'); fill.addColorStop(0.7, '#060e1c'); fill.addColorStop(1, '#020509');
+    // Atmospheric glow (outer ring)
+    const glow = ctx.createRadialGradient(cx, cy, R * 0.92, cx, cy, R * 1.15);
+    glow.addColorStop(0, 'rgba(40,100,180,0)');
+    glow.addColorStop(0.5, 'rgba(40,100,180,0.04)');
+    glow.addColorStop(1, 'rgba(40,100,180,0)');
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.15, 0, Math.PI * 2);
+    ctx.fillStyle = glow; ctx.fill();
+
+    // Globe ocean fill — deep blue gradient with subtle light source
+    const fill = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.3, 0, cx, cy, R);
+    fill.addColorStop(0, '#0a1a35');
+    fill.addColorStop(0.4, '#071428');
+    fill.addColorStop(0.8, '#040d1a');
+    fill.addColorStop(1, '#020810');
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.fillStyle = fill; ctx.fill();
 
-    // Clip to globe disk for grid + dots
+    // Clip to globe disk
     ctx.save();
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+    this._drawLand();
     this._drawGrid();
+    if (this.focusedIdx >= 0) this._drawArcs();
     this._drawDots();
+    if (this.focusedIdx >= 0) this._drawPulse(ctx);
     ctx.restore();
 
-    // Border ring
+    // Specular highlight on top-left
+    const spec = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.35, 0, cx - R * 0.35, cy - R * 0.35, R * 0.5);
+    spec.addColorStop(0, 'rgba(150,200,255,0.04)');
+    spec.addColorStop(1, 'rgba(150,200,255,0)');
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(196,160,88,0.2)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = spec; ctx.fill();
+
+    // Border ring — double ring for premium feel
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(196,160,88,0.12)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, R + 2, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(196,160,88,0.06)'; ctx.lineWidth = 0.5; ctx.stroke();
   }
 
   _drawGrid() {
     const ctx = this.ctx;
-    const draw = (pts, a) => {
-      if (pts.length < 2) return;
-      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-      ctx.strokeStyle = `rgba(30,70,130,${a})`; ctx.lineWidth = 0.5; ctx.stroke();
-    };
+    // Equator
+    ctx.fillStyle = 'rgba(60,120,200,0.14)';
+    for (let lon = -180; lon < 180; lon += 5) {
+      const p = this._proj(0, lon);
+      if (!p.visible) continue;
+      ctx.fillRect(p.x - 0.5, p.y - 0.5, 1.0, 1.0);
+    }
+    // Other parallels — batch
+    ctx.fillStyle = 'rgba(60,120,200,0.07)';
     for (let lat = -60; lat <= 60; lat += 30) {
-      const pts = [];
-      for (let lon = -180; lon <= 180; lon += 3) {
+      if (lat === 0) continue;
+      for (let lon = -180; lon < 180; lon += 8) {
         const p = this._proj(lat, lon);
-        if (p.visible) pts.push(p); else if (pts.length) { draw(pts, lat === 0 ? 0.55 : 0.25); pts.length = 0; }
+        if (!p.visible) continue;
+        ctx.fillRect(p.x - 0.3, p.y - 0.3, 0.6, 0.6);
       }
-      draw(pts, lat === 0 ? 0.55 : 0.25);
     }
+    // Meridians — batch
+    ctx.fillStyle = 'rgba(60,120,200,0.05)';
     for (let lon = -180; lon < 180; lon += 30) {
-      const pts = [];
-      for (let lat = -88; lat <= 88; lat += 3) {
+      for (let lat = -80; lat <= 80; lat += 8) {
         const p = this._proj(lat, lon);
-        if (p.visible) pts.push(p); else if (pts.length) { draw(pts, 0.2); pts.length = 0; }
+        if (!p.visible) continue;
+        ctx.fillRect(p.x - 0.3, p.y - 0.3, 0.6, 0.6);
       }
-      draw(pts, 0.2);
     }
+  }
+
+  _drawArcs() {
+    if (this._nearbyIdxs.length === 0) return;
+    const ctx = this.ctx;
+    const src = CITIES[this.focusedIdx];
+    for (let ni = 0; ni < this._nearbyIdxs.length; ni++) {
+      const dst = CITIES[this._nearbyIdxs[ni]];
+      const pts = greatCirclePts(src.lat, src.lon, dst.lat, dst.lon, 60);
+      const projected = pts.map(({ lat, lon }) => this._proj(lat, lon));
+      const baseAlpha = ni === 0 ? 0.35 : ni === 1 ? 0.22 : ni === 2 ? 0.14 : 0.08;
+
+      // Draw arc segments that taper from center outward
+      for (let k = 0; k < projected.length - 1; k++) {
+        const a = projected[k], b = projected[k + 1];
+        if (!a.visible || !b.visible) continue;
+        const t = k / projected.length;
+        const taper = Math.sin(t * Math.PI);
+        const alpha = baseAlpha * taper * Math.min(a.depth, b.depth);
+        if (alpha < 0.01) continue;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = `rgba(196,160,88,${alpha})`;
+        ctx.lineWidth = ni === 0 ? 1.2 : 0.7;
+        ctx.stroke();
+      }
+
+      // Small dot at destination
+      const dp = this._proj(dst.lat, dst.lon);
+      if (dp.visible) {
+        ctx.beginPath(); ctx.arc(dp.x, dp.y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(196,160,88,${baseAlpha * 1.5 * dp.depth})`;
+        ctx.fill();
+      }
+    }
+  }
+
+  _drawPulse(ctx) {
+    this._pulsePhase += 0.035;
+    const c = CITIES[this.focusedIdx];
+    const p = this._proj(c.lat, c.lon);
+    if (!p.visible) return;
+    const t = this._pulsePhase;
+
+    // Expanding rings (2 staggered)
+    for (let k = 0; k < 2; k++) {
+      const phase = (t * 1.5 + k * Math.PI) % (Math.PI * 2);
+      const progress = phase / (Math.PI * 2);
+      const r = 4 + progress * 18;
+      const alpha = (1 - progress) * 0.4;
+      if (alpha < 0.02) continue;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(196,160,88,${alpha})`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+
+    // Crosshair lines
+    const ch = 6;
+    const cAlpha = 0.3 + Math.sin(t * 2) * 0.1;
+    ctx.strokeStyle = `rgba(196,160,88,${cAlpha})`;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(p.x - ch, p.y); ctx.lineTo(p.x - 3, p.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p.x + 3, p.y); ctx.lineTo(p.x + ch, p.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p.x, p.y - ch); ctx.lineTo(p.x, p.y - 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p.x, p.y + 3); ctx.lineTo(p.x, p.y + ch); ctx.stroke();
+
+    // Inner dot
+    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,215,80,0.9)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,240,200,0.95)'; ctx.fill();
   }
 
   _drawDots() {
     const ctx = this.ctx;
     const q = this.searchQuery;
-    // Two passes: dim first, then bright (so labels render on top)
-    for (let pass = 0; pass < 2; pass++) {
+    const zoom = this._zoom || 1;
+    // Pre-project all cities once (avoid duplicating per pass)
+    const projected = new Array(CITIES.length);
+    for (let i = 0; i < CITIES.length; i++) {
+      projected[i] = this._proj(CITIES[i].lat, CITIES[i].lon);
+    }
+    // Three passes: 0=unmatched dim, 1=matched airports, 2=selected/hovered (always on top)
+    for (let pass = 0; pass < 3; pass++) {
       for (let i = 0; i < CITIES.length; i++) {
-        const c = CITIES[i];
-        const p = this._proj(c.lat, c.lon);
+        const p = projected[i];
         if (!p.visible) continue;
+        const c = CITIES[i];
         const sel = i === this.selectedIdx;
         const hov = i === this.hoveredIdx;
-        if (pass === 0 && (sel || hov)) continue;
-        if (pass === 1 && !sel && !hov) continue;
+        if (pass < 2 && (sel || hov)) continue;
+        if (pass === 2 && !sel && !hov) continue;
         const matches = (this.activeRegion === 'All' || c.region === this.activeRegion) &&
           (!q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().startsWith(q));
+        if (pass === 0 && matches) continue;
+        if (pass === 1 && !matches) continue;
         const d = Math.max(0.2, p.depth);
         if (sel) {
-          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 11);
-          g.addColorStop(0, 'rgba(196,160,88,0.6)'); g.addColorStop(1, 'rgba(196,160,88,0)');
-          ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
-          ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 14);
+          g.addColorStop(0, 'rgba(196,160,88,0.7)'); g.addColorStop(1, 'rgba(196,160,88,0)');
+          ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
           ctx.fillStyle = `rgba(255,215,80,${d})`; ctx.fill();
+          // White outline ring for contrast
+          ctx.beginPath(); ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255,235,170,${0.6 * d})`; ctx.lineWidth = 0.8; ctx.stroke();
           this._label(ctx, p, `${c.code}  ${c.name}`, 'rgba(255,210,80,0.95)', true);
         } else if (hov) {
-          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 8);
-          g.addColorStop(0, 'rgba(90,180,255,0.55)'); g.addColorStop(1, 'rgba(90,180,255,0)');
-          ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
-          ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 10);
+          g.addColorStop(0, 'rgba(90,180,255,0.6)'); g.addColorStop(1, 'rgba(90,180,255,0)');
+          ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
           ctx.fillStyle = `rgba(150,220,255,${d})`; ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(150,220,255,${0.4 * d})`; ctx.lineWidth = 0.7; ctx.stroke();
           this._label(ctx, p, `${c.code}  ${c.name}`, 'rgba(150,220,255,0.9)', false);
         } else if (matches) {
-          ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(196,160,88,${0.45 * d + 0.15})`; ctx.fill();
+          const tier = this._dotSizes ? this._dotSizes[i] : 0;
+          if (tier === 2) {
+            // MEGA HUB — always prominent: outer glow + bright core + outline ring
+            const glowR = 7 + zoom * 1.5;
+            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
+            g.addColorStop(0, `rgba(255,200,60,${0.35 * d})`); g.addColorStop(1, 'rgba(255,200,60,0)');
+            ctx.beginPath(); ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+            const coreR = 3 + zoom * 0.4;
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,220,100,${0.75 * d + 0.2})`; ctx.fill();
+            // Contrasting outline ring — always visible against land dots
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1.2, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(255,235,170,${0.45 * d})`; ctx.lineWidth = 0.6; ctx.stroke();
+            // Show IATA label at zoom > 1.2 for mega hubs
+            if (zoom > 1.2) {
+              this._label(ctx, p, c.code, `rgba(255,220,120,${0.7 * d})`, false);
+            }
+          } else if (tier === 1) {
+            // MAJOR — moderately prominent with ring
+            const coreR = 2.2 + zoom * 0.3;
+            const glowR = 4.5 + zoom;
+            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
+            g.addColorStop(0, `rgba(196,170,88,${0.18 * d})`); g.addColorStop(1, 'rgba(196,170,88,0)');
+            ctx.beginPath(); ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(220,190,100,${0.55 * d + 0.2})`; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(220,200,130,${0.3 * d})`; ctx.lineWidth = 0.5; ctx.stroke();
+            // Show IATA label at higher zoom for major hubs
+            if (zoom > 1.5) {
+              this._label(ctx, p, c.code, `rgba(220,200,130,${0.55 * d})`, false);
+            }
+          } else {
+            // REGIONAL — small but distinct from land (warm white vs green land)
+            const coreR = 1.4 + zoom * 0.2;
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(210,185,120,${0.4 * d + 0.12})`; ctx.fill();
+            // Subtle outline for contrast against land
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 0.7, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(210,185,120,${0.18 * d})`; ctx.lineWidth = 0.4; ctx.stroke();
+          }
         } else {
-          ctx.beginPath(); ctx.arc(p.x, p.y, 1, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(30,50,80,${0.5 * d})`; ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, 0.8, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(30,50,80,${0.4 * d})`; ctx.fill();
         }
       }
     }
   }
 
   _label(ctx, p, text, color, bold) {
-    ctx.font = `${bold ? '600' : '400'} 10px Inter,JetBrains Mono,monospace`;
+    ctx.font = `${bold ? '600' : '400'} 9px Inter,system-ui,sans-serif`;
     const tw = ctx.measureText(text).width;
-    let lx = p.x + 9;
-    if (lx + tw + 5 > this.cx + this.R) lx = p.x - tw - 11;
-    const ly = p.y - 5;
-    ctx.fillStyle = 'rgba(4,9,20,0.88)';
-    ctx.fillRect(lx - 3, ly - 12, tw + 6, 16);
+    let lx = p.x + 10;
+    if (lx + tw + 10 > this.cx + this.R) lx = p.x - tw - 14;
+    const ly = p.y - 4;
+    // Frosted glass background
+    const pad = 4;
+    const rr = 3;
+    const bx = lx - pad, by = ly - 12, bw = tw + pad * 2 + 2, bh = 16;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(bx, by, bw, bh, rr);
+    } else {
+      ctx.rect(bx, by, bw, bh);
+    }
+    ctx.fillStyle = 'rgba(6,12,24,0.85)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(196,160,88,0.15)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    // Text
     ctx.fillStyle = color;
     ctx.fillText(text, lx, ly);
+  }
+
+  async _fetchLand() {
+    try {
+      const res = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json');
+      const topo = await res.json();
+      this._landRings = this._decodeTopo(topo);
+      // Precompute bounding boxes for ring-skip optimization
+      for (const ring of this._landRings) {
+        let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+        for (const { lat, lon } of ring) {
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+          if (lon < minLon) minLon = lon;
+          if (lon > maxLon) maxLon = lon;
+        }
+        ring._bb = [minLat, maxLat, minLon, maxLon];
+      }
+      // 0.5° resolution grid: 720 cols x 342 rows
+      const W = 720, H = 342;
+      const grid = new Uint8Array(W * H);
+      const coast = new Uint8Array(W * H);
+      for (let r = 0; r < H; r++) {
+        const lat = -85 + r * 0.5;
+        for (let c = 0; c < W; c++) {
+          const lon = -180 + c * 0.5;
+          if (this._pointInPoly(lat, lon)) grid[r * W + c] = 1;
+        }
+      }
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+          const gi = r * W + c;
+          if (!grid[gi]) continue;
+          const up = r > 0 ? grid[(r - 1) * W + c] : 0;
+          const dn = r < H - 1 ? grid[(r + 1) * W + c] : 0;
+          const lt = grid[r * W + ((c + 1) % W)];
+          const rt = c > 0 ? grid[r * W + c - 1] : grid[r * W + W - 1];
+          if (!up || !dn || !lt || !rt) coast[gi] = 1;
+        }
+      }
+      this._landGrid = grid;
+      this._coastGrid = coast;
+      this._landW = W;
+      this._landH = H;
+      // Precompute sin/cos for grid coordinates
+      const sinLat = new Float32Array(H);
+      const cosLat = new Float32Array(H);
+      const sinLon = new Float32Array(W);
+      const cosLon = new Float32Array(W);
+      const D = Math.PI / 180;
+      for (let r = 0; r < H; r++) {
+        const lat = (-85 + r * 0.5) * D;
+        sinLat[r] = Math.sin(lat);
+        cosLat[r] = Math.cos(lat);
+      }
+      for (let c = 0; c < W; c++) {
+        const lon = (-180 + c * 0.5) * D;
+        sinLon[c] = Math.sin(lon);
+        cosLon[c] = Math.cos(lon);
+      }
+      this._sinLat = sinLat;
+      this._cosLat = cosLat;
+      this._sinLon = sinLon;
+      this._cosLon = cosLon;
+      this._landRings = null; // free memory
+    } catch (e) {
+      console.warn('[GlobeView] land fetch failed:', e.message);
+    }
+  }
+
+  _decodeTopo(topo) {
+    const { scale, translate } = topo.transform;
+    const arcs = topo.arcs.map(arc => {
+      let x = 0, y = 0;
+      return arc.map(([dx, dy]) => { x += dx; y += dy; return [x * scale[0] + translate[0], y * scale[1] + translate[1]]; });
+    });
+    const rings = [];
+    const collect = geo => {
+      if (geo.type === 'Polygon') {
+        for (const arcRefs of geo.arcs) {
+          const ring = [];
+          for (const ref of arcRefs) {
+            const arc = ref < 0 ? arcs[~ref].slice().reverse() : arcs[ref];
+            for (const [lon, lat] of arc) ring.push({ lat, lon });
+          }
+          rings.push(ring);
+        }
+      } else if (geo.type === 'MultiPolygon') {
+        for (const poly of geo.arcs) for (const arcRefs of poly) {
+          const ring = [];
+          for (const ref of arcRefs) {
+            const arc = ref < 0 ? arcs[~ref].slice().reverse() : arcs[ref];
+            for (const [lon, lat] of arc) ring.push({ lat, lon });
+          }
+          rings.push(ring);
+        }
+      } else if (geo.type === 'GeometryCollection') {
+        for (const g of geo.geometries) collect(g);
+      }
+    };
+    collect(topo.objects.land);
+    return rings;
+  }
+
+  _pointInPoly(lat, lon) {
+    let inside = false;
+    for (const ring of this._landRings) {
+      // Quick bounding-box check
+      if (ring._bb) {
+        if (lat < ring._bb[0] || lat > ring._bb[1] || lon < ring._bb[2] || lon > ring._bb[3]) continue;
+      }
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const yi = ring[i].lat, xi = ring[i].lon;
+        const yj = ring[j].lat, xj = ring[j].lon;
+        if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+          inside = !inside;
+        }
+      }
+    }
+    return inside;
+  }
+
+  _drawLand() {
+    if (!this._landGrid) return;
+    const { R, cx, cy, viewLon, viewLat } = this;
+
+    const needsRedraw = !this._landOC
+      || Math.abs(viewLon - this._landCacheLon) > 0.15
+      || Math.abs(viewLat - this._landCacheLat) > 0.15
+      || Math.abs(R - this._landCacheR) > 0.5;
+
+    if (needsRedraw) {
+      const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+      if (!this._landOC) this._landOC = document.createElement('canvas');
+      this._landOC.width = w;
+      this._landOC.height = h;
+      const lc = this._landOC.getContext('2d');
+      const imgData = lc.createImageData(w, h);
+      const px = imgData.data;
+
+      const W = this._landW, H = this._landH;
+      const step = R < 100 ? 4 : R < 160 ? 3 : R < 240 ? 2 : 1;
+      const D = Math.PI / 180;
+      const sinP0 = Math.sin(viewLat * D);
+      const cosP0 = Math.cos(viewLat * D);
+      const vl = viewLon * D;
+
+      for (let r = 0; r < H; r += step) {
+        const sinPhi = this._sinLat[r];
+        const cosPhi = this._cosLat[r];
+        for (let c = 0; c < W; c += step) {
+          const gi = r * W + c;
+          if (!this._landGrid[gi]) continue;
+          // Inline projection — no object allocation
+          const dl = this._sinLon[c] * Math.cos(vl) - this._cosLon[c] * Math.sin(vl);
+          const dlc = this._cosLon[c] * Math.cos(vl) + this._sinLon[c] * Math.sin(vl);
+          const cosc = sinP0 * sinPhi + cosP0 * cosPhi * dlc;
+          if (cosc < 0) continue; // not visible
+          const x = cx + R * cosPhi * dl;
+          const y = cy - R * (cosP0 * sinPhi - sinP0 * cosPhi * dlc);
+          const d = Math.max(0.15, cosc);
+          const isCoast = this._coastGrid[gi];
+
+          // Write pixels directly to ImageData — much faster than fillRect
+          const sz = isCoast
+            ? (step <= 1 ? 1 : step === 2 ? 2 : step === 3 ? 2 : 3)
+            : (step <= 1 ? 1 : step === 2 ? 1 : step === 3 ? 2 : 2);
+          const alpha = isCoast ? Math.round((0.55 * d + 0.2) * 255) : Math.round((0.32 * d + 0.06) * 255);
+          const rr = isCoast ? 50 : 22;
+          const gg = isCoast ? 135 : 72;
+          const bb = isCoast ? 72 : 40;
+          const px0 = Math.round(x - sz / 2);
+          const py0 = Math.round(y - sz / 2);
+          for (let dy = 0; dy < sz; dy++) {
+            const py = py0 + dy;
+            if (py < 0 || py >= h) continue;
+            for (let dx = 0; dx < sz; dx++) {
+              const ppx = px0 + dx;
+              if (ppx < 0 || ppx >= w) continue;
+              const idx = (py * w + ppx) * 4;
+              px[idx] = rr;
+              px[idx + 1] = gg;
+              px[idx + 2] = bb;
+              px[idx + 3] = alpha;
+            }
+          }
+        }
+      }
+      lc.putImageData(imgData, 0, 0);
+      this._landCacheLon = viewLon;
+      this._landCacheLat = viewLat;
+      this._landCacheR = R;
+    }
+
+    this.ctx.drawImage(this._landOC, 0, 0);
+  }
+
+  _computeDotSizes() {
+    const MEGA = new Set(['ATL','DFW','DEN','ORD','LAX','JFK','SFO','SEA','LAS','MCO',
+      'CLT','MIA','EWR','BOS','MSP','DTW','IAH','PHX','IAD','PHL','DCA',
+      'LHR','CDG','FRA','AMS','MAD','FCO','BCN','MUC','ZRH','VIE','IST','DME',
+      'DXB','DOH','RUH','SIN','PEK','PVG','HND','NRT','ICN','BKK','HKG','KUL',
+      'CAN','CTU','SZX','DEL','BOM','SYD','MEL','GRU','MEX']);
+    const MAJOR = new Set(['PDX','SAN','SLC','TPA','RDU','BWI','MCI','OAK','MSY',
+      'AUS','SMF','SJC','CLE','CMH','OGG','FLL','MDW','HNL','STL','BNA','RSW',
+      'ORY','MXP','LGW','ARN','CPH','HEL','OSL','DUB','LIS','BRU','PRG','BUD','WAW','ATH',
+      'AUH','SVO','LED','CAI','CMN','JNB','CPT','NBO','ADD','LOS','ACC','DAR',
+      'CGK','MNL','TPE','KUL','CCU','KHI','LHE','AKL','PER','ADL','BNE','GRU','GIG','EZE','SCL','LIM','BOG']);
+    this._dotSizes = CITIES.map(c => MEGA.has(c.code) ? 2 : MAJOR.has(c.code) ? 1 : 0);
   }
 
   _bindEvents() {
@@ -1449,7 +2121,7 @@ class GlobeView {
     });
     window.addEventListener('mousemove', e => { if (!this._paused) this._onMove(e); });
     window.addEventListener('mouseup', () => { this._dragging = false; });
-    c.addEventListener('mouseleave', () => { if (!this._dragging) this.hoveredIdx = -1; });
+    c.addEventListener('mouseleave', () => { if (!this._dragging) { this.hoveredIdx = -1; this.onHover(-1); } });
     c.addEventListener('click', () => {
       if (this.hoveredIdx >= 0) { this.selectedIdx = this.hoveredIdx; this.onSelect(this.hoveredIdx); }
     });
@@ -1467,6 +2139,11 @@ class GlobeView {
       e.preventDefault();
     }, { passive: false });
     c.addEventListener('touchend', () => { this._dragging = false; });
+    c.addEventListener('wheel', e => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.11;
+      this._targetZoom = Math.max(0.6, Math.min(2.0, this._targetZoom * factor));
+    }, { passive: false });
   }
 
   _onMove(e) {
@@ -1491,7 +2168,28 @@ class GlobeView {
       if (best !== this.hoveredIdx) {
         this.hoveredIdx = best;
         this.canvas.style.cursor = best >= 0 ? 'pointer' : 'grab';
+        this.onHover(best);
       }
+    }
+  }
+
+  setFocused(idx) {
+    this.focusedIdx = idx;
+    this._pulsePhase = 0;
+    if (idx >= 0) {
+      const c = CITIES[idx];
+      this._tLon = c.lon;
+      this._tLat = Math.max(-70, Math.min(70, c.lat * 0.75));
+      this._autoRotate = false;
+      // precompute nearest 4 airports for arc drawing
+      this._nearbyIdxs = CITIES
+        .map((cc, i) => ({ i, d: haversineKm(c.lat, c.lon, cc.lat, cc.lon) }))
+        .filter(({ i }) => i !== idx)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 4)
+        .map(({ i }) => i);
+    } else {
+      this._nearbyIdxs = [];
     }
   }
 
@@ -1503,6 +2201,8 @@ class GlobeView {
       this.viewLon += (this._tLon - this.viewLon) * 0.1;
       this.viewLat += (this._tLat - this.viewLat) * 0.1;
     }
+    this._zoom += (this._targetZoom - this._zoom) * 0.12;
+    this.R = this._baseR * this._zoom;
     this._draw();
   }
 
@@ -1539,6 +2239,173 @@ class GlobeView {
 
 let _globeView = null;
 
+// ── Airport metadata lookup ──────────────────────────────────────────────────
+const AIRPORT_DATA = {
+  // ── USA MEGA HUBS ──────────────────────────────────────────────────────────
+  ATL:{icao:'KATL',elev:1026,tz:'EST/EDT',rwys:5,pax:93.7,terminals:2,rwyLen:'12390 ft',hub:'Delta',fact:"World's busiest airport — #1 for over 22 consecutive years"},
+  DFW:{icao:'KDFW',elev:603,tz:'CST/CDT',rwys:7,pax:73.4,terminals:5,rwyLen:'13401 ft',hub:'American',fact:'Larger than Manhattan Island at 69 km² — the world\'s 2nd largest airport campus'},
+  DEN:{icao:'KDEN',elev:5431,tz:'MST/MDT',rwys:6,pax:69.3,terminals:1,rwyLen:'16000 ft',hub:'United/Frontier',fact:'At 5,431 ft — the highest major US airport. Its 16,000 ft runway can handle any aircraft'},
+  ORD:{icao:'KORD',elev:672,tz:'CST/CDT',rwys:8,pax:83.3,terminals:4,rwyLen:'13000 ft',hub:'United/American',fact:'Has the most runways (8) of any US airport — was the world\'s busiest for over 30 years'},
+  LAX:{icao:'KLAX',elev:128,tz:'PST/PDT',rwys:4,pax:88.1,terminals:9,rwyLen:'12091 ft',hub:'Delta/United/American',fact:'Gateway to the Pacific — the distinctive Theme Building opened in 1961, a Googie architecture icon'},
+  JFK:{icao:'KJFK',elev:13,tz:'EST/EDT',rwys:4,pax:62.5,terminals:6,rwyLen:'14511 ft',hub:'Delta/JetBlue',fact:'Renamed for President Kennedy in 1963. The iconic TWA Flight Center by Eero Saarinen is now a hotel'},
+  SFO:{icao:'KSFO',elev:13,tz:'PST/PDT',rwys:4,pax:57.5,terminals:4,rwyLen:'11870 ft',hub:'United',fact:'Built on San Francisco Bay landfill — two parallel runways are just 750 ft apart'},
+  SEA:{icao:'KSEA',elev:433,tz:'PST/PDT',rwys:3,pax:50.6,terminals:2,rwyLen:'11901 ft',hub:'Alaska/Delta',fact:'Runs on 100% renewable energy — one of the greenest major airports in the US'},
+  LAS:{icao:'KLAS',elev:2181,tz:'PST/PDT',rwys:4,pax:57.3,terminals:3,rwyLen:'14510 ft',hub:'Spirit/Frontier',fact:'The only major US airport with slot machines in the terminal — estimated 1,300 machines'},
+  MCO:{icao:'KMCO',elev:96,tz:'EST/EDT',rwys:4,pax:58.0,terminals:2,rwyLen:'12005 ft',hub:'JetBlue/Southwest',fact:'Serves Walt Disney World, Universal and SeaWorld — the world\'s most visited tourist region'},
+  CLT:{icao:'KCLT',elev:748,tz:'EST/EDT',rwys:4,pax:53.0,terminals:1,rwyLen:'10000 ft',hub:'American',fact:'American Airlines\' largest hub by departures — a connection machine handling 1,500+ daily flights'},
+  MIA:{icao:'KMIA',elev:9,tz:'EST/EDT',rwys:4,pax:52.0,terminals:3,rwyLen:'13016 ft',hub:'American',fact:'#1 US international gateway to Latin America, with non-stop service to 100+ countries'},
+  EWR:{icao:'KEWR',elev:18,tz:'EST/EDT',rwys:3,pax:46.3,terminals:3,rwyLen:'11000 ft',hub:'United',fact:'America\'s first major commercial airport, opened in 1928 — predates both JFK and LaGuardia'},
+  BOS:{icao:'KBOS',elev:19,tz:'EST/EDT',rwys:6,pax:42.5,terminals:4,rwyLen:'10083 ft',hub:'JetBlue/Delta',fact:'Named for General Edward Logan. Extension runways literally jut into Boston Harbor'},
+  MSP:{icao:'KMSP',elev:841,tz:'CST/CDT',rwys:4,pax:39.6,terminals:2,rwyLen:'11006 ft',hub:'Delta/Sun Country',fact:'Delta\'s second-largest hub, designed for Minnesota winters — heated jet bridges throughout'},
+  DTW:{icao:'KDTW',elev:645,tz:'EST/EDT',rwys:6,pax:36.4,terminals:2,rwyLen:'12003 ft',hub:'Delta/Spirit',fact:'Home to the world\'s longest airport tram tunnel — the McNamara Terminal\'s underground walkway'},
+  IAH:{icao:'KIAH',elev:97,tz:'CST/CDT',rwys:5,pax:45.3,terminals:5,rwyLen:'12001 ft',hub:'United',fact:'United Airlines\' largest international hub — a major gateway for Latin America routes'},
+  PHX:{icao:'KPHX',elev:1135,tz:'MST',rwys:3,pax:46.3,terminals:3,rwyLen:'11489 ft',hub:'American/Southwest',fact:'Arizona observes no daylight saving time — PHX is the only US mega-hub in a single timezone year-round'},
+  IAD:{icao:'KIAD',elev:313,tz:'EST/EDT',rwys:4,pax:27.6,terminals:1,rwyLen:'11501 ft',hub:'United',fact:'Designed by Eero Saarinen, opened 1962. The mobile lounges were futuristic for their era'},
+  PHL:{icao:'KPHL',elev:36,tz:'EST/EDT',rwys:4,pax:33.4,terminals:7,rwyLen:'10506 ft',hub:'American',fact:'One of the original four American Airlines hubs from the hub-and-spoke era of the 1980s'},
+  DCA:{icao:'KDCA',elev:15,tz:'EST/EDT',rwys:3,pax:25.5,terminals:3,rwyLen:'6869 ft',hub:'American',fact:'Subject to the strictest airspace restrictions in the US — the 30 nm SFRA around Washington DC'},
+  // ── USA MAJOR ──────────────────────────────────────────────────────────────
+  SAN:{icao:'KSAN',elev:17,tz:'PST/PDT',rwys:1,pax:25.2,terminals:2,rwyLen:'9401 ft',hub:'Southwest',fact:'One of only a few major US airports with a single runway — approaches skim downtown rooftops'},
+  PDX:{icao:'KPDX',elev:31,tz:'PST/PDT',rwys:3,pax:20.1,terminals:1,rwyLen:'11000 ft',hub:'Alaska',fact:'Famous for its carpet — replaced in 2015, the old pattern became a pop culture icon'},
+  SLC:{icao:'KSLC',elev:4227,tz:'MST/MDT',rwys:4,pax:27.0,terminals:1,rwyLen:'12003 ft',hub:'Delta',fact:'Delta\'s western mountain hub at 4,227 ft — brand new terminal opened in 2020'},
+  TPA:{icao:'KTPA',elev:26,tz:'EST/EDT',rwys:3,pax:23.3,terminals:1,rwyLen:'11002 ft',hub:'Breeze/Southwest',fact:'Known for its automated people mover shuttles between landside and airside since 1971'},
+  RDU:{icao:'KRDU',elev:435,tz:'EST/EDT',rwys:3,pax:14.8,terminals:2,rwyLen:'10000 ft',hub:'Frontier',fact:'Named for both Raleigh and Durham — a gateway to the Research Triangle tech corridor'},
+  BWI:{icao:'KBWI',elev:146,tz:'EST/EDT',rwys:3,pax:26.5,terminals:1,rwyLen:'10502 ft',hub:'Southwest',fact:'Southwest\'s largest East Coast operation — named for Thurgood Marshall since 2005'},
+  MCI:{icao:'KMCI',elev:1026,tz:'CST/CDT',rwys:3,pax:13.4,terminals:1,rwyLen:'10801 ft',hub:'Southwest',fact:'New single terminal opened 2023, replacing the 1972 drive-to-your-gate design'},
+  MSY:{icao:'KMSY',elev:4,tz:'CST/CDT',rwys:2,pax:14.5,terminals:1,rwyLen:'10104 ft',hub:'Southwest/Spirit',fact:'New $1.3B terminal opened 2019, replacing the 1959 original on the same site'},
+  AUS:{icao:'KAUS',elev:542,tz:'CST/CDT',rwys:2,pax:21.7,terminals:1,rwyLen:'12250 ft',hub:'Southwest',fact:'One of the fastest-growing US airports, tripling traffic since 2010 with Austin\'s tech boom'},
+  SMF:{icao:'KSMF',elev:27,tz:'PST/PDT',rwys:2,pax:14.4,terminals:2,rwyLen:'8601 ft',hub:'Southwest',fact:'Sacramento\'s gateway — the closest major airport to California\'s state capital'},
+  SJC:{icao:'KSJC',elev:62,tz:'PST/PDT',rwys:2,pax:16.0,terminals:2,rwyLen:'11000 ft',hub:'Southwest/Alaska',fact:'Silicon Valley\'s airport — walking distance from many tech campuses'},
+  FLL:{icao:'KFLL',elev:9,tz:'EST/EDT',rwys:2,pax:36.0,terminals:4,rwyLen:'9000 ft',hub:'JetBlue/Spirit',fact:'South Florida\'s low-cost carrier hub — within 30 miles of both Fort Lauderdale and Miami'},
+  MDW:{icao:'KMDW',elev:620,tz:'CST/CDT',rwys:5,pax:23.4,terminals:1,rwyLen:'6522 ft',hub:'Southwest',fact:'Southwest Airlines\' original home base — the airline was born here in 1971'},
+  HNL:{icao:'PHNL',elev:13,tz:'HST',rwys:4,pax:21.0,terminals:3,rwyLen:'12300 ft',hub:'Hawaiian',fact:'The only major US airport with an outdoor terminal — reef runway built on a coral reef'},
+  BNA:{icao:'KBNA',elev:599,tz:'CST/CDT',rwys:4,pax:22.0,terminals:1,rwyLen:'11030 ft',hub:'Southwest',fact:'Nashville\'s music city gateway — one of the fastest-growing airports in America'},
+  STL:{icao:'KSTL',elev:618,tz:'CST/CDT',rwys:4,pax:16.5,terminals:2,rwyLen:'11019 ft',hub:'Southwest',fact:'Once TWA\'s fortress hub — its massive Terminal 2 now serves Southwest exclusively'},
+  OAK:{icao:'KOAK',elev:9,tz:'PST/PDT',rwys:4,pax:14.1,terminals:2,rwyLen:'10520 ft',hub:'Southwest/Spirit',fact:'The affordable Bay Area alternative — a 25 minute BART ride from downtown San Francisco'},
+  CLE:{icao:'KCLE',elev:791,tz:'EST/EDT',rwys:3,pax:10.6,terminals:1,rwyLen:'9956 ft',hub:'Spirit/Frontier',fact:'Former Continental hub — the Rock & Roll Hall of Fame is visible on approach to runway 6L'},
+  CMH:{icao:'KCMH',elev:816,tz:'EST/EDT',rwys:3,pax:10.2,terminals:1,rwyLen:'10113 ft',hub:'Breeze',fact:'John Glenn Columbus — named for Ohio\'s astronaut-senator who orbited Earth in 1962'},
+  RSW:{icao:'KRSW',elev:30,tz:'EST/EDT',rwys:2,pax:12.3,terminals:1,rwyLen:'12000 ft',hub:'Southwest',fact:'Southwest Florida International — gateway to Sanibel Island and Fort Myers beaches'},
+  OGG:{icao:'PHOG',elev:54,tz:'HST',rwys:2,pax:8.4,terminals:1,rwyLen:'6995 ft',hub:'Hawaiian',fact:'Kahului Airport — Maui\'s gateway, with stunning views of Haleakala volcano on approach'},
+  PIT:{icao:'KPIT',elev:1204,tz:'EST/EDT',rwys:4,pax:10.8,terminals:1,rwyLen:'11500 ft',hub:'Spirit',fact:'Former USAirways mega-hub — its landside terminal now houses offices and a hotel'},
+  IND:{icao:'KIND',elev:797,tz:'EST/EDT',rwys:3,pax:10.0,terminals:1,rwyLen:'11200 ft',hub:'Allegiant',fact:'Indianapolis — home to the world\'s 2nd largest FedEx hub, processing 3M+ packages nightly'},
+  CVG:{icao:'KCVG',elev:896,tz:'EST/EDT',rwys:4,pax:9.8,terminals:2,rwyLen:'12000 ft',hub:'DHL/Allegiant',fact:'DHL\'s Americas superhub — once Delta\'s largest hub, now a major cargo center'},
+  JAX:{icao:'KJAX',elev:30,tz:'EST/EDT',rwys:2,pax:8.0,terminals:1,rwyLen:'10000 ft',hub:'Breeze',fact:'Jacksonville — one of the largest US cities by area, serving Northeast Florida\'s coastline'},
+  ABQ:{icao:'KABQ',elev:5355,tz:'MST/MDT',rwys:3,pax:6.2,terminals:1,rwyLen:'13793 ft',hub:'Southwest',fact:'Albuquerque Sunport at 5,355 ft — the extra-long runway handles hot-and-high takeoffs'},
+  ANC:{icao:'PANC',elev:152,tz:'AKST/AKDT',rwys:3,pax:5.5,terminals:2,rwyLen:'12400 ft',hub:'Alaska',fact:'Ted Stevens Anchorage — a critical refueling stop for Pacific cargo flights, top 5 US cargo airport'},
+  MEM:{icao:'KMEM',elev:341,tz:'CST/CDT',rwys:4,pax:5.2,terminals:2,rwyLen:'11120 ft',hub:'FedEx',fact:'FedEx\'s global superhub — processes 4M+ packages per night, busiest cargo airport in the Americas'},
+  // ── EUROPE ─────────────────────────────────────────────────────────────────
+  LHR:{icao:'EGLL',elev:83,tz:'GMT/BST',rwys:2,pax:79.2,terminals:4,rwyLen:'12799 ft',hub:'British Airways',fact:'Europe\'s busiest at 80M+ passengers/year. A 3rd runway debate has lasted over 50 years'},
+  CDG:{icao:'LFPG',elev:392,tz:'CET/CEST',rwys:4,pax:67.4,terminals:3,rwyLen:'13829 ft',hub:'Air France',fact:'Named for Charles de Gaulle, opened 1974. Terminal 1\'s satellite pods are iconic Brutalist architecture'},
+  FRA:{icao:'EDDF',elev:364,tz:'CET/CEST',rwys:4,pax:59.4,terminals:2,rwyLen:'13123 ft',hub:'Lufthansa',fact:'Europe\'s largest cargo hub and a Lufthansa stronghold — its own on-airport train station since 1972'},
+  AMS:{icao:'EHAM',elev:-11,tz:'CET/CEST',rwys:6,pax:61.7,terminals:1,rwyLen:'12467 ft',hub:'KLM',fact:'At -11 ft — one of the world\'s lowest airports, built on reclaimed Dutch polder land'},
+  MAD:{icao:'LEMD',elev:2001,tz:'CET/CEST',rwys:4,pax:60.1,terminals:4,rwyLen:'13451 ft',hub:'Iberia',fact:'Highest capital-city airport in Europe at 2,001 ft. Terminal 4 by Richard Rogers spans 760,000 m²'},
+  FCO:{icao:'LIRF',elev:14,tz:'CET/CEST',rwys:3,pax:40.4,terminals:3,rwyLen:'12795 ft',hub:'ITA Airways',fact:'Leonardo da Vinci International — Italy\'s busiest and gateway to ancient Rome'},
+  BCN:{icao:'LEBL',elev:12,tz:'CET/CEST',rwys:3,pax:52.7,terminals:2,rwyLen:'10499 ft',hub:'Vueling',fact:'One runway extends over the Mediterranean Sea — the beach is just 500m from the terminal'},
+  MUC:{icao:'EDDM',elev:1487,tz:'CET/CEST',rwys:2,pax:47.9,terminals:2,rwyLen:'13123 ft',hub:'Lufthansa',fact:'Consistently rated Europe\'s best airport — opened in 1992 replacing Riem after 60 years'},
+  ZRH:{icao:'LSZH',elev:1416,tz:'CET/CEST',rwys:3,pax:31.5,terminals:3,rwyLen:'12139 ft',hub:'Swiss',fact:'Swiss precision — one of Europe\'s most punctual airports, pioneering airside transit zones'},
+  VIE:{icao:'LOWW',elev:600,tz:'CET/CEST',rwys:3,pax:31.7,terminals:3,rwyLen:'11811 ft',hub:'Austrian',fact:'Eastern gateway to Western Europe — Austrian Airlines hub connecting Central and Eastern Europe'},
+  IST:{icao:'LTFM',elev:325,tz:'TRT',rwys:5,pax:76.1,terminals:1,rwyLen:'13451 ft',hub:'Turkish Airlines',fact:'Istanbul Airport opened 2019 with planned ultimate capacity of 200 million passengers per year'},
+  DME:{icao:'UUDD',elev:588,tz:'MSK',rwys:3,pax:22.0,terminals:2,rwyLen:'11484 ft',hub:'S7 Airlines',fact:'Russia\'s largest airport by passenger traffic, named Domodedovo after the surrounding district'},
+  SVO:{icao:'UUEE',elev:630,tz:'MSK',rwys:3,pax:18.0,terminals:4,rwyLen:'12139 ft',hub:'Aeroflot',fact:'Sheremetyevo, formally named after Alexander Pushkin in 2019 — Aeroflot\'s primary hub'},
+  ORY:{icao:'LFPO',elev:292,tz:'CET/CEST',rwys:3,pax:33.1,terminals:4,rwyLen:'11975 ft',hub:'Transavia',fact:'Paris Orly — originally the city\'s main airport before CDG opened in 1974'},
+  MXP:{icao:'LIMC',elev:768,tz:'CET/CEST',rwys:2,pax:28.8,terminals:2,rwyLen:'12861 ft',hub:'Ryanair/EasyJet',fact:'Milan Malpensa — northern Italy\'s intercontinental gateway, 50 km from the city center'},
+  LGW:{icao:'EGKK',elev:202,tz:'GMT/BST',rwys:2,pax:32.8,terminals:2,rwyLen:'10364 ft',hub:'EasyJet',fact:'London Gatwick — the world\'s busiest single-runway operation (the northern runway is standby only)'},
+  ARN:{icao:'ESSA',elev:137,tz:'CET/CEST',rwys:3,pax:26.8,terminals:4,rwyLen:'10830 ft',hub:'SAS',fact:'Stockholm Arlanda — named from a combination of "Ärna" (the old air base) and "landa" (to land)'},
+  CPH:{icao:'EKCH',elev:17,tz:'CET/CEST',rwys:3,pax:30.3,terminals:3,rwyLen:'11811 ft',hub:'SAS',fact:'Copenhagen Kastrup — the busiest airport in the Nordics, a 12-minute metro ride to city center'},
+  HEL:{icao:'EFHK',elev:179,tz:'EET/EEST',rwys:3,pax:18.0,terminals:2,rwyLen:'11286 ft',hub:'Finnair',fact:'Helsinki-Vantaa — Finnair\'s hub for the fastest Europe-to-Asia routing via the Arctic'},
+  OSL:{icao:'ENGM',elev:681,tz:'CET/CEST',rwys:2,pax:28.6,terminals:1,rwyLen:'11811 ft',hub:'SAS/Norwegian',fact:'Oslo Gardermoen — one of Europe\'s newest major airports, opened 1998 with a stunning timber terminal'},
+  DUB:{icao:'EIDW',elev:242,tz:'GMT/IST',rwys:2,pax:32.9,terminals:2,rwyLen:'8652 ft',hub:'Ryanair/Aer Lingus',fact:'Dublin — one of few European airports offering US Customs preclearance before departure'},
+  LIS:{icao:'LPPT',elev:374,tz:'WET/WEST',rwys:2,pax:31.2,terminals:2,rwyLen:'12484 ft',hub:'TAP Portugal',fact:'Lisbon Humberto Delgado — Europe\'s westernmost major airport, gateway to the Azores and Africa'},
+  BRU:{icao:'EBBR',elev:184,tz:'CET/CEST',rwys:3,pax:22.2,terminals:1,rwyLen:'11936 ft',hub:'Brussels Airlines',fact:'Brussels Zaventem — headquarters of the European Union is just 12 km from the airport'},
+  PRG:{icao:'LKPR',elev:1247,tz:'CET/CEST',rwys:2,pax:17.8,terminals:2,rwyLen:'12191 ft',hub:'Smartwings/Czech Airlines',fact:'Prague Václav Havel — named for the first Czech president, nestled in rolling Bohemian countryside'},
+  BUD:{icao:'LHBP',elev:495,tz:'CET/CEST',rwys:2,pax:16.2,terminals:2,rwyLen:'12162 ft',hub:'Wizz Air',fact:'Budapest Liszt Ferenc — Wizz Air\'s original base, and the largest in Central Europe\'s LCC market'},
+  WAW:{icao:'EPWA',elev:362,tz:'CET/CEST',rwys:2,pax:18.9,terminals:1,rwyLen:'11483 ft',hub:'LOT Polish',fact:'Warsaw Chopin — LOT Polish Airlines has operated from here since 1934, Poland\'s busiest'},
+  ATH:{icao:'LGAV',elev:308,tz:'EET/EEST',rwys:2,pax:28.3,terminals:2,rwyLen:'13123 ft',hub:'Aegean Airlines',fact:'Athens Eleftherios Venizelos — opened 2001, replacing the legendary Hellinikon on the coast'},
+  LED:{icao:'ULLI',elev:78,tz:'MSK',rwys:2,pax:19.6,terminals:2,rwyLen:'11483 ft',hub:'Rossiya Airlines',fact:'St. Petersburg Pulkovo — gateway to Russia\'s cultural capital and the Hermitage Museum'},
+  EDI:{icao:'EGPH',elev:135,tz:'GMT/BST',rwys:1,pax:14.7,terminals:1,rwyLen:'8399 ft',hub:'Ryanair/EasyJet',fact:'Edinburgh — Scotland\'s busiest airport, with Edinburgh Castle visible from the apron'},
+  GVA:{icao:'LSGG',elev:1411,tz:'CET/CEST',rwys:1,pax:17.9,terminals:1,rwyLen:'12795 ft',hub:'EasyJet/Swiss',fact:'Geneva — uniquely has a French-side entrance accessible without passing Swiss immigration'},
+  AGP:{icao:'LEMG',elev:53,tz:'CET/CEST',rwys:2,pax:22.0,terminals:3,rwyLen:'10499 ft',hub:'Ryanair',fact:'Málaga Costa del Sol — southern Spain\'s beach gateway, busiest non-capital airport in Spain'},
+  PMI:{icao:'LEPA',elev:27,tz:'CET/CEST',rwys:2,pax:31.1,terminals:1,rwyLen:'10728 ft',hub:'Ryanair/EasyJet',fact:'Palma de Mallorca — Europe\'s busiest seasonal airport, handling 35M+ in summer peak'},
+  // ── MIDDLE EAST ────────────────────────────────────────────────────────────
+  DXB:{icao:'OMDB',elev:62,tz:'GST+4',rwys:2,pax:87.0,terminals:3,rwyLen:'13124 ft',hub:'Emirates/flydubai',fact:'World\'s busiest international airport. Terminal 3 alone is one of the largest buildings on Earth'},
+  DOH:{icao:'OTHH',elev:13,tz:'AST+3',rwys:2,pax:46.3,terminals:1,rwyLen:'15912 ft',hub:'Qatar Airways',fact:'Hamad International opened 2014, with a 23m bronze teddy bear sculpture in the concourse'},
+  AUH:{icao:'OMAA',elev:88,tz:'GST+4',rwys:2,pax:24.3,terminals:3,rwyLen:'13451 ft',hub:'Etihad',fact:'Etihad\'s home — the Sheikh Zayed Grand Mosque is visible on approach to runway 31L'},
+  RUH:{icao:'OERK',elev:2049,tz:'AST+3',rwys:4,pax:29.5,terminals:5,rwyLen:'13780 ft',hub:'Saudia/flynas',fact:'King Khalid — expanding under Vision 2030. New Riyadh airport will be one of world\'s largest'},
+  JED:{icao:'OEJN',elev:48,tz:'AST+3',rwys:2,pax:40.2,terminals:2,rwyLen:'12467 ft',hub:'Saudia/flynas',fact:'King Abdulaziz — gateway for Hajj pilgrims, handling 2M+ pilgrims annually'},
+  MCT:{icao:'OOMS',elev:48,tz:'GST+4',rwys:1,pax:14.5,terminals:1,rwyLen:'13123 ft',hub:'Oman Air',fact:'Muscat — opened a stunning new terminal in 2018, designed to resemble a Bedouin tent'},
+  AMM:{icao:'OJAI',elev:2395,tz:'EET+2',rwys:2,pax:9.2,terminals:2,rwyLen:'12008 ft',hub:'Royal Jordanian',fact:'Queen Alia — gateway to Petra, the Dead Sea, and Wadi Rum, at 2,395 ft above sea level'},
+  BAH:{icao:'OBBI',elev:6,tz:'AST+3',rwys:1,pax:11.0,terminals:1,rwyLen:'12927 ft',hub:'Gulf Air',fact:'Bahrain — one of the oldest airports in the Gulf, built on an island in the Persian Gulf'},
+  KWI:{icao:'OKBK',elev:206,tz:'AST+3',rwys:2,pax:15.5,terminals:2,rwyLen:'11155 ft',hub:'Kuwait Airways',fact:'Kuwait — its new terminal by Foster+Partners features a 1.2 km roof inspired by a sail'},
+  TLV:{icao:'LLBG',elev:135,tz:'IST+2',rwys:3,pax:25.0,terminals:3,rwyLen:'11998 ft',hub:'El Al',fact:'Ben Gurion — considered one of the world\'s most secure airports with multi-layer security'},
+  // ── ASIA ───────────────────────────────────────────────────────────────────
+  SIN:{icao:'WSSS',elev:22,tz:'SGT+8',rwys:3,pax:62.6,terminals:4,rwyLen:'13123 ft',hub:'Singapore Airlines',fact:'Changi — voted world\'s best airport 12+ years running. Jewel Changi has a 40m indoor waterfall'},
+  PEK:{icao:'ZBAA',elev:116,tz:'CST+8',rwys:3,pax:62.0,terminals:3,rwyLen:'12467 ft',hub:'Air China',fact:'Beijing Capital — one of the world\'s top 3 busiest. Terminal 3 is the world\'s 2nd largest building'},
+  PVG:{icao:'ZSPD',elev:13,tz:'CST+8',rwys:4,pax:50.1,terminals:2,rwyLen:'12467 ft',hub:'China Eastern',fact:'Shanghai Pudong — China\'s largest cargo airport, opened 1999 on reclaimed Yangtze delta land'},
+  HND:{icao:'RJTT',elev:35,tz:'JST+9',rwys:4,pax:87.1,terminals:3,rwyLen:'9843 ft',hub:'ANA/JAL',fact:'Tokyo Haneda — consistently the world\'s most punctual major airport, rebuilt after WWII'},
+  NRT:{icao:'RJAA',elev:141,tz:'JST+9',rwys:2,pax:35.7,terminals:3,rwyLen:'13123 ft',hub:'ANA/JAL',fact:'Narita opened 1978 amid massive protests — the only Japanese airport with a curfew (23:00-06:00)'},
+  ICN:{icao:'RKSI',elev:23,tz:'KST+9',rwys:4,pax:71.2,terminals:2,rwyLen:'12300 ft',hub:'Korean Air/Asiana',fact:'Seoul Incheon — built on reclaimed sea between two islands, rated world\'s best airport repeatedly'},
+  BKK:{icao:'VTBS',elev:5,tz:'ICT+7',rwys:2,pax:60.9,terminals:1,rwyLen:'13123 ft',hub:'Thai Airways',fact:'Suvarnabhumi — "Golden Land" in Sanskrit. The terminal roof spans 563,000 m²'},
+  HKG:{icao:'VHHH',elev:28,tz:'HKT+8',rwys:2,pax:39.8,terminals:2,rwyLen:'12467 ft',hub:'Cathay Pacific',fact:'Built on reclaimed Lantau Island land — the old Kai Tak runway 13 approach was legendary'},
+  KUL:{icao:'WMKK',elev:69,tz:'MYT+8',rwys:2,pax:48.0,terminals:2,rwyLen:'13402 ft',hub:'AirAsia/Malaysia',fact:'KLIA — designed by Kisho Kurokawa with the "forest terminal" concept, connected by high-speed rail'},
+  DEL:{icao:'VIDP',elev:777,tz:'IST+5:30',rwys:3,pax:72.3,terminals:3,rwyLen:'14534 ft',hub:'IndiGo/Air India',fact:'Indira Gandhi International — India\'s busiest, handling 72M+ passengers at South Asia\'s largest hub'},
+  BOM:{icao:'VABB',elev:37,tz:'IST+5:30',rwys:2,pax:51.8,terminals:2,rwyLen:'12008 ft',hub:'IndiGo/Air India',fact:'Chhatrapati Shivaji Maharaj — sits between the Arabian Sea and the city, land is ultra-scarce'},
+  CAN:{icao:'ZGGG',elev:46,tz:'CST+8',rwys:3,pax:63.4,terminals:2,rwyLen:'12467 ft',hub:'China Southern',fact:'Guangzhou Baiyun — China Southern\'s mega-hub, one of the world\'s fastest-growing airports'},
+  CTU:{icao:'ZUUU',elev:1624,tz:'CST+8',rwys:3,pax:53.0,terminals:2,rwyLen:'11811 ft',hub:'Air China/Sichuan',fact:'Chengdu Shuangliu — in the Sichuan basin, with Chengdu Tianfu (TFU) as its newer partner'},
+  SZX:{icao:'ZGSZ',elev:13,tz:'CST+8',rwys:2,pax:52.9,terminals:2,rwyLen:'11155 ft',hub:'Shenzhen Airlines',fact:'Shenzhen Bao\'an — its futuristic terminal resembles a manta ray, designed by Studio Fuksas'},
+  CGK:{icao:'WIII',elev:34,tz:'WIB+7',rwys:3,pax:54.2,terminals:3,rwyLen:'12008 ft',hub:'Garuda/Lion Air',fact:'Jakarta Soekarno-Hatta — serves the world\'s 4th most populous country, Indonesia\'s primary gateway'},
+  MNL:{icao:'RPLL',elev:75,tz:'PHT+8',rwys:2,pax:49.8,terminals:4,rwyLen:'11004 ft',hub:'Philippine Airlines/Cebu',fact:'Ninoy Aquino — famously congested, this airport serves Metro Manila\'s 13 million residents'},
+  TPE:{icao:'RCTP',elev:106,tz:'CST+8',rwys:2,pax:48.6,terminals:2,rwyLen:'12008 ft',hub:'EVA Air/China Airlines',fact:'Taiwan Taoyuan — known for exceptional transit facilities and award-winning airline lounges'},
+  CCU:{icao:'VECC',elev:16,tz:'IST+5:30',rwys:2,pax:23.5,terminals:2,rwyLen:'11900 ft',hub:'IndiGo',fact:'Netaji Subhas Chandra Bose — Kolkata\'s gateway, serving eastern India and the Bay of Bengal'},
+  KHI:{icao:'OPKC',elev:100,tz:'PKT+5',rwys:2,pax:12.0,terminals:3,rwyLen:'10500 ft',hub:'PIA',fact:'Jinnah International — Pakistan\'s busiest airport, named for the nation\'s founder'},
+  SGN:{icao:'VVTS',elev:33,tz:'ICT+7',rwys:2,pax:41.2,terminals:2,rwyLen:'12468 ft',hub:'Vietnam Airlines/VietJet',fact:'Ho Chi Minh City Tan Son Nhat — one of the world\'s 50 busiest, surrounded entirely by urban sprawl'},
+  HAN:{icao:'VVNB',elev:39,tz:'ICT+7',rwys:2,pax:28.9,terminals:2,rwyLen:'11811 ft',hub:'Vietnam Airlines/Bamboo',fact:'Hanoi Noi Bai — Vietnam\'s capital gateway, 35 km north of the ancient Old Quarter'},
+  BLR:{icao:'VOBL',elev:3000,tz:'IST+5:30',rwys:2,pax:37.6,terminals:2,rwyLen:'13120 ft',hub:'IndiGo/Air India',fact:'Kempegowda International — India\'s tech capital airport at 3,000 ft, opened 2008'},
+  MAA:{icao:'VOMM',elev:52,tz:'IST+5:30',rwys:2,pax:22.5,terminals:2,rwyLen:'12001 ft',hub:'IndiGo/SpiceJet',fact:'Chennai — gateway to South India and the Bay of Bengal, India\'s 4th busiest airport'},
+  HYD:{icao:'VOHS',elev:2024,tz:'IST+5:30',rwys:1,pax:25.0,terminals:1,rwyLen:'13976 ft',hub:'IndiGo',fact:'Rajiv Gandhi International — at 2,024 ft with one of India\'s longest runways for A380 operations'},
+  PKX:{icao:'ZBAD',elev:102,tz:'CST+8',rwys:4,pax:26.0,terminals:1,rwyLen:'12467 ft',hub:'China Southern/China United',fact:'Beijing Daxing — the starfish terminal by Zaha Hadid is the world\'s largest single-structure airport'},
+  KIX:{icao:'RJBB',elev:26,tz:'JST+9',rwys:2,pax:31.0,terminals:2,rwyLen:'13123 ft',hub:'Peach/ANA',fact:'Kansai — built on an artificial island in Osaka Bay by Renzo Piano, it never loses luggage'},
+  // ── AFRICA ─────────────────────────────────────────────────────────────────
+  JNB:{icao:'FAOR',elev:5558,tz:'SAST+2',rwys:2,pax:21.0,terminals:2,rwyLen:'14495 ft',hub:'South African',fact:'O.R. Tambo — Africa\'s busiest at 5,558 ft on the Highveld, handling 21M+ passengers'},
+  CAI:{icao:'HECA',elev:382,tz:'EET+2',rwys:4,pax:22.7,terminals:3,rwyLen:'13124 ft',hub:'EgyptAir',fact:'Cairo International — gateway to 5,000 years of history, EgyptAir\'s hub since 1960'},
+  CMN:{icao:'GMMN',elev:656,tz:'WET+1',rwys:2,pax:10.4,terminals:2,rwyLen:'12205 ft',hub:'Royal Air Maroc',fact:'Mohammed V — Africa\'s 3rd busiest and Royal Air Maroc\'s hub, a gateway between continents'},
+  ADD:{icao:'HAAB',elev:7625,tz:'EAT+3',rwys:3,pax:13.2,terminals:2,rwyLen:'12468 ft',hub:'Ethiopian Airlines',fact:'Bole — Ethiopian Airlines\' massive hub at 7,625 ft, Africa\'s fastest-growing carrier base'},
+  NBO:{icao:'HKJK',elev:5327,tz:'EAT+3',rwys:2,pax:8.1,terminals:2,rwyLen:'13507 ft',hub:'Kenya Airways',fact:'Jomo Kenyatta — East Africa\'s hub at 5,327 ft, Kenya Airways\' home and safari gateway'},
+  CPT:{icao:'FACT',elev:151,tz:'SAST+2',rwys:2,pax:10.7,terminals:1,rwyLen:'10502 ft',hub:'FlySafair',fact:'Cape Town — Table Mountain is visible on approach, with stunning views of the Cape coastline'},
+  LOS:{icao:'DNMM',elev:135,tz:'WAT+1',rwys:2,pax:9.1,terminals:2,rwyLen:'12795 ft',hub:'Air Peace',fact:'Murtala Muhammed — Nigeria\'s busiest, serving Lagos, Africa\'s most populous city (21M+)'},
+  ACC:{icao:'DGAA',elev:205,tz:'GMT',rwys:1,pax:3.2,terminals:3,rwyLen:'11155 ft',hub:'Africa World Airlines',fact:'Kotoka — Ghana\'s primary gateway, a growing hub for West African travel and commerce'},
+  DAR:{icao:'HTDA',elev:182,tz:'EAT+3',rwys:2,pax:3.8,terminals:3,rwyLen:'12008 ft',hub:'Air Tanzania',fact:'Julius Nyerere — gateway to Zanzibar and the Serengeti, Tanzania\'s busiest airport'},
+  ALG:{icao:'DAAG',elev:82,tz:'CET',rwys:3,pax:10.0,terminals:3,rwyLen:'11483 ft',hub:'Air Algérie',fact:'Houari Boumediene — Algeria\'s largest airport, gateway to the Sahara and Casbah of Algiers'},
+  DSS:{icao:'GOBD',elev:289,tz:'GMT',rwys:1,pax:3.0,terminals:1,rwyLen:'11483 ft',hub:'Air Sénégal',fact:'Blaise Diagne — Senegal\'s new airport, opened 2017 to replace the cramped Léopold Sédar Senghor'},
+  TUN:{icao:'DTTA',elev:22,tz:'CET',rwys:2,pax:7.8,terminals:2,rwyLen:'10827 ft',hub:'Tunisair',fact:'Tunis-Carthage — named for the ancient city of Carthage, Tunisia\'s primary gateway'},
+  // ── OCEANIA ────────────────────────────────────────────────────────────────
+  SYD:{icao:'YSSY',elev:21,tz:'AEST+10',rwys:3,pax:44.4,terminals:3,rwyLen:'12999 ft',hub:'Qantas',fact:'Kingsford Smith — named for the aviator who crossed the Pacific in 1928, Qantas\' home base'},
+  MEL:{icao:'YMML',elev:434,tz:'AEST+10',rwys:2,pax:37.7,terminals:4,rwyLen:'11998 ft',hub:'Qantas/Jetstar',fact:'Melbourne Tullamarine — Australia\'s second busiest, with a unique cross-wind runway layout'},
+  BNE:{icao:'YBBN',elev:13,tz:'AEST+10',rwys:2,pax:23.7,terminals:2,rwyLen:'11483 ft',hub:'Qantas/Virgin Australia',fact:'Brisbane — a massive new parallel runway opened 2020, making it Australia\'s best-equipped airport'},
+  PER:{icao:'YPPH',elev:67,tz:'AWST+8',rwys:3,pax:15.0,terminals:4,rwyLen:'11299 ft',hub:'Qantas',fact:'Perth — Australia\'s western gateway, endpoint of the world\'s longest non-stop flight from London'},
+  AKL:{icao:'NZAA',elev:7,tz:'NZST+12',rwys:1,pax:21.4,terminals:2,rwyLen:'11926 ft',hub:'Air New Zealand',fact:'Auckland — New Zealand\'s busiest, sitting on an isthmus between two harbours'},
+  ADL:{icao:'YPAD',elev:20,tz:'ACST+9:30',rwys:2,pax:8.6,terminals:2,rwyLen:'10171 ft',hub:'Qantas/Rex',fact:'Adelaide — South Australia\'s gateway, known for its efficient single-terminal design'},
+  NAN:{icao:'NFNA',elev:59,tz:'FJT+12',rwys:1,pax:2.5,terminals:1,rwyLen:'10502 ft',hub:'Fiji Airways',fact:'Nadi — Fiji\'s international gateway, the Pacific Islands\' busiest airport by traffic'},
+  // ── LATIN AMERICA ──────────────────────────────────────────────────────────
+  GRU:{icao:'SBGR',elev:2459,tz:'BRT-3',rwys:2,pax:41.2,terminals:3,rwyLen:'12139 ft',hub:'LATAM/Gol/Azul',fact:'São Paulo Guarulhos — Latin America\'s busiest at 2,459 ft, LATAM\'s primary hub'},
+  GIG:{icao:'SBGL',elev:28,tz:'BRT-3',rwys:2,pax:12.5,terminals:2,rwyLen:'13123 ft',hub:'LATAM/Gol',fact:'Rio Galeão — stunning approach over Guanabara Bay with Sugarloaf Mountain in view'},
+  MEX:{icao:'MMMX',elev:7316,tz:'CST-6',rwys:2,pax:50.3,terminals:2,rwyLen:'12795 ft',hub:'Aeromexico/Volaris',fact:'Benito Juárez — one of the world\'s highest major airports at 7,316 ft elevation'},
+  BOG:{icao:'SKBO',elev:8361,tz:'COT-5',rwys:2,pax:38.0,terminals:2,rwyLen:'12467 ft',hub:'Avianca/LATAM',fact:'El Dorado — world\'s highest-elevation major hub at 8,361 ft above sea level in the Andes'},
+  EZE:{icao:'SAEZ',elev:67,tz:'ART-3',rwys:2,pax:14.3,terminals:3,rwyLen:'10827 ft',hub:'Aerolíneas Argentinas',fact:'Ezeiza — Buenos Aires\' international gateway, 35 km from the city, named Ministro Pistarini'},
+  SCL:{icao:'SCEL',elev:1555,tz:'CLT-4',rwys:2,pax:24.6,terminals:2,rwyLen:'12232 ft',hub:'LATAM/Sky',fact:'Santiago Arturo Merino Benítez — Chile\'s busiest, framed by the Andes on approach from the east'},
+  LIM:{icao:'SPJC',elev:113,tz:'PET-5',rwys:2,pax:24.5,terminals:1,rwyLen:'11506 ft',hub:'LATAM Peru',fact:'Jorge Chávez — named for the Peruvian aviator who first flew over the Alps in 1910'},
+  CUN:{icao:'MMUN',elev:22,tz:'EST-5',rwys:3,pax:31.4,terminals:4,rwyLen:'11484 ft',hub:'Volaris/VivaAerobus',fact:'Cancún — Mexico\'s busiest tourist airport, gateway to the Riviera Maya and Chichén Itzá'},
+  PTY:{icao:'MPTO',elev:135,tz:'EST-5',rwys:2,pax:16.7,terminals:2,rwyLen:'10006 ft',hub:'Copa Airlines',fact:'Tocumen — Copa Airlines\' hub, called the "Hub of the Americas" connecting North and South'},
+  GDL:{icao:'MMGL',elev:5016,tz:'CST-6',rwys:2,pax:15.8,terminals:2,rwyLen:'13123 ft',hub:'Volaris',fact:'Guadalajara — Mexico\'s 2nd busiest airport at 5,016 ft, gateway to tequila country'},
+  BSB:{icao:'SBBR',elev:3479,tz:'BRT-3',rwys:2,pax:15.0,terminals:1,rwyLen:'10827 ft',hub:'LATAM/Gol',fact:'Brasília — serves Brazil\'s planned capital city at 3,479 ft on the Central Plateau'},
+  CNF:{icao:'SBCF',elev:2715,tz:'BRT-3',rwys:2,pax:10.8,terminals:1,rwyLen:'9843 ft',hub:'Azul',fact:'Confins — Belo Horizonte\'s airport, Azul Airlines\' key hub in the Minas Gerais highlands'},
+  MDE:{icao:'SKRG',elev:6955,tz:'COT-5',rwys:2,pax:11.0,terminals:2,rwyLen:'11480 ft',hub:'Avianca',fact:'José María Córdova — Medellín\'s airport at 6,955 ft in the Andes, with challenging approaches'},
+  UIO:{icao:'SEQM',elev:7874,tz:'ECT-5',rwys:1,pax:5.4,terminals:1,rwyLen:'13451 ft',hub:'LATAM Ecuador',fact:'Quito Mariscal Sucre — at 7,874 ft with a 13,451 ft runway for high-altitude performance'},
+  MVD:{icao:'SUMU',elev:105,tz:'UYT-3',rwys:2,pax:3.5,terminals:1,rwyLen:'10499 ft',hub:'Amaszonas',fact:'Carrasco — Uruguay\'s gateway, its award-winning Rafael Viñoly terminal opened in 2009'},
+  SJO:{icao:'MROC',elev:3021,tz:'CST-6',rwys:1,pax:7.2,terminals:1,rwyLen:'9882 ft',hub:'Avianca CR',fact:'Juan Santamaría — Costa Rica\'s primary airport, gateway to biodiversity-rich rainforests'},
+};
+
+// ── 初始化本地路由推断引擎 ───────────────────────────────────────────────────
+initRouteInfer(CITIES, AIRPORT_DATA);
+
 function initCityPicker() {
   const overlay = document.getElementById('city-overlay');
   const grid = document.getElementById('city-grid');
@@ -1563,11 +2430,59 @@ function initCityPicker() {
   }
 
   // ── Globe ────────────────────────────────────────────────────────────────
+  // ── Airport info card helpers ─────────────────────────────────────────────
+  const MEGA_HUBS = new Set(['ATL','DFW','DEN','ORD','LAX','JFK','SFO','SEA','LAS','MCO',
+    'CLT','MIA','EWR','BOS','MSP','DTW','IAH','PHX','IAD','PHL','DCA',
+    'LHR','CDG','FRA','AMS','MAD','FCO','BCN','MUC','ZRH','VIE','IST','DME',
+    'DXB','DOH','RUH','SIN','PEK','PVG','HND','NRT','ICN','BKK','HKG','KUL',
+    'CAN','CTU','SZX','DEL','BOM','SYD','MEL','GRU','MEX']);
+  const MAJOR_HUBS = new Set(['PDX','SAN','SLC','TPA','RDU','BWI','MCI','OAK','MSY',
+    'AUS','SMF','SJC','CLE','CMH','OGG','FLL','MDW','HNL','STL','BNA','RSW',
+    'ORY','MXP','LGW','ARN','CPH','HEL','OSL','DUB','LIS','BRU','PRG','BUD','WAW','ATH',
+    'AUH','SVO','LED','CAI','CMN','JNB','CPT','NBO','ADD','LOS','ACC','DAR',
+    'CGK','MNL','TPE','KUL','CCU','KHI','LHE','AKL','PER','ADL','BNE','GRU','GIG','EZE','SCL','LIM','BOG']);
+
+  function getHubTier(city) {
+    if (MEGA_HUBS.has(city.code)) return 'MEGA HUB';
+    if (MAJOR_HUBS.has(city.code)) return 'MAJOR';
+    return 'REGIONAL';
+  }
+
+  function getUtcOffset(lon) {
+    const h = Math.round(lon / 15);
+    return h >= 0 ? `UTC+${h}` : `UTC${h}`;
+  }
+
+  function fmtCoord(lat, lon) {
+    const la = `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}`;
+    const lo = `${Math.abs(lon).toFixed(1)}°${lon >= 0 ? 'E' : 'W'}`;
+    return `${la}  ${lo}`;
+  }
+
+  const infoCard = document.getElementById('airport-info-card');
+  function updateInfoCard(idx) {
+    if (!infoCard) return;
+    if (idx < 0) { infoCard.classList.add('hidden'); return; }
+    const c = CITIES[idx];
+    document.getElementById('aic-iata').textContent = c.code;
+    document.getElementById('aic-name').textContent = c.name;
+    document.getElementById('aic-country').textContent = c.country || '';
+    document.getElementById('aic-coord').textContent = fmtCoord(c.lat, c.lon);
+    document.getElementById('aic-utc').textContent = getUtcOffset(c.lon);
+    const tier = getHubTier(c);
+    const tierEl = document.getElementById('aic-tier');
+    tierEl.textContent = tier;
+    tierEl.className = 'aic-tier-badge aic-tier-' + tier.replace(' ', '-').toLowerCase();
+    infoCard.classList.remove('hidden');
+  }
+
+  // ── Globe ────────────────────────────────────────────────────────────────
   const globeCanvas = document.getElementById('city-globe-canvas');
   if (globeCanvas) {
     _globeView = new GlobeView(globeCanvas, (idx) => {
-      selectCity(idx);
+      focusCity(idx);
     });
+    _globeView.onHover = updateInfoCard;
   }
 
   // ── Search (always visible above grid) ──────────────────────────────────
@@ -1583,6 +2498,99 @@ function initCityPicker() {
   let viewState = 'regions';
   let searchQuery = '';
   let _selectedIdx = -1;
+  let _focusedIdx = -1;
+
+  // ── Detail pane ──────────────────────────────────────────────────────────
+  const detailPane = document.getElementById('city-detail-pane');
+  const cdpSelectBtn = document.getElementById('cdp-select-btn');
+  const cdpBackBtn = document.getElementById('cdp-back');
+
+  function getNearby(idx, n = 4) {
+    const src = CITIES[idx];
+    return CITIES
+      .map((c, i) => ({ c, i, d: haversineKm(src.lat, src.lon, c.lat, c.lon) }))
+      .filter(({ i }) => i !== idx)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, n);
+  }
+
+  function renderDetailPane(idx) {
+    if (!detailPane) return;
+    const c = CITIES[idx];
+    const meta = AIRPORT_DATA[c.code] || {};
+    const tier = getHubTier(c);
+    const tierClass = 'cdp-tier-' + tier.replace(' ', '-').toLowerCase();
+    document.getElementById('cdp-iata').textContent = c.code;
+    document.getElementById('cdp-name').textContent = c.name;
+    document.getElementById('cdp-country-region').textContent = `${c.country || ''}  ·  ${c.region}`;
+    const tierEl = document.getElementById('cdp-tier');
+    tierEl.textContent = tier;
+    tierEl.className = 'cdp-tier ' + tierClass;
+    document.getElementById('cdp-icao').textContent = meta.icao || '—';
+    document.getElementById('cdp-elev').textContent = meta.elev != null ? `${meta.elev.toLocaleString()} ft` : '—';
+    document.getElementById('cdp-rwys').textContent = meta.rwys != null ? meta.rwys : '—';
+    document.getElementById('cdp-tz').textContent = meta.tz || getUtcOffset(c.lon);
+    document.getElementById('cdp-coord').textContent = fmtCoord(c.lat, c.lon);
+    // New extended fields
+    const paxEl = document.getElementById('cdp-pax');
+    if (paxEl) paxEl.textContent = meta.pax != null ? `${meta.pax}M/yr` : '—';
+    const hubEl = document.getElementById('cdp-hub');
+    if (hubEl) hubEl.textContent = meta.hub || '—';
+    const termEl = document.getElementById('cdp-terminals');
+    if (termEl) termEl.textContent = meta.terminals != null ? meta.terminals : '—';
+    const rwyLenEl = document.getElementById('cdp-rwylen');
+    if (rwyLenEl) rwyLenEl.textContent = meta.rwyLen || '—';
+    const factEl = document.getElementById('cdp-fact');
+    if (meta.fact) {
+      factEl.textContent = `"${meta.fact}"`;
+      factEl.classList.remove('hidden');
+    } else {
+      factEl.classList.add('hidden');
+    }
+    // Nearby airports
+    const nearbyEl = document.getElementById('cdp-nearby');
+    const nearby = getNearby(idx, 4);
+    nearbyEl.innerHTML = nearby.map(({ c: nc, i, d }) =>
+      `<div class="cdp-nearby-item" data-idx="${i}">
+        <span class="cdp-nearby-code">${nc.code}</span>
+        <span class="cdp-nearby-name">${nc.name}</span>
+        <span class="cdp-nearby-dist">${Math.round(d)} km</span>
+      </div>`
+    ).join('');
+    nearbyEl.querySelectorAll('.cdp-nearby-item').forEach(el => {
+      el.addEventListener('click', () => focusCity(+el.dataset.idx));
+    });
+  }
+
+  function showDetailPane() {
+    if (!detailPane) return;
+    searchWrap.style.display = 'none';
+    grid.style.display = 'none';
+    detailPane.classList.remove('hidden');
+  }
+
+  function hideDetailPane() {
+    if (!detailPane) return;
+    detailPane.classList.add('hidden');
+    searchWrap.style.display = '';
+    grid.style.display = '';
+    _globeView?.setFocused(-1);
+    updateInfoCard(-1);
+    _focusedIdx = -1;
+  }
+
+  function focusCity(idx) {
+    _focusedIdx = idx;
+    renderDetailPane(idx);
+    showDetailPane();
+    _globeView?.setFocused(idx);
+    updateInfoCard(idx);
+  }
+
+  if (cdpBackBtn) cdpBackBtn.addEventListener('click', hideDetailPane);
+  if (cdpSelectBtn) cdpSelectBtn.addEventListener('click', () => {
+    if (_focusedIdx >= 0) selectCity(_focusedIdx);
+  });
 
   function selectCity(idx) {
     _selectedIdx = idx;
@@ -1634,7 +2642,7 @@ function initCityPicker() {
          ${airports.map(({ c, i }) =>
            `<div class="city-list-item${i === _selectedIdx ? ' active' : ''}" data-idx="${i}">
               <span class="cli-code">${c.code}</span>
-              <span class="cli-name">${c.name}</span>
+              <div class="cli-info"><span class="cli-name">${c.name}</span><span class="cli-country">${c.country || ''}</span></div>
               <span class="cli-chevron">›</span>
             </div>`
          ).join('')}
@@ -1651,7 +2659,7 @@ function initCityPicker() {
     viewState = 'search';
     _globeView?.setFilter('All', q);
     const matches = CITIES.map((c, i) => ({ c, i }))
-      .filter(({ c }) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().startsWith(q));
+      .filter(({ c }) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().startsWith(q) || (c.country && c.country.toLowerCase().includes(q)));
     if (!matches.length) {
       grid.innerHTML = `<div class="city-no-results">No airports found</div>`;
       return;
@@ -1661,7 +2669,7 @@ function initCityPicker() {
          ${matches.map(({ c, i }) =>
            `<div class="city-list-item${i === _selectedIdx ? ' active' : ''}" data-idx="${i}">
               <span class="cli-code">${c.code}</span>
-              <span class="cli-name">${c.name}</span>
+              <div class="cli-info"><span class="cli-name">${c.name}</span><span class="cli-country">${c.country || ''}</span></div>
               <span class="cli-chevron">›</span>
             </div>`
          ).join('')}
@@ -1674,12 +2682,19 @@ function initCityPicker() {
     if (!el) return;
     el.addEventListener('mouseover', e => {
       const item = e.target.closest('.city-list-item');
-      if (item && _globeView) _globeView.hoveredIdx = +item.dataset.idx;
+      if (item) {
+        const idx = +item.dataset.idx;
+        if (_globeView) _globeView.hoveredIdx = idx;
+        updateInfoCard(idx);
+      }
     });
-    el.addEventListener('mouseleave', () => { if (_globeView) _globeView.hoveredIdx = -1; });
+    el.addEventListener('mouseleave', () => {
+      if (_globeView) _globeView.hoveredIdx = -1;
+      updateInfoCard(-1);
+    });
     el.addEventListener('click', e => {
       const item = e.target.closest('.city-list-item');
-      if (item) selectCity(+item.dataset.idx);
+      if (item) focusCity(+item.dataset.idx);
     });
   }
 

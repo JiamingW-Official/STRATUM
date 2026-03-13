@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { getTrack, getTrackVersion, getRoute } from '../data/opensky.js';
 import { getAircraftSpecs } from '../data/aircraftDb.js';
 import { getAircraftMeta, queueHexLookup } from '../data/hexdb.js';
+import { triggerInference, getInferredRoute } from '../data/routeInfer.js';
 
 const METERS_TO_FEET = 3.28084;
 const MS_TO_KMH = 3.6;
@@ -1316,6 +1317,8 @@ class AircraftObject {
   getDisplayData() {
     const altFt = this.data.baroAltitude != null
       ? Math.round(this.data.baroAltitude * METERS_TO_FEET) : null;
+    const geoAltFt = this.data.geoAltitude != null
+      ? Math.round(this.data.geoAltitude * METERS_TO_FEET) : null;
     const speedKmh = this.data.velocity != null
       ? Math.round(this.data.velocity * MS_TO_KMH) : null;
     const vsFtMin = this.data.verticalRate != null
@@ -1337,12 +1340,101 @@ class AircraftObject {
     // Operator: prefer API data, fallback to hexdb
     const operator = this.data.operator || (meta && meta.operator) || null;
 
-    // Route: prefer API oa/da, then adsbdb route cache (has city names)
+    // Route: prefer API oa/da, then route cache, then local inference
     const route = getRoute(this.data.callsign);
-    const origin = this.data.origin || (route && route.origin) || null;
-    const destination = this.data.destination || (route && route.destination) || null;
-    const originCity = (route && route.originCity) || null;
-    const destCity   = (route && route.destCity)   || null;
+    let origin = this.data.origin || (route && route.origin) || null;
+    let destination = this.data.destination || (route && route.destination) || null;
+    let originCity = (route && route.originCity) || null;
+    let destCity   = (route && route.destCity)   || null;
+    let routeEstimated = false;
+
+    // Fallback: local trajectory-based inference (no external API)
+    if (!origin || !destination) {
+      const inferred = getInferredRoute(this.data.icao24, this.data.callsign);
+      if (inferred) {
+        if (!origin && inferred.origin) {
+          origin = inferred.origin;
+          routeEstimated = true;
+          // Try to resolve city name from local lookup
+          if (!originCity && typeof window._findCityByCode === 'function') {
+            const c = window._findCityByCode(origin);
+            if (c) originCity = c.name;
+          }
+        }
+        if (!destination && inferred.destination) {
+          destination = inferred.destination;
+          routeEstimated = true;
+          if (!destCity && typeof window._findCityByCode === 'function') {
+            const c = window._findCityByCode(destination);
+            if (c) destCity = c.name;
+          }
+        }
+      }
+    }
+
+    // Ground speed in knots (from API)
+    const gsKts = this.data.groundSpeed != null ? Math.round(this.data.groundSpeed) : null;
+
+    // IAS / TAS from API (knots)
+    const ias = this.data.ias != null ? Math.round(this.data.ias) : null;
+    const tas = this.data.tas != null ? Math.round(this.data.tas) : null;
+
+    // Mach from API (direct from transponder)
+    const mach = this.data.mach != null ? this.data.mach.toFixed(3) : null;
+
+    // Squawk code
+    const squawk = this.data.squawk || null;
+
+    // Signal strength (RSSI)
+    const rssi = this.data.rssi != null ? this.data.rssi.toFixed(1) : null;
+
+    // Navigation altitude (autopilot selected altitude)
+    const navAlt = this.data.navAltitude != null ? Math.round(this.data.navAltitude * METERS_TO_FEET) : null;
+    const navHdg = this.data.navHeading != null ? Math.round(this.data.navHeading) : null;
+
+    // Emergency status
+    const emergency = this.data.emergency || null;
+
+    // Wake turbulence category — derive from aircraft type specs
+    let wakeCat = null;
+    if (specs) {
+      if (specs.pax >= 400 || specs.name === 'A380-800') wakeCat = 'SUPER';
+      else if (specs.pax >= 200 || (specs.range >= 5000 && specs.pax >= 100)) wakeCat = 'HEAVY';
+      else if (specs.pax >= 50) wakeCat = 'MEDIUM';
+      else wakeCat = 'LIGHT';
+    } else if (this.data.category) {
+      // ADS-B category: A1=Light, A2=Small, A3=Large, A4=HighVortex, A5=Heavy, A6=HighPerf
+      const cat = this.data.category;
+      if (cat === 'A5' || cat === 'A6') wakeCat = 'HEAVY';
+      else if (cat === 'A3' || cat === 'A4') wakeCat = 'MEDIUM';
+      else if (cat === 'A1' || cat === 'A2') wakeCat = 'LIGHT';
+    }
+
+    // Flight phase — detailed derivation
+    let flightPhase = 'EN ROUTE';
+    if (this.data.onGround) {
+      flightPhase = 'ON GROUND';
+    } else if (altFt != null && vsFtMin != null) {
+      if (altFt < 500) flightPhase = vsFtMin < -200 ? 'LANDING' : 'TAKEOFF';
+      else if (altFt < 3000 && vsFtMin > 300) flightPhase = 'INITIAL CLIMB';
+      else if (altFt < 10000 && vsFtMin > 200) flightPhase = 'CLIMB';
+      else if (altFt < 10000 && vsFtMin < -300) flightPhase = 'APPROACH';
+      else if (altFt >= 10000 && vsFtMin > 200) flightPhase = 'CLIMB';
+      else if (altFt >= 10000 && vsFtMin < -200) flightPhase = 'DESCENT';
+      else flightPhase = 'CRUISE';
+    }
+
+    // Distance to destination (if we have both current coords and destination airport)
+    let distToDest = null;
+    if (destination && this.data.latitude != null && this.data.longitude != null) {
+      // Look up destination airport coordinates from CITIES (imported via global)
+      const destApt = typeof _findCityByCode === 'function' ? _findCityByCode(destination) : null;
+      if (destApt) {
+        distToDest = Math.round(haversineDistance(
+          this.data.latitude, this.data.longitude, destApt.lat, destApt.lon
+        ));
+      }
+    }
 
     return {
       callsign: this.data.callsign || this.data.icao24,
@@ -1370,6 +1462,23 @@ class AircraftObject {
       typeDesc: this.data.typeDesc || (meta && meta.typeName) || null,
       _rawAlt: this.data.baroAltitude,
       _rawSpd: this.data.velocity,
+      // New detailed fields
+      geoAltFt,
+      gsKts,
+      ias,
+      tas,
+      mach,
+      squawk,
+      rssi,
+      navAlt,
+      navHdg,
+      emergency,
+      wakeCat,
+      flightPhase,
+      distToDest,
+      onGround: this.data.onGround,
+      category: this.data.category,
+      routeEstimated,
     };
   }
 }

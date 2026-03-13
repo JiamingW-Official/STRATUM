@@ -1,4 +1,5 @@
 import { getAirportCity } from './airportCities.js';
+import { batchUpdate as inferBatchUpdate, cleanupStale as inferCleanup } from './routeInfer.js';
 
 // Position APIs (proxied — no CORS from browser)
 // Primary: adsb.fi (/api/v2/lat/{lat}/lon/{lon}/dist/{nm})
@@ -72,6 +73,15 @@ function parseAircraft(ac) {
     operator: ac.ownOp || null,
     year: ac.year || null,
     typeDesc: ac.desc || null,
+    squawk: ac.squawk || null,
+    rssi: ac.rssi != null ? ac.rssi : null,
+    navAltitude: ac.nav_altitude != null ? ac.nav_altitude * 0.3048 : null,
+    navHeading: ac.nav_heading != null ? ac.nav_heading : null,
+    ias: ac.ias != null ? ac.ias : null,
+    tas: ac.tas != null ? ac.tas : null,
+    mach: ac.mach != null ? ac.mach : null,
+    emergency: ac.emergency || null,
+    groundSpeed: ac.gs != null ? ac.gs : null,
   };
 }
 
@@ -250,15 +260,23 @@ async function poll() {
       });
     }
 
+    // Feed position data to the local route inference engine
+    inferBatchUpdate(aircraft);
+
     // Queue trace fetches for aircraft that don't have cached tracks
+    const activeIcaoSet = new Set();
     for (const ac of aircraft) {
       if (ac.icao24) {
+        activeIcaoSet.add(ac.icao24);
         const cached = trackCache.get(ac.icao24);
         if (!cached || Date.now() - cached.fetchedAt > TRACK_CACHE_TTL) {
           queueTraceFetch(ac.icao24);
         }
       }
     }
+
+    // Periodic cleanup of stale inference data
+    inferCleanup(activeIcaoSet);
   } catch (err) {
     consecutiveErrors++;
     console.error('[Data] Fetch error:', err.message, `(${consecutiveErrors})`);

@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/assets/index-Bisem5xF.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-DaQbmzy3.css">
+  <script type="module" crossorigin src="/assets/index-BJOJIsGl.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-Dxep3qSd.css">
 </head>
 <body>
   <canvas id="scene"></canvas>
@@ -64,6 +64,20 @@
       </div>
       <button type="button" id="detail-close" class="detail-close" aria-label="Close">&times;</button>
     </div>
+    <!-- Route banner -->
+    <div id="detail-route" class="detail-route hidden">
+      <div class="detail-route-from">
+        <div id="detail-origin-code" class="detail-route-code">---</div>
+        <div id="detail-origin-city" class="detail-route-city">--</div>
+      </div>
+      <div class="detail-route-arrow">
+        <svg width="32" height="12" viewBox="0 0 32 12"><path d="M0 6h28m-4-4l4 4-4 4" stroke="rgba(196,160,88,0.5)" stroke-width="1" fill="none"/></svg>
+      </div>
+      <div class="detail-route-to">
+        <div id="detail-dest-code" class="detail-route-code">---</div>
+        <div id="detail-dest-city" class="detail-route-city">--</div>
+      </div>
+    </div>
     <div class="hud-divider"></div>
     <div class="detail-grid">
       <div class="detail-cell">
@@ -71,7 +85,7 @@
         <div id="detail-alt" class="detail-value">--</div>
       </div>
       <div class="detail-cell">
-        <div class="detail-label">SPD</div>
+        <div class="detail-label">GS</div>
         <div id="detail-spd" class="detail-value">--</div>
       </div>
       <div class="detail-cell">
@@ -81,6 +95,25 @@
       <div class="detail-cell">
         <div class="detail-label">V/S</div>
         <div id="detail-vs" class="detail-value">--</div>
+      </div>
+    </div>
+    <!-- Extended flight data row -->
+    <div id="detail-ext-grid" class="detail-grid detail-grid-ext hidden">
+      <div class="detail-cell">
+        <div class="detail-label">IAS</div>
+        <div id="detail-ias" class="detail-value">--</div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">TAS</div>
+        <div id="detail-tas" class="detail-value">--</div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">MACH</div>
+        <div id="detail-mach" class="detail-value">--</div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">GALT</div>
+        <div id="detail-geoalt" class="detail-value">--</div>
       </div>
     </div>
     <div class="hud-divider"></div>
@@ -97,6 +130,49 @@
       </div>
     </div>
     <div id="detail-specs-divider" class="hud-divider hidden"></div>
+    <!-- Transponder & navigation section -->
+    <div id="detail-xpdr" class="detail-xpdr hidden">
+      <div class="detail-meta-row">
+        <span class="detail-meta-label">SQUAWK</span>
+        <span id="detail-squawk" class="detail-meta-value">--</span>
+      </div>
+      <div id="detail-wake-row" class="detail-meta-row hidden">
+        <span class="detail-meta-label">WAKE</span>
+        <span id="detail-wake" class="detail-meta-value">--</span>
+      </div>
+      <div id="detail-phase-row" class="detail-meta-row">
+        <span class="detail-meta-label">PHASE</span>
+        <span id="detail-phase" class="detail-meta-value">--</span>
+      </div>
+      <div id="detail-navalt-row" class="detail-meta-row hidden">
+        <span class="detail-meta-label">SEL ALT</span>
+        <span id="detail-navalt" class="detail-meta-value">--</span>
+      </div>
+      <div id="detail-navhdg-row" class="detail-meta-row hidden">
+        <span class="detail-meta-label">SEL HDG</span>
+        <span id="detail-navhdg" class="detail-meta-value">--</span>
+      </div>
+      <div id="detail-rssi-row" class="detail-meta-row hidden">
+        <span class="detail-meta-label">RSSI</span>
+        <span id="detail-rssi" class="detail-meta-value">--</span>
+      </div>
+    </div>
+    <div id="detail-xpdr-divider" class="hud-divider hidden"></div>
+    <!-- Position section -->
+    <div id="detail-position" class="detail-position hidden">
+      <div class="detail-meta-row">
+        <span class="detail-meta-label">POS</span>
+        <span id="detail-pos" class="detail-meta-value">--</span>
+      </div>
+      <div class="detail-meta-row">
+        <span class="detail-meta-label">COUNTRY</span>
+        <span id="detail-country" class="detail-meta-value">--</span>
+      </div>
+      <div id="detail-dtd-row" class="detail-meta-row hidden">
+        <span class="detail-meta-label">TO DEST</span>
+        <span id="detail-dtd" class="detail-meta-value">--</span>
+      </div>
+    </div>
     <div class="detail-meta">
       <div class="detail-meta-row">
         <span class="detail-meta-label">ICAO</span>
@@ -148,14 +224,14 @@
   <!-- Search bar — bottom center -->
   <div id="search-bar" class="glass-panel search-bar">
     <input id="search-input" type="text"
-      placeholder="Search callsign, reg, type..."
+      placeholder="Callsign, registration, ICAO type..."
       autocomplete="off" spellcheck="false"
       aria-label="Search aircraft" />
     <span class="search-kbd-hint">/ search</span>
     <div id="search-results" class="search-results" role="listbox" aria-label="Search results"></div>
   </div>
 
-  <div class="search-hint">? help &nbsp;·&nbsp; / search &nbsp;·&nbsp; click to track &nbsp;·&nbsp; T tour &nbsp;·&nbsp; C airspace</div>
+  <div class="search-hint">? HELP &nbsp;·&nbsp; / SEARCH &nbsp;·&nbsp; CLICK IDENT &nbsp;·&nbsp; T TOUR &nbsp;·&nbsp; C FIR</div>
 
   <!-- City picker overlay -->
   <div id="city-overlay" class="city-overlay hidden" role="dialog" aria-label="Select airspace">
@@ -163,7 +239,7 @@
       <div class="city-overlay-header">
         <div>
           <div class="city-overlay-title">SELECT AIRSPACE</div>
-          <div class="city-overlay-sub">400 airports · live ADS-B</div>
+          <div class="city-overlay-sub">603 airports · live ADS-B</div>
         </div>
         <button type="button" id="city-overlay-close" class="detail-close" aria-label="Close">&times;</button>
       </div>
@@ -172,9 +248,64 @@
         <div class="city-globe-pane">
           <canvas id="city-globe-canvas" class="city-globe-canvas"></canvas>
           <div class="city-globe-hint">drag · click to select</div>
+          <!-- Airport info card — shown on hover -->
+          <div id="airport-info-card" class="airport-info-card hidden">
+            <div class="aic-iata" id="aic-iata">---</div>
+            <div class="aic-name" id="aic-name">--</div>
+            <div class="aic-country" id="aic-country">--</div>
+            <div class="aic-divider"></div>
+            <div class="aic-meta">
+              <div class="aic-meta-row">
+                <span class="aic-meta-label">COORD</span>
+                <span id="aic-coord" class="aic-meta-value">--</span>
+              </div>
+              <div class="aic-meta-row">
+                <span class="aic-meta-label">UTC</span>
+                <span id="aic-utc" class="aic-meta-value">--</span>
+              </div>
+            </div>
+            <div id="aic-tier" class="aic-tier-badge">--</div>
+          </div>
         </div>
         <div class="city-list-pane">
           <div id="city-grid" class="city-grid"></div>
+          <!-- Airport detail pane — shown when airport is focused -->
+          <div id="city-detail-pane" class="city-detail-pane hidden">
+            <div class="cdp-topbar">
+              <button type="button" id="cdp-back" class="cdp-back-btn">← ALL AIRPORTS</button>
+            </div>
+            <div class="cdp-hero">
+              <div id="cdp-iata" class="cdp-iata">---</div>
+              <div id="cdp-name" class="cdp-name">--</div>
+              <div id="cdp-country-region" class="cdp-country-region">--</div>
+              <div id="cdp-tier" class="cdp-tier">--</div>
+            </div>
+            <div class="hud-divider"></div>
+            <div class="cdp-stats-grid">
+              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-icao">--</div><div class="cdp-stat-lbl">ICAO</div></div>
+              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-elev">--</div><div class="cdp-stat-lbl">ELEVATION</div></div>
+              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-rwys">--</div><div class="cdp-stat-lbl">RUNWAYS</div></div>
+              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-tz">--</div><div class="cdp-stat-lbl">TIMEZONE</div></div>
+            </div>
+            <div class="cdp-stats-grid cdp-stats-ext">
+              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-pax">--</div><div class="cdp-stat-lbl">PAX</div></div>
+              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-terminals">--</div><div class="cdp-stat-lbl">TERMINALS</div></div>
+              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-rwylen">--</div><div class="cdp-stat-lbl">LONGEST RWY</div></div>
+              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-hub">--</div><div class="cdp-stat-lbl">HUB FOR</div></div>
+            </div>
+            <div class="hud-divider"></div>
+            <div class="cdp-coord-row">
+              <span class="cdp-coord-label">COORD</span>
+              <span id="cdp-coord" class="cdp-coord-val">--</span>
+            </div>
+            <div id="cdp-fact" class="cdp-fact hidden"></div>
+            <div class="hud-divider"></div>
+            <div class="cdp-nearby-title">NEAREST AIRPORTS</div>
+            <div id="cdp-nearby" class="cdp-nearby"></div>
+            <div class="cdp-cta-wrap">
+              <button type="button" id="cdp-select-btn" class="cdp-select-btn">SELECT AIRSPACE ›</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -186,15 +317,15 @@
       <div class="help-title">Controls</div>
       <div class="hud-divider"></div>
       <div class="help-grid">
-        <div class="help-row"><kbd>WASD</kbd><span>Pan camera</span></div>
-        <div class="help-row"><kbd>Q / E</kbd><span>Lower / raise altitude</span></div>
-        <div class="help-row"><kbd>Shift</kbd><span>Sprint</span></div>
-        <div class="help-row"><kbd>Click</kbd><span>Track aircraft</span></div>
-        <div class="help-row"><kbd>Scroll</kbd><span>Zoom</span></div>
+        <div class="help-row"><kbd>WASD</kbd><span>Pan — vector camera heading</span></div>
+        <div class="help-row"><kbd>Q / E</kbd><span>Descend / climb altitude</span></div>
+        <div class="help-row"><kbd>Shift</kbd><span>Afterburner — sprint mode</span></div>
+        <div class="help-row"><kbd>Click</kbd><span>Squawk ident — track aircraft</span></div>
+        <div class="help-row"><kbd>Scroll</kbd><span>Zoom — adjust range</span></div>
         <div class="help-row"><kbd>/</kbd><span>Search · ↑↓ navigate · Enter select</span></div>
-        <div class="help-row"><kbd>T</kbd><span>Auto-tour random aircraft</span></div>
-        <div class="help-row"><kbd>C</kbd><span>Switch city / airspace</span></div>
-        <div class="help-row"><kbd>Esc</kbd><span>Exit track / search / tour</span></div>
+        <div class="help-row"><kbd>T</kbd><span>Auto-tour — random traffic watch</span></div>
+        <div class="help-row"><kbd>C</kbd><span>Switch FIR / airspace</span></div>
+        <div class="help-row"><kbd>Esc</kbd><span>Disengage track / cancel</span></div>
         <div class="help-row"><kbd>?</kbd><span>Toggle this overlay</span></div>
       </div>
       <div class="hud-divider"></div>
@@ -254,6 +385,59 @@
       </div>
       <span id="neko-badge" class="neko-badge hidden" aria-label="unread messages"></span>
     </button>
+  </div>
+
+  <!-- Airport Info Widget — shown when airport clicked on 3D map -->
+  <div id="airport-widget" class="airport-widget hidden" role="dialog">
+    <div class="aw-header">
+      <div class="aw-codes">
+        <span id="aw-iata" class="aw-iata">---</span>
+        <span id="aw-icao" class="aw-icao">----</span>
+      </div>
+      <button type="button" id="aw-close" class="aw-close" aria-label="Close">&times;</button>
+    </div>
+    <div id="aw-name" class="aw-name">--</div>
+    <div class="aw-divider"></div>
+    <div class="aw-stats">
+      <div class="aw-stat">
+        <div id="aw-arrivals" class="aw-stat-val">0</div>
+        <div class="aw-stat-lbl">ARR</div>
+      </div>
+      <div class="aw-stat">
+        <div id="aw-departures" class="aw-stat-val">0</div>
+        <div class="aw-stat-lbl">DEP</div>
+      </div>
+      <div class="aw-stat">
+        <div id="aw-elev" class="aw-stat-val">--</div>
+        <div class="aw-stat-lbl">ELEV</div>
+      </div>
+      <div class="aw-stat">
+        <div id="aw-rwys" class="aw-stat-val">--</div>
+        <div class="aw-stat-lbl">RWYS</div>
+      </div>
+    </div>
+    <div class="aw-stats aw-stats-ext">
+      <div class="aw-stat">
+        <div id="aw-pax" class="aw-stat-val">--</div>
+        <div class="aw-stat-lbl">PAX/YR</div>
+      </div>
+      <div class="aw-stat">
+        <div id="aw-hub" class="aw-stat-val">--</div>
+        <div class="aw-stat-lbl">HUB</div>
+      </div>
+    </div>
+    <div class="aw-divider"></div>
+    <div class="aw-meta">
+      <div class="aw-meta-row">
+        <span class="aw-meta-label">COORD</span>
+        <span id="aw-coord" class="aw-meta-val">--</span>
+      </div>
+      <div class="aw-meta-row">
+        <span class="aw-meta-label">FREQ</span>
+        <span id="aw-freq" class="aw-meta-val">--</span>
+      </div>
+    </div>
+    <div id="aw-fact" class="aw-fact hidden"></div>
   </div>
 
   <!-- Aircraft hover tooltip -->
