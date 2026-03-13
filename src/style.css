@@ -1251,15 +1251,17 @@ html, body {
 .city-overlay.hidden { display: none; }
 
 .city-overlay-content {
-  width: min(600px, calc(100vw - 40px));
-  max-height: calc(100vh - 80px);
-  overflow-y: auto;
+  width: min(880px, calc(100vw - 40px));
+  max-height: calc(100vh - 60px);
+  overflow: hidden;
+  display: flex; flex-direction: column;
   padding: 0;
 }
 
 .city-overlay-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   padding: 18px 20px 14px;
+  flex-shrink: 0;
 }
 
 .city-overlay-title {
@@ -1276,39 +1278,68 @@ html, body {
   color: var(--text-3); text-transform: uppercase;
 }
 
-/* Region-grouped layout */
+/* Controls bar (search + tabs) — fixed above scrollable cards */
+.city-controls {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 20px 10px;
+}
+
+.city-search-wrap { margin-bottom: 8px; }
+
+.city-search-input {
+  width: 100%; box-sizing: border-box;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(196,160,88,0.18);
+  border-radius: var(--r);
+  color: var(--text);
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 8px 12px; outline: none;
+  transition: border-color 0.15s;
+}
+.city-search-input::placeholder { color: var(--text-3); }
+.city-search-input:focus { border-color: rgba(196,160,88,0.45); }
+
+/* Region tabs */
+.city-region-tabs {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+
+.city-tab {
+  font-family: var(--font-mono); font-size: 8px;
+  letter-spacing: 1.5px; font-weight: 500;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text-3); cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.city-tab:hover { color: var(--text); border-color: rgba(196,160,88,0.18); }
+.city-tab.active {
+  background: rgba(196,160,88,0.08);
+  border-color: rgba(196,160,88,0.3);
+  color: var(--accent);
+}
+
+/* Cards container — scrollable */
 .city-grid {
-  display: flex; flex-direction: column;
-  padding: 4px 0 8px;
-}
-
-.city-region-block {
-  padding: 12px 20px 8px;
-}
-.city-region-block + .city-region-block {
-  border-top: 1px solid var(--border);
-}
-
-.city-region-label {
-  font-family: var(--font-mono);
-  font-size: 7px; letter-spacing: 2px;
-  color: var(--text-3); text-transform: uppercase;
-  margin-bottom: 10px;
-}
-
-.city-region-row {
-  display: flex; flex-wrap: wrap; gap: 6px;
+  overflow-y: auto; flex: 1 1 auto;
+  padding: 8px 20px 12px;
+  display: flex; flex-wrap: wrap; gap: 5px;
+  align-content: flex-start;
 }
 
 .city-card {
   display: flex; flex-direction: column; gap: 2px;
-  padding: 9px 14px 10px;
+  padding: 8px 12px 9px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
   border-radius: var(--r);
   cursor: pointer; text-align: left;
   transition: background 0.12s ease, border-color 0.12s ease;
-  min-width: 72px;
+  min-width: 66px;
 }
 .city-card:hover {
   background: rgba(196, 160, 88, 0.07);
@@ -1323,10 +1354,11 @@ html, body {
   border-color: rgba(196, 160, 88, 0.25);
 }
 .city-card.active .city-card-code { color: var(--accent); }
+.city-card[hidden] { display: none; }
 
 .city-card-code {
   font-family: var(--font-mono);
-  font-size: 14px; font-weight: 400;
+  font-size: 13px; font-weight: 400;
   color: var(--text); letter-spacing: 0.5px;
   line-height: 1; transition: color 0.12s;
 }
@@ -1335,6 +1367,13 @@ html, body {
   font-family: var(--font-sans);
   font-size: 9px; color: var(--text-3);
   line-height: 1.2; white-space: nowrap;
+}
+
+/* No-results message */
+.city-no-results {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--text-3); letter-spacing: 1px;
+  padding: 24px 0; width: 100%; text-align: center;
 }
 
 /* ── Responsive ── */
