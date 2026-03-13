@@ -10,8 +10,8 @@ const ADSBX_BASE     = '/api/adsbx/v2';
 const OPENSKY_BASE   = '/api/opensky';
 const ADSBDB_BASE    = '/api/adsbdb/v0';
 const TRACE_BASE     = '/api/trace/data/traces';
-const FETCH_TIMEOUT_MS = 6000;
-const POLL_INTERVAL  = 3000;   // 3s — stays within user's 4s budget, avoids 429
+const FETCH_TIMEOUT_MS = 8000;
+const POLL_INTERVAL  = 4000;   // 4s — generous interval to avoid 429s
 const BBOX_RADIUS_NM = 100;
 
 let userLat = 40.7128;
@@ -153,7 +153,7 @@ async function fetchTraceAsync(icao24) {
     // URL format: /data/traces/{last2hex}/trace_full_{hex}.json
     const suffix = icao24.slice(-2);
     const url = `${TRACE_BASE}/${suffix}/trace_full_${icao24}.json`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!response.ok) return;
 
     const data = await response.json();
@@ -211,9 +211,9 @@ function queueTraceFetch(icao24) {
   traceQueueBatch.push(icao24);
 
   if (!traceBatchTimer) {
-    // Fire first batch immediately, then continue every 250ms — 8 per batch for fast loading
+    // Fire first batch immediately, then continue every 500ms — 4 per batch
     const processBatch = () => {
-      const batch = traceQueueBatch.splice(0, 8);
+      const batch = traceQueueBatch.splice(0, 4);
       if (batch.length === 0) {
         clearInterval(traceBatchTimer);
         traceBatchTimer = null;
@@ -222,7 +222,7 @@ function queueTraceFetch(icao24) {
       for (const hex of batch) fetchTraceAsync(hex);
     };
     processBatch();
-    traceBatchTimer = setInterval(processBatch, 250);
+    traceBatchTimer = setInterval(processBatch, 500);
   }
 }
 
@@ -244,8 +244,8 @@ export function priorityTraceFetch(icao24) {
 }
 
 async function poll() {
-  // Safety: force-reset if a previous poll has been stuck for >5s
-  if (pollInFlight && Date.now() - _pollStarted > 5000) pollInFlight = false;
+  // Safety: force-reset if a previous poll has been stuck for >10s
+  if (pollInFlight && Date.now() - _pollStarted > 10000) pollInFlight = false;
   if (pollInFlight) return;
   if (Date.now() < _adsbFiPausedUntil && Date.now() < _adsbOnePausedUntil) return;
   pollInFlight = true;

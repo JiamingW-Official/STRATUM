@@ -4094,8 +4094,8 @@ async function init() {
 
   animate();
 
-  // Background-prefetch airport data for all cities after 5s
-  setTimeout(() => prefetchAirportData(CITIES), 5000);
+  // Background-prefetch airport data after initial load settles (15s)
+  setTimeout(() => prefetchAirportData(CITIES), 15000);
 }
 
 init();

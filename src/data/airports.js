@@ -257,7 +257,7 @@ export function categorizeFlights(aircraftList, airport, allRunways) {
 /**
  * Background-prefetch airport data for a list of cities.
  * Only fetches cities that aren't already in localStorage cache.
- * Staggers requests to avoid hammering Overpass.
+ * Uses a single sequential stream with generous delays to avoid 429s.
  * @param {Array<{lat:number, lon:number}>} cities
  */
 export function prefetchAirportData(cities) {
@@ -265,14 +265,43 @@ export function prefetchAirportData(cities) {
   if (uncached.length === 0) return;
   console.log(`[STRATUM] Prefetching airport data for ${uncached.length} cities`);
   let i = 0;
+  let backoff = 3000; // start with 3s between requests
   const next = () => {
     if (i >= uncached.length) return;
     const c = uncached[i++];
-    _fetchFromOverpass(c.lat, c.lon, 1.2)
-      .then(() => setTimeout(next, 800))
-      .catch(() => setTimeout(next, 400));
+    _prefetchSingle(c.lat, c.lon)
+      .then(() => { backoff = 3000; setTimeout(next, backoff); })
+      .catch(() => { backoff = Math.min(backoff * 2, 30000); setTimeout(next, backoff); });
   };
-  // Start 2 parallel prefetch streams
   next();
-  setTimeout(next, 400);
+}
+
+// Prefetch uses a single random endpoint to avoid hammering all three
+async function _prefetchSingle(lat, lon) {
+  const cached = _loadFromCache(lat, lon);
+  if (cached) return cached;
+
+  const ep = OVERPASS_ENDPOINTS[Math.floor(Math.random() * OVERPASS_ENDPOINTS.length)];
+  const south = (lat - 1.2).toFixed(4), north = (lat + 1.2).toFixed(4);
+  const west = (lon - 1.2).toFixed(4), east = (lon + 1.2).toFixed(4);
+  const query = `[out:json][timeout:15];(way["aeroway"="runway"](${south},${west},${north},${east});way["aeroway"="taxiway"](${south},${west},${north},${east});way["aeroway"="terminal"](${south},${west},${north},${east});way["building"]["aeroway"](${south},${west},${north},${east});node["aeroway"="aerodrome"](${south},${west},${north},${east});way["aeroway"="aerodrome"](${south},${west},${north},${east});relation["aeroway"="aerodrome"](${south},${west},${north},${east}););out body geom;`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const res = await fetch(ep, {
+      method: 'POST', body: `data=${encodeURIComponent(query)}`,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (res.status === 429) throw new Error('429');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const result = parseOverpassData(data);
+    _saveToCache(lat, lon, result);
+    return result;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
 }
