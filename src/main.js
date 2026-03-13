@@ -1546,148 +1546,166 @@ function initCityPicker() {
   const hudCityBtn = document.getElementById('hud-city-btn');
   if (!overlay || !grid) return;
 
+  // ── Region metadata ────────────────────────────────────────────────────
+  const REGION_CENTERS = {
+    'Americas':    { lat: 12,  lon: -88 },
+    'Europe':      { lat: 52,  lon: 12  },
+    'Middle East': { lat: 26,  lon: 48  },
+    'Africa':      { lat: 4,   lon: 22  },
+    'Asia':        { lat: 22,  lon: 100 },
+    'Pacific':     { lat: -28, lon: 148 },
+  };
+  const regionOrder = [];
+  const regionCounts = {};
+  for (const c of CITIES) {
+    if (!regionCounts[c.region]) { regionCounts[c.region] = 0; regionOrder.push(c.region); }
+    regionCounts[c.region]++;
+  }
+
   // ── Globe ────────────────────────────────────────────────────────────────
   const globeCanvas = document.getElementById('city-globe-canvas');
   if (globeCanvas) {
     _globeView = new GlobeView(globeCanvas, (idx) => {
-      // Globe click → select city
-      const city = CITIES[idx];
-      markActive(idx);
-      overlay.classList.add('hidden');
-      _globeView.pause();
-      localStorage.setItem('stratum:city-picked', '1');
-      if (hudCityBtn) hudCityBtn.classList.remove('nudge');
-      switchCity(city);
+      selectCity(idx);
     });
   }
 
-  // ── Search + tabs (injected into .city-list-pane before #city-grid) ─────
-  const regionOrder = ['All'];
-  const seen = new Set();
-  for (const c of CITIES) {
-    if (!seen.has(c.region)) { seen.add(c.region); regionOrder.push(c.region); }
-  }
-
-  const controls = document.createElement('div');
-  controls.className = 'city-controls';
-  controls.innerHTML =
-    `<div class="city-search-wrap">
-       <input id="city-search-input" class="city-search-input" type="text"
-         placeholder="Search city or code..." autocomplete="off" spellcheck="false">
-     </div>
-     <div class="city-region-tabs" id="city-region-tabs">
-       ${regionOrder.map(r =>
-         `<button type="button" class="city-tab${r === 'All' ? ' active' : ''}" data-region="${r}">${r === 'All' ? 'ALL' : r.toUpperCase()}</button>`
-       ).join('')}
-     </div>`;
-  grid.parentElement.insertBefore(controls, grid);
-
-  // ── Cards ─────────────────────────────────────────────────────────────────
-  grid.innerHTML =
-    CITIES.map((c, idx) =>
-      `<button type="button" class="city-card" data-idx="${idx}"
-         data-region="${c.region}"
-         data-name="${c.name.toLowerCase()}"
-         data-code="${c.code.toLowerCase()}">
-         <span class="city-card-code">${c.code}</span>
-         <span class="city-card-name">${c.name}</span>
-       </button>`
-    ).join('') +
-    `<div class="city-no-results" id="city-no-results" hidden>No results</div>`;
-
+  // ── Search (always visible above grid) ──────────────────────────────────
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'city-search-wrap';
+  searchWrap.innerHTML =
+    `<input id="city-search-input" class="city-search-input" type="text"
+       placeholder="Search city or IATA code..." autocomplete="off" spellcheck="false">`;
+  grid.parentElement.insertBefore(searchWrap, grid);
   const searchInput = document.getElementById('city-search-input');
-  const tabsEl = document.getElementById('city-region-tabs');
-  const noResults = document.getElementById('city-no-results');
-  let activeRegion = 'All';
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let viewState = 'regions';
   let searchQuery = '';
+  let _selectedIdx = -1;
 
-  function applyFilter() {
-    const q = searchQuery.trim();
-    let visible = 0;
-    grid.querySelectorAll('.city-card').forEach(card => {
-      const show = (activeRegion === 'All' || card.dataset.region === activeRegion) &&
-        (!q || card.dataset.name.includes(q) || card.dataset.code.startsWith(q));
-      card.hidden = !show;
-      if (show) visible++;
-    });
-    noResults.hidden = visible > 0;
-    _globeView?.setFilter(activeRegion, q);
-  }
-
-  searchInput.addEventListener('input', () => {
-    searchQuery = searchInput.value.toLowerCase();
-    if (searchQuery && activeRegion !== 'All') {
-      activeRegion = 'All';
-      tabsEl.querySelectorAll('.city-tab').forEach(t =>
-        t.classList.toggle('active', t.dataset.region === 'All'));
-    }
-    applyFilter();
-  });
-
-  tabsEl.addEventListener('click', e => {
-    const tab = e.target.closest('.city-tab');
-    if (!tab) return;
-    activeRegion = tab.dataset.region;
-    tabsEl.querySelectorAll('.city-tab').forEach(t => t.classList.toggle('active', t === tab));
-    searchQuery = ''; searchInput.value = '';
-    applyFilter();
-  });
-
-  function markActive(idx) {
-    grid.querySelectorAll('.city-card').forEach(c => c.classList.remove('active'));
-    const el = grid.querySelector(`.city-card[data-idx="${idx}"]`);
-    if (el) { el.classList.add('active'); el.scrollIntoView({ block: 'nearest' }); }
-  }
-
-  // Card hover → highlight on globe
-  grid.addEventListener('mouseover', e => {
-    const card = e.target.closest('.city-card');
-    if (card && _globeView) _globeView.hoveredIdx = +card.dataset.idx;
-  });
-  grid.addEventListener('mouseleave', () => {
-    if (_globeView) _globeView.hoveredIdx = -1;
-  });
-
-  // Card click → select + fly globe
-  grid.addEventListener('click', e => {
-    const card = e.target.closest('.city-card');
-    if (!card) return;
-    const idx = +card.dataset.idx;
-    const city = CITIES[idx];
-    markActive(idx);
+  function selectCity(idx) {
+    _selectedIdx = idx;
     _globeView?.setSelected(idx);
     overlay.classList.add('hidden');
     _globeView?.pause();
     localStorage.setItem('stratum:city-picked', '1');
     if (hudCityBtn) hudCityBtn.classList.remove('nudge');
-    switchCity(city);
+    switchCity(CITIES[idx]);
+  }
+
+  // ── Render: region cards ─────────────────────────────────────────────────
+  function renderRegions() {
+    viewState = 'regions';
+    _globeView?.setFilter('All', '');
+    grid.innerHTML =
+      `<div class="city-region-cards">` +
+      regionOrder.map(r =>
+        `<button type="button" class="city-region-card" data-region="${r}">
+           <span class="crc-name">${r}</span>
+           <div class="crc-bottom">
+             <span class="crc-count">${regionCounts[r]}</span>
+             <span class="crc-unit">airports</span>
+           </div>
+         </button>`
+      ).join('') +
+      `</div>`;
+    grid.querySelector('.city-region-cards').addEventListener('click', e => {
+      const btn = e.target.closest('.city-region-card');
+      if (!btn) return;
+      const region = btn.dataset.region;
+      const center = REGION_CENTERS[region];
+      if (center) _globeView?.flyTo(center.lat, center.lon);
+      renderList(region);
+    });
+  }
+
+  // ── Render: airport list for a region ────────────────────────────────────
+  function renderList(region) {
+    viewState = 'list';
+    _globeView?.setFilter(region, '');
+    const airports = CITIES.map((c, i) => ({ c, i })).filter(({ c }) => c.region === region);
+    grid.innerHTML =
+      `<div class="city-list-header">
+         <button type="button" class="city-back-btn" id="city-back-btn">‹ Regions</button>
+         <span class="city-list-region-label">${region}</span>
+       </div>
+       <div class="city-list-items" id="city-list-items">
+         ${airports.map(({ c, i }) =>
+           `<div class="city-list-item${i === _selectedIdx ? ' active' : ''}" data-idx="${i}">
+              <span class="cli-code">${c.code}</span>
+              <span class="cli-name">${c.name}</span>
+              <span class="cli-chevron">›</span>
+            </div>`
+         ).join('')}
+       </div>`;
+    document.getElementById('city-back-btn').addEventListener('click', () => {
+      searchInput.value = ''; searchQuery = '';
+      renderRegions();
+    });
+    bindListItems();
+  }
+
+  // ── Render: search results ────────────────────────────────────────────────
+  function renderSearch(q) {
+    viewState = 'search';
+    _globeView?.setFilter('All', q);
+    const matches = CITIES.map((c, i) => ({ c, i }))
+      .filter(({ c }) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().startsWith(q));
+    if (!matches.length) {
+      grid.innerHTML = `<div class="city-no-results">No airports found</div>`;
+      return;
+    }
+    grid.innerHTML =
+      `<div class="city-list-items" id="city-list-items">
+         ${matches.map(({ c, i }) =>
+           `<div class="city-list-item${i === _selectedIdx ? ' active' : ''}" data-idx="${i}">
+              <span class="cli-code">${c.code}</span>
+              <span class="cli-name">${c.name}</span>
+              <span class="cli-chevron">›</span>
+            </div>`
+         ).join('')}
+       </div>`;
+    bindListItems();
+  }
+
+  function bindListItems() {
+    const el = document.getElementById('city-list-items');
+    if (!el) return;
+    el.addEventListener('mouseover', e => {
+      const item = e.target.closest('.city-list-item');
+      if (item && _globeView) _globeView.hoveredIdx = +item.dataset.idx;
+    });
+    el.addEventListener('mouseleave', () => { if (_globeView) _globeView.hoveredIdx = -1; });
+    el.addEventListener('click', e => {
+      const item = e.target.closest('.city-list-item');
+      if (item) selectCity(+item.dataset.idx);
+    });
+  }
+
+  searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value.toLowerCase().trim();
+    if (searchQuery) renderSearch(searchQuery);
+    else if (viewState === 'search') renderRegions();
   });
 
   const closeOverlay = () => { overlay.classList.add('hidden'); _globeView?.pause(); };
-  if (closeBtn) closeBtn.addEventListener('click', closeOverlay);
-  overlay.addEventListener('click', e => { if (e.target === overlay) closeOverlay(); });
-
   overlay.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeOverlay(); return; }
-    if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
-      const cards = [...grid.querySelectorAll('.city-card:not([hidden])')];
-      const fi = cards.indexOf(document.activeElement);
-      if (fi === -1) { cards[0]?.focus(); return; }
-      const next = (e.key === 'ArrowRight' || e.key === 'ArrowDown')
-        ? Math.min(fi + 1, cards.length - 1) : Math.max(fi - 1, 0);
-      cards[next]?.focus();
-      e.preventDefault();
+    if (e.key === 'Escape') {
+      if (viewState === 'list') { searchInput.value = ''; searchQuery = ''; renderRegions(); }
+      else closeOverlay();
     }
   });
+  if (closeBtn) closeBtn.addEventListener('click', closeOverlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeOverlay(); });
 
   if (hudCityBtn) {
     hudCityBtn.addEventListener('click', () => openCityPicker());
     if (!localStorage.getItem('stratum:city-picked')) hudCityBtn.classList.add('nudge');
   }
+  if (!localStorage.getItem('stratum:city-picked')) setTimeout(() => openCityPicker(), 1200);
 
-  if (!localStorage.getItem('stratum:city-picked')) {
-    setTimeout(() => openCityPicker(), 1200);
-  }
+  renderRegions();
 }
 
 function openCityPicker() {
@@ -1696,9 +1714,9 @@ function openCityPicker() {
   overlay.classList.remove('hidden');
   _globeView?.resume();
   setTimeout(() => {
-    const searchInput = document.getElementById('city-search-input');
-    if (searchInput) { searchInput.focus(); searchInput.select(); }
-  }, 50);
+    const s = document.getElementById('city-search-input');
+    if (s) s.focus();
+  }, 60);
 }
 
 // --- Search with keyboard navigation ---
