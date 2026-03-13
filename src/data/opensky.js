@@ -153,7 +153,7 @@ async function fetchTraceAsync(icao24) {
     // URL format: /data/traces/{last2hex}/trace_full_{hex}.json
     const suffix = icao24.slice(-2);
     const url = `${TRACE_BASE}/${suffix}/trace_full_${icao24}.json`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
     if (!response.ok) return;
 
     const data = await response.json();
@@ -211,9 +211,9 @@ function queueTraceFetch(icao24) {
   traceQueueBatch.push(icao24);
 
   if (!traceBatchTimer) {
-    // Fire the first batch immediately, then continue every 500ms (2 req/s — gentle)
+    // Fire first batch immediately, then continue every 250ms — 8 per batch for fast loading
     const processBatch = () => {
-      const batch = traceQueueBatch.splice(0, 3);
+      const batch = traceQueueBatch.splice(0, 8);
       if (batch.length === 0) {
         clearInterval(traceBatchTimer);
         traceBatchTimer = null;
@@ -222,7 +222,7 @@ function queueTraceFetch(icao24) {
       for (const hex of batch) fetchTraceAsync(hex);
     };
     processBatch();
-    traceBatchTimer = setInterval(processBatch, 500);
+    traceBatchTimer = setInterval(processBatch, 250);
   }
 }
 

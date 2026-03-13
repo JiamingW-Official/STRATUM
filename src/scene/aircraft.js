@@ -1130,8 +1130,8 @@ class AircraftObject {
     const raw = this.trailPositions;
     if (raw.length < 2) return;
 
-    // Don't render trail until we have real track data or enough live samples (~30s)
-    if (!this.hasRealTrack && raw.length < 60) {
+    // Don't render trail until we have real track data or enough live samples (~8s)
+    if (!this.hasRealTrack && raw.length < 16) {
       if (this.trailLine) this.trailLine.visible = false;
       return;
     }
