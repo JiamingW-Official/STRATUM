@@ -1293,6 +1293,252 @@ async function switchCity(city) {
   });
 }
 
+// ── Globe View ──────────────────────────────────────────────────────────────
+class GlobeView {
+  constructor(canvas, onSelect) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.onSelect = onSelect;
+    this.viewLon = 0; this.viewLat = 20;
+    this._tLon = 0;   this._tLat = 20;
+    this.activeRegion = 'All';
+    this.searchQuery = '';
+    this.selectedIdx = -1;
+    this.hoveredIdx = -1;
+    this._dragging = false;
+    this._lastX = 0; this._lastY = 0;
+    this._autoRotate = true;
+    this._paused = true;
+    this._raf = null;
+    this.cx = 0; this.cy = 0; this.R = 0;
+    this._bindEvents();
+  }
+
+  _resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    if (!w || !h) return;
+    this.canvas.width = Math.round(w * dpr);
+    this.canvas.height = Math.round(h * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.cx = w / 2; this.cy = h / 2;
+    this.R = Math.min(w, h) * 0.46;
+  }
+
+  _proj(lat, lon) {
+    const D = Math.PI / 180;
+    const phi = lat * D, phi0 = this.viewLat * D;
+    const dl = (lon - this.viewLon) * D;
+    const cosc = Math.sin(phi0) * Math.sin(phi) + Math.cos(phi0) * Math.cos(phi) * Math.cos(dl);
+    return {
+      x: this.cx + this.R * Math.cos(phi) * Math.sin(dl),
+      y: this.cy - this.R * (Math.cos(phi0) * Math.sin(phi) - Math.sin(phi0) * Math.cos(phi) * Math.cos(dl)),
+      visible: cosc >= 0,
+      depth: cosc,
+    };
+  }
+
+  _draw() {
+    const ctx = this.ctx;
+    const { cx, cy, R } = this;
+    ctx.clearRect(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
+
+    // Globe fill
+    const fill = ctx.createRadialGradient(cx - R * 0.25, cy - R * 0.25, 0, cx, cy, R);
+    fill.addColorStop(0, '#0e1f3a'); fill.addColorStop(0.7, '#060e1c'); fill.addColorStop(1, '#020509');
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = fill; ctx.fill();
+
+    // Clip to globe disk for grid + dots
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+    this._drawGrid();
+    this._drawDots();
+    ctx.restore();
+
+    // Border ring
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(196,160,88,0.2)'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+
+  _drawGrid() {
+    const ctx = this.ctx;
+    const draw = (pts, a) => {
+      if (pts.length < 2) return;
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.strokeStyle = `rgba(30,70,130,${a})`; ctx.lineWidth = 0.5; ctx.stroke();
+    };
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const pts = [];
+      for (let lon = -180; lon <= 180; lon += 3) {
+        const p = this._proj(lat, lon);
+        if (p.visible) pts.push(p); else if (pts.length) { draw(pts, lat === 0 ? 0.55 : 0.25); pts.length = 0; }
+      }
+      draw(pts, lat === 0 ? 0.55 : 0.25);
+    }
+    for (let lon = -180; lon < 180; lon += 30) {
+      const pts = [];
+      for (let lat = -88; lat <= 88; lat += 3) {
+        const p = this._proj(lat, lon);
+        if (p.visible) pts.push(p); else if (pts.length) { draw(pts, 0.2); pts.length = 0; }
+      }
+      draw(pts, 0.2);
+    }
+  }
+
+  _drawDots() {
+    const ctx = this.ctx;
+    const q = this.searchQuery;
+    // Two passes: dim first, then bright (so labels render on top)
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < CITIES.length; i++) {
+        const c = CITIES[i];
+        const p = this._proj(c.lat, c.lon);
+        if (!p.visible) continue;
+        const sel = i === this.selectedIdx;
+        const hov = i === this.hoveredIdx;
+        if (pass === 0 && (sel || hov)) continue;
+        if (pass === 1 && !sel && !hov) continue;
+        const matches = (this.activeRegion === 'All' || c.region === this.activeRegion) &&
+          (!q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().startsWith(q));
+        const d = Math.max(0.2, p.depth);
+        if (sel) {
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 11);
+          g.addColorStop(0, 'rgba(196,160,88,0.6)'); g.addColorStop(1, 'rgba(196,160,88,0)');
+          ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,215,80,${d})`; ctx.fill();
+          this._label(ctx, p, `${c.code}  ${c.name}`, 'rgba(255,210,80,0.95)', true);
+        } else if (hov) {
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 8);
+          g.addColorStop(0, 'rgba(90,180,255,0.55)'); g.addColorStop(1, 'rgba(90,180,255,0)');
+          ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(150,220,255,${d})`; ctx.fill();
+          this._label(ctx, p, `${c.code}  ${c.name}`, 'rgba(150,220,255,0.9)', false);
+        } else if (matches) {
+          ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(196,160,88,${0.45 * d + 0.15})`; ctx.fill();
+        } else {
+          ctx.beginPath(); ctx.arc(p.x, p.y, 1, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(30,50,80,${0.5 * d})`; ctx.fill();
+        }
+      }
+    }
+  }
+
+  _label(ctx, p, text, color, bold) {
+    ctx.font = `${bold ? '600' : '400'} 10px Inter,JetBrains Mono,monospace`;
+    const tw = ctx.measureText(text).width;
+    let lx = p.x + 9;
+    if (lx + tw + 5 > this.cx + this.R) lx = p.x - tw - 11;
+    const ly = p.y - 5;
+    ctx.fillStyle = 'rgba(4,9,20,0.88)';
+    ctx.fillRect(lx - 3, ly - 12, tw + 6, 16);
+    ctx.fillStyle = color;
+    ctx.fillText(text, lx, ly);
+  }
+
+  _bindEvents() {
+    const c = this.canvas;
+    c.addEventListener('mousedown', e => {
+      this._dragging = true; this._autoRotate = false;
+      this._lastX = e.clientX; this._lastY = e.clientY; e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => { if (!this._paused) this._onMove(e); });
+    window.addEventListener('mouseup', () => { this._dragging = false; });
+    c.addEventListener('mouseleave', () => { if (!this._dragging) this.hoveredIdx = -1; });
+    c.addEventListener('click', () => {
+      if (this.hoveredIdx >= 0) { this.selectedIdx = this.hoveredIdx; this.onSelect(this.hoveredIdx); }
+    });
+    c.addEventListener('touchstart', e => {
+      this._dragging = true; this._autoRotate = false;
+      this._lastX = e.touches[0].clientX; this._lastY = e.touches[0].clientY;
+    }, { passive: true });
+    c.addEventListener('touchmove', e => {
+      if (!this._dragging) return;
+      const dx = e.touches[0].clientX - this._lastX;
+      const dy = e.touches[0].clientY - this._lastY;
+      this.viewLon -= dx * 0.5; this._tLon = this.viewLon;
+      this.viewLat = Math.max(-85, Math.min(85, this.viewLat + dy * 0.3)); this._tLat = this.viewLat;
+      this._lastX = e.touches[0].clientX; this._lastY = e.touches[0].clientY;
+      e.preventDefault();
+    }, { passive: false });
+    c.addEventListener('touchend', () => { this._dragging = false; });
+  }
+
+  _onMove(e) {
+    if (this._dragging) {
+      const dx = e.clientX - this._lastX, dy = e.clientY - this._lastY;
+      this.viewLon -= dx * 0.5; this._tLon = this.viewLon;
+      this.viewLat = Math.max(-85, Math.min(85, this.viewLat + dy * 0.3)); this._tLat = this.viewLat;
+      this._lastX = e.clientX; this._lastY = e.clientY;
+      this.hoveredIdx = -1;
+    } else {
+      const rect = this.canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const dx0 = mx - this.cx, dy0 = my - this.cy;
+      if (dx0 * dx0 + dy0 * dy0 > this.R * this.R) { this.hoveredIdx = -1; return; }
+      let best = -1, bestD = 14;
+      for (let i = 0; i < CITIES.length; i++) {
+        const p = this._proj(CITIES[i].lat, CITIES[i].lon);
+        if (!p.visible) continue;
+        const d = Math.hypot(p.x - mx, p.y - my);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      if (best !== this.hoveredIdx) {
+        this.hoveredIdx = best;
+        this.canvas.style.cursor = best >= 0 ? 'pointer' : 'grab';
+      }
+    }
+  }
+
+  _loop() {
+    if (this._paused) return;
+    this._raf = requestAnimationFrame(() => this._loop());
+    if (this._autoRotate && !this._dragging) { this.viewLon += 0.05; this._tLon = this.viewLon; }
+    if (!this._dragging) {
+      this.viewLon += (this._tLon - this.viewLon) * 0.1;
+      this.viewLat += (this._tLat - this.viewLat) * 0.1;
+    }
+    this._draw();
+  }
+
+  setFilter(region, query) {
+    this.activeRegion = region;
+    this.searchQuery = (query || '').toLowerCase();
+  }
+
+  flyTo(lat, lon) {
+    this._autoRotate = false;
+    this._tLat = lat;
+    // Shortest arc in longitude
+    let dl = ((lon - this.viewLon) % 360 + 540) % 360 - 180;
+    this._tLon = this.viewLon + dl;
+  }
+
+  setSelected(idx) {
+    this.selectedIdx = idx;
+    if (idx >= 0) this.flyTo(CITIES[idx].lat, CITIES[idx].lon);
+  }
+
+  resume() {
+    if (!this._paused) return;
+    this._paused = false;
+    this._resize();
+    this._loop();
+  }
+
+  pause() {
+    this._paused = true;
+    if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+  }
+}
+
+let _globeView = null;
+
 function initCityPicker() {
   const overlay = document.getElementById('city-overlay');
   const grid = document.getElementById('city-grid');
@@ -1300,15 +1546,28 @@ function initCityPicker() {
   const hudCityBtn = document.getElementById('hud-city-btn');
   if (!overlay || !grid) return;
 
-  // Collect unique regions in insertion order
+  // ── Globe ────────────────────────────────────────────────────────────────
+  const globeCanvas = document.getElementById('city-globe-canvas');
+  if (globeCanvas) {
+    _globeView = new GlobeView(globeCanvas, (idx) => {
+      // Globe click → select city
+      const city = CITIES[idx];
+      markActive(idx);
+      overlay.classList.add('hidden');
+      _globeView.pause();
+      localStorage.setItem('stratum:city-picked', '1');
+      if (hudCityBtn) hudCityBtn.classList.remove('nudge');
+      switchCity(city);
+    });
+  }
+
+  // ── Search + tabs (injected into .city-list-pane before #city-grid) ─────
   const regionOrder = ['All'];
   const seen = new Set();
   for (const c of CITIES) {
     if (!seen.has(c.region)) { seen.add(c.region); regionOrder.push(c.region); }
   }
 
-  // Inject search + tabs as siblings before #city-grid (inside .city-overlay-content)
-  const overlayContent = grid.parentElement;
   const controls = document.createElement('div');
   controls.className = 'city-controls';
   controls.innerHTML =
@@ -1321,9 +1580,9 @@ function initCityPicker() {
          `<button type="button" class="city-tab${r === 'All' ? ' active' : ''}" data-region="${r}">${r === 'All' ? 'ALL' : r.toUpperCase()}</button>`
        ).join('')}
      </div>`;
-  overlayContent.insertBefore(controls, grid);
+  grid.parentElement.insertBefore(controls, grid);
 
-  // Build flat card list — all cards in DOM, show/hide via hidden attr
+  // ── Cards ─────────────────────────────────────────────────────────────────
   grid.innerHTML =
     CITIES.map((c, idx) =>
       `<button type="button" class="city-card" data-idx="${idx}"
@@ -1346,23 +1605,21 @@ function initCityPicker() {
     const q = searchQuery.trim();
     let visible = 0;
     grid.querySelectorAll('.city-card').forEach(card => {
-      const regionMatch = activeRegion === 'All' || card.dataset.region === activeRegion;
-      const textMatch = !q || card.dataset.name.includes(q) || card.dataset.code.startsWith(q);
-      const show = regionMatch && textMatch;
+      const show = (activeRegion === 'All' || card.dataset.region === activeRegion) &&
+        (!q || card.dataset.name.includes(q) || card.dataset.code.startsWith(q));
       card.hidden = !show;
       if (show) visible++;
     });
     noResults.hidden = visible > 0;
+    _globeView?.setFilter(activeRegion, q);
   }
 
   searchInput.addEventListener('input', () => {
     searchQuery = searchInput.value.toLowerCase();
-    // Auto-switch to All when typing
     if (searchQuery && activeRegion !== 'All') {
       activeRegion = 'All';
       tabsEl.querySelectorAll('.city-tab').forEach(t =>
-        t.classList.toggle('active', t.dataset.region === 'All')
-      );
+        t.classList.toggle('active', t.dataset.region === 'All'));
     }
     applyFilter();
   });
@@ -1372,40 +1629,49 @@ function initCityPicker() {
     if (!tab) return;
     activeRegion = tab.dataset.region;
     tabsEl.querySelectorAll('.city-tab').forEach(t => t.classList.toggle('active', t === tab));
-    // Clear search when switching region tab
-    searchQuery = '';
-    searchInput.value = '';
+    searchQuery = ''; searchInput.value = '';
     applyFilter();
   });
 
   function markActive(idx) {
     grid.querySelectorAll('.city-card').forEach(c => c.classList.remove('active'));
-    const active = grid.querySelector(`.city-card[data-idx="${idx}"]`);
-    if (active) active.classList.add('active');
+    const el = grid.querySelector(`.city-card[data-idx="${idx}"]`);
+    if (el) { el.classList.add('active'); el.scrollIntoView({ block: 'nearest' }); }
   }
 
+  // Card hover → highlight on globe
+  grid.addEventListener('mouseover', e => {
+    const card = e.target.closest('.city-card');
+    if (card && _globeView) _globeView.hoveredIdx = +card.dataset.idx;
+  });
+  grid.addEventListener('mouseleave', () => {
+    if (_globeView) _globeView.hoveredIdx = -1;
+  });
+
+  // Card click → select + fly globe
   grid.addEventListener('click', e => {
     const card = e.target.closest('.city-card');
     if (!card) return;
-    const city = CITIES[+card.dataset.idx];
-    markActive(+card.dataset.idx);
+    const idx = +card.dataset.idx;
+    const city = CITIES[idx];
+    markActive(idx);
+    _globeView?.setSelected(idx);
     overlay.classList.add('hidden');
+    _globeView?.pause();
     localStorage.setItem('stratum:city-picked', '1');
     if (hudCityBtn) hudCityBtn.classList.remove('nudge');
     switchCity(city);
   });
 
-  if (closeBtn) closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) overlay.classList.add('hidden');
-  });
+  const closeOverlay = () => { overlay.classList.add('hidden'); _globeView?.pause(); };
+  if (closeBtn) closeBtn.addEventListener('click', closeOverlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeOverlay(); });
 
   overlay.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { overlay.classList.add('hidden'); return; }
-    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (e.key === 'Escape') { closeOverlay(); return; }
+    if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
       const cards = [...grid.querySelectorAll('.city-card:not([hidden])')];
-      const focused = document.activeElement;
-      const fi = cards.indexOf(focused);
+      const fi = cards.indexOf(document.activeElement);
       if (fi === -1) { cards[0]?.focus(); return; }
       const next = (e.key === 'ArrowRight' || e.key === 'ArrowDown')
         ? Math.min(fi + 1, cards.length - 1) : Math.max(fi - 1, 0);
@@ -1428,6 +1694,7 @@ function openCityPicker() {
   const overlay = document.getElementById('city-overlay');
   if (!overlay) return;
   overlay.classList.remove('hidden');
+  _globeView?.resume();
   setTimeout(() => {
     const searchInput = document.getElementById('city-search-input');
     if (searchInput) { searchInput.focus(); searchInput.select(); }

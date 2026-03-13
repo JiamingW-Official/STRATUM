@@ -167,7 +167,15 @@
         <button type="button" id="city-overlay-close" class="detail-close" aria-label="Close">&times;</button>
       </div>
       <div class="hud-divider"></div>
-      <div id="city-grid" class="city-grid"></div>
+      <div class="city-overlay-body">
+        <div class="city-globe-pane">
+          <canvas id="city-globe-canvas" class="city-globe-canvas"></canvas>
+          <div class="city-globe-hint">drag · click to select</div>
+        </div>
+        <div class="city-list-pane">
+          <div id="city-grid" class="city-grid"></div>
+        </div>
+      </div>
     </div>
   </div>
 
