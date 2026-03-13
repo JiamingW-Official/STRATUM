@@ -10,8 +10,10 @@ const DEG_TO_RAD = Math.PI / 180;
 
 let cachedData = null;
 let fetchPromise = null;
+let _epoch = 0; // incremented on clear; prevents stale in-flight fetch from writing back
 
 export function clearAirportCache() {
+  _epoch++;
   cachedData = null;
   fetchPromise = null;
 }
@@ -19,12 +21,15 @@ export function clearAirportCache() {
 export async function fetchAirportData(centerLat, centerLon, radiusDeg = 1.5) {
   if (cachedData) return cachedData;
   if (fetchPromise) return fetchPromise;
+  const myEpoch = _epoch;
   fetchPromise = _fetchFromOverpass(centerLat, centerLon, radiusDeg);
   try {
-    cachedData = await fetchPromise;
-    return cachedData;
+    const result = await fetchPromise;
+    // Only write cache if no clearAirportCache() was called while we were fetching
+    if (_epoch === myEpoch) cachedData = result;
+    return result;
   } finally {
-    fetchPromise = null;
+    if (_epoch === myEpoch) fetchPromise = null;
   }
 }
 

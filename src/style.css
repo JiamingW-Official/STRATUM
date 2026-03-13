@@ -173,31 +173,46 @@ html, body {
 .hud-meta { display: flex; flex-direction: column; gap: 3px; }
 
 .hud-city-btn {
-  display: flex; align-items: center; gap: 5px;
-  background: none; border: none; padding: 0;
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(196, 160, 88, 0.06);
+  border: 1px solid rgba(196, 160, 88, 0.22);
+  padding: 6px 9px;
   cursor: pointer; text-align: left;
-  border-radius: 3px;
-  transition: opacity 0.15s;
-  line-height: 1;
+  border-radius: 4px;
+  transition: background 0.15s, border-color 0.15s;
+  line-height: 1; width: 100%;
 }
-.hud-city-btn:hover { opacity: 0.75; }
-.hud-city-btn:hover .hud-city-chevron { color: var(--accent); }
+.hud-city-btn:hover {
+  background: rgba(196, 160, 88, 0.13);
+  border-color: rgba(196, 160, 88, 0.5);
+}
+.hud-city-btn-text { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+
+.hud-city-sub {
+  font-size: 7px; color: var(--accent); opacity: 0.55;
+  letter-spacing: 0.07em;
+  transition: opacity 0.15s;
+}
+.hud-city-btn:hover .hud-city-sub { opacity: 1; }
 
 .hud-city-chevron {
-  font-size: 11px; color: var(--text-3);
-  line-height: 1; transition: color 0.15s, transform 0.15s;
+  font-size: 13px; color: var(--accent); opacity: 0.5;
+  line-height: 1; transition: opacity 0.15s, transform 0.15s;
   flex-shrink: 0;
 }
-.hud-city-btn:hover .hud-city-chevron { transform: translateX(1px); }
+.hud-city-btn:hover .hud-city-chevron { opacity: 1; transform: translateX(2px); }
 
-/* First-time nudge — chevron pulses until first click */
+/* First-time nudge */
 @keyframes nudge-pulse {
-  0%, 100% { opacity: 0.25; }
+  0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }
 }
+.hud-city-btn.nudge { border-color: rgba(196, 160, 88, 0.4); }
 .hud-city-btn.nudge .hud-city-chevron {
-  color: var(--accent);
-  animation: nudge-pulse 1.8s ease-in-out infinite;
+  animation: nudge-pulse 1.4s ease-in-out infinite;
+}
+.hud-city-btn.nudge .hud-city-sub {
+  animation: nudge-pulse 1.4s ease-in-out infinite;
 }
 
 .hud-coord {
