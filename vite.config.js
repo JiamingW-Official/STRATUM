@@ -59,6 +59,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/fir/, ''),
       },
+      '/api/navaids': {
+        target: 'https://davidmegginson.github.io',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/navaids/, ''),
+      },
     },
   },
 });

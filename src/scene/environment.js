@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { loadMapTexture } from './mapTiles.js';
 import { fetchAirportData, categorizeFlights, clearAirportCache } from '../data/airports.js';
 import { fetchFIRData, filterNearbyFIRs } from '../data/firBoundaries.js';
+import { fetchNavaidData, filterNearbyNavaids, generateAirways } from '../data/navaids.js';
 
 
 const GROUND_SIZE = 160;
@@ -1515,6 +1516,175 @@ export async function reloadFIRForLocation(scene, lat, lon) {
   if (allFirs) _firCache_ref = allFirs;
   _clearFIRBoundaries(scene);
   await loadFIRBoundaries(scene, lat, lon);
+}
+
+// ── Navaid / Airway Chart ────────────────────────────────────────────────────
+
+let _navGroup = null;
+let _navLoadedLat = null;
+let _navLoadedLon = null;
+
+async function loadNavChart(scene, lat, lon) {
+  if (_navGroup && _navLoadedLat != null &&
+      Math.abs(lat - _navLoadedLat) < 2 && Math.abs(lon - _navLoadedLon) < 2) {
+    return;
+  }
+
+  _clearNavChart(scene);
+
+  const allNavaids = await fetchNavaidData();
+  if (!allNavaids) return;
+
+  const nearby = filterNearbyNavaids(allNavaids, lat, lon, 2.5);
+  if (nearby.length === 0) return;
+
+  const airways = generateAirways(nearby);
+
+  _navGroup = new THREE.Group();
+  _navGroup.name = 'navChart';
+
+  const GROUND_HALF = GROUND_SIZE / 2;
+
+  // ── Airways: white dotted lines ──
+  if (airways.length > 0) {
+    const airwayMat = new THREE.LineDashedMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.06,
+      depthWrite: false,
+      dashSize: 0.15,
+      gapSize: 0.12,
+    });
+
+    for (const awy of airways) {
+      const f = geoToScene(awy.from.lat, awy.from.lon, lat, lon);
+      const t = geoToScene(awy.to.lat, awy.to.lon, lat, lon);
+      if (Math.abs(f.x) > GROUND_HALF * 1.1 && Math.abs(t.x) > GROUND_HALF * 1.1) continue;
+      if (Math.abs(f.z) > GROUND_HALF * 1.1 && Math.abs(t.z) > GROUND_HALF * 1.1) continue;
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute([
+        f.x, 0.012, f.z, t.x, 0.012, t.z
+      ], 3));
+      const line = new THREE.Line(geo, airwayMat);
+      line.computeLineDistances();
+      _navGroup.add(line);
+    }
+  }
+
+  // ── Navaid symbols + labels ──
+  // VOR-type: hexagon outline + label with ident & freq
+  // NDB: small diamond, no label (reduce clutter)
+  const vors = nearby.filter(n => n.type === 'VOR' || n.type === 'VOR-DME' || n.type === 'VORTAC');
+  const ndbs = nearby.filter(n => n.type === 'NDB' || n.type === 'NDB-DME');
+
+  // VOR hexagon symbol material
+  const vorSymMat = new THREE.LineBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.18, depthWrite: false,
+  });
+
+  // NDB diamond symbol material
+  const ndbSymMat = new THREE.LineBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.10, depthWrite: false,
+  });
+
+  // Build VOR hexagons
+  const HEX_R = 0.10;
+  for (const nav of vors) {
+    const pos = geoToScene(nav.lat, nav.lon, lat, lon);
+    if (Math.abs(pos.x) > GROUND_HALF || Math.abs(pos.z) > GROUND_HALF) continue;
+
+    // Hexagon outline
+    const pts = [];
+    for (let i = 0; i <= 6; i++) {
+      const a = (i % 6) * Math.PI / 3;
+      pts.push(pos.x + Math.cos(a) * HEX_R, 0.015, pos.z + Math.sin(a) * HEX_R);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    _navGroup.add(new THREE.Line(geo, vorSymMat));
+
+    // Label: "DCA 113.1"
+    const freqStr = nav.freq > 0 ? ` ${nav.freq.toFixed(1)}` : '';
+    const label = _createNavLabel(nav.ident + freqStr);
+    label.position.set(pos.x, 0.12, pos.z);
+    _navGroup.add(label);
+  }
+
+  // Build NDB diamonds
+  const DIA_R = 0.06;
+  for (const nav of ndbs) {
+    const pos = geoToScene(nav.lat, nav.lon, lat, lon);
+    if (Math.abs(pos.x) > GROUND_HALF || Math.abs(pos.z) > GROUND_HALF) continue;
+
+    const pts = [
+      pos.x, 0.015, pos.z - DIA_R,
+      pos.x + DIA_R, 0.015, pos.z,
+      pos.x, 0.015, pos.z + DIA_R,
+      pos.x - DIA_R, 0.015, pos.z,
+      pos.x, 0.015, pos.z - DIA_R,
+    ];
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    _navGroup.add(new THREE.Line(geo, ndbSymMat));
+  }
+
+  scene.add(_navGroup);
+  _navLoadedLat = lat;
+  _navLoadedLon = lon;
+  console.log(`[STRATUM] Nav chart: ${vors.length} VORs, ${ndbs.length} NDBs, ${airways.length} airways`);
+}
+
+function _createNavLabel(text) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+
+  ctx.font = '500 11px "JetBrains Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.30)';
+  ctx.fillText(text, 64, 16);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+
+  const mat = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(1.8, 0.45, 1);
+  return sprite;
+}
+
+function _clearNavChart(scene) {
+  if (_navGroup) {
+    scene.remove(_navGroup);
+    _navGroup.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (obj.material.map) obj.material.map.dispose();
+        obj.material.dispose();
+      }
+    });
+    _navGroup = null;
+  }
+  _navLoadedLat = null;
+  _navLoadedLon = null;
+}
+
+export function clearNavChart(scene) {
+  _clearNavChart(scene);
+}
+
+export async function reloadNavChart(scene, lat, lon) {
+  _clearNavChart(scene);
+  await loadNavChart(scene, lat, lon);
 }
 
 // Simple ray-casting point-in-polygon for GeoJSON [lon, lat] rings

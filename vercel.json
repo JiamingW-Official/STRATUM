@@ -10,6 +10,7 @@
     { "source": "/api/ovp-kumi/:path*", "destination": "https://overpass.kumi.systems/:path*" },
     { "source": "/api/ovp-ru/:path*", "destination": "https://maps.mail.ru/osm/tools/overpass/:path*" },
     { "source": "/api/adsbdb/:path*", "destination": "https://api.adsbdb.com/:path*" },
-    { "source": "/api/fir/:path*", "destination": "https://raw.githubusercontent.com/maiuswong/simaware-express/main/public/livedata/:path*" }
+    { "source": "/api/fir/:path*", "destination": "https://raw.githubusercontent.com/maiuswong/simaware-express/main/public/livedata/:path*" },
+    { "source": "/api/navaids/:path*", "destination": "https://davidmegginson.github.io/:path*" }
   ]
 }

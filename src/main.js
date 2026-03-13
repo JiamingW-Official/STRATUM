@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition } from './scene/environment.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch, fetchRouteNow } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
@@ -2560,6 +2560,7 @@ async function switchCity(city) {
   clearGroundMap(scene);
   clearAirports(scene);
   clearFIRBoundaries(scene);
+  clearNavChart(scene);
 
   setUserLocation(city.lat, city.lon);
   if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
@@ -2580,6 +2581,7 @@ async function switchCity(city) {
     if (aptData) updateHUDAirports(aptData.airports.length);
   });
   const firP = reloadFIRForLocation(scene, city.lat, city.lon);
+  const navP = reloadNavChart(scene, city.lat, city.lon);
   // Wait for map, then give airports up to 2s more before revealing
   await mapP;
   if (sceneTransName) sceneTransName.textContent = `${city.name}  ·  Loading airports...`;
@@ -4065,6 +4067,7 @@ async function init() {
     if (aptData) updateHUDAirports(aptData.airports.length);
   });
   reloadFIRForLocation(scene, defaultCity.lat, defaultCity.lon);
+  reloadNavChart(scene, defaultCity.lat, defaultCity.lon);
 
   startPolling(handleData, handleError);
   initSearch();
