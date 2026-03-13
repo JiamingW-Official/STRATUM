@@ -919,6 +919,11 @@ function initCityPicker() {
       hudCityBtn.classList.add('nudge');
     }
   }
+
+  // Auto-open on first visit so users discover the city picker immediately
+  if (!localStorage.getItem('stratum:city-picked')) {
+    setTimeout(() => openCityPicker(), 1200);
+  }
 }
 
 function openCityPicker() {

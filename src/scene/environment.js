@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { loadMapTexture } from './mapTiles.js';
-import { fetchAirportData, categorizeFlights } from '../data/airports.js';
+import { fetchAirportData, categorizeFlights, clearAirportCache } from '../data/airports.js';
 
 
 const GROUND_SIZE = 160;
@@ -869,6 +869,7 @@ export function clearGroundMap(scene) {
 }
 
 export function clearAirports(scene) {
+  clearAirportCache();
   deselectAirport(scene);
   if (airportGroup) {
     scene.remove(airportGroup);

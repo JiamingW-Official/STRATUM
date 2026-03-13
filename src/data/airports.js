@@ -11,6 +11,11 @@ const DEG_TO_RAD = Math.PI / 180;
 let cachedData = null;
 let fetchPromise = null;
 
+export function clearAirportCache() {
+  cachedData = null;
+  fetchPromise = null;
+}
+
 export async function fetchAirportData(centerLat, centerLon, radiusDeg = 1.5) {
   if (cachedData) return cachedData;
   if (fetchPromise) return fetchPromise;
