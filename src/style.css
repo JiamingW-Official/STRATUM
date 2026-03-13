@@ -791,7 +791,7 @@ html, body {
 /* ── Search Bar ── */
 .search-bar {
   position: fixed;
-  bottom: var(--edge); left: 50%;
+  bottom: var(--edge); left: 54%;
   transform: translateX(-50%);
   z-index: 15;
   width: 440px; overflow: hidden;
