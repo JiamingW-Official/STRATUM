@@ -34,6 +34,36 @@ let selectedAircraft = null;
 
 elClose.addEventListener('click', () => closeDetail());
 
+// Flash animation when a numeric value changes
+function flashUpdate(el, newText) {
+  if (el.textContent === newText) return;
+  el.textContent = newText;
+  el.classList.remove('flash');
+  // Force reflow to restart animation
+  void el.offsetWidth;
+  el.classList.add('flash');
+  // Remove class after animation to allow future flashes
+  el.addEventListener('animationend', () => el.classList.remove('flash'), { once: true });
+}
+
+// Format route endpoint: show city name prominently, ICAO below.
+// If only ICAO known, show it at larger size. If nothing, show placeholder.
+function fmtAirport(icao, city, el) {
+  if (city && icao) {
+    // Both available: city as primary, ICAO as secondary
+    el.innerHTML = `<span class="route-city">${city}</span><span class="route-icao">${icao}</span>`;
+    el.title = `${city} (${icao})`;
+  } else if (icao) {
+    // Only ICAO
+    el.innerHTML = `<span class="route-code-only">${icao}</span>`;
+    el.title = icao;
+  } else {
+    // Nothing known
+    el.innerHTML = `<span class="route-placeholder">---</span>`;
+    el.title = '';
+  }
+}
+
 export function showDetail(aircraftObj, userLat, userLon) {
   const isNew = selectedAircraft !== aircraftObj;
   selectedAircraft = aircraftObj;
@@ -48,11 +78,6 @@ export function showDetail(aircraftObj, userLat, userLon) {
     elType.style.display = 'none';
   }
 
-  // City name preferred over raw ICAO code; ICAO as title tooltip
-  function fmtAirport(icao, city, el) {
-    el.textContent = city || icao || '---';
-    el.title = icao || '';
-  }
   fmtAirport(d.origin, d.originCity, elOrigin);
   fmtAirport(d.destination, d.destCity, elDest);
 
@@ -65,23 +90,26 @@ export function showDetail(aircraftObj, userLat, userLon) {
         fmtAirport(route.origin, route.originCity, elOrigin);
         fmtAirport(route.destination, route.destCity, elDest);
       }
-      const icao = route?.origin || route?.destination;
-      if (icao) {
+      const atcIcao = route?.origin || route?.destination;
+      if (atcIcao) {
         elRadio.classList.remove('hidden');
-        elRadio.onclick = () => window.open(`https://www.liveatc.net/search/?icao=${encodeURIComponent(icao)}`, '_blank');
+        elRadio.onclick = () => window.open(
+          `https://www.liveatc.net/search/?icao=${encodeURIComponent(atcIcao)}`, '_blank'
+        );
       }
     });
   }
 
-  elAlt.textContent = d.altitude;
-  elSpd.textContent = d.speed;
-  elHdg.textContent = d.heading;
+  flashUpdate(elAlt, d.altitude);
+  flashUpdate(elSpd, d.speed);
+  flashUpdate(elHdg, d.heading);
 
-  elVs.textContent = d.verticalSpeed;
+  const vsText = d.verticalSpeed;
+  flashUpdate(elVs, vsText);
   if (d.status === 'CLIMBING') {
-    elVs.style.color = '#f59e0b';
+    elVs.style.color = 'var(--climb)';
   } else if (d.status === 'DESCENDING') {
-    elVs.style.color = '#38bdf8';
+    elVs.style.color = 'var(--descend)';
   } else {
     elVs.style.color = '';
   }
@@ -89,7 +117,6 @@ export function showDetail(aircraftObj, userLat, userLon) {
   elIcao.textContent = d.icao24 || '--';
   elReg.textContent = d.registration || '--';
 
-  // Operator
   if (d.operator) {
     elOperatorRow.classList.remove('hidden');
     elOperator.textContent = d.operator;
@@ -97,7 +124,6 @@ export function showDetail(aircraftObj, userLat, userLon) {
     elOperatorRow.classList.add('hidden');
   }
 
-  // Aircraft age
   if (d.age != null) {
     elAgeRow.classList.remove('hidden');
     elAge.textContent = `${d.year} (${d.age}y)`;
@@ -105,7 +131,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
     elAgeRow.classList.add('hidden');
   }
 
-  // ATC radio — show button if we have an airport code
+  // ATC radio button
   const atcAirport = d.origin || d.destination;
   if (atcAirport && atcAirport.length >= 3) {
     elRadio.classList.remove('hidden');
@@ -116,23 +142,17 @@ export function showDetail(aircraftObj, userLat, userLon) {
     elRadio.classList.add('hidden');
   }
 
-  // Specs
   if (d.specs) {
     elSpecs.classList.remove('hidden');
     elSpecsDivider.classList.remove('hidden');
     elAircraftName.textContent = d.specs.name;
     elMfr.textContent = d.specs.mfr;
-    if (d.specs.cargo) {
-      elPax.textContent = 'CARGO';
-    } else {
-      elPax.textContent = `${d.specs.pax} pax`;
-    }
+    elPax.textContent = d.specs.cargo ? 'CARGO' : `${d.specs.pax} pax`;
     elRange.textContent = `${d.specs.range.toLocaleString()} nm`;
     elTracked.textContent = d.trackedTime;
   } else {
     elSpecs.classList.add('hidden');
     elSpecsDivider.classList.add('hidden');
-    // Still show tracked time in the distance area
   }
 
   if (d.latitude != null && d.longitude != null) {
