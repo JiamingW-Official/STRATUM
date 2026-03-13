@@ -397,27 +397,116 @@ canvas.addEventListener('pointermove', (e) => {
     canvas.style.cursor = '';
     hideAircraftTooltip();
     // FIR hover: raycast to ground and look up FIR
-    _checkFIRHover(e.clientX, e.clientY);
+    _checkFIRHover();
   }
 });
 
-// FIR hover widget
+// FIR hover widget — fixed position, shows code + full name
 const _firGroundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const _firRayTarget = new THREE.Vector3();
 let _firWidgetTimer = 0;
 let _lastFIRId = '';
 
-function _checkFIRHover(cx, cy) {
+const FIR_NAMES = {
+  // North America
+  CZEG:'Edmonton FIR',CZUL:'Montreal FIR',CZWG:'Winnipeg FIR',CZVR:'Vancouver FIR',
+  CZYZ:'Toronto FIR',CZQM:'Moncton FIR',CZZV:'Gander Domestic',CZQX:'Gander Oceanic',
+  'CZQO-GOTA':'Gander Oceanic Transition',CZQO:'Gander Oceanic',
+  KZAB:'Albuquerque ARTCC',KZBW:'Boston ARTCC',KZDC:'Washington ARTCC',KZDV:'Denver ARTCC',
+  KZFW:'Fort Worth ARTCC',KZHU:'Houston ARTCC',KZID:'Indianapolis ARTCC',KZJX:'Jacksonville ARTCC',
+  KZKC:'Kansas City ARTCC',KZLA:'Los Angeles ARTCC',KZMA:'Miami ARTCC',KZME:'Memphis ARTCC',
+  KZMP:'Minneapolis ARTCC',KZNY:'New York ARTCC',KZOA:'Oakland ARTCC',KZOB:'Cleveland ARTCC',
+  KZSE:'Seattle ARTCC',KZTL:'Atlanta ARTCC',KZAU:'Chicago ARTCC',KZLC:'Salt Lake ARTCC',
+  MMFR:'Mexico FIR',MMTY:'Monterrey FIR',MMEX:'Mexico City FIR',MMZT:'Mazatlan FIR',
+  MMMR:'Merida FIR',TJZS:'San Juan FIR',PHZH:'Honolulu FIR',PAZA:'Anchorage FIR',
+  // Europe — UK/Ireland
+  EGTT:'London FIR',EGPX:'Scottish FIR',EGTM:'London Mil',EGTL:'London Mil Low',
+  EGVV:'London Mil Upper','EGTT-N':'London North','EGTT-W':'London West',
+  'EGTT-S':'London South','EGTT-C':'London Central','EGTT-SC':'London South Central',
+  'EGPX-E':'Scottish East','EGPX-D':'Scottish Deconfliction','EGPX-W':'Scottish West',
+  'EGPX-WD':'Scottish West Deconfliction','EGPX-R':'Scottish Radar',
+  EICK:'Shannon FIR',EISN:'Shannon Oceanic',
+  // Europe — Nordics
+  EFIN:'Finland FIR',EKDK:'Copenhagen FIR',EKAC:'Copenhagen ACC',EKVG:'Faroe FIR',
+  EETT:'Tallinn FIR',BIRD:'Reykjavik FIR','BIRD-E':'Reykjavik East','BIRD-N':'Reykjavik North',
+  'BIRD-S':'Reykjavik South','BIRD-W':'Reykjavik West',
+  ENOR:'Norway FIR',ENOS:'Stavanger FIR',ESAA:'Sweden FIR',
+  // Europe — Western
+  LFPG:'Paris FIR',LFRR:'Brest FIR',LFEE:'Reims FIR',LFBB:'Bordeaux FIR',
+  LFMA:'Marseille FIR',LFIR:'Paris UIR',LFBD:'Bordeaux Approach',
+  'LFPG-N':'Paris North','LFPG-S':'Paris South','LFPG-E':'Paris East','LFPG-W':'Paris West',
+  EBBU:'Brussels FIR',EHAA:'Amsterdam FIR',EHAM:'Amsterdam ACC',ELLX:'Luxembourg FIR',
+  LSAS:'Switzerland FIR',LOVV:'Vienna FIR',
+  // Europe — Central/Southern
+  EDWW:'Bremen FIR',EDGG:'Langen FIR',EDMM:'Munich FIR',
+  'EDWW-A':'Bremen Sector A','EDWW-B':'Bremen Sector B',
+  'EDGG-P':'Langen Paderborn','EDGG-R':'Langen Rhein','EDGG-K':'Langen Koblenz',
+  'EDGG-D':'Langen Dusseldorf','EDGG-G':'Langen Giessen','EDGG-B':'Langen Baden',
+  'EDMM-G':'Munich Sector G','EDMM-Z':'Munich Sector Z','EDMM-R':'Munich Sector R',
+  LKAA:'Prague FIR',LKPR:'Prague ACC',LHCC:'Budapest FIR',LYBE:'Belgrade FIR',
+  LJLA:'Ljubljana FIR',LQNM:'Sarajevo FIR',
+  LIRF:'Rome FIR',LIRN:'Naples FIR',LIRR:'Rome ACC',LIRS:'Rome Sector S',
+  LPPC:'Lisbon FIR',LECM:'Madrid FIR',LECB:'Barcelona FIR',GCCC:'Canary FIR',
+  LGGG:'Athens FIR',LBSR:'Sofia FIR',LRBB:'Bucharest FIR',
+  // Europe — Turkey
+  LTAC:'Ankara FIR',LTBB:'Istanbul FIR',LTCC:'Erzurum FIR',LTAV:'Ankara ACC',
+  // Europe — Eastern
+  LUUU:'Chisinau FIR',UKBV:'Kyiv FIR',UKDV:'Dnipro FIR',UKLV:'Lviv FIR',
+  UKOV:'Odesa FIR',EPWW:'Warsaw FIR',UMGG:'Minsk FIR',
+  UUWW:'Moscow FIR',URRR:'Rostov FIR',UWKK:'Samara FIR',USSF:'Yekaterinburg FIR',
+  USDD:'Tyumen FIR',UNAA:'Novosibirsk FIR',UNMM:'Krasnoyarsk FIR',
+  UHCC:'Khabarovsk FIR',UHKK:'Magadan FIR',UJDA:'Yakutsk FIR',
+  // Africa
+  DAAA:'Algiers FIR',DTTC:'Tunis FIR',DGAC:'Accra FIR',DIII:'Abidjan FIR',
+  DNKK:'Kano FIR',DRRR:'Niamey FIR',GOOO:'Dakar FIR',FAJA:'Johannesburg FIR',
+  HKNA:'Nairobi FIR',HTDC:'Dar es Salaam FIR',HSSS:'Khartoum FIR',HECC:'Cairo FIR',
+  HLLL:'Tripoli FIR',FCCC:'Brazzaville FIR',FZZA:'Kinshasa FIR',
+  // Middle East
+  OIIX:'Tehran FIR',OJAC:'Amman FIR',OKAC:'Kuwait FIR',OLBA:'Beirut FIR',
+  ORBB:'Baghdad FIR',OSTT:'Damascus FIR',OTBD:'Doha FIR',OMAE:'Emirates FIR',
+  OEJD:'Jeddah FIR',OERK:'Riyadh FIR',OYSC:'Sanaa FIR',OOMM:'Muscat FIR',
+  // Asia — South/Southeast
+  VABF:'Mumbai FIR',VECF:'Kolkata FIR',VIDF:'Delhi FIR',VOMF:'Chennai FIR',
+  VYYF:'Yangon FIR',VTBB:'Bangkok FIR',VDPP:'Phnom Penh FIR',VLVT:'Vientiane FIR',
+  VVHM:'Ho Chi Minh FIR',VVHN:'Hanoi FIR',WMKK:'Kuala Lumpur FIR',
+  WSJC:'Singapore FIR',WIIF:'Jakarta FIR',RPHI:'Manila FIR',
+  // Asia — East
+  VHHH:'Hong Kong FIR',ZGZU:'Guangzhou FIR',ZPKM:'Kunming FIR',ZLHW:'Lanzhou FIR',
+  ZBPE:'Beijing FIR',ZSHA:'Shanghai FIR',ZWUQ:'Urumqi FIR',ZHWH:'Wuhan FIR',
+  ZSPD:'Shanghai Pudong',RKRR:'Incheon FIR',RJJJ:'Fukuoka FIR',RJTG:'Tokyo FIR',
+  // Oceania
+  AGGG:'Honiara FIR',ANAU:'Nauru FIR',AYPM:'Port Moresby FIR',
+  NZZO:'Auckland Oceanic',NZZC:'New Zealand FIR',YMMM:'Melbourne FIR',YBBB:'Brisbane FIR',
+  // South America
+  SBCW:'Curitiba FIR',SBRE:'Recife FIR',SBAZ:'Amazonica FIR',SBBS:'Brasilia FIR',
+  SCEL:'Santiago FIR',SGFA:'Asuncion FIR',SUEO:'Montevideo FIR',
+  SAEF:'Buenos Aires FIR',SACF:'Cordoba FIR',SAMF:'Mendoza FIR',
+  SPIM:'Lima FIR',SKED:'Bogota FIR',SVZM:'Maiquetia FIR',SEQM:'Quito FIR',
+  // Caribbean
+  MKJK:'Kingston FIR',MUFH:'Havana FIR',MDCS:'Santo Domingo FIR',TTZP:'Piarco FIR',
+  // Oceanic
+  BGGL:'Greenland FIR',LPPO:'Santa Maria Oceanic',NATL:'North Atlantic',
+};
+
+function _getFIRName(id) {
+  if (FIR_NAMES[id]) return FIR_NAMES[id];
+  // Try base code (strip sector suffix like -N, -E, etc.)
+  const base = id.replace(/-.*$/, '');
+  if (FIR_NAMES[base]) return FIR_NAMES[base];
+  return 'Flight Information Region';
+}
+
+function _checkFIRHover() {
   raycaster.ray.intersectPlane(_firGroundPlane, _firRayTarget);
   if (!_firRayTarget) return;
   const geo = sceneToGeo(_firRayTarget.x, _firRayTarget.z);
   const firId = getFIRForPosition(geo.lat, geo.lon);
   if (!firId || firId === _lastFIRId) return;
   _lastFIRId = firId;
-  _showFIRWidget(firId, cx, cy);
+  _showFIRWidget(firId);
 }
 
-function _showFIRWidget(firId, cx, cy) {
+function _showFIRWidget(firId) {
   let el = document.getElementById('fir-hover');
   if (!el) {
     el = document.createElement('div');
@@ -425,9 +514,7 @@ function _showFIRWidget(firId, cx, cy) {
     el.className = 'fir-hover-widget';
     document.body.appendChild(el);
   }
-  el.textContent = firId;
-  el.style.left = (cx + 14) + 'px';
-  el.style.top = (cy - 10) + 'px';
+  el.innerHTML = `<span class="fir-code">${firId}</span><span class="fir-name">${_getFIRName(firId)}</span>`;
   el.classList.remove('fade-out');
   el.style.opacity = '1';
   clearTimeout(_firWidgetTimer);
