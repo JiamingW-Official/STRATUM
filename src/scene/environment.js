@@ -1564,7 +1564,7 @@ async function loadNavChart(scene, lat, lon) {
 
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute([
-        f.x, 0.012, f.z, t.x, 0.012, t.z
+        f.x, 0.035, f.z, t.x, 0.035, t.z
       ], 3));
       const line = new THREE.Line(geo, airwayMat);
       line.computeLineDistances();
@@ -1573,56 +1573,94 @@ async function loadNavChart(scene, lat, lon) {
   }
 
   // ── Navaid symbols + labels ──
-  // VOR-type: hexagon outline + label with ident & freq
-  // NDB: small diamond, no label (reduce clutter)
   const vors = nearby.filter(n => n.type === 'VOR' || n.type === 'VOR-DME' || n.type === 'VORTAC');
   const ndbs = nearby.filter(n => n.type === 'NDB' || n.type === 'NDB-DME');
 
-  // VOR hexagon symbol material
+  // VOR: compass rose hexagon — prominent, above airport layer
   const vorSymMat = new THREE.LineBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.18, depthWrite: false,
+    color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false,
+  });
+  // Inner ring for VOR compass rose
+  const vorInnerMat = new THREE.LineBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.20, depthWrite: false,
+  });
+  // VOR center dot
+  const vorDotGeo = new THREE.CircleGeometry(0.03, 8);
+  const vorDotMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.30, depthWrite: false, side: THREE.DoubleSide,
   });
 
-  // NDB diamond symbol material
+  // NDB diamond
   const ndbSymMat = new THREE.LineBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.10, depthWrite: false,
+    color: 0xffffff, transparent: true, opacity: 0.15, depthWrite: false,
   });
 
-  // Build VOR hexagons
-  const HEX_R = 0.10;
+  const HEX_R = 0.25;  // Outer hexagon
+  const INNER_R = 0.14; // Inner circle
+  const Y_NAV = 0.04;   // Above airport lights (which are at ~0.025)
+
   for (const nav of vors) {
     const pos = geoToScene(nav.lat, nav.lon, lat, lon);
     if (Math.abs(pos.x) > GROUND_HALF || Math.abs(pos.z) > GROUND_HALF) continue;
 
-    // Hexagon outline
-    const pts = [];
+    // Outer hexagon
+    const hexPts = [];
     for (let i = 0; i <= 6; i++) {
       const a = (i % 6) * Math.PI / 3;
-      pts.push(pos.x + Math.cos(a) * HEX_R, 0.015, pos.z + Math.sin(a) * HEX_R);
+      hexPts.push(pos.x + Math.cos(a) * HEX_R, Y_NAV, pos.z + Math.sin(a) * HEX_R);
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    _navGroup.add(new THREE.Line(geo, vorSymMat));
+    const hexGeo = new THREE.BufferGeometry();
+    hexGeo.setAttribute('position', new THREE.Float32BufferAttribute(hexPts, 3));
+    _navGroup.add(new THREE.Line(hexGeo, vorSymMat));
 
-    // Label: "DCA 113.1"
-    const freqStr = nav.freq > 0 ? ` ${nav.freq.toFixed(1)}` : '';
-    const label = _createNavLabel(nav.ident + freqStr);
-    label.position.set(pos.x, 0.12, pos.z);
+    // Inner circle (12-sided)
+    const cirPts = [];
+    for (let i = 0; i <= 12; i++) {
+      const a = (i % 12) * Math.PI / 6;
+      cirPts.push(pos.x + Math.cos(a) * INNER_R, Y_NAV, pos.z + Math.sin(a) * INNER_R);
+    }
+    const cirGeo = new THREE.BufferGeometry();
+    cirGeo.setAttribute('position', new THREE.Float32BufferAttribute(cirPts, 3));
+    _navGroup.add(new THREE.Line(cirGeo, vorInnerMat));
+
+    // Crosshair tick marks (N/S/E/W lines from inner to outer)
+    const tickPts = [];
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
+      tickPts.push(
+        pos.x + Math.cos(a) * INNER_R, Y_NAV, pos.z + Math.sin(a) * INNER_R,
+        pos.x + Math.cos(a) * HEX_R, Y_NAV, pos.z + Math.sin(a) * HEX_R,
+      );
+    }
+    const tickGeo = new THREE.BufferGeometry();
+    tickGeo.setAttribute('position', new THREE.Float32BufferAttribute(tickPts, 3));
+    _navGroup.add(new THREE.LineSegments(tickGeo, vorInnerMat));
+
+    // Center dot
+    const dot = new THREE.Mesh(vorDotGeo, vorDotMat);
+    dot.rotation.x = -Math.PI / 2;
+    dot.position.set(pos.x, Y_NAV, pos.z);
+    _navGroup.add(dot);
+
+    // Label: "KENNEDY\n115.90" style — name + freq
+    const freqStr = nav.freq > 0 ? nav.freq.toFixed(2) : '';
+    const label = _createNavLabel(nav.name || nav.ident, freqStr);
+    label.position.set(pos.x, 0.25, pos.z);
     _navGroup.add(label);
   }
 
-  // Build NDB diamonds
-  const DIA_R = 0.06;
+  // NDB diamonds — smaller, no label
+  const DIA_R = 0.08;
   for (const nav of ndbs) {
     const pos = geoToScene(nav.lat, nav.lon, lat, lon);
     if (Math.abs(pos.x) > GROUND_HALF || Math.abs(pos.z) > GROUND_HALF) continue;
 
     const pts = [
-      pos.x, 0.015, pos.z - DIA_R,
-      pos.x + DIA_R, 0.015, pos.z,
-      pos.x, 0.015, pos.z + DIA_R,
-      pos.x - DIA_R, 0.015, pos.z,
-      pos.x, 0.015, pos.z - DIA_R,
+      pos.x, Y_NAV, pos.z - DIA_R,
+      pos.x + DIA_R, Y_NAV, pos.z,
+      pos.x, Y_NAV, pos.z + DIA_R,
+      pos.x - DIA_R, Y_NAV, pos.z,
+      pos.x, Y_NAV, pos.z - DIA_R,
     ];
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
@@ -1635,17 +1673,25 @@ async function loadNavChart(scene, lat, lon) {
   console.log(`[STRATUM] Nav chart: ${vors.length} VORs, ${ndbs.length} NDBs, ${airways.length} airways`);
 }
 
-function _createNavLabel(text) {
+function _createNavLabel(name, freq) {
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 32;
+  canvas.width = 192;
+  canvas.height = 56;
   const ctx = canvas.getContext('2d');
 
-  ctx.font = '500 11px "JetBrains Mono", monospace';
+  // Name (bold, larger)
+  ctx.font = '700 16px "JetBrains Mono", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.30)';
-  ctx.fillText(text, 64, 16);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.40)';
+  ctx.fillText(name.toUpperCase(), 96, 18);
+
+  // Frequency below
+  if (freq) {
+    ctx.font = '500 13px "JetBrains Mono", monospace';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.fillText(freq, 96, 40);
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
@@ -1658,7 +1704,7 @@ function _createNavLabel(text) {
   });
 
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(1.8, 0.45, 1);
+  sprite.scale.set(2.8, 0.8, 1);
   return sprite;
 }
 
