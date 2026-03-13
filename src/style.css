@@ -181,6 +181,7 @@ html, body {
   border-radius: 4px;
   transition: background 0.15s, border-color 0.15s;
   line-height: 1; width: 100%;
+  pointer-events: auto; /* HUD has pointer-events:none; opt back in for this button */
 }
 .hud-city-btn:hover {
   background: rgba(196, 160, 88, 0.13);

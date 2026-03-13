@@ -755,22 +755,25 @@ function animate() {
 
 // --- City picker ---
 const CITIES = [
-  { name: 'New York',    code: 'JFK', lat: 40.6413,  lon: -73.7781,  region: 'Americas' },
-  { name: 'Los Angeles', code: 'LAX', lat: 33.9425,  lon: -118.4081, region: 'Americas' },
-  { name: 'Chicago',     code: 'ORD', lat: 41.9742,  lon: -87.9073,  region: 'Americas' },
-  { name: 'Miami',       code: 'MIA', lat: 25.7959,  lon: -80.2870,  region: 'Americas' },
-  { name: 'London',      code: 'LHR', lat: 51.4775,  lon: -0.4614,   region: 'Europe' },
-  { name: 'Paris',       code: 'CDG', lat: 49.0097,  lon: 2.5479,    region: 'Europe' },
-  { name: 'Frankfurt',   code: 'FRA', lat: 50.0379,  lon: 8.5622,    region: 'Europe' },
-  { name: 'Amsterdam',   code: 'AMS', lat: 52.3105,  lon: 4.7683,    region: 'Europe' },
-  { name: 'Istanbul',    code: 'IST', lat: 41.2608,  lon: 28.7418,   region: 'Europe' },
-  { name: 'Dubai',       code: 'DXB', lat: 25.2532,  lon: 55.3657,   region: 'Middle East' },
-  { name: 'Singapore',   code: 'SIN', lat: 1.3644,   lon: 103.9915,  region: 'Asia' },
-  { name: 'Hong Kong',   code: 'HKG', lat: 22.3080,  lon: 113.9185,  region: 'Asia' },
-  { name: 'Tokyo',       code: 'HND', lat: 35.5493,  lon: 139.7798,  region: 'Asia' },
-  { name: 'Seoul',       code: 'ICN', lat: 37.4602,  lon: 126.4407,  region: 'Asia' },
-  { name: 'Beijing',     code: 'PEK', lat: 40.0799,  lon: 116.6031,  region: 'Asia' },
-  { name: 'Sydney',      code: 'SYD', lat: -33.9399, lon: 151.1753,  region: 'Pacific' },
+  { name: 'New York',      code: 'JFK', lat: 40.6413,  lon: -73.7781,  region: 'Americas' },
+  { name: 'Los Angeles',   code: 'LAX', lat: 33.9425,  lon: -118.4081, region: 'Americas' },
+  { name: 'Chicago',       code: 'ORD', lat: 41.9742,  lon: -87.9073,  region: 'Americas' },
+  { name: 'Miami',         code: 'MIA', lat: 25.7959,  lon: -80.2870,  region: 'Americas' },
+  { name: 'Toronto',       code: 'YYZ', lat: 43.6777,  lon: -79.6248,  region: 'Americas' },
+  { name: 'London',        code: 'LHR', lat: 51.4775,  lon: -0.4614,   region: 'Europe' },
+  { name: 'Paris',         code: 'CDG', lat: 49.0097,  lon: 2.5479,    region: 'Europe' },
+  { name: 'Frankfurt',     code: 'FRA', lat: 50.0379,  lon: 8.5622,    region: 'Europe' },
+  { name: 'Amsterdam',     code: 'AMS', lat: 52.3105,  lon: 4.7683,    region: 'Europe' },
+  { name: 'Istanbul',      code: 'IST', lat: 41.2608,  lon: 28.7418,   region: 'Europe' },
+  { name: 'Dubai',         code: 'DXB', lat: 25.2532,  lon: 55.3657,   region: 'Middle East' },
+  { name: 'Singapore',     code: 'SIN', lat: 1.3644,   lon: 103.9915,  region: 'Asia' },
+  { name: 'Hong Kong',     code: 'HKG', lat: 22.3080,  lon: 113.9185,  region: 'Asia' },
+  { name: 'Tokyo',         code: 'HND', lat: 35.5493,  lon: 139.7798,  region: 'Asia' },
+  { name: 'Seoul',         code: 'ICN', lat: 37.4602,  lon: 126.4407,  region: 'Asia' },
+  { name: 'Bangkok',       code: 'BKK', lat: 13.6811,  lon: 100.7472,  region: 'Asia' },
+  { name: 'Taipei',        code: 'TPE', lat: 25.0777,  lon: 121.2328,  region: 'Asia' },
+  { name: 'Sydney',        code: 'SYD', lat: -33.9399, lon: 151.1753,  region: 'Pacific' },
+  { name: 'Melbourne',     code: 'MEL', lat: -37.6733, lon: 144.8430,  region: 'Pacific' },
 ];
 
 let activeCity = null;
@@ -1059,18 +1062,18 @@ function initSearch() {
 
 // --- Init ---
 async function init() {
-  const location = await initLocation();
-  setUserLocation(location.lat, location.lon);
-  updateHUD(0, location.lat, location.lon);
+  // Default to JFK — no GPS needed; user picks their airspace via the city picker.
+  const defaultCity = CITIES[0]; // New York / JFK
+  activeCity = defaultCity;
+  setUserLocation(defaultCity.lat, defaultCity.lon);
+  updateHUDCity(defaultCity.name, defaultCity.code);
+  updateHUD(0, defaultCity.lat, defaultCity.lon);
 
-  aircraftManager = new AircraftManager(scene, location.lat, location.lon);
+  aircraftManager = new AircraftManager(scene, defaultCity.lat, defaultCity.lon);
 
-  loadGroundMap(location.lat, location.lon);
-
-  loadAirports(scene, location.lat, location.lon).then(() => {
-    const aptData = getAirportData();
-    if (aptData) updateHUDAirports(aptData.airports.length);
-  });
+  // Load base map; airports load only after user picks a city via switchCity,
+  // which eliminates the race condition between init's Overpass fetch and clearAirportCache().
+  loadGroundMap(defaultCity.lat, defaultCity.lon);
 
   startPolling(handleData, handleError);
   initSearch();
