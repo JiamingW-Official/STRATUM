@@ -1367,24 +1367,24 @@ async function loadFIRBoundaries(scene, lat, lon) {
   _firGroup = new THREE.Group();
   _firGroup.name = 'firBoundaries';
 
-  // Fine dashed material for boundary lines
+  // Dotted material — tiny dots for boundary lines
   const lineMat = new THREE.LineDashedMaterial({
     color: 0xc4a058,
     transparent: true,
-    opacity: 0.25,
+    opacity: 0.28,
     depthWrite: false,
-    dashSize: 0.08,
-    gapSize: 0.06,
+    dashSize: 0.02,
+    gapSize: 0.04,
   });
 
-  // Oceanic boundaries — subtler
+  // Oceanic — subtler dots
   const oceanicMat = new THREE.LineDashedMaterial({
     color: 0x88aacc,
     transparent: true,
-    opacity: 0.08,
+    opacity: 0.09,
     depthWrite: false,
-    dashSize: 0.1,
-    gapSize: 0.08,
+    dashSize: 0.02,
+    gapSize: 0.05,
   });
 
   const GROUND_HALF = GROUND_SIZE / 2;
