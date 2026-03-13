@@ -8,6 +8,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch, fetchRouteNow } from './data/opensky.js';
+import { prefetchAirportData } from './data/airports.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft, showDetailLoading } from './ui/detail.js';
 import { initNeko, nekoTrackAircraft } from './ui/neko.js';
@@ -4092,6 +4093,9 @@ async function init() {
   });
 
   animate();
+
+  // Background-prefetch airport data for all cities after 5s
+  setTimeout(() => prefetchAirportData(CITIES), 5000);
 }
 
 init();

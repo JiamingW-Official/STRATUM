@@ -43,8 +43,8 @@ function _loadFromCache(lat, lon) {
     const raw = localStorage.getItem(_cacheKey(lat, lon));
     if (!raw) return null;
     const { ts, data } = JSON.parse(raw);
-    // Cache valid for 24 hours
-    if (Date.now() - ts > 86400000) { localStorage.removeItem(_cacheKey(lat, lon)); return null; }
+    // Cache valid for 7 days — airport geometry rarely changes
+    if (Date.now() - ts > 604800000) { localStorage.removeItem(_cacheKey(lat, lon)); return null; }
     return data;
   } catch { return null; }
 }
@@ -87,7 +87,7 @@ out body geom;
   // 2. Race all endpoints in parallel — use first success
   const racePromises = OVERPASS_ENDPOINTS.map(endpoint => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
+    const timer = setTimeout(() => controller.abort(), 10000);
     return fetch(endpoint, {
       method: 'POST',
       body,
@@ -252,4 +252,27 @@ export function categorizeFlights(aircraftList, airport, allRunways) {
   }
 
   return { arrivals, departures, runways: aptRunways };
+}
+
+/**
+ * Background-prefetch airport data for a list of cities.
+ * Only fetches cities that aren't already in localStorage cache.
+ * Staggers requests to avoid hammering Overpass.
+ * @param {Array<{lat:number, lon:number}>} cities
+ */
+export function prefetchAirportData(cities) {
+  const uncached = cities.filter(c => !_loadFromCache(c.lat, c.lon));
+  if (uncached.length === 0) return;
+  console.log(`[STRATUM] Prefetching airport data for ${uncached.length} cities`);
+  let i = 0;
+  const next = () => {
+    if (i >= uncached.length) return;
+    const c = uncached[i++];
+    _fetchFromOverpass(c.lat, c.lon, 1.2)
+      .then(() => setTimeout(next, 800))
+      .catch(() => setTimeout(next, 400));
+  };
+  // Start 2 parallel prefetch streams
+  next();
+  setTimeout(next, 400);
 }
