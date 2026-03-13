@@ -851,6 +851,37 @@ export function updatePulse(scene, time) {
 
 // ---- Exports ----
 
+export function clearGroundMap(scene) {
+  for (const overlay of hiResOverlays) {
+    scene.remove(overlay);
+    if (overlay.geometry) overlay.geometry.dispose();
+    if (overlay.material) {
+      if (overlay.material.map) overlay.material.map.dispose();
+      overlay.material.dispose();
+    }
+  }
+  hiResOverlays.length = 0;
+  if (groundMaterial && groundMaterial.map) {
+    groundMaterial.map.dispose();
+    groundMaterial.map = null;
+    groundMaterial.needsUpdate = true;
+  }
+}
+
+export function clearAirports(scene) {
+  deselectAirport(scene);
+  if (airportGroup) {
+    scene.remove(airportGroup);
+    airportGroup = null;
+  }
+  airportHitTargets.length = 0;
+  airportData = null;
+  _aptBeacons.length = 0;
+  _approachLightMeshes.length = 0;
+  _runwayEdgeLightMesh = null;
+  _taxiwayLightMesh = null;
+}
+
 export function getAirportHitTargets() {
   return airportHitTargets;
 }

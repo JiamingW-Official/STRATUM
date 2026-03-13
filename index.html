@@ -51,28 +51,6 @@
       <button id="detail-close" class="detail-close" aria-label="Close">&times;</button>
     </div>
     <div class="hud-divider"></div>
-    <div class="detail-route">
-      <div class="detail-route-endpoint">
-        <span class="detail-route-label">FROM</span>
-        <span id="detail-origin" class="detail-route-code">
-          <span class="route-placeholder">---</span>
-        </span>
-      </div>
-      <div class="detail-route-line">
-        <span class="detail-route-dot"></span>
-        <span class="detail-route-dash"></span>
-        <span class="detail-route-plane">&#9992;</span>
-        <span class="detail-route-dash"></span>
-        <span class="detail-route-dot"></span>
-      </div>
-      <div class="detail-route-endpoint">
-        <span class="detail-route-label">TO</span>
-        <span id="detail-dest" class="detail-route-code">
-          <span class="route-placeholder">---</span>
-        </span>
-      </div>
-    </div>
-    <div class="hud-divider"></div>
     <div class="detail-grid">
       <div class="detail-cell">
         <div class="detail-label">ALT</div>
@@ -163,7 +141,19 @@
     <div id="search-results" class="search-results" role="listbox" aria-label="Search results"></div>
   </div>
 
-  <div class="search-hint">? help &nbsp;·&nbsp; / search &nbsp;·&nbsp; click to track &nbsp;·&nbsp; T tour</div>
+  <div class="search-hint">? help &nbsp;·&nbsp; / search &nbsp;·&nbsp; click to track &nbsp;·&nbsp; T tour &nbsp;·&nbsp; C city</div>
+
+  <!-- City picker overlay -->
+  <div id="city-overlay" class="city-overlay hidden" role="dialog" aria-label="Select city">
+    <div class="city-overlay-content glass-panel">
+      <div class="city-overlay-header">
+        <div class="city-overlay-title">SELECT AIRSPACE</div>
+        <button type="button" id="city-overlay-close" class="detail-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="hud-divider"></div>
+      <div id="city-grid" class="city-grid"></div>
+    </div>
+  </div>
 
   <!-- Help overlay -->
   <div id="help-overlay" class="help-overlay hidden" role="dialog" aria-label="Keyboard shortcuts">
@@ -178,6 +168,7 @@
         <div class="help-row"><kbd>Scroll</kbd><span>Zoom</span></div>
         <div class="help-row"><kbd>/</kbd><span>Search · ↑↓ navigate · Enter select</span></div>
         <div class="help-row"><kbd>T</kbd><span>Auto-tour random aircraft</span></div>
+        <div class="help-row"><kbd>C</kbd><span>Switch city / airspace</span></div>
         <div class="help-row"><kbd>Esc</kbd><span>Exit track / search / tour</span></div>
         <div class="help-row"><kbd>?</kbd><span>Toggle this overlay</span></div>
       </div>

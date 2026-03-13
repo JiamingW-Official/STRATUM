@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights } from './scene/environment.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights } from './scene/environment.js';
 import { AircraftManager } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch } from './data/opensky.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, showSignalLost } from './ui/hud.js';
@@ -597,6 +597,11 @@ document.addEventListener('keydown', (e) => {
     if (autoTour) { stopAutoTour(); } else { startAutoTour(); }
     return;
   }
+  if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    openCityPicker();
+    return;
+  }
   const k = e.key.toLowerCase();
   if ('wasdqe'.includes(k)) keysDown.add(k);
   if (e.key === 'Shift') shiftHeld = true;
@@ -748,6 +753,103 @@ function animate() {
   composer.render();
 }
 
+// --- City picker ---
+const CITIES = [
+  { name: 'New York',    code: 'JFK', lat: 40.6413,  lon: -73.7781,  region: 'Americas' },
+  { name: 'Los Angeles', code: 'LAX', lat: 33.9425,  lon: -118.4081, region: 'Americas' },
+  { name: 'Chicago',     code: 'ORD', lat: 41.9742,  lon: -87.9073,  region: 'Americas' },
+  { name: 'Miami',       code: 'MIA', lat: 25.7959,  lon: -80.2870,  region: 'Americas' },
+  { name: 'London',      code: 'LHR', lat: 51.4775,  lon: -0.4614,   region: 'Europe' },
+  { name: 'Paris',       code: 'CDG', lat: 49.0097,  lon: 2.5479,    region: 'Europe' },
+  { name: 'Frankfurt',   code: 'FRA', lat: 50.0379,  lon: 8.5622,    region: 'Europe' },
+  { name: 'Amsterdam',   code: 'AMS', lat: 52.3105,  lon: 4.7683,    region: 'Europe' },
+  { name: 'Istanbul',    code: 'IST', lat: 41.2608,  lon: 28.7418,   region: 'Europe' },
+  { name: 'Dubai',       code: 'DXB', lat: 25.2532,  lon: 55.3657,   region: 'Middle East' },
+  { name: 'Singapore',   code: 'SIN', lat: 1.3644,   lon: 103.9915,  region: 'Asia' },
+  { name: 'Hong Kong',   code: 'HKG', lat: 22.3080,  lon: 113.9185,  region: 'Asia' },
+  { name: 'Tokyo',       code: 'HND', lat: 35.5493,  lon: 139.7798,  region: 'Asia' },
+  { name: 'Seoul',       code: 'ICN', lat: 37.4602,  lon: 126.4407,  region: 'Asia' },
+  { name: 'Beijing',     code: 'PEK', lat: 40.0799,  lon: 116.6031,  region: 'Asia' },
+  { name: 'Sydney',      code: 'SYD', lat: -33.9399, lon: 151.1753,  region: 'Pacific' },
+];
+
+let activeCity = null;
+
+async function switchCity(city) {
+  if (activeCity && activeCity.code === city.code) return;
+  activeCity = city;
+
+  closeDetail();
+  stopFollow();
+  if (autoTour) stopAutoTour();
+  if (selectedAirportState) {
+    deselectAirport(scene);
+    if (aircraftManager) aircraftManager.clearHighlight();
+    selectedAirportState = null;
+  }
+
+  if (aircraftManager) aircraftManager.clearAll(scene);
+  clearGroundMap(scene);
+  clearAirports(scene);
+
+  setUserLocation(city.lat, city.lon);
+  if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
+
+  updateHUD(0, city.lat, city.lon);
+  updateHUDAirports(0);
+
+  // Reset camera to overview
+  controls.enabled = false;
+  camera.position.set(0, 35, 0.1);
+  controls.target.set(0, 0, 0);
+  controls.update();
+  controls.enabled = true;
+
+  await Promise.all([
+    loadGroundMap(city.lat, city.lon),
+    loadAirports(scene, city.lat, city.lon).then(() => {
+      const aptData = getAirportData();
+      if (aptData) updateHUDAirports(aptData.airports.length);
+    }),
+  ]);
+}
+
+function initCityPicker() {
+  const overlay = document.getElementById('city-overlay');
+  const grid = document.getElementById('city-grid');
+  const closeBtn = document.getElementById('city-overlay-close');
+  if (!overlay || !grid) return;
+
+  // Populate grid
+  grid.innerHTML = CITIES.map((c, i) =>
+    `<button type="button" class="city-card" data-idx="${i}">
+      <span class="city-card-code">${c.code}</span>
+      <span class="city-card-name">${c.name}</span>
+      <span class="city-card-region">${c.region}</span>
+    </button>`
+  ).join('');
+
+  grid.querySelectorAll('.city-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const city = CITIES[+card.dataset.idx];
+      grid.querySelectorAll('.city-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      overlay.classList.add('hidden');
+      switchCity(city);
+    });
+  });
+
+  if (closeBtn) closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.add('hidden');
+  });
+}
+
+function openCityPicker() {
+  const overlay = document.getElementById('city-overlay');
+  if (overlay) overlay.classList.remove('hidden');
+}
+
 // --- Search with keyboard navigation ---
 function initSearch() {
   const input = document.getElementById('search-input');
@@ -796,12 +898,8 @@ function initSearch() {
         const d = ac.getDisplayData();
         const cs = d.callsign || d.icao24;
         const info = [d.aircraftType, d.registration].filter(Boolean).join(' · ');
-        const route = (d.origin && d.destination) ? `${d.origin}→${d.destination}` : '';
         return `<div class="search-result" role="option" data-icao="${d.icao24}">
-          <span>
-            <span class="search-result-callsign">${cs}</span>
-            ${route ? `<span class="search-result-route">${route}</span>` : ''}
-          </span>
+          <span class="search-result-callsign">${cs}</span>
           <span class="search-result-info">${info || d.icao24}</span>
         </div>`;
       }).join('');
@@ -856,6 +954,11 @@ function initSearch() {
       input.focus();
     }
     if (e.key === 'Escape') {
+      const cityOverlay = document.getElementById('city-overlay');
+      if (cityOverlay && !cityOverlay.classList.contains('hidden')) {
+        cityOverlay.classList.add('hidden');
+        return;
+      }
       if (document.activeElement === input) {
         input.blur();
         input.value = '';
@@ -884,6 +987,7 @@ async function init() {
 
   startPolling(handleData, handleError);
   initSearch();
+  initCityPicker();
   initNeko();
   animate();
 }

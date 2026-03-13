@@ -407,6 +407,16 @@ export class AircraftManager {
     this._highlightSet = null;
   }
 
+  clearAll(scene) {
+    for (const ac of this.aircraft.values()) {
+      ac.dispose(scene);
+    }
+    this.aircraft.clear();
+    this.raycasterTargets.length = 0;
+    this._highlightSet = null;
+    this._selectedAc = null;
+  }
+
   getByHitMesh(mesh) {
     for (const ac of this.aircraft.values()) {
       if (ac.hitMesh === mesh || ac.labelSprite === mesh) return ac;

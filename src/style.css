@@ -272,75 +272,6 @@ html, body {
 }
 .detail-close:hover { color: var(--text); }
 
-/* Route visualization */
-.detail-route {
-  display: flex; align-items: flex-start;
-  padding: 10px 16px 12px;
-  gap: 8px; border-top: 1px solid var(--border);
-}
-
-.detail-route-endpoint {
-  display: flex; flex-direction: column;
-  align-items: flex-start; gap: 2px;
-  flex: 1; min-width: 0;
-}
-.detail-route-endpoint:last-child { align-items: flex-end; }
-
-.detail-route-label {
-  font-family: var(--font-sans);
-  font-size: 7px; letter-spacing: 1.5px;
-  color: var(--text-3); text-transform: uppercase;
-}
-
-.detail-route-code {
-  display: flex; flex-direction: column;
-  align-items: inherit; gap: 1px;
-}
-
-/* City name and ICAO code within route endpoint */
-.route-city {
-  font-family: var(--font-sans);
-  font-size: 11px; font-weight: 500;
-  color: var(--text); line-height: 1.25;
-  max-width: 100%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.route-icao {
-  font-size: 10px; color: var(--text-3);
-  letter-spacing: 0.5px;
-}
-/* Fallback: when only ICAO code shown (no city known) */
-.route-code-only {
-  font-size: 15px; font-weight: 400;
-  color: var(--text); letter-spacing: 1px;
-}
-.route-placeholder {
-  font-size: 13px; color: var(--text-3);
-}
-
-.detail-route-line {
-  display: flex; align-items: center;
-  flex-shrink: 0; padding: 0 4px; margin-top: 18px;
-  gap: 0; width: 44px;
-}
-
-.detail-route-dot {
-  width: 3px; height: 3px; border-radius: 50%;
-  background: var(--border-mid); flex-shrink: 0;
-}
-
-.detail-route-dash {
-  flex: 1; height: 1px;
-  background: repeating-linear-gradient(90deg,
-    var(--border) 0, var(--border) 3px,
-    transparent 3px, transparent 7px);
-}
-
-.detail-route-plane {
-  font-size: 9px; color: var(--accent);
-  flex-shrink: 0; padding: 0 2px;
-}
-
 /* Data grid */
 .detail-grid {
   display: grid; grid-template-columns: 1fr 1fr;
@@ -1221,6 +1152,78 @@ html, body {
 @keyframes neko-badge-pop {
   from { transform: scale(0.3); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
+}
+
+/* ── City picker overlay ── */
+.city-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(9, 9, 12, 0.75);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: fade-in 0.18s ease both;
+}
+.city-overlay.hidden { display: none; }
+
+.city-overlay-content {
+  width: min(720px, calc(100vw - 40px));
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  padding: 0;
+}
+
+.city-overlay-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 14px;
+}
+
+.city-overlay-title {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 500;
+  letter-spacing: 3px; color: var(--accent-bright);
+  text-transform: uppercase;
+}
+
+.city-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: var(--border);
+  margin: 0 0 1px;
+}
+
+.city-card {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 14px 16px;
+  background: var(--surface-deep);
+  cursor: pointer;
+  transition: background 0.12s ease;
+  border: none; text-align: left;
+}
+.city-card:hover { background: rgba(196, 160, 88, 0.07); }
+.city-card.active { background: rgba(196, 160, 88, 0.05); }
+.city-card.active .city-card-code { color: var(--accent); }
+
+.city-card-code {
+  font-family: var(--font-mono);
+  font-size: 15px; font-weight: 400;
+  color: var(--text); letter-spacing: 1px;
+  transition: color 0.12s;
+}
+
+.city-card-name {
+  font-family: var(--font-sans);
+  font-size: 10px; color: var(--text-2);
+  line-height: 1.3;
+}
+
+.city-card-region {
+  font-family: var(--font-mono);
+  font-size: 8px; letter-spacing: 1.5px;
+  color: var(--text-3); text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.city-card.active .city-card-region {
+  color: rgba(196, 160, 88, 0.5);
 }
 
 /* ── Responsive ── */
