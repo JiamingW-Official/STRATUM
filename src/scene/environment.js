@@ -168,6 +168,7 @@ let airportHitTargets = [];
 let airportData = null;
 let _userLat = 0;
 let _userLon = 0;
+let _loadEpoch = 0; // incremented on clearAirports; guards against stale loadAirports resolving late
 
 // Selection state
 let selectedHighlight = null;
@@ -181,6 +182,7 @@ let _taxiwayLightMesh = null;
 let _pulseRingRef = null;
 
 export async function loadAirports(scene, userLat, userLon) {
+  const myEpoch = _loadEpoch;
   _userLat = userLat;
   _userLon = userLon;
 
@@ -191,6 +193,8 @@ export async function loadAirports(scene, userLat, userLon) {
 
   try {
     airportData = await fetchAirportData(userLat, userLon, 1.2);
+    // If clearAirports() was called while we were fetching, discard stale result
+    if (_loadEpoch !== myEpoch) return;
     airportGroup = new THREE.Group();
     airportGroup.name = 'airports';
     airportGroup.renderOrder = 50;
@@ -869,6 +873,7 @@ export function clearGroundMap(scene) {
 }
 
 export function clearAirports(scene) {
+  _loadEpoch++;        // invalidate any in-flight loadAirports call
   clearAirportCache();
   deselectAirport(scene);
   if (airportGroup) {
