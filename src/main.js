@@ -1071,9 +1071,14 @@ async function init() {
 
   aircraftManager = new AircraftManager(scene, defaultCity.lat, defaultCity.lon);
 
-  // Load base map; airports load only after user picks a city via switchCity,
-  // which eliminates the race condition between init's Overpass fetch and clearAirportCache().
+  // Load base map and airports for the default city.
+  // The epoch guard in clearAirportCache() ensures any in-flight fetch here
+  // is safely discarded if the user switches cities before it completes.
   loadGroundMap(defaultCity.lat, defaultCity.lon);
+  loadAirports(scene, defaultCity.lat, defaultCity.lon).then(() => {
+    const aptData = getAirportData();
+    if (aptData) updateHUDAirports(aptData.airports.length);
+  });
 
   startPolling(handleData, handleError);
   initSearch();
