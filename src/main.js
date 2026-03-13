@@ -8,7 +8,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights } from './scene/environment.js';
 import { AircraftManager } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch } from './data/opensky.js';
-import { updateHUD, updateHUDTimer, updateHUDAirports, showSignalLost } from './ui/hud.js';
+import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft } from './ui/detail.js';
 import { initNeko, nekoTrackAircraft } from './ui/neko.js';
 
@@ -775,36 +775,59 @@ const CITIES = [
 
 let activeCity = null;
 
+const sceneTrans = document.getElementById('scene-transition');
+
+function flashTransition(onSwitch) {
+  if (sceneTrans) {
+    sceneTrans.style.transition = 'opacity 0.22s ease';
+    sceneTrans.style.opacity = '1';
+    sceneTrans.style.pointerEvents = 'all';
+  }
+  setTimeout(() => {
+    onSwitch();
+    if (sceneTrans) {
+      setTimeout(() => {
+        sceneTrans.style.transition = 'opacity 0.7s ease';
+        sceneTrans.style.opacity = '0';
+        sceneTrans.style.pointerEvents = '';
+      }, 80);
+    }
+  }, 240);
+}
+
 async function switchCity(city) {
   if (activeCity && activeCity.code === city.code) return;
   activeCity = city;
 
-  closeDetail();
-  stopFollow();
-  if (autoTour) stopAutoTour();
-  if (selectedAirportState) {
-    deselectAirport(scene);
-    if (aircraftManager) aircraftManager.clearHighlight();
-    selectedAirportState = null;
-  }
+  flashTransition(() => {
+    closeDetail();
+    stopFollow();
+    if (autoTour) stopAutoTour();
+    if (selectedAirportState) {
+      deselectAirport(scene);
+      if (aircraftManager) aircraftManager.clearHighlight();
+      selectedAirportState = null;
+    }
 
-  if (aircraftManager) aircraftManager.clearAll(scene);
-  clearGroundMap(scene);
-  clearAirports(scene);
+    if (aircraftManager) aircraftManager.clearAll(scene);
+    clearGroundMap(scene);
+    clearAirports(scene);
 
-  setUserLocation(city.lat, city.lon);
-  if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
+    setUserLocation(city.lat, city.lon);
+    if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
 
-  updateHUD(0, city.lat, city.lon);
-  updateHUDAirports(0);
+    updateHUDCity(city.name, city.code);
+    updateHUDAirports(0);
 
-  // Reset camera to overview
-  controls.enabled = false;
-  camera.position.set(0, 35, 0.1);
-  controls.target.set(0, 0, 0);
-  controls.update();
-  controls.enabled = true;
+    // Reset camera to cinematic overview angle
+    controls.enabled = false;
+    camera.position.set(8, 9, 12);
+    controls.target.set(0, 1, 0);
+    controls.update();
+    controls.enabled = true;
+  });
 
+  // Load in background — data arrives after flash
   await Promise.all([
     loadGroundMap(city.lat, city.lon),
     loadAirports(scene, city.lat, city.lon).then(() => {
@@ -818,23 +841,49 @@ function initCityPicker() {
   const overlay = document.getElementById('city-overlay');
   const grid = document.getElementById('city-grid');
   const closeBtn = document.getElementById('city-overlay-close');
+  const hudCityBtn = document.getElementById('hud-city-btn');
   if (!overlay || !grid) return;
 
-  // Populate grid
-  grid.innerHTML = CITIES.map((c, i) =>
-    `<button type="button" class="city-card" data-idx="${i}">
-      <span class="city-card-code">${c.code}</span>
-      <span class="city-card-name">${c.name}</span>
-      <span class="city-card-region">${c.region}</span>
-    </button>`
+  // Group cities by region maintaining insertion order
+  const regionOrder = [];
+  const regionMap = {};
+  for (let i = 0; i < CITIES.length; i++) {
+    const c = CITIES[i];
+    if (!regionMap[c.region]) {
+      regionMap[c.region] = [];
+      regionOrder.push(c.region);
+    }
+    regionMap[c.region].push(i);
+  }
+
+  grid.innerHTML = regionOrder.map(region =>
+    `<div class="city-region-block">
+      <div class="city-region-label">${region}</div>
+      <div class="city-region-row">
+        ${regionMap[region].map(idx => {
+          const c = CITIES[idx];
+          return `<button type="button" class="city-card" data-idx="${idx}">
+            <span class="city-card-code">${c.code}</span>
+            <span class="city-card-name">${c.name}</span>
+          </button>`;
+        }).join('')}
+      </div>
+    </div>`
   ).join('');
+
+  function markActive(idx) {
+    grid.querySelectorAll('.city-card').forEach(c => c.classList.remove('active'));
+    const active = grid.querySelector(`.city-card[data-idx="${idx}"]`);
+    if (active) active.classList.add('active');
+  }
 
   grid.querySelectorAll('.city-card').forEach(card => {
     card.addEventListener('click', () => {
       const city = CITIES[+card.dataset.idx];
-      grid.querySelectorAll('.city-card').forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
+      markActive(+card.dataset.idx);
       overlay.classList.add('hidden');
+      localStorage.setItem('stratum:city-picked', '1');
+      if (hudCityBtn) hudCityBtn.classList.remove('nudge');
       switchCity(city);
     });
   });
@@ -843,11 +892,42 @@ function initCityPicker() {
   overlay.addEventListener('click', e => {
     if (e.target === overlay) overlay.classList.add('hidden');
   });
+
+  // Keyboard navigation inside overlay
+  overlay.addEventListener('keydown', e => {
+    if (e.key === 'Escape') overlay.classList.add('hidden');
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const cards = [...grid.querySelectorAll('.city-card')];
+      const focused = document.activeElement;
+      const idx = cards.indexOf(focused);
+      if (idx === -1) { cards[0]?.focus(); return; }
+      const next = e.key === 'ArrowRight' || e.key === 'ArrowDown'
+        ? Math.min(idx + 1, cards.length - 1)
+        : Math.max(idx - 1, 0);
+      cards[next]?.focus();
+      e.preventDefault();
+    }
+  });
+
+  // Wire HUD city button
+  if (hudCityBtn) {
+    hudCityBtn.addEventListener('click', () => openCityPicker());
+    // First-time nudge
+    if (!localStorage.getItem('stratum:city-picked')) {
+      hudCityBtn.classList.add('nudge');
+    }
+  }
 }
 
 function openCityPicker() {
   const overlay = document.getElementById('city-overlay');
-  if (overlay) overlay.classList.remove('hidden');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  // Focus first card for keyboard nav
+  setTimeout(() => {
+    const first = overlay.querySelector('.city-card');
+    if (first) first.focus();
+  }, 50);
 }
 
 // --- Search with keyboard navigation ---

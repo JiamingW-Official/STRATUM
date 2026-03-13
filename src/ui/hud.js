@@ -7,6 +7,13 @@ const hudAirports = document.getElementById('hud-airports');
 const hudLiveText = document.querySelector('.hud-live-text');
 const hudLiveDot = document.querySelector('.hud-live-dot');
 
+let cityOverride = null;
+
+export function updateHUDCity(name, code) {
+  cityOverride = code ? `${code}  ·  ${name}` : name;
+  if (hudLocation) hudLocation.textContent = cityOverride;
+}
+
 // Animated count-up
 let displayCount = 0;
 let targetCount = 0;
@@ -26,7 +33,9 @@ export function updateHUD(aircraftCount, lat, lon) {
     targetCount = aircraftCount;
     if (!countAnimFrame) countAnimFrame = requestAnimationFrame(animateCount);
   }
-  hudLocation.textContent = `${lat.toFixed(4)}N  ${lon.toFixed(4)}${lon >= 0 ? 'E' : 'W'}`;
+  if (!cityOverride) {
+    hudLocation.textContent = `${lat.toFixed(4)}N  ${lon.toFixed(4)}${lon >= 0 ? 'E' : 'W'}`;
+  }
 
   if (isDemo()) {
     hudLiveText.textContent = 'DEMO';

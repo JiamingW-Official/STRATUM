@@ -13,6 +13,7 @@
   <canvas id="scene"></canvas>
   <div id="vignette" class="vignette"></div>
   <div id="speed-lines" class="speed-lines"></div>
+  <div id="scene-transition" class="scene-transition"></div>
 
   <!-- HUD — top left, floats over scene -->
   <div id="hud" class="glass-panel">
@@ -36,7 +37,10 @@
     </div>
     <div class="hud-divider"></div>
     <div class="hud-meta">
-      <span id="hud-location" class="hud-coord">Locating...</span>
+      <button type="button" id="hud-city-btn" class="hud-city-btn" title="Change airspace (C)">
+        <span id="hud-location" class="hud-coord">Locating...</span>
+        <span class="hud-city-chevron" aria-hidden="true">›</span>
+      </button>
       <span id="hud-updated" class="hud-time">Waiting...</span>
     </div>
   </div>
@@ -48,7 +52,7 @@
         <span id="detail-callsign" class="detail-callsign">--</span>
         <span id="detail-type" class="detail-type-badge"></span>
       </div>
-      <button id="detail-close" class="detail-close" aria-label="Close">&times;</button>
+      <button type="button" id="detail-close" class="detail-close" aria-label="Close">&times;</button>
     </div>
     <div class="hud-divider"></div>
     <div class="detail-grid">
@@ -141,13 +145,16 @@
     <div id="search-results" class="search-results" role="listbox" aria-label="Search results"></div>
   </div>
 
-  <div class="search-hint">? help &nbsp;·&nbsp; / search &nbsp;·&nbsp; click to track &nbsp;·&nbsp; T tour &nbsp;·&nbsp; C city</div>
+  <div class="search-hint">? help &nbsp;·&nbsp; / search &nbsp;·&nbsp; click to track &nbsp;·&nbsp; T tour &nbsp;·&nbsp; C airspace</div>
 
   <!-- City picker overlay -->
-  <div id="city-overlay" class="city-overlay hidden" role="dialog" aria-label="Select city">
+  <div id="city-overlay" class="city-overlay hidden" role="dialog" aria-label="Select airspace">
     <div class="city-overlay-content glass-panel">
       <div class="city-overlay-header">
-        <div class="city-overlay-title">SELECT AIRSPACE</div>
+        <div>
+          <div class="city-overlay-title">SELECT AIRSPACE</div>
+          <div class="city-overlay-sub">Live ADS-B · 100 nm radius</div>
+        </div>
         <button type="button" id="city-overlay-close" class="detail-close" aria-label="Close">&times;</button>
       </div>
       <div class="hud-divider"></div>
