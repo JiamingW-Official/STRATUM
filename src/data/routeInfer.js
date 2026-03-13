@@ -459,7 +459,10 @@ function inferDestination(entry) {
     }
   }
 
-  if (descentPoints.length < 3) return null;
+  if (descentPoints.length < 3) {
+    // Fallback: try heading-based destination inference (works at any altitude)
+    return inferDestinationByHeading(entry);
+  }
 
   // 用最近的低空点搜索附近机场
   const searchPoint = descentPoints[descentPoints.length - 1];
@@ -499,6 +502,203 @@ function inferDestination(entry) {
   }
 
   return null; // 还未确认
+}
+
+/**
+ * 航向推断目的地 — 用于巡航高度的飞机
+ * 即使飞机在 30,000+ ft，如果航向持续指向某个大型机场，
+ * 且距离在合理范围内（50-500 km），可以推测为目的地
+ */
+function inferDestinationByHeading(entry) {
+  const positions = entry.positions;
+  if (positions.length < 8) return null;
+
+  // Use the latest 8 positions to check heading consistency
+  const recent = positions.slice(-8);
+  const latest = recent[recent.length - 1];
+  if (latest.heading == null || latest.lat == null) return null;
+
+  // Project a point ~200km ahead along current heading
+  const projDist = 200;
+  const projLat = latest.lat + (projDist / 111) * Math.cos(latest.heading * DEG_TO_RAD);
+  const projLon = latest.lon + (projDist / (111 * Math.cos(latest.lat * DEG_TO_RAD))) * Math.sin(latest.heading * DEG_TO_RAD);
+
+  // Search around both current position and projected position
+  const nearby1 = findNearbyAirports(latest.lat, latest.lon, 300);
+  const nearby2 = findNearbyAirports(projLat, projLon, 200);
+
+  // Merge and deduplicate
+  const seen = new Set();
+  const allNearby = [];
+  for (const n of [...nearby1, ...nearby2]) {
+    if (seen.has(n.airport.code)) continue;
+    seen.add(n.airport.code);
+    const d = haversineKm(latest.lat, latest.lon, n.airport.lat, n.airport.lon);
+    if (d < 30 || d > 500) continue;
+    allNearby.push({ airport: n.airport, dist: d });
+  }
+
+  if (allNearby.length === 0) return null;
+
+  const parsed = parseCallsign(entry.callsign);
+
+  const candidates = [];
+  for (const { airport, dist } of allNearby) {
+    let alignCount = 0;
+    let totalChecked = 0;
+    for (const p of recent) {
+      if (p.heading == null) continue;
+      totalChecked++;
+      const bearTo = bearing(p.lat, p.lon, airport.lat, airport.lon);
+      const diff = angleDiff(p.heading, bearTo);
+      if (diff < 25) alignCount++;
+    }
+    if (totalChecked < 4) continue;
+
+    const alignRatio = alignCount / totalChecked;
+    if (alignRatio < 0.5) continue;
+
+    let distScore = 0;
+    if (dist >= 50 && dist <= 400) distScore = 0.8;
+    else if (dist > 400) distScore = Math.max(0, 0.8 - (dist - 400) / 500);
+    else distScore = dist / 50 * 0.5;
+
+    let regionBonus = 0;
+    if (parsed?.region) regionBonus = 0.05;
+
+    const score = alignRatio * 0.55 + distScore * 0.40 + regionBonus;
+
+    candidates.push({
+      code: airport.code,
+      icao: airport.icao,
+      name: airport.name,
+      dist: Math.round(dist),
+      score: Math.min(1, score),
+    });
+  }
+
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.score - a.score);
+
+  if (LOG_INFER) {
+    console.log(`[RouteInfer] HeadingDest推断 ${entry.callsign || '?'}: ` +
+      `${candidates.length} 个候选`, candidates.slice(0, 5));
+  }
+
+  const best = candidates[0];
+  if (best.score < 0.40) return null;
+
+  // Delayed confirmation — heading-based needs extra confirmations
+  if (entry.destCandidateCode === best.code) {
+    entry.destCandidateCount++;
+  } else {
+    entry.destCandidateCode = best.code;
+    entry.destCandidateCount = 1;
+  }
+
+  if (entry.destCandidateCount >= DEST_CONFIRM_COUNT + 1) {
+    return { code: best.code, icao: best.icao, score: best.score, dist: best.dist };
+  }
+
+  return null;
+}
+
+// ── Trace 数据注入 ──────────────────────────────────────────────────────────
+
+/**
+ * 将 trace（历史 30 分钟航迹）注入位置历史
+ * trace waypoints 通常包含起飞阶段的低空数据点，这对 origin 推断至关重要
+ *
+ * @param {string} icao24
+ * @param {Array} waypoints - [{latitude, longitude, baroAltitude (meters), time (epoch s)}, ...]
+ * @param {string} callsign
+ */
+export function feedTrace(icao24, waypoints, callsign) {
+  if (!waypoints || waypoints.length < 2) return;
+
+  let entry = _posHistory.get(icao24);
+  if (!entry) {
+    entry = {
+      positions: [],
+      callsign: callsign || null,
+      originLocked: false,
+      destLocked: false,
+      destCandidateCode: null,
+      destCandidateCount: 0,
+      lastInferTime: 0,
+    };
+    _posHistory.set(icao24, entry);
+  }
+
+  // Already fully inferred — skip
+  if (entry.originLocked && entry.destLocked) return;
+
+  // Only inject trace points that are OLDER than our earliest live position
+  // to avoid duplicating data
+  const earliestLive = entry.positions.length > 0 ? entry.positions[0].ts : Infinity;
+
+  let injected = 0;
+  const tracePoints = [];
+  for (const wp of waypoints) {
+    const ts = wp.time * 1000; // epoch s → ms
+    if (ts >= earliestLive) continue; // skip if we already have live data for this time
+    if (wp.latitude == null || wp.longitude == null) continue;
+
+    const altFt = wp.baroAltitude != null ? wp.baroAltitude * METERS_TO_FEET : null;
+
+    tracePoints.push({
+      lat: wp.latitude,
+      lon: wp.longitude,
+      altFt,
+      vRate: 0, // trace doesn't have vertical rate, will estimate below
+      heading: null,
+      gs: 0,
+      ts,
+    });
+    injected++;
+  }
+
+  if (tracePoints.length < 2) return;
+
+  // Sort chronologically
+  tracePoints.sort((a, b) => a.ts - b.ts);
+
+  // Estimate vertical rate and heading from consecutive points
+  for (let i = 1; i < tracePoints.length; i++) {
+    const prev = tracePoints[i - 1];
+    const curr = tracePoints[i];
+    const dt = (curr.ts - prev.ts) / 1000; // seconds
+    if (dt > 0 && prev.altFt != null && curr.altFt != null) {
+      // Convert ft/s to m/s (since vRate thresholds are in m/s)
+      curr.vRate = ((curr.altFt - prev.altFt) / dt) / METERS_TO_FEET;
+    }
+    // Estimate heading from consecutive lat/lon
+    curr.heading = bearing(prev.lat, prev.lon, curr.lat, curr.lon);
+  }
+  // First point: copy from second
+  if (tracePoints.length >= 2) {
+    tracePoints[0].vRate = tracePoints[1].vRate;
+    tracePoints[0].heading = tracePoints[1].heading;
+  }
+
+  // Prepend trace points before live positions
+  entry.positions = tracePoints.concat(entry.positions);
+
+  // Trim to max size
+  if (entry.positions.length > POS_HISTORY_MAX * 2) {
+    entry.positions = entry.positions.slice(0, POS_HISTORY_MAX * 2);
+  }
+
+  if (callsign) entry.callsign = callsign;
+
+  if (LOG_INFER) {
+    console.log(`[RouteInfer] Trace注入 ${callsign || icao24}: ${injected} 个历史点, 总 ${entry.positions.length} 个`);
+  }
+
+  // Immediately attempt inference with the enriched history
+  if (!entry.originLocked || !entry.destLocked) {
+    triggerInference(icao24, callsign || entry.callsign);
+  }
 }
 
 // ── 公共 API ──────────────────────────────────────────────────────────────────
@@ -621,7 +821,9 @@ export function batchUpdate(dataList) {
       // 起飞阶段（低空 + 爬升）
       (!entry.originLocked && altFt != null && altFt < ORIGIN_ALT_THRESHOLD_FT && vRate > CLIMB_RATE_THRESHOLD) ||
       // 降落阶段（低空 + 下降）
-      (!entry.destLocked && altFt != null && altFt < DEST_ALT_THRESHOLD_FT && vRate < DESCENT_RATE_THRESHOLD);
+      (!entry.destLocked && altFt != null && altFt < DEST_ALT_THRESHOLD_FT && vRate < DESCENT_RATE_THRESHOLD) ||
+      // 巡航阶段但有足够的历史数据 — 航向推断目的地（每 30 个点触发一次）
+      (!entry.destLocked && entry.positions.length >= 8 && entry.positions.length % 30 === 0);
 
     if (shouldInfer) {
       triggerInference(data.icao24, data.callsign || entry.callsign);

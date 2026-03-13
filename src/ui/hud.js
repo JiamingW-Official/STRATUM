@@ -6,8 +6,10 @@ const hudUpdated = document.getElementById('hud-updated');
 const hudAirports = document.getElementById('hud-airports');
 const hudLiveText = document.querySelector('.hud-live-text');
 const hudLiveDot = document.querySelector('.hud-live-dot');
+const hudZulu = document.getElementById('hud-zulu');
 
 let cityOverride = null;
+let prevCount = 0;
 
 export function updateHUDCity(name, code) {
   cityOverride = code ? `${code}  ·  ${name}` : name;
@@ -29,7 +31,18 @@ function animateCount() {
 }
 
 export function updateHUD(aircraftCount, lat, lon) {
-  if (aircraftCount !== targetCount) {
+  // T1-14: Flash count on change
+  if (aircraftCount !== targetCount && hudCount) {
+    hudCount.classList.remove('hud-count-up', 'hud-count-down');
+    void hudCount.offsetWidth;
+    if (aircraftCount > targetCount) hudCount.classList.add('hud-count-up');
+    else if (aircraftCount < targetCount) hudCount.classList.add('hud-count-down');
+    hudCount.addEventListener('animationend', () => {
+      hudCount.classList.remove('hud-count-up', 'hud-count-down');
+    }, { once: true });
+    targetCount = aircraftCount;
+    if (!countAnimFrame) countAnimFrame = requestAnimationFrame(animateCount);
+  } else if (aircraftCount !== targetCount) {
     targetCount = aircraftCount;
     if (!countAnimFrame) countAnimFrame = requestAnimationFrame(animateCount);
   }
@@ -58,13 +71,19 @@ export function updateHUDTimer() {
   const last = getLastFetchTime();
   if (!last) {
     hudUpdated.textContent = 'Connecting...';
-    return;
-  }
-  const ago = Math.floor((Date.now() - last) / 1000);
-  if (isDemo()) {
-    hudUpdated.textContent = 'Simulated data';
   } else {
-    hudUpdated.textContent = ago < 2 ? 'Just now' : `${ago}s ago`;
+    const ago = Math.floor((Date.now() - last) / 1000);
+    if (isDemo()) {
+      hudUpdated.textContent = 'Simulated data';
+    } else {
+      hudUpdated.textContent = ago < 2 ? 'Just now' : `${ago}s ago`;
+    }
+  }
+
+  // T1-05: UTC clock
+  if (hudZulu) {
+    const now = new Date();
+    hudZulu.textContent = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}Z`;
   }
 }
 

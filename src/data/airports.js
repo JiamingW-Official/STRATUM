@@ -33,14 +33,43 @@ export async function fetchAirportData(centerLat, centerLon, radiusDeg = 1.5) {
   }
 }
 
+// localStorage cache key for Overpass results (keyed by rounded lat/lon)
+function _cacheKey(lat, lon) {
+  return `stratum:apt:${lat.toFixed(1)}:${lon.toFixed(1)}`;
+}
+
+function _loadFromCache(lat, lon) {
+  try {
+    const raw = localStorage.getItem(_cacheKey(lat, lon));
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    // Cache valid for 24 hours
+    if (Date.now() - ts > 86400000) { localStorage.removeItem(_cacheKey(lat, lon)); return null; }
+    return data;
+  } catch { return null; }
+}
+
+function _saveToCache(lat, lon, data) {
+  try {
+    localStorage.setItem(_cacheKey(lat, lon), JSON.stringify({ ts: Date.now(), data }));
+  } catch { /* quota exceeded — ignore */ }
+}
+
 async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
+  // 1. Check localStorage cache first — instant
+  const cached = _loadFromCache(centerLat, centerLon);
+  if (cached) {
+    console.log('[STRATUM] Airport data from cache');
+    return cached;
+  }
+
   const south = (centerLat - radiusDeg).toFixed(4);
   const north = (centerLat + radiusDeg).toFixed(4);
   const west = (centerLon - radiusDeg).toFixed(4);
   const east = (centerLon + radiusDeg).toFixed(4);
 
   const query = `
-[out:json][timeout:30];
+[out:json][timeout:15];
 (
   way["aeroway"="runway"](${south},${west},${north},${east});
   way["aeroway"="taxiway"](${south},${west},${north},${east});
@@ -53,29 +82,39 @@ async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
 out body geom;
 `;
 
-  let lastErr;
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    try {
-      console.log(`[STRATUM] Trying Overpass: ${endpoint}`);
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        body: `data=${encodeURIComponent(query)}`,
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        signal: controller.signal,
-      });
+  const body = `data=${encodeURIComponent(query)}`;
+
+  // 2. Race all endpoints in parallel — use first success
+  const racePromises = OVERPASS_ENDPOINTS.map(endpoint => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    return fetch(endpoint, {
+      method: 'POST',
+      body,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      signal: controller.signal,
+    }).then(async res => {
       clearTimeout(timer);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
       console.log(`[STRATUM] Overpass OK from ${endpoint}`);
-      return parseOverpassData(data);
-    } catch (err) {
+      return data;
+    }).catch(err => {
+      clearTimeout(timer);
       console.warn(`[STRATUM] Overpass failed (${endpoint}):`, err.message);
-      lastErr = err;
-    }
+      throw err;
+    });
+  });
+
+  // Promise.any resolves with the first fulfilled promise
+  try {
+    const data = await Promise.any(racePromises);
+    const result = parseOverpassData(data);
+    _saveToCache(centerLat, centerLon, result);
+    return result;
+  } catch (aggregateErr) {
+    throw new Error('All Overpass endpoints failed');
   }
-  throw lastErr || new Error('All Overpass endpoints failed');
 }
 
 function parseOverpassData(data) {

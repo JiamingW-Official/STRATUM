@@ -49,6 +49,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/opensky/, ''),
       },
+      '/api/adsbdb': {
+        target: 'https://api.adsbdb.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/adsbdb/, ''),
+      },
     },
   },
 });

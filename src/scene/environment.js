@@ -11,11 +11,18 @@ let groundMesh = null;
 let _cosLat = 1; // cos(userLat) — corrects E-W longitude scale
 const hiResOverlays = [];
 
+// T3-12: Day/Night cycle cached references
+let _skyDomeRef = null;
+let _skyBaseColors = null;   // Float32Array — night baseline vertex colors
+let _ambientLightRef = null;
+
 export function createEnvironment(scene) {
   // Horizon fog — fades map edges into sky for infinity/depth-of-field effect
   scene.fog = new THREE.FogExp2(new THREE.Color(0.008, 0.032, 0.068), 0.013);
 
   const ambient = new THREE.AmbientLight(0x3a5577, 0.7);
+  ambient.name = 'ambientLight';
+  _ambientLightRef = ambient;
   scene.add(ambient);
 
   const dirLight = new THREE.DirectionalLight(0x99bbdd, 0.35);
@@ -50,7 +57,10 @@ export function createEnvironment(scene) {
     vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false,
   });
   const skyDome = new THREE.Mesh(skyGeo, skyMat);
+  skyDome.name = 'skyDome';
   skyDome.renderOrder = -100;
+  _skyDomeRef = skyDome;
+  _skyBaseColors = new Float32Array(skyColors);  // snapshot night baseline
   scene.add(skyDome);
 
   // Subtle ground grid for depth
@@ -181,6 +191,38 @@ let _runwayEdgeLightMesh = null;
 let _taxiwayLightMesh = null;
 let _pulseRingRef = null;
 
+// Loading placeholder — pulsing ring on ground while airports fetch
+let _loadingPlaceholder = null;
+function _showLoadingPlaceholder(scene) {
+  _removeLoadingPlaceholder(scene);
+  const ringGeo = new THREE.RingGeometry(1.8, 2.0, 64);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0xc4a058, transparent: true, opacity: 0.15,
+    side: THREE.DoubleSide, depthWrite: false,
+  });
+  _loadingPlaceholder = new THREE.Mesh(ringGeo, ringMat);
+  _loadingPlaceholder.rotation.x = -Math.PI / 2;
+  _loadingPlaceholder.position.y = 0.01;
+  _loadingPlaceholder.name = 'aptLoadingRing';
+  scene.add(_loadingPlaceholder);
+}
+function _removeLoadingPlaceholder(scene) {
+  if (_loadingPlaceholder) {
+    scene.remove(_loadingPlaceholder);
+    _loadingPlaceholder.geometry.dispose();
+    _loadingPlaceholder.material.dispose();
+    _loadingPlaceholder = null;
+  }
+}
+// Called from animate loop — animate the loading ring
+export function animateAirportLoading(elapsed) {
+  if (!_loadingPlaceholder) return;
+  const pulse = 0.08 + 0.08 * Math.sin(elapsed * 3);
+  _loadingPlaceholder.material.opacity = pulse;
+  const s = 1 + 0.1 * Math.sin(elapsed * 2);
+  _loadingPlaceholder.scale.set(s, s, 1);
+}
+
 export async function loadAirports(scene, userLat, userLon) {
   const myEpoch = _loadEpoch;
   _userLat = userLat;
@@ -191,10 +233,17 @@ export async function loadAirports(scene, userLat, userLon) {
   _runwayEdgeLightMesh = null;
   _taxiwayLightMesh = null;
 
+  // Show loading placeholder
+  _showLoadingPlaceholder(scene);
+
   try {
     airportData = await fetchAirportData(userLat, userLon, 1.2);
     // If clearAirports() was called while we were fetching, discard stale result
     if (_loadEpoch !== myEpoch) return;
+
+    // Remove placeholder now that data has arrived
+    _removeLoadingPlaceholder(scene);
+
     airportGroup = new THREE.Group();
     airportGroup.name = 'airports';
     airportGroup.renderOrder = 50;
@@ -229,6 +278,7 @@ export async function loadAirports(scene, userLat, userLon) {
     const tmCount = airportData.terminals?.length || 0;
     console.log(`[STRATUM] Loaded ${airportData.airports.length} airports, ${airportData.runways.length} runways, ${txCount} taxiways, ${tmCount} terminals`);
   } catch (err) {
+    _removeLoadingPlaceholder(scene);
     console.warn('[STRATUM] Airport data fetch failed:', err.message);
   }
 }
@@ -726,7 +776,9 @@ function renderAirportLabel(apt, userLat, userLon) {
   sprite.position.set(cx, 0.5, cz - 0.15);
   sprite.renderOrder = 100;
   sprite.center.set(0.5, 0);
+  sprite.userData.airport = apt;
   airportGroup.add(sprite);
+  airportHitTargets.push(sprite);
 
   // Diamond marker instead of circle beacon
   const markerSize = 0.05;
@@ -746,8 +798,8 @@ function renderAirportLabel(apt, userLat, userLon) {
   _aptBeacons.push(marker);
   airportGroup.add(marker);
 
-  // Hit target for raycasting
-  const hitGeo = new THREE.SphereGeometry(1.5, 6, 6);
+  // Hit target for raycasting — generous sphere covers airport area
+  const hitGeo = new THREE.SphereGeometry(3.0, 6, 6);
   const hitMat = new THREE.MeshBasicMaterial({ visible: false });
   const hitMesh = new THREE.Mesh(hitGeo, hitMat);
   hitMesh.position.set(cx, 0.3, cz);
@@ -876,6 +928,7 @@ export function clearAirports(scene) {
   _loadEpoch++;        // invalidate any in-flight loadAirports call
   clearAirportCache();
   deselectAirport(scene);
+  _removeLoadingPlaceholder(scene);
   if (airportGroup) {
     scene.remove(airportGroup);
     airportGroup = null;
@@ -897,3 +950,392 @@ export function getAirportData() {
 }
 
 export { categorizeFlights };
+
+// ============================================================
+//  T2-17: Wind Direction Indicators on Runways
+// ============================================================
+
+let _windIndicatorGroup = null;
+let _windLastUpdate = 0;
+const WIND_UPDATE_INTERVAL = 30000; // 30s
+const WIND_PROXIMITY_DEG = 0.3;     // ~33 km radius to consider aircraft "near" a runway
+const WIND_ALT_THRESHOLD = 914.4;   // 3000 ft in meters
+
+function _averageHeadings(headings) {
+  // Average circular quantities (angles) using vector mean
+  let sinSum = 0, cosSum = 0;
+  for (let i = 0; i < headings.length; i++) {
+    const rad = headings[i] * DEG;
+    sinSum += Math.sin(rad);
+    cosSum += Math.cos(rad);
+  }
+  let avgRad = Math.atan2(sinSum / headings.length, cosSum / headings.length);
+  if (avgRad < 0) avgRad += Math.PI * 2;
+  return avgRad; // returns radians
+}
+
+function _clearWindIndicators(scene) {
+  if (_windIndicatorGroup) {
+    scene.remove(_windIndicatorGroup);
+    _windIndicatorGroup.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    _windIndicatorGroup = null;
+  }
+}
+
+/**
+ * Update wind direction indicators at runway thresholds.
+ * Estimates wind direction from headings of aircraft below 3000 ft near runways.
+ * @param {THREE.Scene} scene
+ * @param {Array} runways - array of runway objects with startLat/Lon, endLat/Lon
+ * @param {Array} aircraftList - array of aircraft state objects with latitude, longitude, baroAltitude, trueTrack
+ */
+export function updateWindIndicators(scene, runways, aircraftList) {
+  const now = Date.now();
+  if (now - _windLastUpdate < WIND_UPDATE_INTERVAL && _windIndicatorGroup) return;
+  _windLastUpdate = now;
+
+  if (!runways || runways.length === 0 || !aircraftList) return;
+
+  // Collect headings of low-altitude aircraft near any runway
+  const nearbyHeadings = [];
+  for (let i = 0; i < aircraftList.length; i++) {
+    const ac = aircraftList[i];
+    if (ac.baroAltitude == null || ac.trueTrack == null) continue;
+    if (ac.baroAltitude > WIND_ALT_THRESHOLD) continue;
+    if (ac.latitude == null || ac.longitude == null) continue;
+
+    // Check proximity to any runway
+    for (let r = 0; r < runways.length; r++) {
+      const rwy = runways[r];
+      const dLat = Math.abs(ac.latitude - rwy.lat);
+      const dLon = Math.abs(ac.longitude - rwy.lon);
+      if (dLat < WIND_PROXIMITY_DEG && dLon < WIND_PROXIMITY_DEG) {
+        nearbyHeadings.push(ac.trueTrack);
+        break; // count each aircraft once
+      }
+    }
+  }
+
+  // If no low aircraft, remove indicators and bail
+  if (nearbyHeadings.length === 0) {
+    _clearWindIndicators(scene);
+    return;
+  }
+
+  // Average heading approximates wind-favored direction (wind blows FROM this heading)
+  const windFromRad = _averageHeadings(nearbyHeadings);
+
+  // Clear old indicators
+  _clearWindIndicators(scene);
+
+  _windIndicatorGroup = new THREE.Group();
+  _windIndicatorGroup.name = 'windIndicators';
+
+  // Minimal chevron wind indicator — thin line-based, one per runway at midpoint
+  // Design: tiny « chevron pointing into wind, gold accent, very subtle
+  const chevronMat = new THREE.LineBasicMaterial({
+    color: 0xc4a058, transparent: true, opacity: 0.3,
+    depthWrite: false,
+  });
+
+  // Build a small chevron shape: two short lines forming a « pointing along +Z
+  // Total width ~0.03, length ~0.04 — much smaller than old 0.12 cones
+  const chevronPts = new Float32Array([
+    -0.012, 0, -0.018,   0, 0, 0.018,  // left arm
+     0, 0, 0.018,   0.012, 0, -0.018,  // right arm
+  ]);
+  const chevronGeo = new THREE.BufferGeometry();
+  chevronGeo.setAttribute('position', new THREE.BufferAttribute(chevronPts, 3));
+
+  for (const rwy of runways) {
+    // Single indicator at runway midpoint — less clutter
+    const pos = geoToScene(rwy.lat, rwy.lon, _userLat, _userLon);
+
+    const chevron = new THREE.LineSegments(chevronGeo, chevronMat);
+    // Rotate so chevron tip points into the wind direction
+    // windFromRad is geographic heading in radians (0 = north)
+    // Scene: heading 0 (north) = -Z → Y-rotation = π
+    chevron.rotation.y = Math.PI - windFromRad;
+    chevron.position.set(pos.x, 0.02, pos.z);
+
+    _windIndicatorGroup.add(chevron);
+  }
+
+  scene.add(_windIndicatorGroup);
+}
+
+
+// ============================================================
+//  T3-09: Landing Detection + Touchdown Effect
+// ============================================================
+
+const _prevOnGround = new Map();          // icao24 → boolean (was on ground / very low alt last check)
+const _touchdownParticles = [];           // active particle systems
+const _runwayFlashMeshes = [];            // active runway flash overlays
+const LANDING_ALT_THRESHOLD = 100;        // meters — below this near a runway = "on ground"
+const LANDING_PROXIMITY_DEG = 0.02;       // ~2.2 km — must be very close to a runway
+const PARTICLE_COUNT = 20;
+const PARTICLE_LIFETIME = 1.0;            // seconds
+
+function _isNearRunway(lat, lon, runways) {
+  for (let i = 0; i < runways.length; i++) {
+    const rwy = runways[i];
+    const dLat = Math.abs(lat - rwy.lat);
+    const dLon = Math.abs(lon - rwy.lon);
+    if (dLat < LANDING_PROXIMITY_DEG && dLon < LANDING_PROXIMITY_DEG) {
+      return rwy;
+    }
+  }
+  return null;
+}
+
+function _createDustPuff(scene, sceneX, sceneZ) {
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const velocities = [];
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    positions[i * 3] = sceneX;
+    positions[i * 3 + 1] = 0.05;
+    positions[i * 3 + 2] = sceneZ;
+
+    // Random outward velocity
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.05 + Math.random() * 0.15;
+    velocities.push({
+      vx: Math.cos(angle) * speed,
+      vy: 0.05 + Math.random() * 0.1,
+      vz: Math.sin(angle) * speed,
+    });
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+
+  const mat = new THREE.PointsMaterial({
+    color: 0xccccaa, size: 0.03, transparent: true, opacity: 0.7,
+    sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.name = 'dustPuff';
+  scene.add(points);
+
+  _touchdownParticles.push({
+    mesh: points,
+    velocities,
+    startTime: performance.now() / 1000,
+    lifetime: PARTICLE_LIFETIME,
+  });
+}
+
+function _flashRunway(scene, rwy) {
+  const s = geoToScene(rwy.startLat, rwy.startLon, _userLat, _userLon);
+  const e = geoToScene(rwy.endLat, rwy.endLon, _userLat, _userLon);
+
+  const dx = e.x - s.x, dz = e.z - s.z;
+  const rLen = Math.sqrt(dx * dx + dz * dz);
+  const rWid = Math.max(rwy.width / METERS_PER_UNIT, 0.012) * 1.5;
+  const headingRad = Math.atan2(-dz, dx);
+
+  const cx = (s.x + e.x) / 2;
+  const cz = (s.z + e.z) / 2;
+
+  const geo = new THREE.PlaneGeometry(rLen, rWid);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.5,
+    side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.rotation.z = headingRad;
+  mesh.position.set(cx, 0.045, cz);
+  scene.add(mesh);
+
+  _runwayFlashMeshes.push({
+    mesh,
+    startTime: performance.now() / 1000,
+    duration: 0.6,
+  });
+}
+
+/**
+ * Check for landing events by detecting aircraft transitioning from airborne to on-ground
+ * near a runway. Creates visual effects (dust puff + runway flash).
+ * @param {Array} aircraftStates - array of aircraft state objects
+ * @param {Array} runways - array of runway objects
+ * @returns {Array} landing events: [{ icao24, callsign, runway, lat, lon, time }]
+ */
+export function checkLandings(aircraftStates, runways, scene) {
+  if (!aircraftStates || !runways || runways.length === 0) return [];
+
+  const landings = [];
+  const activeIcaos = new Set();
+
+  for (let i = 0; i < aircraftStates.length; i++) {
+    const ac = aircraftStates[i];
+    if (!ac.icao24 || ac.latitude == null || ac.longitude == null) continue;
+
+    activeIcaos.add(ac.icao24);
+
+    const isLow = ac.baroAltitude != null && ac.baroAltitude < LANDING_ALT_THRESHOLD;
+    const wasAirborne = _prevOnGround.has(ac.icao24) ? !_prevOnGround.get(ac.icao24) : false;
+
+    if (isLow && wasAirborne) {
+      // Check if near a runway
+      const nearRwy = _isNearRunway(ac.latitude, ac.longitude, runways);
+      if (nearRwy) {
+        const event = {
+          icao24: ac.icao24,
+          callsign: ac.callsign || ac.icao24,
+          runway: nearRwy.ref || 'unknown',
+          lat: ac.latitude,
+          lon: ac.longitude,
+          time: Date.now(),
+        };
+        landings.push(event);
+
+        // Visual effects
+        if (scene) {
+          const pos = geoToScene(ac.latitude, ac.longitude, _userLat, _userLon);
+          _createDustPuff(scene, pos.x, pos.z);
+          _flashRunway(scene, nearRwy);
+        }
+      }
+    }
+
+    _prevOnGround.set(ac.icao24, isLow);
+  }
+
+  // Cleanup stale entries (aircraft no longer in the data)
+  if (_prevOnGround.size > activeIcaos.size * 2) {
+    for (const key of _prevOnGround.keys()) {
+      if (!activeIcaos.has(key)) _prevOnGround.delete(key);
+    }
+  }
+
+  return landings;
+}
+
+// ============================================================
+//  T3-12: Day/Night Cycle
+// ============================================================
+
+/**
+ * Update sky dome colors and ambient light based on approximate solar position.
+ * Uses a simple equinox-approximation (declination = 0).
+ *
+ * @param {THREE.Scene} scene
+ * @param {number} userLat  - user latitude in degrees
+ * @param {number} userLon  - user longitude in degrees
+ * @param {number} utcHours - current UTC time as fractional hours (0-24)
+ */
+export function updateDayNight(scene, userLat, userLon, utcHours) {
+  // Resolve references lazily if createEnvironment was called before module vars were set
+  if (!_skyDomeRef) {
+    _skyDomeRef = scene.getObjectByName('skyDome') || null;
+    if (_skyDomeRef) {
+      const colAttr = _skyDomeRef.geometry.attributes.color;
+      if (colAttr && !_skyBaseColors) {
+        _skyBaseColors = new Float32Array(colAttr.array);
+      }
+    }
+  }
+  if (!_ambientLightRef) {
+    _ambientLightRef = scene.getObjectByName('ambientLight') || null;
+  }
+
+  // ---------- Solar altitude (equinox: declination ≈ 0) ----------
+  const latRad = userLat * DEG;
+  const solarNoon = 12 - userLon / 15;                       // UTC hour of local solar noon
+  const hourAngle = (utcHours - solarNoon) * 15 * DEG;       // radians
+  // sin(altitude) = sin(lat)*sin(dec) + cos(lat)*cos(dec)*cos(HA)
+  // With dec = 0: sin(alt) = cos(lat) * cos(HA)
+  const sinAlt = Math.cos(latRad) * Math.cos(hourAngle);
+
+  // ---------- Day factor: 0 = full night, 1 = full day ----------
+  // Transition band: sinAlt in [-0.1, 0.1] maps linearly to [0,1].
+  // sinAlt ≈ 0 corresponds to the horizon; ±0.1 gives roughly ±1 hour
+  // around sunrise/sunset.
+  const TRANSITION_HALF = 0.1;
+  const dayFactor = Math.max(0, Math.min(1, (sinAlt + TRANSITION_HALF) / (2 * TRANSITION_HALF)));
+
+  // ---------- Ambient light ----------
+  if (_ambientLightRef) {
+    // Night = 0.7 (existing baseline), Day = 1.0
+    _ambientLightRef.intensity = 0.7 + 0.3 * dayFactor;
+  }
+
+  // ---------- Sky dome vertex colors ----------
+  if (_skyDomeRef && _skyBaseColors) {
+    const colAttr = _skyDomeRef.geometry.attributes.color;
+    const arr = colAttr.array;
+    // Day brightness boost: multiply each channel by (1 + dayFactor * boost).
+    // Keeps night colors unchanged (dayFactor=0 → multiplier=1) and
+    // makes daytime sky moderately brighter.
+    const boost = 1.2; // up to 2.2× brighter at full day
+    const multiplier = 1 + dayFactor * boost;
+
+    for (let i = 0, len = _skyBaseColors.length; i < len; i++) {
+      arr[i] = Math.min(_skyBaseColors[i] * multiplier, 1.0);
+    }
+    colAttr.needsUpdate = true;
+  }
+}
+
+/**
+ * Animate active touchdown effects (dust puffs and runway flashes).
+ * Call this from the main render loop.
+ */
+export function updateTouchdownEffects(scene) {
+  const now = performance.now() / 1000;
+
+  // Update dust puff particles
+  for (let i = _touchdownParticles.length - 1; i >= 0; i--) {
+    const p = _touchdownParticles[i];
+    const elapsed = now - p.startTime;
+
+    if (elapsed >= p.lifetime) {
+      // Remove expired particle system
+      scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+      _touchdownParticles.splice(i, 1);
+      continue;
+    }
+
+    const t = elapsed / p.lifetime;
+    const posAttr = p.mesh.geometry.attributes.position;
+    const dt = 1 / 60; // approximate frame delta
+
+    for (let j = 0; j < PARTICLE_COUNT; j++) {
+      const v = p.velocities[j];
+      posAttr.setX(j, posAttr.getX(j) + v.vx * dt);
+      posAttr.setY(j, posAttr.getY(j) + v.vy * dt);
+      posAttr.setZ(j, posAttr.getZ(j) + v.vz * dt);
+      v.vy -= 0.08 * dt; // gravity
+    }
+
+    posAttr.needsUpdate = true;
+    p.mesh.material.opacity = 0.7 * (1 - t * t); // fade out
+  }
+
+  // Update runway flashes
+  for (let i = _runwayFlashMeshes.length - 1; i >= 0; i--) {
+    const f = _runwayFlashMeshes[i];
+    const elapsed = now - f.startTime;
+
+    if (elapsed >= f.duration) {
+      scene.remove(f.mesh);
+      f.mesh.geometry.dispose();
+      f.mesh.material.dispose();
+      _runwayFlashMeshes.splice(i, 1);
+      continue;
+    }
+
+    const t = elapsed / f.duration;
+    f.mesh.material.opacity = 0.5 * (1 - t); // linear fade
+  }
+}

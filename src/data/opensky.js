@@ -1,5 +1,5 @@
 import { getAirportCity } from './airportCities.js';
-import { batchUpdate as inferBatchUpdate, cleanupStale as inferCleanup } from './routeInfer.js';
+import { batchUpdate as inferBatchUpdate, cleanupStale as inferCleanup, feedTrace as inferFeedTrace } from './routeInfer.js';
 
 // Position APIs (proxied — no CORS from browser)
 // Primary: adsb.fi (/api/v2/lat/{lat}/lon/{lon}/dist/{nm})
@@ -8,6 +8,7 @@ const ADSB_FI_BASE   = '/api/adsbfi/api/v2';
 const ADSB_ONE_BASE  = '/api/adsboe/v2';
 const ADSBX_BASE     = '/api/adsbx/v2';
 const OPENSKY_BASE   = '/api/opensky';
+const ADSBDB_BASE    = '/api/adsbdb/v0';
 const TRACE_BASE     = '/api/trace/data/traces';
 const FETCH_TIMEOUT_MS = 3500;
 const POLL_INTERVAL  = 3000;   // 3s — stays within user's 4s budget, avoids 429
@@ -89,7 +90,7 @@ function parseAircraft(ac) {
 function parseAdsbResponse(data) {
   const list = data.ac || data.aircraft;
   if (!list || !Array.isArray(list)) return [];
-  return list.map(parseAircraft).filter((a) => a != null && a.baroAltitude != null && a.baroAltitude > 100);
+  return list.map(parseAircraft).filter((a) => a != null && a.baroAltitude != null && a.baroAltitude > 30);
 }
 
 let _adsbFiPausedUntil  = 0;
@@ -186,6 +187,11 @@ async function fetchTraceAsync(icao24) {
         path: waypoints,
         fetchedAt: Date.now(),
       });
+
+      // Feed trace waypoints into the inference engine for origin detection.
+      // Traces often contain the departure at low altitude — data we'd never
+      // see from live polling if the aircraft entered our range at cruise.
+      inferFeedTrace(icao24, waypoints, null);
     }
   } catch {
     // silently fail — trace is best-effort
@@ -205,9 +211,9 @@ function queueTraceFetch(icao24) {
   traceQueueBatch.push(icao24);
 
   if (!traceBatchTimer) {
-    // Fire the first batch immediately, then continue every 200ms
+    // Fire the first batch immediately, then continue every 500ms (2 req/s — gentle)
     const processBatch = () => {
-      const batch = traceQueueBatch.splice(0, 8);
+      const batch = traceQueueBatch.splice(0, 3);
       if (batch.length === 0) {
         clearInterval(traceBatchTimer);
         traceBatchTimer = null;
@@ -215,10 +221,16 @@ function queueTraceFetch(icao24) {
       }
       for (const hex of batch) fetchTraceAsync(hex);
     };
-    processBatch(); // instant first batch — no 500ms wait
-    traceBatchTimer = setInterval(processBatch, 200);
+    processBatch();
+    traceBatchTimer = setInterval(processBatch, 500);
   }
 }
+
+// ── Inference throttling ─────────────────────────────────────────────────────
+let _inferCleanupTimer = 0;
+const INFER_CLEANUP_INTERVAL = 30000; // cleanup every 30s, not every poll
+let _inferBatchOffset = 0;
+const INFER_BATCH_SIZE = 15; // process max 15 aircraft per poll cycle
 
 // Immediate priority fetch for the aircraft the user just selected.
 // Bypasses the batch queue entirely.
@@ -260,8 +272,14 @@ async function poll() {
       });
     }
 
-    // Feed position data to the local route inference engine
-    inferBatchUpdate(aircraft);
+    // Feed position data to the local route inference engine — staggered
+    // Only process a slice of aircraft per poll to avoid blocking the main thread
+    if (aircraft.length > 0) {
+      const slice = aircraft.slice(_inferBatchOffset, _inferBatchOffset + INFER_BATCH_SIZE);
+      _inferBatchOffset += INFER_BATCH_SIZE;
+      if (_inferBatchOffset >= aircraft.length) _inferBatchOffset = 0;
+      inferBatchUpdate(slice);
+    }
 
     // Queue trace fetches for aircraft that don't have cached tracks
     const activeIcaoSet = new Set();
@@ -275,8 +293,12 @@ async function poll() {
       }
     }
 
-    // Periodic cleanup of stale inference data
-    inferCleanup(activeIcaoSet);
+    // Periodic cleanup of stale inference data — every 30s, not every poll
+    const now = Date.now();
+    if (now - _inferCleanupTimer > INFER_CLEANUP_INTERVAL) {
+      _inferCleanupTimer = now;
+      inferCleanup(activeIcaoSet);
+    }
   } catch (err) {
     consecutiveErrors++;
     console.error('[Data] Fetch error:', err.message, `(${consecutiveErrors})`);
@@ -309,109 +331,128 @@ export function getPollInterval() {
 }
 
 // --- Route fetching ---
-// Strategy: position polls use adsb.fi (1s, permissive).
-// Route data uses airplanes.live /v2/callsign/{cs} — a targeted single-flight lookup
-// that returns oa/da fields without hammering the main area endpoint.
+// Primary: adsbdb.com — public flight route database, returns origin/dest/airline/city
+// in a single callsign lookup. No API key required.
+// 404 = unknown callsign (normal). Rate-limited on our side to max 1 req/s.
 
 const routeFetchPromises = new Map();
-const ROUTE_NULL_TTL = 30000; // 30 s retry window for failed lookups
-
-// On-demand route fetch — called when user opens detail panel.
-// adsb.fi rate limit is no longer shared with position poll, so hex lookups are safe.
+const ROUTE_NULL_TTL = 120000; // 2 min retry for failed lookups
 let _adsbxPausedUntil   = 0;
-let _openskyPausedUntil = 0;
 let _adsbFiRoutePausedUntil = 0;
+let _lastAdsbdbFetch = 0;
+const ADSBDB_MIN_INTERVAL = 1000; // max 1 adsbdb request per second
+// Negative cache: callsigns confirmed not in adsbdb (avoid repeated 404s)
+const _adsbdbNotFound = new Map();
+const ADSBDB_NOT_FOUND_TTL = 600000; // don't retry 404'd callsigns for 10 min
+
+// Validate callsign looks like a real flight number: 2-3 letter airline prefix + digits
+// Filters out hex codes, test squitters, and non-airline traffic
+function isValidFlightCallsign(cs) {
+  if (!cs || cs.length < 4 || cs.length > 8) return false;
+  // Standard ICAO format: 2-3 uppercase letters + 1-4 digits (optionally + 1 letter suffix)
+  return /^[A-Z]{2,3}\d{1,4}[A-Z]?$/.test(cs);
+}
 
 async function fetchRouteAsync(callsign, icao24) {
   routeFetchQueue.add(callsign);
   try {
     const before = routeCache.get(callsign);
-    const needsCodes = !before?.origin && !before?.destination;
-
-    if (needsCodes) {
-      // Three sources in parallel, merge best origin + destination from any
-      const [adsbFiResult, openskyResult, adsbxResult] = await Promise.allSettled([
-        // Source A: adsb.fi hex — direct FMS broadcast (oa=origin, da=destination)
-        // Now safe to call: position poll uses adsb.one, not adsb.fi
-        icao24 && Date.now() > _adsbFiRoutePausedUntil
-          ? fetch(`${ADSB_FI_BASE}/hex/${encodeURIComponent(icao24)}`, { cache: 'no-store' })
-              .then(r => {
-                if (r.status === 429) { _adsbFiRoutePausedUntil = Date.now() + 60000; return null; }
-                return r.ok ? r.json() : null;
-              })
-              .then(j => {
-                const ac = (j?.ac || [])[0];
-                return (ac?.oa || ac?.da) ? { origin: ac.oa || null, destination: ac.da || null } : null;
-              })
-          : Promise.resolve(null),
-        // Source B: OpenSky routes — scheduled route database (both airports when found)
-        Date.now() > _openskyPausedUntil
-          ? fetch(`${OPENSKY_BASE}/api/routes?callsign=${encodeURIComponent(callsign.trim())}`, { cache: 'no-store' })
-              .then(r => {
-                if (r.status === 429) { _openskyPausedUntil = Date.now() + 300000; return null; }
-                return r.ok ? r.json() : null;
-              })
-              .then(j => j?.route?.length >= 2 ? { origin: j.route[0], destination: j.route[1] } : null)
-          : Promise.resolve(null),
-        // Source C: airplanes.live hex — fallback transponder data
-        icao24 && Date.now() > _adsbxPausedUntil
-          ? fetch(`${ADSBX_BASE}/hex/${encodeURIComponent(icao24)}`, { cache: 'no-store' })
-              .then(r => {
-                if (r.status === 429) { _adsbxPausedUntil = Date.now() + 30000; return null; }
-                return r.ok ? r.json() : null;
-              })
-              .then(j => {
-                const ac = (j?.ac || [])[0];
-                return (ac?.oa || ac?.da) ? { origin: ac.oa || null, destination: ac.da || null } : null;
-              })
-          : Promise.resolve(null),
-      ]);
-
-      // Merge: pick best origin AND best destination from any source
-      let origin = null, destination = null;
-      for (const r of [adsbFiResult, openskyResult, adsbxResult]) {
-        const v = r.status === 'fulfilled' ? r.value : null;
-        if (!v) continue;
-        if (!origin && v.origin) origin = v.origin;
-        if (!destination && v.destination) destination = v.destination;
-        if (origin && destination) break;
+    if (before?.origin && before?.destination) {
+      if (!before.originCity || !before.destCity) {
+        routeCache.set(callsign, {
+          ...before,
+          originCity: before.originCity || getAirportCity(before.origin),
+          destCity:   before.destCity   || getAirportCity(before.destination),
+          fetchedAt:  Date.now(),
+        });
       }
-
-      if (origin || destination) {
-        routeCache.set(callsign, { origin, destination, originCity: null, destCity: null, fetchedAt: Date.now() });
-      }
-    }
-
-    // Resolve city names from local lookup
-    const entry = routeCache.get(callsign);
-    if (entry?.origin || entry?.destination) {
-      routeCache.set(callsign, {
-        ...entry,
-        originCity: entry.originCity || getAirportCity(entry.origin),
-        destCity:   entry.destCity   || getAirportCity(entry.destination),
-        fetchedAt:  Date.now(),
-      });
       return;
     }
 
-    // Nothing found — short TTL so next click retries after 30 s
-    routeCache.set(callsign, {
-      origin: null, destination: null, originCity: null, destCity: null,
-      fetchedAt: Date.now() - ROUTE_CACHE_TTL + ROUTE_NULL_TTL,
-    });
+    let origin = before?.origin || null;
+    let destination = before?.destination || null;
+    let originCity = before?.originCity || null;
+    let destCity = before?.destCity || null;
+    let airline = null;
+
+    // === adsbdb.com callsign lookup ===
+    // Only query if callsign looks like a valid flight number
+    const csClean = callsign.trim();
+    const skipAdsbdb = !isValidFlightCallsign(csClean)
+      || (_adsbdbNotFound.has(csClean) && Date.now() - _adsbdbNotFound.get(csClean) < ADSBDB_NOT_FOUND_TTL);
+
+    if (!skipAdsbdb) {
+      // Rate limiter: wait if we queried too recently
+      const wait = ADSBDB_MIN_INTERVAL - (Date.now() - _lastAdsbdbFetch);
+      if (wait > 0) await new Promise(r => setTimeout(r, wait));
+      _lastAdsbdbFetch = Date.now();
+
+      try {
+        const r = await fetch(`${ADSBDB_BASE}/callsign/${encodeURIComponent(csClean)}`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(5000),
+        });
+        if (r.ok) {
+          const j = await r.json();
+          const fr = j?.response?.flightroute;
+          if (fr) {
+            if (fr.origin) {
+              origin = origin || fr.origin.iata_code || fr.origin.icao_code || null;
+              originCity = originCity || fr.origin.municipality || fr.origin.name || null;
+            }
+            if (fr.destination) {
+              destination = destination || fr.destination.iata_code || fr.destination.icao_code || null;
+              destCity = destCity || fr.destination.municipality || fr.destination.name || null;
+            }
+            if (fr.airline) {
+              airline = fr.airline.name || null;
+            }
+          }
+        } else if (r.status === 404) {
+          // Callsign not in database — cache negative result to avoid re-fetching
+          _adsbdbNotFound.set(csClean, Date.now());
+        }
+      } catch { /* adsbdb unavailable */ }
+    }
+
+    // === Fallback: poll data (oa/da from adsb.one area response) ===
+    if ((!origin || !destination) && icao24) {
+      const hex = hexDetailCache.get(icao24);
+      if (hex) {
+        if (!origin && hex.origin) origin = hex.origin;
+        if (!destination && hex.destination) destination = hex.destination;
+      }
+    }
+
+    if (origin || destination) {
+      routeCache.set(callsign, {
+        origin, destination,
+        originCity: originCity || getAirportCity(origin),
+        destCity:   destCity   || getAirportCity(destination),
+        airline,
+        fetchedAt: Date.now(),
+      });
+    } else {
+      routeCache.set(callsign, {
+        origin: null, destination: null, originCity: null, destCity: null,
+        airline: null,
+        fetchedAt: Date.now() - ROUTE_CACHE_TTL + ROUTE_NULL_TTL,
+      });
+    }
   } finally {
     routeFetchQueue.delete(callsign);
   }
 }
 
-// On-demand route fetch — triggered once when user opens detail panel.
+// On-demand route fetch — triggered once when user clicks an aircraft.
 export async function fetchRouteNow(callsign, icao24) {
   if (!callsign || callsign.length < 3) return;
 
   const entry = routeCache.get(callsign);
   const fresh = entry && Date.now() - entry.fetchedAt < ROUTE_CACHE_TTL;
-  // Skip only when entry is fresh AND already has city names (or confirmed empty)
-  if (fresh && (entry.originCity || entry.destCity || entry.origin === null)) return;
+  if (fresh && entry.origin && entry.destination && (entry.originCity || entry.destCity)) return;
+  // Don't re-fetch if we recently got nothing — wait for ROUTE_NULL_TTL
+  if (fresh && entry?.origin === null) return;
 
   if (routeFetchPromises.has(callsign)) {
     await routeFetchPromises.get(callsign);
@@ -432,6 +473,88 @@ export function getRoute(callsign) {
     return null;
   }
   return entry;
+}
+
+// --- Hex detail enrichment (on-demand) ---
+// When user clicks an aircraft, fetch full data from adsb.fi hex endpoint
+// to get IAS, TAS, Mach, operator — fields that adsb.one area API may omit.
+
+const hexDetailCache = new Map();
+const HEX_DETAIL_TTL = 60000; // refresh every 60s
+const hexDetailQueue = new Set();
+let _hexEnrichPausedUntil = 0; // separate from route rate limit
+
+export async function fetchHexEnrich(icao24, callsign) {
+  if (!icao24) return;
+  const cached = hexDetailCache.get(icao24);
+  if (cached && Date.now() - cached.fetchedAt < HEX_DETAIL_TTL) return;
+  if (hexDetailQueue.has(icao24)) return;
+  hexDetailQueue.add(icao24);
+
+  try {
+    // Try adsb.fi first, then airplanes.live as fallback
+    let ac = null;
+    if (Date.now() >= _hexEnrichPausedUntil) {
+      try {
+        const r = await fetch(`${ADSB_FI_BASE}/hex/${encodeURIComponent(icao24)}`, { cache: 'no-store' });
+        if (r.status === 429) { _hexEnrichPausedUntil = Date.now() + 60000; }
+        else if (r.ok) { const j = await r.json(); ac = (j?.ac || [])[0] || null; }
+      } catch { /* try fallback */ }
+    }
+    if (!ac && Date.now() >= _adsbxPausedUntil) {
+      try {
+        const r = await fetch(`${ADSBX_BASE}/hex/${encodeURIComponent(icao24)}`, { cache: 'no-store' });
+        if (r.status === 429) { _adsbxPausedUntil = Date.now() + 30000; }
+        else if (r.ok) { const j = await r.json(); ac = (j?.ac || [])[0] || null; }
+      } catch { /* silently fail */ }
+    }
+    if (!ac) return;
+
+    const detail = {
+      ias: ac.ias != null ? ac.ias : null,
+      tas: ac.tas != null ? ac.tas : null,
+      mach: ac.mach != null ? ac.mach : null,
+      operator: ac.ownOp || null,
+      origin: ac.oa || null,
+      destination: ac.da || null,
+      squawk: ac.squawk || null,
+      rssi: ac.rssi != null ? ac.rssi : null,
+      navAltitude: ac.nav_altitude != null ? ac.nav_altitude : null,
+      navHeading: ac.nav_heading != null ? ac.nav_heading : null,
+      emergency: ac.emergency || null,
+      fetchedAt: Date.now(),
+    };
+    hexDetailCache.set(icao24, detail);
+
+    // Also populate route cache if we got route data
+    if (callsign && callsign.length >= 3 && (ac.oa || ac.da)) {
+      const ex = routeCache.get(callsign);
+      if (!ex || (!ex.origin && !ex.destination)) {
+        routeCache.set(callsign, {
+          origin: ac.oa || null,
+          destination: ac.da || null,
+          originCity: getAirportCity(ac.oa),
+          destCity: getAirportCity(ac.da),
+          fetchedAt: Date.now(),
+        });
+      }
+    }
+  } catch {
+    // silently fail
+  } finally {
+    hexDetailQueue.delete(icao24);
+  }
+}
+
+export function getHexDetail(icao24) {
+  if (!icao24) return null;
+  const d = hexDetailCache.get(icao24);
+  if (!d) return null;
+  if (Date.now() - d.fetchedAt > HEX_DETAIL_TTL * 3) {
+    hexDetailCache.delete(icao24);
+    return null;
+  }
+  return d;
 }
 
 // --- Track data ---

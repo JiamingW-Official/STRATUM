@@ -5,13 +5,17 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights } from './scene/environment.js';
-import { AircraftManager } from './scene/aircraft.js';
-import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch } from './data/opensky.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading } from './scene/environment.js';
+import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
+import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch, fetchRouteNow } from './data/opensky.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
-import { showDetail, closeDetail, refreshDetail, getSelectedAircraft } from './ui/detail.js';
+import { showDetail, closeDetail, refreshDetail, getSelectedAircraft, showDetailLoading } from './ui/detail.js';
 import { initNeko, nekoTrackAircraft } from './ui/neko.js';
+import { getAirlineName as _getAirlineName } from './data/airlineDb.js';
 import { initRouteInfer, triggerInference } from './data/routeInfer.js';
+import { CITIES_EXTRA } from './data/citiesExtra.js';
+import { initAirportCities } from './data/airportCities.js';
+import { fetchWeather, weatherDescription, windDirToCardinal, formatVisibility, weatherIcon, flightCategory } from './data/weather.js';
 
 // --- Cinematic post-processing shader ---
 const CinematicShader = {
@@ -239,15 +243,20 @@ const compassHeading = document.getElementById('compass-heading');
 let cameraHeading = 0;
 const _compassDir = new THREE.Vector3();
 
-function updateCompass() {
+let _lastCompassUpdate = 0;
+function updateCompass(elapsed) {
+  // Throttle to ~10 Hz — compass doesn't need 60fps updates
+  if (elapsed - _lastCompassUpdate < 0.1) return;
+  _lastCompassUpdate = elapsed;
   camera.getWorldDirection(_compassDir);
   cameraHeading = Math.atan2(_compassDir.x, _compassDir.z);
   const deg = ((-cameraHeading * 180 / Math.PI) + 360) % 360;
+  const rounded = Math.round(deg);
+  // Skip DOM writes if heading unchanged
+  if (rounded === _lastCompassDeg) return;
+  _lastCompassDeg = rounded;
   if (compassNeedle) compassNeedle.setAttribute('transform', `rotate(${deg}, 30, 30)`);
-  if (compassHeading) {
-    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-    compassHeading.textContent = `${Math.round(deg)}°`;
-  }
+  if (compassHeading) compassHeading.textContent = `${rounded}°`;
 }
 
 // --- Environment ---
@@ -316,7 +325,7 @@ canvas.addEventListener('pointerdown', (e) => {
   resetIdleTimer();
   pointerDownX = e.clientX;
   pointerDownY = e.clientY;
-});
+}, { passive: true });
 
 // --- Aircraft hover tooltip ---
 const tooltipEl = document.getElementById('aircraft-tooltip');
@@ -326,9 +335,13 @@ function showAircraftTooltip(data, x, y) {
   const callsign = data.callsign || data.icao24 || '';
   const type = data.aircraftType || '';
   const alt = (data.altitude && data.altitude !== '--') ? data.altitude : '';
+  // T1-12: Airline name from callsign prefix
+  const airlineMatch = callsign.match(/^([A-Z]{2,3})\d/);
+  const airlineName = data.routeAirline || data.operator || (airlineMatch ? _getAirlineName(airlineMatch[1]) : '');
 
   let html = `<span class="ttp-cs">${callsign}</span>`;
-  if (type) html += `<span class="ttp-sep">·</span><span class="ttp-type">${type}</span>`;
+  if (airlineName) html += `<span class="ttp-sep">·</span><span class="ttp-type">${airlineName}</span>`;
+  else if (type) html += `<span class="ttp-sep">·</span><span class="ttp-type">${type}</span>`;
   if (alt) html += `<span class="ttp-sep">·</span><span class="ttp-alt">${alt}</span>`;
   tooltipEl.innerHTML = html;
 
@@ -355,7 +368,7 @@ let _lastHoverTime = 0;
 canvas.addEventListener('pointermove', (e) => {
   if (e.buttons > 0) resetIdleTimer();
   const now = performance.now();
-  if (now - _lastHoverTime < 16) return;
+  if (now - _lastHoverTime < 32) return; // ~30fps hover polling (saves CPU)
   _lastHoverTime = now;
 
   if (!aircraftManager) { hideAircraftTooltip(); return; }
@@ -394,13 +407,32 @@ let selectedAirportState = null;
 
 function handleAircraftSelect(ac) {
   const { lat, lon } = getUserLocation();
-  // 用户点击时触发本地路由推断（按需计算）
   triggerInference(ac.data.icao24, ac.data.callsign);
   showDetail(ac, lat, lon);
+  // T3-13: Add to flight history
+  addToHistory(ac.getDisplayData());
   aircraftManager.selectAircraft(ac);
   flyToThenFollow(ac);
   nekoTrackAircraft(ac.getDisplayData());
   priorityTraceFetch(ac.data.icao24);
+  // Fetch route from adsbdb (no rate limits, no 429s)
+  // IAS/TAS/Mach are computed from ground speed + altitude — no hex API needed
+  // T3-01: Remove previous route arc, create new one after route loads
+  removeRouteArc(scene);
+  showDetailLoading(true);
+  fetchRouteNow(ac.data.callsign, ac.data.icao24).then(() => {
+    showDetailLoading(false);
+    refreshDetail(aircraftManager, lat, lon);
+    // T3-01: Draw great circle route arc
+    const d = ac.getDisplayData();
+    if (d.origin && d.destination) {
+      const origApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(d.origin) : null;
+      const destApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(d.destination) : null;
+      if (origApt && destApt) {
+        createRouteArc(scene, origApt.lat, origApt.lon, destApt.lat, destApt.lon, lat, lon);
+      }
+    }
+  });
   if (selectedAirportState) {
     deselectAirport(scene);
     aircraftManager.clearHighlight();
@@ -422,30 +454,114 @@ function raycastAircraft(e) {
   return aircraftManager.getByHitMesh(hits[0].object);
 }
 
+let _clickTimer = null;
+let _dblClickGuard = false;
+
 canvas.addEventListener('click', (e) => {
   if (!aircraftManager) return;
   const dx = e.clientX - pointerDownX;
   const dy = e.clientY - pointerDownY;
-  if (dx * dx + dy * dy > 25) return;
+  if (dx * dx + dy * dy > 100) return;
+  if (_dblClickGuard) return;
+
+  // Cache event data — the event won't survive the timeout
+  const cx = e.clientX, cy = e.clientY, shift = e.shiftKey;
+
+  // Delay single-click to avoid conflict with dblclick
+  clearTimeout(_clickTimer);
+  _clickTimer = setTimeout(() => {
+    if (_dblClickGuard) return;
+
+    pointer.x = (cx / window.innerWidth) * 2 - 1;
+    pointer.y = -(cy / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+
+    const hits = raycaster.intersectObjects(aircraftManager.raycasterTargets, false);
+    let ac = null;
+    if (hits.length > 0) {
+      for (const hit of hits) {
+        const a = aircraftManager.getByHitMesh(hit.object);
+        if (a && a !== followTarget) { ac = a; break; }
+      }
+      if (!ac) ac = aircraftManager.getByHitMesh(hits[0].object);
+    }
+
+    if (ac) {
+      if (shift) { toggleComparison(ac); return; }
+      handleAircraftSelect(ac);
+      return;
+    }
+
+    const aptTargets = getAirportHitTargets();
+    if (aptTargets.length > 0) {
+      const aptIntersects = raycaster.intersectObjects(aptTargets);
+      if (aptIntersects.length > 0) {
+        const airport = aptIntersects[0].object.userData.airport;
+        if (airport) {
+          closeDetail();
+          handleAirportClick(airport);
+          return;
+        }
+      }
+    }
+
+    closeDetail();
+    if (aircraftManager) aircraftManager.deselectAircraft();
+    stopFollow();
+    removeRouteArc(scene);
+    if (selectedAirportState) {
+      deselectAirport(scene);
+      aircraftManager.clearHighlight();
+      hideAirportWidget();
+      selectedAirportState = null;
+    }
+  }, 220);
+});
+
+// T1-06: Double-click — select aircraft or reset camera on empty space
+canvas.addEventListener('dblclick', (e) => {
+  if (!aircraftManager) return;
+  e.preventDefault();
+  clearTimeout(_clickTimer);
+  _dblClickGuard = true;
+  setTimeout(() => { _dblClickGuard = false; }, 300);
 
   const ac = raycastAircraft(e);
   if (ac) { handleAircraftSelect(ac); return; }
-
-  const aptTargets = getAirportHitTargets();
-  if (aptTargets.length > 0) {
-    const aptIntersects = raycaster.intersectObjects(aptTargets);
-    if (aptIntersects.length > 0) {
-      const airport = aptIntersects[0].object.userData.airport;
-      if (airport) {
-        closeDetail();
-        handleAirportClick(airport);
-        return;
-      }
-    }
-  }
-
+  // Reset camera to default cinematic position
+  stopFollow();
   closeDetail();
-  if (aircraftManager) aircraftManager.deselectAircraft();
+  aircraftManager.deselectAircraft();
+  const resetTarget = { x: 0, y: 1, z: 0 };
+  const resetCam = { x: 8, y: 9, z: 12 };
+  const startT = { ...controls.target };
+  const startC = { ...camera.position };
+  let progress = 0;
+  function animateReset() {
+    progress += 0.025;
+    const t = easeOutExpo(Math.min(progress, 1));
+    camera.position.set(
+      startC.x + (resetCam.x - startC.x) * t,
+      startC.y + (resetCam.y - startC.y) * t,
+      startC.z + (resetCam.z - startC.z) * t,
+    );
+    controls.target.set(
+      startT.x + (resetTarget.x - startT.x) * t,
+      startT.y + (resetTarget.y - startT.y) * t,
+      startT.z + (resetTarget.z - startT.z) * t,
+    );
+    controls.update();
+    if (progress < 1) requestAnimationFrame(animateReset);
+  }
+  animateReset();
+});
+
+// T1-15: Right-click deselect
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  if (!aircraftManager) return;
+  closeDetail();
+  aircraftManager.deselectAircraft();
   stopFollow();
   if (selectedAirportState) {
     deselectAirport(scene);
@@ -453,13 +569,6 @@ canvas.addEventListener('click', (e) => {
     hideAirportWidget();
     selectedAirportState = null;
   }
-});
-
-canvas.addEventListener('dblclick', (e) => {
-  if (!aircraftManager) return;
-  e.preventDefault();
-  const ac = raycastAircraft(e);
-  if (ac) handleAircraftSelect(ac);
 });
 
 function showAirportWidget(airport, arrivals, departures) {
@@ -502,6 +611,39 @@ function showAirportWidget(airport, arrivals, departures) {
   } else {
     factEl.classList.add('hidden');
   }
+
+  const descEl = document.getElementById('aw-desc');
+  if (descEl) {
+    if (meta?.desc) {
+      descEl.textContent = meta.desc;
+      descEl.classList.remove('hidden');
+    } else {
+      descEl.classList.add('hidden');
+    }
+  }
+
+  // T2-12: ARR/DEP flight list
+  let flightListEl = document.getElementById('aw-flight-list');
+  if (!flightListEl) {
+    flightListEl = document.createElement('div');
+    flightListEl.id = 'aw-flight-list';
+    flightListEl.className = 'aw-flight-list';
+    w.appendChild(flightListEl);
+  }
+  const flightItems = [
+    ...arrivals.map(ac => ({ cs: ac.callsign || ac.icao24, tag: 'arr', icao24: ac.icao24 })),
+    ...departures.map(ac => ({ cs: ac.callsign || ac.icao24, tag: 'dep', icao24: ac.icao24 })),
+  ];
+  flightListEl.innerHTML = flightItems.slice(0, 20).map(f =>
+    `<div class="aw-flight-item" data-icao="${f.icao24}"><span>${f.cs}</span><span class="aw-flight-tag ${f.tag}">${f.tag.toUpperCase()}</span></div>`
+  ).join('');
+  flightListEl.querySelectorAll('.aw-flight-item').forEach(el => {
+    el.addEventListener('click', () => {
+      if (!aircraftManager) return;
+      const ac = aircraftManager.aircraft.get(el.dataset.icao);
+      if (ac && !ac.fadingOut) handleAircraftSelect(ac);
+    });
+  });
 
   w.classList.remove('hidden');
 }
@@ -569,6 +711,24 @@ function initLocation() {
   });
 }
 
+// --- T2-05: HUD type breakdown ---
+function updateHUDBreakdown(bd) {
+  let el = document.getElementById('hud-breakdown');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'hud-breakdown';
+    el.style.cssText = 'font-family:var(--font-sans);font-size:7px;color:var(--text-3);letter-spacing:0.5px;padding:2px 0;text-shadow:0 1px 12px rgba(0,0,0,0.9)';
+    const hudStats = document.querySelector('.hud-stats');
+    if (hudStats) hudStats.parentNode.insertBefore(el, hudStats.nextSibling);
+  }
+  const parts = [];
+  if (bd.narrow) parts.push(`NB:${bd.narrow}`);
+  if (bd.wide) parts.push(`WB:${bd.wide}`);
+  if (bd.regional) parts.push(`RJ:${bd.regional}`);
+  if (bd.bizjet) parts.push(`BJ:${bd.bizjet}`);
+  el.textContent = parts.join(' \u00b7 ');
+}
+
 // --- Data handling ---
 let lastRawData = [];
 
@@ -579,8 +739,69 @@ function handleData(dataList) {
   if (aircraftManager) {
     aircraftManager.update(dataList);
     const { lat, lon } = getUserLocation();
-    updateHUD(aircraftManager.getCount(), lat, lon);
+    const count = aircraftManager.getCount();
+    updateHUD(count, lat, lon);
     refreshDetail(aircraftManager, lat, lon);
+
+    // T2-14: Track session stats
+    if (count > sessionStats.peak) sessionStats.peak = count;
+    for (const ac of dataList) {
+      if (ac.icao24) sessionStats.seen.add(ac.icao24);
+      if (ac.aircraftType) sessionStats.types.add(ac.aircraftType);
+      if (ac.callsign) {
+        const m = ac.callsign.match(/^([A-Z]{2,3})\d/);
+        if (m) sessionStats.airlines.add(m[1]);
+      }
+      // T3-07: Spotter book
+      if (ac.aircraftType) {
+        const t = ac.aircraftType.toUpperCase();
+        if (SPOTTER_TYPES.some(s => s.code === t)) {
+          spotterBook[t] = (spotterBook[t] || 0) + 1;
+          saveSpotterBook();
+        }
+      }
+    }
+
+    // T2-15: Check emergency squawks
+    checkEmergencySquawks();
+
+    // T2-17: Wind direction indicators on runways
+    const aptData = getAirportData();
+    if (aptData && aptData.runways) {
+      updateWindIndicators(scene, aptData.runways, dataList);
+    }
+
+    // T3-09: Landing detection
+    if (aptData && aptData.runways) {
+      const landings = checkLandings(dataList, aptData.runways, scene);
+      for (const evt of landings) {
+        nekoTrackAircraft({ callsign: evt.callsign, flightPhase: 'LANDING', icao24: evt.icao24 });
+      }
+    }
+
+    // T3-06: Altitude filter — dim out-of-range aircraft
+    if (altFilterActive && aircraftManager) {
+      for (const [, ac] of aircraftManager.aircraft) {
+        if (ac.fadingOut) continue;
+        const altM = ac.data.baroAltitude;
+        const altFt = altM != null ? altM * 3.28084 : null;
+        const inRange = altFt == null || (altFt >= altFilterMin && altFt <= altFilterMax);
+        if (ac.group) ac.group.visible = inRange;
+      }
+    }
+
+    // T2-05: Type breakdown
+    const typeBreakdown = { narrow: 0, wide: 0, regional: 0, bizjet: 0, other: 0 };
+    for (const ac of dataList) {
+      if (!ac.aircraftType) { typeBreakdown.other++; continue; }
+      const cat = classifyAircraftType(ac.aircraftType);
+      if (cat === 'narrow') typeBreakdown.narrow++;
+      else if (cat === 'wideTwin' || cat === 'wideQuad') typeBreakdown.wide++;
+      else if (cat === 'regional') typeBreakdown.regional++;
+      else if (cat === 'bizjet') typeBreakdown.bizjet++;
+      else typeBreakdown.other++;
+    }
+    updateHUDBreakdown(typeBreakdown);
   }
 }
 
@@ -611,6 +832,32 @@ const MOVE_DECEL = 6;
 let moveVelocity = 0;
 let shiftHeld = false;
 
+// --- Feature state ---
+let screenshotMode = false;
+let bloomLevel = 1; // 0=subtle(0.35), 1=normal(0.65), 2=cinematic(1.2)
+const BLOOM_PRESETS = [0.35, 0.65, 1.2];
+const BLOOM_LABELS = ['SUBTLE', 'NORMAL', 'CINEMATIC'];
+let distanceRingsVisible = false;
+let distanceRingsGroup = null;
+let altFilterActive = false;
+let altFilterMin = 0;
+let altFilterMax = 50000;
+
+// Session statistics (T2-14)
+const sessionStart = Date.now();
+const sessionStats = { seen: new Set(), types: new Set(), airlines: new Set(), peak: 0, cities: new Set() };
+
+// Flight history (T3-13)
+const flightHistory = [];
+
+// Spotter book (T3-07)
+const spotterBook = JSON.parse(localStorage.getItem('stratum:spotter') || '{}');
+function saveSpotterBook() { localStorage.setItem('stratum:spotter', JSON.stringify(spotterBook)); }
+
+// Favorites (T2-07)
+const favorites = new Set(JSON.parse(localStorage.getItem('stratum:favorites') || '[]'));
+function saveFavorites() { localStorage.setItem('stratum:favorites', JSON.stringify([...favorites])); }
+
 // --- Auto-tour mode ---
 let autoTour = false;
 let autoTourTimer = null;
@@ -630,7 +877,14 @@ function stopAutoTour() {
 
 function advanceTour() {
   if (!autoTour || !aircraftManager) return;
-  const all = [...aircraftManager.aircraft.values()].filter(ac => !ac.fadingOut);
+  let all = [...aircraftManager.aircraft.values()].filter(ac => !ac.fadingOut);
+  // T2-16: Apply type filter
+  if (autoTourTypeFilter) {
+    all = all.filter(ac => {
+      const cat = classifyAircraftType(ac.data.aircraftType);
+      return cat === autoTourTypeFilter;
+    });
+  }
   if (all.length === 0) { stopAutoTour(); return; }
   const ac = all[Math.floor(Math.random() * all.length)];
   const { lat, lon } = getUserLocation();
@@ -640,16 +894,12 @@ function advanceTour() {
   autoTourTimer = setTimeout(advanceTour, AUTO_TOUR_INTERVAL);
 }
 
-// --- Help overlay ---
-const helpOverlay = document.getElementById('help-overlay');
+// --- Help panel (slide-in) ---
+const helpPanel = document.getElementById('help-panel');
 function toggleHelp() {
-  if (helpOverlay) helpOverlay.classList.toggle('hidden');
+  if (helpPanel) helpPanel.classList.toggle('hidden');
 }
-if (helpOverlay) {
-  helpOverlay.addEventListener('click', (e) => {
-    if (e.target === helpOverlay) toggleHelp();
-  });
-}
+document.getElementById('help-close')?.addEventListener('click', toggleHelp);
 
 document.addEventListener('keydown', (e) => {
   if (document.activeElement.tagName === 'INPUT') return;
@@ -658,16 +908,130 @@ document.addEventListener('keydown', (e) => {
     toggleHelp();
     return;
   }
-  if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey) {
-    if (autoTour) { stopAutoTour(); } else { startAutoTour(); }
-    return;
-  }
-  if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey) {
-    e.preventDefault();
-    openCityPicker();
-    return;
-  }
+  // Block shortcuts while any overlay or help panel is open
+  const hasOverlay = document.querySelector('.overlay-backdrop:not(.hidden)');
+  const helpOpen = helpPanel && !helpPanel.classList.contains('hidden');
+  const cityOpen = !document.getElementById('city-overlay')?.classList.contains('hidden');
+  if (hasOverlay || helpOpen || cityOpen) return;
+
   const k = e.key.toLowerCase();
+  if (e.ctrlKey || e.metaKey) { /* skip custom shortcuts when modifier held */ }
+  else if (k === 't') { if (autoTour) stopAutoTour(); else startAutoTour(); return; }
+  else if (k === 'c') { e.preventDefault(); openCityPicker(); return; }
+
+  // T1-07: Next/prev aircraft with [ and ]
+  else if (e.key === '[' || e.key === ']') {
+    if (!aircraftManager) return;
+    const all = [...aircraftManager.aircraft.values()].filter(ac => !ac.fadingOut);
+    if (all.length === 0) return;
+    // Sort by distance from camera
+    all.sort((a, b) => {
+      const da = a.group.position.distanceToSquared(camera.position);
+      const db = b.group.position.distanceToSquared(camera.position);
+      return da - db;
+    });
+    const currentIdx = followTarget ? all.indexOf(followTarget) : -1;
+    let nextIdx;
+    if (e.key === ']') nextIdx = (currentIdx + 1) % all.length;
+    else nextIdx = (currentIdx - 1 + all.length) % all.length;
+    const ac = all[nextIdx];
+    const { lat, lon } = getUserLocation();
+    handleAircraftSelect(ac);
+    return;
+  }
+
+  // T2-06: Screenshot mode
+  else if (k === 'p') {
+    screenshotMode = !screenshotMode;
+    document.body.classList.toggle('screenshot-mode', screenshotMode);
+    const hint = document.getElementById('screenshot-hint');
+    if (hint) hint.classList.toggle('hidden', !screenshotMode);
+    return;
+  }
+
+  // T2-09: Bloom intensity toggle
+  else if (k === 'b') {
+    bloomLevel = (bloomLevel + 1) % 3;
+    bloomPass.strength = BLOOM_PRESETS[bloomLevel];
+    // Show brief label
+    let lbl = document.getElementById('bloom-label');
+    if (!lbl) {
+      lbl = document.createElement('div');
+      lbl.id = 'bloom-label';
+      lbl.className = 'bloom-label';
+      document.body.appendChild(lbl);
+    }
+    lbl.textContent = `BLOOM: ${BLOOM_LABELS[bloomLevel]}`;
+    lbl.classList.remove('hidden');
+    clearTimeout(lbl._timer);
+    lbl._timer = setTimeout(() => lbl.classList.add('hidden'), 1500);
+    return;
+  }
+
+  // T2-14: Session statistics (I = info)
+  else if (k === 'i') {
+    const overlay = document.getElementById('stats-overlay');
+    if (overlay) {
+      overlay.classList.toggle('hidden');
+      if (!overlay.classList.contains('hidden')) updateStatsOverlay();
+    }
+    return;
+  }
+
+  // T2-18: Distance rings toggle
+  else if (k === 'g') {
+    distanceRingsVisible = !distanceRingsVisible;
+    toggleDistanceRings();
+    return;
+  }
+
+  // T3-13: Flight history log
+  else if (k === 'h') {
+    toggleHistoryOverlay();
+    return;
+  }
+
+  // T3-07: Spotter collection book
+  else if (k === 'k') {
+    toggleSpotterBook();
+    return;
+  }
+
+  // T3-11: Airport notes (N key)
+  else if (k === 'n') {
+    if (selectedAirportState) {
+      const code = selectedAirportState.iata || selectedAirportState.icao;
+      if (code) showAirportNotes(code);
+    } else if (activeCity) {
+      showAirportNotes(activeCity.code);
+    }
+    return;
+  }
+
+  // T2-16: Auto-tour type filter (1-6 during tour mode)
+  // T1-11: Trail opacity presets (1-5 when NOT in tour mode)
+  else if (e.key >= '1' && e.key <= '6') {
+    if (autoTour) {
+      setAutoTourFilter(parseInt(e.key) - 1);
+    } else if (e.key <= '5' && aircraftManager) {
+      const level = parseInt(e.key) * 0.2; // 0.2, 0.4, 0.6, 0.8, 1.0
+      aircraftManager.setTrailOpacity(level);
+      const lbl = document.getElementById('bloom-label') || document.createElement('div');
+      if (!lbl.id) { lbl.id = 'bloom-label'; lbl.className = 'bloom-label'; document.body.appendChild(lbl); }
+      lbl.textContent = `TRAIL: ${Math.round(level * 100)}%`;
+      lbl.classList.remove('hidden');
+      clearTimeout(lbl._timer);
+      lbl._timer = setTimeout(() => lbl.classList.add('hidden'), 1500);
+    }
+    return;
+  }
+
+  // T3-15: Share view link
+  else if (k === 'l') {
+    shareViewLink();
+    return;
+  }
+
   if ('wasdqe'.includes(k)) keysDown.add(k);
   if (e.key === 'Shift') shiftHeld = true;
 });
@@ -761,8 +1125,529 @@ function updateFollowWASD(delta) {
   }
 }
 
+// ── T2-14: Session statistics ──
+function updateStatsOverlay() {
+  const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+  const h = Math.floor(elapsed / 3600);
+  const m = Math.floor((elapsed % 3600) / 60);
+  const s = elapsed % 60;
+  const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+  const el = (id) => document.getElementById(id);
+  if (el('stats-time')) el('stats-time').textContent = timeStr;
+  if (el('stats-seen')) el('stats-seen').textContent = sessionStats.seen.size;
+  if (el('stats-types')) el('stats-types').textContent = sessionStats.types.size;
+  if (el('stats-airlines')) el('stats-airlines').textContent = sessionStats.airlines.size;
+  if (el('stats-peak')) el('stats-peak').textContent = sessionStats.peak;
+  if (el('stats-cities')) el('stats-cities').textContent = sessionStats.cities.size;
+}
+
+// ── T2-15: Emergency alert banner ──
+let emergencyDismissed = new Set();
+function checkEmergencySquawks() {
+  if (!aircraftManager) return;
+  for (const [, ac] of aircraftManager.aircraft) {
+    if (ac.fadingOut) continue;
+    const sq = ac.data.squawk;
+    if (sq === '7700' && !emergencyDismissed.has(ac.data.icao24)) {
+      const banner = document.getElementById('emergency-banner');
+      const textEl = document.getElementById('emergency-text');
+      if (banner && textEl) {
+        const cs = ac.data.callsign || ac.data.icao24;
+        textEl.textContent = `SQUAWK 7700 — ${cs} EMERGENCY`;
+        banner.classList.remove('hidden');
+        banner._icao = ac.data.icao24;
+      }
+      return;
+    }
+  }
+}
+
+// Dismiss emergency banner
+document.getElementById('emergency-dismiss')?.addEventListener('click', () => {
+  const banner = document.getElementById('emergency-banner');
+  if (banner) {
+    if (banner._icao) emergencyDismissed.add(banner._icao);
+    banner.classList.add('hidden');
+  }
+});
+
+// ── T2-18: Distance rings ──
+function toggleDistanceRings() {
+  if (distanceRingsGroup) {
+    scene.remove(distanceRingsGroup);
+    distanceRingsGroup.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+    distanceRingsGroup = null;
+  }
+  if (!distanceRingsVisible) return;
+
+  distanceRingsGroup = new THREE.Group();
+  const GEO_SCALE = 40;
+  const nmRadii = [10, 25, 50]; // nautical miles
+  for (const nm of nmRadii) {
+    const kmRadius = nm * 1.852;
+    const sceneRadius = (kmRadius / 111) * GEO_SCALE;
+    const ringGeo = new THREE.RingGeometry(sceneRadius - 0.02, sceneRadius + 0.02, 64);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xc4a058, transparent: true, opacity: 0.08, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.01;
+    distanceRingsGroup.add(ring);
+  }
+  scene.add(distanceRingsGroup);
+}
+
+// ── T3-13: Flight history log ──
+function addToHistory(d) {
+  const entry = {
+    time: new Date().toISOString().substr(11, 5),
+    callsign: d.callsign || d.icao24,
+    type: d.aircraftType || '',
+    route: (d.origin && d.destination) ? `${d.origin}→${d.destination}` : '',
+    altitude: d.altitude,
+    icao24: d.icao24,
+  };
+  // Avoid duplicates within 30s
+  if (flightHistory.length > 0 && flightHistory[0].icao24 === entry.icao24) return;
+  flightHistory.unshift(entry);
+  if (flightHistory.length > 100) flightHistory.length = 100;
+}
+
+function toggleHistoryOverlay() {
+  let overlay = document.getElementById('history-overlay');
+  if (overlay) { overlay.classList.toggle('hidden'); return; }
+
+  overlay = document.createElement('div');
+  overlay.id = 'history-overlay';
+  overlay.className = 'overlay-backdrop';
+  overlay.innerHTML = `<div class="overlay-panel overlay-panel-wide">
+    <div class="overlay-header">
+      <span class="overlay-title">FLIGHT HISTORY</span>
+      <button type="button" class="detail-close overlay-close-btn" aria-label="Close">&times;</button>
+    </div>
+    <div id="history-list" class="history-list"></div>
+    <div class="overlay-footer"><span class="overlay-hint">H to toggle · click outside to close</span></div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
+  overlay.querySelector('.overlay-close-btn')?.addEventListener('click', () => overlay.classList.add('hidden'));
+  renderHistoryList();
+}
+
+function renderHistoryList() {
+  const list = document.getElementById('history-list');
+  if (!list) return;
+  if (flightHistory.length === 0) {
+    list.innerHTML = '<div class="overlay-hint" style="text-align:center;padding:20px">No flights tracked yet</div>';
+    return;
+  }
+  list.innerHTML = flightHistory.map(h => `<div class="history-item" data-icao="${h.icao24}">
+    <span class="history-time">${h.time}Z</span>
+    <span class="history-cs">${h.callsign}</span>
+    <span class="history-type">${h.type}</span>
+    <span class="history-route">${h.route}</span>
+  </div>`).join('');
+  list.querySelectorAll('.history-item').forEach(el => {
+    el.addEventListener('click', () => {
+      if (!aircraftManager) return;
+      const ac = aircraftManager.aircraft.get(el.dataset.icao);
+      if (ac && !ac.fadingOut) {
+        handleAircraftSelect(ac);
+        document.getElementById('history-overlay')?.classList.add('hidden');
+      }
+    });
+  });
+}
+
+// ── T3-07: Spotter collection book ──
+const SPOTTER_TYPES = [
+  { code: 'A320', name: 'Airbus A320' }, { code: 'A321', name: 'Airbus A321' },
+  { code: 'A330', name: 'Airbus A330' }, { code: 'A350', name: 'Airbus A350' },
+  { code: 'A380', name: 'Airbus A380' }, { code: 'B737', name: 'Boeing 737' },
+  { code: 'B738', name: 'Boeing 737-800' }, { code: 'B739', name: 'Boeing 737-900' },
+  { code: 'B38M', name: 'Boeing 737 MAX 8' }, { code: 'B39M', name: 'Boeing 737 MAX 9' },
+  { code: 'B752', name: 'Boeing 757' }, { code: 'B763', name: 'Boeing 767' },
+  { code: 'B772', name: 'Boeing 777-200' }, { code: 'B77W', name: 'Boeing 777-300ER' },
+  { code: 'B788', name: 'Boeing 787-8' }, { code: 'B789', name: 'Boeing 787-9' },
+  { code: 'B78X', name: 'Boeing 787-10' }, { code: 'B744', name: 'Boeing 747' },
+  { code: 'E190', name: 'Embraer E190' }, { code: 'E75L', name: 'Embraer E175' },
+  { code: 'CRJ9', name: 'CRJ-900' }, { code: 'CRJ7', name: 'CRJ-700' },
+  { code: 'DH8D', name: 'Dash 8 Q400' }, { code: 'AT76', name: 'ATR 72' },
+  { code: 'A20N', name: 'A320neo' }, { code: 'A21N', name: 'A321neo' },
+  { code: 'BCS3', name: 'Airbus A220-300' }, { code: 'BCS1', name: 'Airbus A220-100' },
+  { code: 'GLF6', name: 'Gulfstream G650' }, { code: 'C68A', name: 'Citation Latitude' },
+];
+
+function toggleSpotterBook() {
+  let overlay = document.getElementById('spotter-overlay');
+  if (overlay) { overlay.classList.toggle('hidden'); return; }
+
+  overlay = document.createElement('div');
+  overlay.id = 'spotter-overlay';
+  overlay.className = 'overlay-backdrop';
+  overlay.innerHTML = `<div class="overlay-panel overlay-panel-lg">
+    <div class="overlay-header">
+      <span class="overlay-title">SPOTTER COLLECTION</span>
+      <button type="button" class="detail-close overlay-close-btn" aria-label="Close">&times;</button>
+    </div>
+    <div id="spotter-summary" class="spotter-summary"></div>
+    <div id="spotter-grid" class="spotter-grid"></div>
+    <div class="overlay-footer"><span class="overlay-hint">K to toggle · click outside to close</span></div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
+  overlay.querySelector('.overlay-close-btn')?.addEventListener('click', () => overlay.classList.add('hidden'));
+  renderSpotterGrid();
+}
+
+function renderSpotterGrid() {
+  const grid = document.getElementById('spotter-grid');
+  const summary = document.getElementById('spotter-summary');
+  if (!grid) return;
+  const spotted = SPOTTER_TYPES.filter(t => spotterBook[t.code]);
+  if (summary) summary.textContent = `${spotted.length} / ${SPOTTER_TYPES.length} types spotted`;
+  grid.innerHTML = SPOTTER_TYPES.map(t => {
+    const count = spotterBook[t.code] || 0;
+    const cls = count > 0 ? 'spotted' : 'unspotted';
+    return `<div class="spotter-card ${cls}">
+      <span class="spotter-card-type">${t.code}</span>
+      <span class="spotter-card-name">${t.name}</span>
+      ${count > 0 ? `<span class="spotter-card-count">×${count}</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── T3-15: Shareable view links ──
+function shareViewLink() {
+  const p = camera.position;
+  const t = controls.target;
+  const city = activeCity?.code || '';
+  const params = new URLSearchParams({
+    cx: p.x.toFixed(1), cy: p.y.toFixed(1), cz: p.z.toFixed(1),
+    tx: t.x.toFixed(1), ty: t.y.toFixed(1), tz: t.z.toFixed(1),
+    city,
+  });
+  const url = `${window.location.origin}${window.location.pathname}?${params}`;
+  navigator.clipboard.writeText(url).then(() => {
+    const toast = document.getElementById('toast');
+    if (toast) {
+      toast.textContent = 'View link copied to clipboard';
+      toast.classList.remove('hidden');
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => toast.classList.add('hidden'), 2500);
+    }
+  });
+}
+
+function restoreViewFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('cx')) {
+    const cx = parseFloat(params.get('cx')), cy = parseFloat(params.get('cy')), cz = parseFloat(params.get('cz'));
+    const tx = parseFloat(params.get('tx')), ty = parseFloat(params.get('ty')), tz = parseFloat(params.get('tz'));
+    if (!isNaN(cx)) { camera.position.set(cx, cy, cz); controls.target.set(tx, ty, tz); introActive = false; controls.enabled = true; }
+  }
+  return params.get('city') || null;
+}
+
+// ── T2-20: Ambient ATC chatter ──
+let _ambientATCTimer = null;
+function startAmbientATC() {
+  if (_ambientATCTimer) return;
+  _ambientATCTimer = setInterval(() => {
+    if (!aircraftManager) return;
+    const all = [...aircraftManager.aircraft.values()].filter(ac => !ac.fadingOut);
+    if (all.length === 0) return;
+    const ac = all[Math.floor(Math.random() * all.length)];
+    nekoTrackAircraft(ac.getDisplayData());
+  }, 15000 + Math.random() * 15000);
+}
+
+// ── T3-10: TCAS traffic display ──
+let _tcasEl = null;
+let _lastTCASUpdate = 0;
+let _lastTCASHash = '';
+function updateTCASDisplay(followAc, allAircraft, elapsed) {
+  // Throttle to ~2 Hz — TCAS doesn't need 60fps updates
+  if (elapsed - _lastTCASUpdate < 0.5) return;
+  _lastTCASUpdate = elapsed;
+  const threats = getTCASTraffic(followAc, allAircraft);
+  if (threats.length === 0) { hideTCASDisplay(); return; }
+  if (!_tcasEl) {
+    _tcasEl = document.createElement('div');
+    _tcasEl.id = 'tcas-display';
+    _tcasEl.className = 'stratum-widget tcas-widget';
+    document.body.appendChild(_tcasEl);
+  }
+  _tcasEl.style.display = '';
+  const top5 = threats.slice(0, 5);
+  // Skip innerHTML rebuild if data unchanged
+  const hash = top5.map(t => `${t.icao24}${t.dist}${t.altDiff}${t.threat}`).join('|');
+  if (hash === _lastTCASHash) return;
+  _lastTCASHash = hash;
+  _tcasEl.innerHTML = '<div class="widget-label">TCAS TRAFFIC</div>' +
+    top5.map(t => {
+      const color = t.threat === 'red' ? '#ff4444' : t.threat === 'yellow' ? '#ffcc00' : '#44dd88';
+      const arrow = t.altDiff > 100 ? '▲' : t.altDiff < -100 ? '▼' : '—';
+      return `<div style="color:${color};margin:2px 0">◆ ${(t.callsign || t.icao24).padEnd(8)} ${t.dist}nm ${arrow}${Math.abs(t.altDiff)}ft</div>`;
+    }).join('');
+}
+function hideTCASDisplay() {
+  if (_tcasEl) _tcasEl.style.display = 'none';
+}
+
+// ── T3-02: Weather panel ──
+let _weatherData = null;
+let _weatherExpanded = false;
+function initWeatherPanel() {
+  const toggle = document.getElementById('weather-toggle');
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      _weatherExpanded = !_weatherExpanded;
+      const exp = document.getElementById('weather-expanded');
+      const arrow = document.getElementById('weather-expand-arrow');
+      if (exp) exp.classList.toggle('open', _weatherExpanded);
+      if (arrow) arrow.textContent = _weatherExpanded ? '▴ collapse' : '▾ details';
+    });
+  }
+}
+async function updateWeatherWidget() {
+  const { lat, lon } = getUserLocation();
+  const data = await fetchWeather(lat, lon);
+  if (!data) return;
+  _weatherData = data;
+  const el = document.getElementById('weather-widget');
+  if (!el) return;
+  el.classList.remove('hidden');
+
+  const desc = weatherDescription(data.weatherCode);
+  const windDir = windDirToCardinal(data.windDir);
+  const vis = formatVisibility(data.visibility);
+  const cat = flightCategory(data.visibility, data.cloudCover);
+
+  // Compact row
+  const iconEl = document.getElementById('weather-icon-main');
+  if (iconEl) iconEl.textContent = weatherIcon(data.weatherCode);
+  const tempEl = document.getElementById('weather-temp');
+  if (tempEl) tempEl.textContent = `${Math.round(data.temp)}°`;
+  const descEl = document.getElementById('weather-desc');
+  if (descEl) descEl.textContent = desc;
+  const windEl = document.getElementById('weather-wind');
+  if (windEl) windEl.textContent = `${windDir} ${Math.round(data.windSpeed)}km/h`;
+  const visEl = document.getElementById('weather-vis');
+  if (visEl) visEl.textContent = `Vis ${vis}`;
+  const catEl = document.getElementById('weather-cat');
+  if (catEl) { catEl.textContent = cat.label; catEl.style.color = cat.color; }
+
+  // Expanded details
+  const setVal = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  setVal('weather-feels', `${Math.round(data.feelsLike)}°C`);
+  setVal('weather-humidity', `${data.humidity}%`);
+  setVal('weather-pressure', `${Math.round(data.pressure)} hPa`);
+  setVal('weather-cloud', `${data.cloudCover}%`);
+  setVal('weather-wind-detail', `${windDir} ${Math.round(data.windSpeed)} km/h`);
+  setVal('weather-gusts', data.windGusts != null ? `${Math.round(data.windGusts)} km/h` : '--');
+
+  // 8-hour forecast bar
+  const fcEl = document.getElementById('weather-forecast');
+  if (fcEl && data.hourly && data.hourly.length > 0) {
+    fcEl.innerHTML = data.hourly.map(h => {
+      const icon = weatherIcon(h.code);
+      const hr = String(h.hour).padStart(2, '0');
+      return `<div class="weather-fc-item"><span class="weather-fc-hour">${hr}:00</span><span class="weather-fc-icon">${icon}</span><span class="weather-fc-temp">${h.temp}°</span></div>`;
+    }).join('');
+  }
+}
+
+// ── T3-06: Altitude filter slider wiring ──
+function initAltFilter() {
+  const minSlider = document.getElementById('alt-filter-min');
+  const maxSlider = document.getElementById('alt-filter-max');
+  const minLabel = document.getElementById('alt-filter-lo');
+  const maxLabel = document.getElementById('alt-filter-hi');
+  const filterDiv = document.getElementById('alt-filter');
+  if (!minSlider || !maxSlider) return;
+
+  function updateLabels() {
+    if (minLabel) minLabel.textContent = `FL${Math.round(altFilterMin / 100)}`;
+    if (maxLabel) maxLabel.textContent = `FL${Math.round(altFilterMax / 100)}`;
+  }
+  minSlider.addEventListener('input', () => {
+    altFilterMin = parseInt(minSlider.value);
+    if (altFilterMin > altFilterMax - 1000) { altFilterMin = altFilterMax - 1000; minSlider.value = altFilterMin; }
+    updateLabels();
+  });
+  maxSlider.addEventListener('input', () => {
+    altFilterMax = parseInt(maxSlider.value);
+    if (altFilterMax < altFilterMin + 1000) { altFilterMax = altFilterMin + 1000; maxSlider.value = altFilterMax; }
+    updateLabels();
+  });
+  // Toggle alt filter with 'F' key — show/hide the slider panel
+  document.addEventListener('keydown', (e) => {
+    if (document.activeElement.tagName === 'INPUT') return;
+    if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey) {
+      altFilterActive = !altFilterActive;
+      if (filterDiv) filterDiv.classList.toggle('hidden', !altFilterActive);
+      if (!altFilterActive && aircraftManager) {
+        for (const [, ac] of aircraftManager.aircraft) { if (ac.group) ac.group.visible = true; }
+      }
+    }
+  });
+}
+
+// ── T2-16: Auto-tour type filter ──
+let autoTourTypeFilter = null; // null = all, or one of the type constants
+const TOUR_FILTER_TYPES = ['ALL', 'narrow', 'wideTwin', 'wideQuad', 'regional', 'bizjet'];
+const TOUR_FILTER_LABELS = ['ALL', 'NARROW', 'WIDEBODY', 'QUAD', 'REGIONAL', 'BIZJET'];
+function setAutoTourFilter(idx) {
+  autoTourTypeFilter = idx === 0 ? null : TOUR_FILTER_TYPES[idx];
+  const lbl = document.getElementById('bloom-label') || document.createElement('div');
+  if (!lbl.id) { lbl.id = 'bloom-label'; lbl.className = 'bloom-label'; document.body.appendChild(lbl); }
+  lbl.textContent = `TOUR FILTER: ${TOUR_FILTER_LABELS[idx]}`;
+  lbl.classList.remove('hidden');
+  clearTimeout(lbl._timer);
+  lbl._timer = setTimeout(() => lbl.classList.add('hidden'), 1500);
+}
+
+// ── T3-14: Mobile touch controls ──
+function initMobileTouch() {
+  if (!('ontouchstart' in window)) return;
+  let lastTap = 0;
+  canvas.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      // Double-tap to follow
+      e.preventDefault();
+      const touch = e.changedTouches[0];
+      pointer.x = (touch.clientX / window.innerWidth) * 2 - 1;
+      pointer.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      if (aircraftManager) {
+        const hits = raycaster.intersectObjects(aircraftManager.raycasterTargets, false);
+        if (hits.length > 0) {
+          const ac = aircraftManager.getByHitMesh(hits[0].object);
+          if (ac) handleAircraftSelect(ac);
+        }
+      }
+    }
+    lastTap = now;
+  }, { passive: false });
+
+  // Swipe-close detail panel
+  let touchStartY = 0;
+  const detailPanel = document.getElementById('detail-panel');
+  if (detailPanel) {
+    detailPanel.addEventListener('touchstart', (e) => { touchStartY = e.touches[0].clientY; }, { passive: true });
+    detailPanel.addEventListener('touchend', (e) => {
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      if (dy > 80) { closeDetail(); stopFollow(); }
+    }, { passive: true });
+  }
+}
+
+// ── T3-11: Airport notes system ──
+function showAirportNotes(code) {
+  let overlay = document.getElementById('airport-notes-overlay');
+  if (overlay) {
+    // Update code label and textarea for potentially different airport
+    overlay.querySelector('.overlay-title').textContent = `${code} NOTES`;
+    const ta = document.getElementById('airport-note-text');
+    if (ta) ta.value = localStorage.getItem(`stratum:note:${code}`) || '';
+    overlay.classList.toggle('hidden');
+    overlay._code = code;
+    return;
+  }
+  overlay = document.createElement('div');
+  overlay.id = 'airport-notes-overlay';
+  overlay.className = 'overlay-backdrop';
+  overlay._code = code;
+  const saved = localStorage.getItem(`stratum:note:${code}`) || '';
+  overlay.innerHTML = `<div class="overlay-panel notes-panel">
+    <div class="overlay-header">
+      <span class="overlay-title">${code} NOTES</span>
+      <button type="button" class="detail-close overlay-close-btn" aria-label="Close">&times;</button>
+    </div>
+    <textarea id="airport-note-text" class="notes-textarea" placeholder="Add notes about this airport...">${saved}</textarea>
+    <div class="notes-actions">
+      <button id="airport-note-save" class="notes-btn notes-btn-primary">SAVE</button>
+      <button id="airport-note-close" class="notes-btn notes-btn-secondary">CLOSE</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('airport-note-save').addEventListener('click', () => {
+    const text = document.getElementById('airport-note-text').value;
+    const c = overlay._code;
+    if (text.trim()) localStorage.setItem(`stratum:note:${c}`, text);
+    else localStorage.removeItem(`stratum:note:${c}`);
+    overlay.classList.add('hidden');
+  });
+  overlay.querySelector('.overlay-close-btn').addEventListener('click', () => overlay.classList.add('hidden'));
+  document.getElementById('airport-note-close').addEventListener('click', () => overlay.classList.add('hidden'));
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
+}
+
+// ── T3-04: Multi-aircraft comparison ──
+const comparisonSet = [];
+function toggleComparison(ac) {
+  const idx = comparisonSet.findIndex(c => c.data.icao24 === ac.data.icao24);
+  if (idx >= 0) { comparisonSet.splice(idx, 1); } else if (comparisonSet.length < 3) { comparisonSet.push(ac); }
+  renderComparisonPanel();
+}
+function renderComparisonPanel() {
+  let panel = document.getElementById('compare-panel');
+  if (comparisonSet.length === 0) { if (panel) panel.classList.add('hidden'); return; }
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'compare-panel';
+    panel.className = 'stratum-widget compare-widget';
+    document.body.appendChild(panel);
+  }
+  panel.classList.remove('hidden');
+  panel.innerHTML = comparisonSet.map(ac => {
+    const d = ac.getDisplayData();
+    const altFt = d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null;
+    const alt = altFt ? (altFt >= 18000 ? `FL${Math.round(altFt / 100)}` : `${altFt.toLocaleString()} ft`) : '--';
+    const spd = d.gsKts != null ? `${d.gsKts} kts` : '--';
+    return `<div class="compare-col">
+      <div class="compare-callsign">${d.callsign || d.icao24}</div>
+      <div>${d.aircraftType || '--'}</div>
+      <div>ALT: ${alt}</div>
+      <div>GS: ${spd}</div>
+      <div>HDG: ${d.heading || '--'}</div>
+      <div>${d.origin || ''}→${d.destination || ''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── T3-05: Trail replay animation ──
+let _replayActive = false;
+let _replayGhost = null;
+function startTrailReplay(ac) {
+  if (_replayActive || !ac) return;
+  const trail = ac.trailPositions;
+  if (!trail || trail.length < 6) return;
+  _replayActive = true;
+  let idx = 0;
+  const ghostGeo = new THREE.SphereGeometry(0.06, 8, 8);
+  const ghostMat = new THREE.MeshBasicMaterial({ color: 0xc4a058, transparent: true, opacity: 0.7 });
+  _replayGhost = new THREE.Mesh(ghostGeo, ghostMat);
+  scene.add(_replayGhost);
+  const step = () => {
+    if (!_replayActive || idx >= trail.length - 3) { stopTrailReplay(); return; }
+    _replayGhost.position.set(trail[idx], trail[idx + 1], trail[idx + 2]);
+    idx += 3; // advance one point
+    requestAnimationFrame(step);
+  };
+  step();
+}
+function stopTrailReplay() {
+  _replayActive = false;
+  if (_replayGhost) { scene.remove(_replayGhost); _replayGhost.geometry.dispose(); _replayGhost.material.dispose(); _replayGhost = null; }
+}
+
 // --- Animation loop ---
 const clock = new THREE.Clock();
+let _lastDayNightTime = 0;
+let _lastCompassDeg = -1;
+let _lastAtmosphereUpdate = 0;
 
 function animate() {
   requestAnimationFrame(animate);
@@ -793,9 +1678,19 @@ function animate() {
   }
 
   updatePulse(scene, elapsed);
-  updateCompass();
+  animateAirportLoading(elapsed);
+  updateCompass(elapsed);
 
-  // Animate particles
+  // T3-12: Day/night cycle (update every ~2s)
+  if (elapsed - _lastDayNightTime >= 2.0) {
+    _lastDayNightTime = elapsed;
+    const { lat, lon } = getUserLocation();
+    const now = new Date();
+    const utcH = now.getUTCHours() + now.getUTCMinutes() / 60;
+    updateDayNight(scene, lat, lon, utcH);
+  }
+
+  // Animate particles — position updates every frame, opacity throttled to ~4 Hz
   const posArr = particles.geometry.attributes.position.array;
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     posArr[i * 3 + 1] += particleSpeeds[i] * delta;
@@ -806,13 +1701,25 @@ function animate() {
     }
   }
   particles.geometry.attributes.position.needsUpdate = true;
-  particleMat.opacity = 0.06 + 0.04 * Math.sin(elapsed * 0.4);
-
-  starMat.opacity = 0.3 + 0.14 * Math.sin(elapsed * 0.3);
+  if (elapsed - _lastAtmosphereUpdate >= 0.25) {
+    _lastAtmosphereUpdate = elapsed;
+    particleMat.opacity = 0.06 + 0.04 * Math.sin(elapsed * 0.4);
+    starMat.opacity = 0.3 + 0.14 * Math.sin(elapsed * 0.3);
+  }
 
   if (aircraftManager) {
-    aircraftManager.animate(delta, elapsed);
+    aircraftManager.animate(delta, elapsed, camera);
     aircraftManager.animateSelection(elapsed);
+  }
+
+  // T3-09: Animate touchdown effects (dust puffs, runway flashes)
+  updateTouchdownEffects(scene);
+
+  // T3-10: TCAS traffic display in follow mode
+  if (followTarget && aircraftManager && !followTarget.removed) {
+    updateTCASDisplay(followTarget, aircraftManager.aircraft, elapsed);
+  } else {
+    hideTCASDisplay();
   }
 
   composer.render();
@@ -1471,10 +2378,23 @@ const CITIES = [
   { name: 'Apia',             code: 'APW', lat: -13.8300,  lon: -172.0083, region: 'Pacific', country: 'Samoa' },
 ];
 
+// Merge extra cities for denser globe (dedup by code)
+if (CITIES_EXTRA && CITIES_EXTRA.length) {
+  const existing = new Set(CITIES.map(c => c.code));
+  for (const c of CITIES_EXTRA) {
+    if (!existing.has(c.code)) {
+      CITIES.push(c);
+      existing.add(c.code);
+    }
+  }
+}
+
 // Build lookup index for aircraft.js to find destination coordinates
 const _cityByCode = {};
 for (const c of CITIES) _cityByCode[c.code] = c;
 window._findCityByCode = (code) => _cityByCode[code] || null;
+window._CITIES = CITIES;
+window._getAirportData = (code) => (typeof AIRPORT_DATA !== 'undefined' ? AIRPORT_DATA[code] : null);
 
 let activeCity = null;
 
@@ -1485,6 +2405,7 @@ const sceneTransName = document.getElementById('scene-trans-name');
 async function switchCity(city) {
   if (activeCity && activeCity.code === city.code) return;
   activeCity = city;
+  sessionStats.cities.add(city.code);
 
   // 1. Show city name and fade to black
   if (sceneTransCode) sceneTransCode.textContent = city.code;
@@ -1525,10 +2446,20 @@ async function switchCity(city) {
   controls.update();
   controls.enabled = true;
 
-  // 4. Load base map while screen is dark — then reveal
-  await loadGroundMap(city.lat, city.lon);
+  // 4. Load ground map + airports in parallel while screen is dark
+  const mapP = loadGroundMap(city.lat, city.lon);
+  const aptP = loadAirports(scene, city.lat, city.lon).then(() => {
+    const aptData = getAirportData();
+    if (aptData) updateHUDAirports(aptData.airports.length);
+  });
+  // Wait for map first, then give airports up to 4s more before revealing
+  await mapP;
+  if (sceneTransName) sceneTransName.textContent = `${city.name}  ·  Loading airports...`;
+  const aptTimeout = new Promise(r => setTimeout(r, 4000));
+  await Promise.race([aptP, aptTimeout]);
 
-  // 5. Fade back — new map is ready
+  // 5. Fade back — map ready, airports loaded or timed out (will appear when ready)
+  if (sceneTransName) sceneTransName.textContent = city.name;
   if (sceneTrans) {
     sceneTrans.classList.remove('loading');
     sceneTrans.style.transition = 'opacity 0.9s ease';
@@ -1536,11 +2467,8 @@ async function switchCity(city) {
     sceneTrans.style.pointerEvents = '';
   }
 
-  // 6. Load airports non-blocking after reveal
-  loadAirports(scene, city.lat, city.lon).then(() => {
-    const aptData = getAirportData();
-    if (aptData) updateHUDAirports(aptData.airports.length);
-  });
+  // T3-02: Refresh weather for new city
+  updateWeatherWidget();
 }
 
 // ── Globe helpers ────────────────────────────────────────────────────────────
@@ -1665,6 +2593,7 @@ class GlobeView {
     this._drawGrid();
     if (this.focusedIdx >= 0) this._drawArcs();
     this._drawDots();
+    this._drawAircraftDots();
     if (this.focusedIdx >= 0) this._drawPulse(ctx);
     ctx.restore();
 
@@ -1831,42 +2760,34 @@ class GlobeView {
         } else if (matches) {
           const tier = this._dotSizes ? this._dotSizes[i] : 0;
           if (tier === 2) {
-            // MEGA HUB — always prominent: outer glow + bright core + outline ring
-            const glowR = 7 + zoom * 1.5;
-            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
-            g.addColorStop(0, `rgba(255,200,60,${0.35 * d})`); g.addColorStop(1, 'rgba(255,200,60,0)');
-            ctx.beginPath(); ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+            // MEGA HUB — bright core + subtle outer ring (no gradient for perf)
             const coreR = 3 + zoom * 0.4;
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 3, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,200,60,${0.12 * d})`; ctx.fill();
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(255,220,100,${0.75 * d + 0.2})`; ctx.fill();
-            // Contrasting outline ring — always visible against land dots
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1.2, 0, Math.PI * 2);
             ctx.strokeStyle = `rgba(255,235,170,${0.45 * d})`; ctx.lineWidth = 0.6; ctx.stroke();
-            // Show IATA label at zoom > 1.2 for mega hubs
             if (zoom > 1.2) {
               this._label(ctx, p, c.code, `rgba(255,220,120,${0.7 * d})`, false);
             }
           } else if (tier === 1) {
-            // MAJOR — moderately prominent with ring
+            // MAJOR — core + ring (no gradient for perf)
             const coreR = 2.2 + zoom * 0.3;
-            const glowR = 4.5 + zoom;
-            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
-            g.addColorStop(0, `rgba(196,170,88,${0.18 * d})`); g.addColorStop(1, 'rgba(196,170,88,0)');
-            ctx.beginPath(); ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 2, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(196,170,88,${0.08 * d})`; ctx.fill();
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(220,190,100,${0.55 * d + 0.2})`; ctx.fill();
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1, 0, Math.PI * 2);
             ctx.strokeStyle = `rgba(220,200,130,${0.3 * d})`; ctx.lineWidth = 0.5; ctx.stroke();
-            // Show IATA label at higher zoom for major hubs
             if (zoom > 1.5) {
               this._label(ctx, p, c.code, `rgba(220,200,130,${0.55 * d})`, false);
             }
           } else {
-            // REGIONAL — small but distinct from land (warm white vs green land)
+            // REGIONAL — small dot + outline
             const coreR = 1.4 + zoom * 0.2;
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(210,185,120,${0.4 * d + 0.12})`; ctx.fill();
-            // Subtle outline for contrast against land
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 0.7, 0, Math.PI * 2);
             ctx.strokeStyle = `rgba(210,185,120,${0.18 * d})`; ctx.lineWidth = 0.4; ctx.stroke();
           }
@@ -1875,6 +2796,23 @@ class GlobeView {
           ctx.fillStyle = `rgba(30,50,80,${0.4 * d})`; ctx.fill();
         }
       }
+    }
+  }
+
+  // T3-08: Live aircraft dots on globe
+  _drawAircraftDots() {
+    if (!lastRawData || lastRawData.length === 0) return;
+    const ctx = this.ctx;
+    for (let i = 0; i < lastRawData.length; i++) {
+      const ac = lastRawData[i];
+      if (ac.latitude == null || ac.longitude == null) continue;
+      const p = this._proj(ac.latitude, ac.longitude);
+      if (!p.visible) continue;
+      const d = Math.max(0.2, p.depth);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(80,220,180,${0.5 * d})`;
+      ctx.fill();
     }
   }
 
@@ -2242,169 +3180,172 @@ let _globeView = null;
 // ── Airport metadata lookup ──────────────────────────────────────────────────
 const AIRPORT_DATA = {
   // ── USA MEGA HUBS ──────────────────────────────────────────────────────────
-  ATL:{icao:'KATL',elev:1026,tz:'EST/EDT',rwys:5,pax:93.7,terminals:2,rwyLen:'12390 ft',hub:'Delta',fact:"World's busiest airport — #1 for over 22 consecutive years"},
-  DFW:{icao:'KDFW',elev:603,tz:'CST/CDT',rwys:7,pax:73.4,terminals:5,rwyLen:'13401 ft',hub:'American',fact:'Larger than Manhattan Island at 69 km² — the world\'s 2nd largest airport campus'},
-  DEN:{icao:'KDEN',elev:5431,tz:'MST/MDT',rwys:6,pax:69.3,terminals:1,rwyLen:'16000 ft',hub:'United/Frontier',fact:'At 5,431 ft — the highest major US airport. Its 16,000 ft runway can handle any aircraft'},
-  ORD:{icao:'KORD',elev:672,tz:'CST/CDT',rwys:8,pax:83.3,terminals:4,rwyLen:'13000 ft',hub:'United/American',fact:'Has the most runways (8) of any US airport — was the world\'s busiest for over 30 years'},
-  LAX:{icao:'KLAX',elev:128,tz:'PST/PDT',rwys:4,pax:88.1,terminals:9,rwyLen:'12091 ft',hub:'Delta/United/American',fact:'Gateway to the Pacific — the distinctive Theme Building opened in 1961, a Googie architecture icon'},
-  JFK:{icao:'KJFK',elev:13,tz:'EST/EDT',rwys:4,pax:62.5,terminals:6,rwyLen:'14511 ft',hub:'Delta/JetBlue',fact:'Renamed for President Kennedy in 1963. The iconic TWA Flight Center by Eero Saarinen is now a hotel'},
-  SFO:{icao:'KSFO',elev:13,tz:'PST/PDT',rwys:4,pax:57.5,terminals:4,rwyLen:'11870 ft',hub:'United',fact:'Built on San Francisco Bay landfill — two parallel runways are just 750 ft apart'},
-  SEA:{icao:'KSEA',elev:433,tz:'PST/PDT',rwys:3,pax:50.6,terminals:2,rwyLen:'11901 ft',hub:'Alaska/Delta',fact:'Runs on 100% renewable energy — one of the greenest major airports in the US'},
-  LAS:{icao:'KLAS',elev:2181,tz:'PST/PDT',rwys:4,pax:57.3,terminals:3,rwyLen:'14510 ft',hub:'Spirit/Frontier',fact:'The only major US airport with slot machines in the terminal — estimated 1,300 machines'},
-  MCO:{icao:'KMCO',elev:96,tz:'EST/EDT',rwys:4,pax:58.0,terminals:2,rwyLen:'12005 ft',hub:'JetBlue/Southwest',fact:'Serves Walt Disney World, Universal and SeaWorld — the world\'s most visited tourist region'},
-  CLT:{icao:'KCLT',elev:748,tz:'EST/EDT',rwys:4,pax:53.0,terminals:1,rwyLen:'10000 ft',hub:'American',fact:'American Airlines\' largest hub by departures — a connection machine handling 1,500+ daily flights'},
-  MIA:{icao:'KMIA',elev:9,tz:'EST/EDT',rwys:4,pax:52.0,terminals:3,rwyLen:'13016 ft',hub:'American',fact:'#1 US international gateway to Latin America, with non-stop service to 100+ countries'},
-  EWR:{icao:'KEWR',elev:18,tz:'EST/EDT',rwys:3,pax:46.3,terminals:3,rwyLen:'11000 ft',hub:'United',fact:'America\'s first major commercial airport, opened in 1928 — predates both JFK and LaGuardia'},
-  BOS:{icao:'KBOS',elev:19,tz:'EST/EDT',rwys:6,pax:42.5,terminals:4,rwyLen:'10083 ft',hub:'JetBlue/Delta',fact:'Named for General Edward Logan. Extension runways literally jut into Boston Harbor'},
-  MSP:{icao:'KMSP',elev:841,tz:'CST/CDT',rwys:4,pax:39.6,terminals:2,rwyLen:'11006 ft',hub:'Delta/Sun Country',fact:'Delta\'s second-largest hub, designed for Minnesota winters — heated jet bridges throughout'},
-  DTW:{icao:'KDTW',elev:645,tz:'EST/EDT',rwys:6,pax:36.4,terminals:2,rwyLen:'12003 ft',hub:'Delta/Spirit',fact:'Home to the world\'s longest airport tram tunnel — the McNamara Terminal\'s underground walkway'},
-  IAH:{icao:'KIAH',elev:97,tz:'CST/CDT',rwys:5,pax:45.3,terminals:5,rwyLen:'12001 ft',hub:'United',fact:'United Airlines\' largest international hub — a major gateway for Latin America routes'},
-  PHX:{icao:'KPHX',elev:1135,tz:'MST',rwys:3,pax:46.3,terminals:3,rwyLen:'11489 ft',hub:'American/Southwest',fact:'Arizona observes no daylight saving time — PHX is the only US mega-hub in a single timezone year-round'},
-  IAD:{icao:'KIAD',elev:313,tz:'EST/EDT',rwys:4,pax:27.6,terminals:1,rwyLen:'11501 ft',hub:'United',fact:'Designed by Eero Saarinen, opened 1962. The mobile lounges were futuristic for their era'},
-  PHL:{icao:'KPHL',elev:36,tz:'EST/EDT',rwys:4,pax:33.4,terminals:7,rwyLen:'10506 ft',hub:'American',fact:'One of the original four American Airlines hubs from the hub-and-spoke era of the 1980s'},
-  DCA:{icao:'KDCA',elev:15,tz:'EST/EDT',rwys:3,pax:25.5,terminals:3,rwyLen:'6869 ft',hub:'American',fact:'Subject to the strictest airspace restrictions in the US — the 30 nm SFRA around Washington DC'},
+  ATL:{icao:'KATL',elev:1026,tz:'EST/EDT',rwys:5,pax:93.7,terminals:2,rwyLen:'12390 ft',hub:'Delta',fact:"World's busiest airport — #1 for over 22 consecutive years",desc:'Atlanta pulses with the spirit of the American South — birthplace of Martin Luther King Jr., home of Coca-Cola, and a creative powerhouse where hip-hop, soul food, and civil rights history converge. The city\'s tree-lined neighborhoods and world-class aquarium make it as livable as it is historic.'},
+  DFW:{icao:'KDFW',elev:603,tz:'CST/CDT',rwys:7,pax:73.4,terminals:5,rwyLen:'13401 ft',hub:'American',fact:'Larger than Manhattan Island at 69 km² — the world\'s 2nd largest airport campus',desc:'Dallas-Fort Worth is where Texas swagger meets cosmopolitan ambition — a sprawling metroplex of world-class museums, sizzling Tex-Mex, and Friday night football under stadium lights. The Arts District downtown is the largest contiguous urban arts district in the nation.'},
+  DEN:{icao:'KDEN',elev:5431,tz:'MST/MDT',rwys:6,pax:69.3,terminals:1,rwyLen:'16000 ft',hub:'United/Frontier',fact:'At 5,431 ft — the highest major US airport. Its 16,000 ft runway can handle any aircraft',desc:'Denver sits a mile high where the Great Plains meet the Rocky Mountains — a city of craft breweries, outdoor adventure, and a thriving arts scene along the RiNo district\'s muraled warehouses. Red Rocks Amphitheatre and world-class skiing are less than an hour away.'},
+  ORD:{icao:'KORD',elev:672,tz:'CST/CDT',rwys:8,pax:83.3,terminals:4,rwyLen:'13000 ft',hub:'United/American',fact:'Has the most runways (8) of any US airport — was the world\'s busiest for over 30 years',desc:'Chicago is America\'s architectural capital — a city of soaring skyscrapers, deep-dish pizza, and blues clubs that shaped modern music. From the Art Institute\'s Impressionist galleries to the electric energy of Wrigley Field, the Windy City rewards every visitor.'},
+  LAX:{icao:'KLAX',elev:128,tz:'PST/PDT',rwys:4,pax:88.1,terminals:9,rwyLen:'12091 ft',hub:'Delta/United/American',fact:'Gateway to the Pacific — the distinctive Theme Building opened in 1961, a Googie architecture icon',desc:'Los Angeles is the entertainment capital of the world — a sun-drenched mosaic of Hollywood glamour, taco trucks, surf culture, and cutting-edge contemporary art. From the Getty Center perched above the city to the vibrant neighborhoods of Koreatown and Silver Lake, LA defies any single narrative.'},
+  JFK:{icao:'KJFK',elev:13,tz:'EST/EDT',rwys:4,pax:62.5,terminals:6,rwyLen:'14511 ft',hub:'Delta/JetBlue',fact:'Renamed for President Kennedy in 1963. The iconic TWA Flight Center by Eero Saarinen is now a hotel',desc:'New York City is the cultural engine of the Western world — a vertical metropolis of Broadway theaters, world-class museums, and 800 languages spoken across its five boroughs. From the neon canyons of Times Square to the quiet streets of Greenwich Village, the city never sleeps and never stops reinventing itself.'},
+  SFO:{icao:'KSFO',elev:13,tz:'PST/PDT',rwys:4,pax:57.5,terminals:4,rwyLen:'11870 ft',hub:'United',fact:'Built on San Francisco Bay landfill — two parallel runways are just 750 ft apart',desc:'San Francisco is a city of fog-kissed hills, cable cars, and radical reinvention — from the Gold Rush to the Summer of Love to Silicon Valley. The Golden Gate Bridge, Chinatown\'s dim sum parlors, and the painted Victorians of Haight-Ashbury define a city that celebrates the unconventional.'},
+  SEA:{icao:'KSEA',elev:433,tz:'PST/PDT',rwys:3,pax:50.6,terminals:2,rwyLen:'11901 ft',hub:'Alaska/Delta',fact:'Runs on 100% renewable energy — one of the greenest major airports in the US',desc:'Seattle is the rain-soaked jewel of the Pacific Northwest — birthplace of grunge music, home to Pike Place Market\'s flying fish, and a city where coffee culture was perfected. Mount Rainier looms over a skyline defined by the Space Needle and a booming tech scene.'},
+  LAS:{icao:'KLAS',elev:2181,tz:'PST/PDT',rwys:4,pax:57.3,terminals:3,rwyLen:'14510 ft',hub:'Spirit/Frontier',fact:'The only major US airport with slot machines in the terminal — estimated 1,300 machines',desc:'Las Vegas is a neon oasis in the Mojave Desert — a city built on spectacle, from the Strip\'s mega-resorts and world-class shows to the red rock canyons just minutes away. It reinvents itself endlessly, now rivaling any city for fine dining and contemporary art.'},
+  MCO:{icao:'KMCO',elev:96,tz:'EST/EDT',rwys:4,pax:58.0,terminals:2,rwyLen:'12005 ft',hub:'JetBlue/Southwest',fact:'Serves Walt Disney World, Universal and SeaWorld — the world\'s most visited tourist region',desc:'Orlando is the theme park capital of the planet — a place where imagination becomes reality across Walt Disney World, Universal, and a constellation of attractions. Beyond the parks, the city\'s growing food scene and nearby Space Coast add unexpected depth.'},
+  CLT:{icao:'KCLT',elev:748,tz:'EST/EDT',rwys:4,pax:53.0,terminals:1,rwyLen:'10000 ft',hub:'American',fact:'American Airlines\' largest hub by departures — a connection machine handling 1,500+ daily flights',desc:'Charlotte is the banking capital of the American South — a fast-growing city where gleaming uptown towers meet tree-shaded neighborhoods, NASCAR heritage, and a craft beer scene that rivals any in the Southeast. The Blue Ridge Mountains beckon just two hours west.'},
+  MIA:{icao:'KMIA',elev:9,tz:'EST/EDT',rwys:4,pax:52.0,terminals:3,rwyLen:'13016 ft',hub:'American',fact:'#1 US international gateway to Latin America, with non-stop service to 100+ countries',desc:'Miami is where Latin America meets the United States — a bilingual, sun-soaked metropolis of Art Deco architecture on South Beach, Calle Ocho\'s Cuban coffee windows, and Wynwood\'s explosion of street art. The city\'s nightlife, cuisine, and cultural energy are unmatched.'},
+  EWR:{icao:'KEWR',elev:18,tz:'EST/EDT',rwys:3,pax:46.3,terminals:3,rwyLen:'11000 ft',hub:'United',fact:'America\'s first major commercial airport, opened in 1928 — predates both JFK and LaGuardia',desc:'Newark serves as a gateway to both New York City and northern New Jersey — a region of remarkable diversity, from the brownstones of Hoboken to the cultural riches of Manhattan just minutes across the Hudson. The Ironbound district is one of America\'s great Portuguese and Brazilian food destinations.'},
+  BOS:{icao:'KBOS',elev:19,tz:'EST/EDT',rwys:6,pax:42.5,terminals:4,rwyLen:'10083 ft',hub:'JetBlue/Delta',fact:'Named for General Edward Logan. Extension runways literally jut into Boston Harbor',desc:'Boston is America\'s cradle of revolution and intellect — a walkable city of cobblestone streets, Harvard and MIT\'s ivory towers, and passionate Red Sox fandom. The Freedom Trail winds through 400 years of history, while the waterfront serves some of the finest seafood on the Atlantic.'},
+  MSP:{icao:'KMSP',elev:841,tz:'CST/CDT',rwys:4,pax:39.6,terminals:2,rwyLen:'11006 ft',hub:'Delta/Sun Country',fact:'Delta\'s second-largest hub, designed for Minnesota winters — heated jet bridges throughout',desc:'Minneapolis-St. Paul is the Twin Cities of culture and nature — home to the Guthrie Theater, Prince\'s Paisley Park, and a chain of urban lakes perfect for year-round recreation. The skyway system lets residents navigate brutal winters without ever stepping outside.'},
+  DTW:{icao:'KDTW',elev:645,tz:'EST/EDT',rwys:6,pax:36.4,terminals:2,rwyLen:'12003 ft',hub:'Delta/Spirit',fact:'Home to the world\'s longest airport tram tunnel — the McNamara Terminal\'s underground walkway',desc:'Detroit is a city of resilience and reinvention — the birthplace of Motown Records, the American auto industry, and a creative renaissance transforming its neighborhoods. From the Detroit Institute of Arts\' Diego Rivera murals to Eastern Market\'s weekend bustle, the Motor City roars back to life.'},
+  IAH:{icao:'KIAH',elev:97,tz:'CST/CDT',rwys:5,pax:45.3,terminals:5,rwyLen:'12001 ft',hub:'United',fact:'United Airlines\' largest international hub — a major gateway for Latin America routes',desc:'Houston is Space City — home to NASA\'s Mission Control, a dazzling museum district, and one of America\'s most diverse food scenes, from Vietnamese pho in Midtown to Tex-Mex and world-class barbecue. The energy capital of the world pulses with ambition and Southern hospitality.'},
+  PHX:{icao:'KPHX',elev:1135,tz:'MST',rwys:3,pax:46.3,terminals:3,rwyLen:'11489 ft',hub:'American/Southwest',fact:'Arizona observes no daylight saving time — PHX is the only US mega-hub in a single timezone year-round',desc:'Phoenix blazes in the Sonoran Desert — a sprawling sun-belt city of stunning desert botanical gardens, Frank Lloyd Wright\'s Taliesin West, and fiery Southwestern cuisine. Camelback Mountain rises from the city\'s heart, offering dramatic hikes with valley-wide panoramas.'},
+  IAD:{icao:'KIAD',elev:313,tz:'EST/EDT',rwys:4,pax:27.6,terminals:1,rwyLen:'11501 ft',hub:'United',fact:'Designed by Eero Saarinen, opened 1962. The mobile lounges were futuristic for their era',desc:'Washington, D.C. is the seat of American power and a treasure trove of free Smithsonian museums, marble monuments, and cherry blossoms along the Tidal Basin. The capital\'s Georgetown townhouses, vibrant U Street corridor, and multicultural dining scene reveal a city far richer than politics alone.'},
+  PHL:{icao:'KPHL',elev:36,tz:'EST/EDT',rwys:4,pax:33.4,terminals:7,rwyLen:'10506 ft',hub:'American',fact:'One of the original four American Airlines hubs from the hub-and-spoke era of the 1980s',desc:'Philadelphia is where America began — the city of the Liberty Bell, Independence Hall, and a fiercely loyal sports culture. Rocky\'s steps at the Art Museum, Reading Terminal Market\'s cheesesteaks, and a thriving mural arts program make Philly one of the East Coast\'s most underrated destinations.'},
+  DCA:{icao:'KDCA',elev:15,tz:'EST/EDT',rwys:3,pax:25.5,terminals:3,rwyLen:'6869 ft',hub:'American',fact:'Subject to the strictest airspace restrictions in the US — the 30 nm SFRA around Washington DC',desc:'Reagan National offers the most dramatic approach of any American airport — banking over the Potomac with the Lincoln Memorial, Washington Monument, and Capitol dome in full view. The nation\'s capital is a city of stately grandeur and surprising neighborhood charm.'},
   // ── USA MAJOR ──────────────────────────────────────────────────────────────
-  SAN:{icao:'KSAN',elev:17,tz:'PST/PDT',rwys:1,pax:25.2,terminals:2,rwyLen:'9401 ft',hub:'Southwest',fact:'One of only a few major US airports with a single runway — approaches skim downtown rooftops'},
-  PDX:{icao:'KPDX',elev:31,tz:'PST/PDT',rwys:3,pax:20.1,terminals:1,rwyLen:'11000 ft',hub:'Alaska',fact:'Famous for its carpet — replaced in 2015, the old pattern became a pop culture icon'},
-  SLC:{icao:'KSLC',elev:4227,tz:'MST/MDT',rwys:4,pax:27.0,terminals:1,rwyLen:'12003 ft',hub:'Delta',fact:'Delta\'s western mountain hub at 4,227 ft — brand new terminal opened in 2020'},
-  TPA:{icao:'KTPA',elev:26,tz:'EST/EDT',rwys:3,pax:23.3,terminals:1,rwyLen:'11002 ft',hub:'Breeze/Southwest',fact:'Known for its automated people mover shuttles between landside and airside since 1971'},
-  RDU:{icao:'KRDU',elev:435,tz:'EST/EDT',rwys:3,pax:14.8,terminals:2,rwyLen:'10000 ft',hub:'Frontier',fact:'Named for both Raleigh and Durham — a gateway to the Research Triangle tech corridor'},
-  BWI:{icao:'KBWI',elev:146,tz:'EST/EDT',rwys:3,pax:26.5,terminals:1,rwyLen:'10502 ft',hub:'Southwest',fact:'Southwest\'s largest East Coast operation — named for Thurgood Marshall since 2005'},
-  MCI:{icao:'KMCI',elev:1026,tz:'CST/CDT',rwys:3,pax:13.4,terminals:1,rwyLen:'10801 ft',hub:'Southwest',fact:'New single terminal opened 2023, replacing the 1972 drive-to-your-gate design'},
-  MSY:{icao:'KMSY',elev:4,tz:'CST/CDT',rwys:2,pax:14.5,terminals:1,rwyLen:'10104 ft',hub:'Southwest/Spirit',fact:'New $1.3B terminal opened 2019, replacing the 1959 original on the same site'},
-  AUS:{icao:'KAUS',elev:542,tz:'CST/CDT',rwys:2,pax:21.7,terminals:1,rwyLen:'12250 ft',hub:'Southwest',fact:'One of the fastest-growing US airports, tripling traffic since 2010 with Austin\'s tech boom'},
-  SMF:{icao:'KSMF',elev:27,tz:'PST/PDT',rwys:2,pax:14.4,terminals:2,rwyLen:'8601 ft',hub:'Southwest',fact:'Sacramento\'s gateway — the closest major airport to California\'s state capital'},
-  SJC:{icao:'KSJC',elev:62,tz:'PST/PDT',rwys:2,pax:16.0,terminals:2,rwyLen:'11000 ft',hub:'Southwest/Alaska',fact:'Silicon Valley\'s airport — walking distance from many tech campuses'},
-  FLL:{icao:'KFLL',elev:9,tz:'EST/EDT',rwys:2,pax:36.0,terminals:4,rwyLen:'9000 ft',hub:'JetBlue/Spirit',fact:'South Florida\'s low-cost carrier hub — within 30 miles of both Fort Lauderdale and Miami'},
-  MDW:{icao:'KMDW',elev:620,tz:'CST/CDT',rwys:5,pax:23.4,terminals:1,rwyLen:'6522 ft',hub:'Southwest',fact:'Southwest Airlines\' original home base — the airline was born here in 1971'},
-  HNL:{icao:'PHNL',elev:13,tz:'HST',rwys:4,pax:21.0,terminals:3,rwyLen:'12300 ft',hub:'Hawaiian',fact:'The only major US airport with an outdoor terminal — reef runway built on a coral reef'},
-  BNA:{icao:'KBNA',elev:599,tz:'CST/CDT',rwys:4,pax:22.0,terminals:1,rwyLen:'11030 ft',hub:'Southwest',fact:'Nashville\'s music city gateway — one of the fastest-growing airports in America'},
-  STL:{icao:'KSTL',elev:618,tz:'CST/CDT',rwys:4,pax:16.5,terminals:2,rwyLen:'11019 ft',hub:'Southwest',fact:'Once TWA\'s fortress hub — its massive Terminal 2 now serves Southwest exclusively'},
-  OAK:{icao:'KOAK',elev:9,tz:'PST/PDT',rwys:4,pax:14.1,terminals:2,rwyLen:'10520 ft',hub:'Southwest/Spirit',fact:'The affordable Bay Area alternative — a 25 minute BART ride from downtown San Francisco'},
-  CLE:{icao:'KCLE',elev:791,tz:'EST/EDT',rwys:3,pax:10.6,terminals:1,rwyLen:'9956 ft',hub:'Spirit/Frontier',fact:'Former Continental hub — the Rock & Roll Hall of Fame is visible on approach to runway 6L'},
-  CMH:{icao:'KCMH',elev:816,tz:'EST/EDT',rwys:3,pax:10.2,terminals:1,rwyLen:'10113 ft',hub:'Breeze',fact:'John Glenn Columbus — named for Ohio\'s astronaut-senator who orbited Earth in 1962'},
-  RSW:{icao:'KRSW',elev:30,tz:'EST/EDT',rwys:2,pax:12.3,terminals:1,rwyLen:'12000 ft',hub:'Southwest',fact:'Southwest Florida International — gateway to Sanibel Island and Fort Myers beaches'},
-  OGG:{icao:'PHOG',elev:54,tz:'HST',rwys:2,pax:8.4,terminals:1,rwyLen:'6995 ft',hub:'Hawaiian',fact:'Kahului Airport — Maui\'s gateway, with stunning views of Haleakala volcano on approach'},
-  PIT:{icao:'KPIT',elev:1204,tz:'EST/EDT',rwys:4,pax:10.8,terminals:1,rwyLen:'11500 ft',hub:'Spirit',fact:'Former USAirways mega-hub — its landside terminal now houses offices and a hotel'},
-  IND:{icao:'KIND',elev:797,tz:'EST/EDT',rwys:3,pax:10.0,terminals:1,rwyLen:'11200 ft',hub:'Allegiant',fact:'Indianapolis — home to the world\'s 2nd largest FedEx hub, processing 3M+ packages nightly'},
-  CVG:{icao:'KCVG',elev:896,tz:'EST/EDT',rwys:4,pax:9.8,terminals:2,rwyLen:'12000 ft',hub:'DHL/Allegiant',fact:'DHL\'s Americas superhub — once Delta\'s largest hub, now a major cargo center'},
-  JAX:{icao:'KJAX',elev:30,tz:'EST/EDT',rwys:2,pax:8.0,terminals:1,rwyLen:'10000 ft',hub:'Breeze',fact:'Jacksonville — one of the largest US cities by area, serving Northeast Florida\'s coastline'},
-  ABQ:{icao:'KABQ',elev:5355,tz:'MST/MDT',rwys:3,pax:6.2,terminals:1,rwyLen:'13793 ft',hub:'Southwest',fact:'Albuquerque Sunport at 5,355 ft — the extra-long runway handles hot-and-high takeoffs'},
-  ANC:{icao:'PANC',elev:152,tz:'AKST/AKDT',rwys:3,pax:5.5,terminals:2,rwyLen:'12400 ft',hub:'Alaska',fact:'Ted Stevens Anchorage — a critical refueling stop for Pacific cargo flights, top 5 US cargo airport'},
-  MEM:{icao:'KMEM',elev:341,tz:'CST/CDT',rwys:4,pax:5.2,terminals:2,rwyLen:'11120 ft',hub:'FedEx',fact:'FedEx\'s global superhub — processes 4M+ packages per night, busiest cargo airport in the Americas'},
+  SAN:{icao:'KSAN',elev:17,tz:'PST/PDT',rwys:1,pax:25.2,terminals:2,rwyLen:'9401 ft',hub:'Southwest',fact:'One of only a few major US airports with a single runway — approaches skim downtown rooftops',desc:'San Diego basks in near-perfect weather year-round — a laid-back coastal city of craft breweries, fish tacos, the world-famous Zoo, and miles of golden Pacific beaches.'},
+  PDX:{icao:'KPDX',elev:31,tz:'PST/PDT',rwys:3,pax:20.1,terminals:1,rwyLen:'11000 ft',hub:'Alaska',fact:'Famous for its carpet — replaced in 2015, the old pattern became a pop culture icon',desc:'Portland is the fiercely independent city of food carts, independent bookstores, craft coffee, and misty forests — where "Keep Portland Weird" is a way of life.'},
+  SLC:{icao:'KSLC',elev:4227,tz:'MST/MDT',rwys:4,pax:27.0,terminals:1,rwyLen:'12003 ft',hub:'Delta',fact:'Delta\'s western mountain hub at 4,227 ft — brand new terminal opened in 2020',desc:'Salt Lake City sits in a dramatic valley between the Wasatch Range and the Great Salt Lake — a gateway to legendary skiing and Utah\'s five stunning national parks.'},
+  TPA:{icao:'KTPA',elev:26,tz:'EST/EDT',rwys:3,pax:23.3,terminals:1,rwyLen:'11002 ft',hub:'Breeze/Southwest',fact:'Known for its automated people mover shuttles between landside and airside since 1971',desc:'Tampa Bay blends Florida sunshine with Cuban heritage in historic Ybor City, waterfront dining along the Riverwalk, and easy access to Gulf Coast white-sand beaches.'},
+  RDU:{icao:'KRDU',elev:435,tz:'EST/EDT',rwys:3,pax:14.8,terminals:2,rwyLen:'10000 ft',hub:'Frontier',fact:'Named for both Raleigh and Durham — a gateway to the Research Triangle tech corridor',desc:'Raleigh-Durham is the intellectual heart of the Carolinas — a region of top universities, craft barbecue, and pine-shaded innovation corridors.'},
+  BWI:{icao:'KBWI',elev:146,tz:'EST/EDT',rwys:3,pax:26.5,terminals:1,rwyLen:'10502 ft',hub:'Southwest',fact:'Southwest\'s largest East Coast operation — named for Thurgood Marshall since 2005',desc:'Baltimore is a city of harbor charm and gritty soul — home to the National Aquarium, steamed crabs seasoned with Old Bay, and Edgar Allan Poe\'s final resting place.'},
+  MCI:{icao:'KMCI',elev:1026,tz:'CST/CDT',rwys:3,pax:13.4,terminals:1,rwyLen:'10801 ft',hub:'Southwest',fact:'New single terminal opened 2023, replacing the 1972 drive-to-your-gate design',desc:'Kansas City is America\'s barbecue mecca and jazz crossroads — a city of fountains, boulevards, and the legendary 18th and Vine jazz district.'},
+  MSY:{icao:'KMSY',elev:4,tz:'CST/CDT',rwys:2,pax:14.5,terminals:1,rwyLen:'10104 ft',hub:'Southwest/Spirit',fact:'New $1.3B terminal opened 2019, replacing the 1959 original on the same site',desc:'New Orleans is pure magic — a city of jazz spilling from Bourbon Street, beignets at Cafe Du Monde, Creole cuisine, and Mardi Gras revelry that celebrates life like nowhere else.'},
+  AUS:{icao:'KAUS',elev:542,tz:'CST/CDT',rwys:2,pax:21.7,terminals:1,rwyLen:'12250 ft',hub:'Southwest',fact:'One of the fastest-growing US airports, tripling traffic since 2010 with Austin\'s tech boom',desc:'Austin is the live music capital of the world — a city of SXSW creativity, breakfast tacos, Barton Springs swimming holes, and a tech-fueled energy that keeps it forever young.'},
+  SMF:{icao:'KSMF',elev:27,tz:'PST/PDT',rwys:2,pax:14.4,terminals:2,rwyLen:'8601 ft',hub:'Southwest',fact:'Sacramento\'s gateway — the closest major airport to California\'s state capital',desc:'Sacramento is California\'s farm-to-fork capital — a tree-lined river city with Gold Rush history, a thriving craft beer scene, and easy access to Napa Valley and Lake Tahoe.'},
+  SJC:{icao:'KSJC',elev:62,tz:'PST/PDT',rwys:2,pax:16.0,terminals:2,rwyLen:'11000 ft',hub:'Southwest/Alaska',fact:'Silicon Valley\'s airport — walking distance from many tech campuses',desc:'San Jose is the capital of Silicon Valley — a diverse, sun-warmed city where tech innovation meets a rich Mexican-American heritage and some of the Bay Area\'s best Vietnamese food.'},
+  FLL:{icao:'KFLL',elev:9,tz:'EST/EDT',rwys:2,pax:36.0,terminals:4,rwyLen:'9000 ft',hub:'JetBlue/Spirit',fact:'South Florida\'s low-cost carrier hub — within 30 miles of both Fort Lauderdale and Miami',desc:'Fort Lauderdale is the Venice of America — a city of canals, yacht-lined waterways, and a more relaxed alternative to Miami\'s glamour, with gorgeous beaches and a thriving arts district.'},
+  MDW:{icao:'KMDW',elev:620,tz:'CST/CDT',rwys:5,pax:23.4,terminals:1,rwyLen:'6522 ft',hub:'Southwest',fact:'Southwest Airlines\' original home base — the airline was born here in 1971',desc:'Chicago\'s South Side gateway — close to the historic Bridgeport neighborhood, White Sox baseball, and the city\'s legendary deep-dish pizza joints.'},
+  HNL:{icao:'PHNL',elev:13,tz:'HST',rwys:4,pax:21.0,terminals:3,rwyLen:'12300 ft',hub:'Hawaiian',fact:'The only major US airport with an outdoor terminal — reef runway built on a coral reef',desc:'Honolulu is paradise found — where Waikiki\'s surf breaks, Diamond Head\'s silhouette, Hawaiian plate lunches, and the spirit of aloha welcome travelers to the heart of the Pacific.'},
+  BNA:{icao:'KBNA',elev:599,tz:'CST/CDT',rwys:4,pax:22.0,terminals:1,rwyLen:'11030 ft',hub:'Southwest',fact:'Nashville\'s music city gateway — one of the fastest-growing airports in America',desc:'Nashville is Music City USA — where the Grand Ole Opry, honky-tonk bars on Broadway, and hot chicken define a city that lives and breathes country, rock, and Americana.'},
+  STL:{icao:'KSTL',elev:618,tz:'CST/CDT',rwys:4,pax:16.5,terminals:2,rwyLen:'11019 ft',hub:'Southwest',fact:'Once TWA\'s fortress hub — its massive Terminal 2 now serves Southwest exclusively',desc:'St. Louis is the Gateway to the West — a city of the iconic Arch, toasted ravioli, world-class craft beer, and a free zoo that ranks among America\'s finest.'},
+  OAK:{icao:'KOAK',elev:9,tz:'PST/PDT',rwys:4,pax:14.1,terminals:2,rwyLen:'10520 ft',hub:'Southwest/Spirit',fact:'The affordable Bay Area alternative — a 25 minute BART ride from downtown San Francisco',desc:'Oakland is the East Bay\'s creative soul — a culturally rich, diverse city of vibrant food scenes, Lake Merritt\'s urban oasis, and a storied music heritage spanning jazz to hyphy.'},
+  CLE:{icao:'KCLE',elev:791,tz:'EST/EDT',rwys:3,pax:10.6,terminals:1,rwyLen:'9956 ft',hub:'Spirit/Frontier',fact:'Former Continental hub — the Rock & Roll Hall of Fame is visible on approach to runway 6L',desc:'Cleveland rocks on the shores of Lake Erie — home to the Rock & Roll Hall of Fame, a world-renowned orchestra, and a revitalized dining scene in the Tremont neighborhood.'},
+  CMH:{icao:'KCMH',elev:816,tz:'EST/EDT',rwys:3,pax:10.2,terminals:1,rwyLen:'10113 ft',hub:'Breeze',fact:'John Glenn Columbus — named for Ohio\'s astronaut-senator who orbited Earth in 1962',desc:'Columbus is Ohio\'s dynamic capital — a youthful city driven by Ohio State University, the Short North Arts District, and one of America\'s most underrated food scenes.'},
+  RSW:{icao:'KRSW',elev:30,tz:'EST/EDT',rwys:2,pax:12.3,terminals:1,rwyLen:'12000 ft',hub:'Southwest',fact:'Southwest Florida International — gateway to Sanibel Island and Fort Myers beaches',desc:'Fort Myers is Southwest Florida\'s tropical escape — where shell-strewn Sanibel beaches, the Edison and Ford Winter Estates, and mangrove-lined waterways await.'},
+  OGG:{icao:'PHOG',elev:54,tz:'HST',rwys:2,pax:8.4,terminals:1,rwyLen:'6995 ft',hub:'Hawaiian',fact:'Kahului Airport — Maui\'s gateway, with stunning views of Haleakala volcano on approach',desc:'Maui is the Valley Isle — a paradise of the Road to Hana\'s waterfalls, Haleakala\'s sunrise above the clouds, and some of Hawaii\'s finest snorkeling and whale watching.'},
+  PIT:{icao:'KPIT',elev:1204,tz:'EST/EDT',rwys:4,pax:10.8,terminals:1,rwyLen:'11500 ft',hub:'Spirit',fact:'Former USAirways mega-hub — its landside terminal now houses offices and a hotel',desc:'Pittsburgh is the Steel City reborn — a city of bridges, Andy Warhol\'s hometown museum, Carnegie\'s cultural legacy, and a food scene crowned by Primanti Brothers sandwiches.'},
+  IND:{icao:'KIND',elev:797,tz:'EST/EDT',rwys:3,pax:10.0,terminals:1,rwyLen:'11200 ft',hub:'Allegiant',fact:'Indianapolis — home to the world\'s 2nd largest FedEx hub, processing 3M+ packages nightly',desc:'Indianapolis is the racing capital of the world — home to the legendary Indy 500, a vibrant cultural trail downtown, and the largest children\'s museum on the planet.'},
+  CVG:{icao:'KCVG',elev:896,tz:'EST/EDT',rwys:4,pax:9.8,terminals:2,rwyLen:'12000 ft',hub:'DHL/Allegiant',fact:'DHL\'s Americas superhub — once Delta\'s largest hub, now a major cargo center',desc:'Cincinnati straddles the Ohio River with Germanic heritage, legendary chili parlors, and the revitalized Over-the-Rhine neighborhood — one of America\'s best urban comebacks.'},
+  JAX:{icao:'KJAX',elev:30,tz:'EST/EDT',rwys:2,pax:8.0,terminals:1,rwyLen:'10000 ft',hub:'Breeze',fact:'Jacksonville — one of the largest US cities by area, serving Northeast Florida\'s coastline',desc:'Jacksonville sprawls across Northeast Florida where the St. Johns River meets the Atlantic — a city of uncrowded beaches, craft breweries, and Southern coastal charm.'},
+  ABQ:{icao:'KABQ',elev:5355,tz:'MST/MDT',rwys:3,pax:6.2,terminals:1,rwyLen:'13793 ft',hub:'Southwest',fact:'Albuquerque Sunport at 5,355 ft — the extra-long runway handles hot-and-high takeoffs',desc:'Albuquerque glows with desert light and chile-scented air — a city of hot air balloon festivals, adobe Old Town, and the Sandia Mountains\' dramatic pink sunsets.'},
+  ANC:{icao:'PANC',elev:152,tz:'AKST/AKDT',rwys:3,pax:5.5,terminals:2,rwyLen:'12400 ft',hub:'Alaska',fact:'Ted Stevens Anchorage — a critical refueling stop for Pacific cargo flights, top 5 US cargo airport',desc:'Anchorage is America\'s last frontier city — where glaciers, moose, and the Northern Lights coexist with urban life, all ringed by the stunning Chugach Mountains.'},
+  MEM:{icao:'KMEM',elev:341,tz:'CST/CDT',rwys:4,pax:5.2,terminals:2,rwyLen:'11120 ft',hub:'FedEx',fact:'FedEx\'s global superhub — processes 4M+ packages per night, busiest cargo airport in the Americas',desc:'Memphis is the birthplace of rock \'n\' roll and blues — where Beale Street\'s neon signs glow, Graceland preserves Elvis\'s legacy, and smoky barbecue rivals any in the South.'},
   // ── EUROPE ─────────────────────────────────────────────────────────────────
-  LHR:{icao:'EGLL',elev:83,tz:'GMT/BST',rwys:2,pax:79.2,terminals:4,rwyLen:'12799 ft',hub:'British Airways',fact:'Europe\'s busiest at 80M+ passengers/year. A 3rd runway debate has lasted over 50 years'},
-  CDG:{icao:'LFPG',elev:392,tz:'CET/CEST',rwys:4,pax:67.4,terminals:3,rwyLen:'13829 ft',hub:'Air France',fact:'Named for Charles de Gaulle, opened 1974. Terminal 1\'s satellite pods are iconic Brutalist architecture'},
-  FRA:{icao:'EDDF',elev:364,tz:'CET/CEST',rwys:4,pax:59.4,terminals:2,rwyLen:'13123 ft',hub:'Lufthansa',fact:'Europe\'s largest cargo hub and a Lufthansa stronghold — its own on-airport train station since 1972'},
-  AMS:{icao:'EHAM',elev:-11,tz:'CET/CEST',rwys:6,pax:61.7,terminals:1,rwyLen:'12467 ft',hub:'KLM',fact:'At -11 ft — one of the world\'s lowest airports, built on reclaimed Dutch polder land'},
-  MAD:{icao:'LEMD',elev:2001,tz:'CET/CEST',rwys:4,pax:60.1,terminals:4,rwyLen:'13451 ft',hub:'Iberia',fact:'Highest capital-city airport in Europe at 2,001 ft. Terminal 4 by Richard Rogers spans 760,000 m²'},
-  FCO:{icao:'LIRF',elev:14,tz:'CET/CEST',rwys:3,pax:40.4,terminals:3,rwyLen:'12795 ft',hub:'ITA Airways',fact:'Leonardo da Vinci International — Italy\'s busiest and gateway to ancient Rome'},
-  BCN:{icao:'LEBL',elev:12,tz:'CET/CEST',rwys:3,pax:52.7,terminals:2,rwyLen:'10499 ft',hub:'Vueling',fact:'One runway extends over the Mediterranean Sea — the beach is just 500m from the terminal'},
-  MUC:{icao:'EDDM',elev:1487,tz:'CET/CEST',rwys:2,pax:47.9,terminals:2,rwyLen:'13123 ft',hub:'Lufthansa',fact:'Consistently rated Europe\'s best airport — opened in 1992 replacing Riem after 60 years'},
-  ZRH:{icao:'LSZH',elev:1416,tz:'CET/CEST',rwys:3,pax:31.5,terminals:3,rwyLen:'12139 ft',hub:'Swiss',fact:'Swiss precision — one of Europe\'s most punctual airports, pioneering airside transit zones'},
-  VIE:{icao:'LOWW',elev:600,tz:'CET/CEST',rwys:3,pax:31.7,terminals:3,rwyLen:'11811 ft',hub:'Austrian',fact:'Eastern gateway to Western Europe — Austrian Airlines hub connecting Central and Eastern Europe'},
-  IST:{icao:'LTFM',elev:325,tz:'TRT',rwys:5,pax:76.1,terminals:1,rwyLen:'13451 ft',hub:'Turkish Airlines',fact:'Istanbul Airport opened 2019 with planned ultimate capacity of 200 million passengers per year'},
-  DME:{icao:'UUDD',elev:588,tz:'MSK',rwys:3,pax:22.0,terminals:2,rwyLen:'11484 ft',hub:'S7 Airlines',fact:'Russia\'s largest airport by passenger traffic, named Domodedovo after the surrounding district'},
-  SVO:{icao:'UUEE',elev:630,tz:'MSK',rwys:3,pax:18.0,terminals:4,rwyLen:'12139 ft',hub:'Aeroflot',fact:'Sheremetyevo, formally named after Alexander Pushkin in 2019 — Aeroflot\'s primary hub'},
-  ORY:{icao:'LFPO',elev:292,tz:'CET/CEST',rwys:3,pax:33.1,terminals:4,rwyLen:'11975 ft',hub:'Transavia',fact:'Paris Orly — originally the city\'s main airport before CDG opened in 1974'},
-  MXP:{icao:'LIMC',elev:768,tz:'CET/CEST',rwys:2,pax:28.8,terminals:2,rwyLen:'12861 ft',hub:'Ryanair/EasyJet',fact:'Milan Malpensa — northern Italy\'s intercontinental gateway, 50 km from the city center'},
-  LGW:{icao:'EGKK',elev:202,tz:'GMT/BST',rwys:2,pax:32.8,terminals:2,rwyLen:'10364 ft',hub:'EasyJet',fact:'London Gatwick — the world\'s busiest single-runway operation (the northern runway is standby only)'},
-  ARN:{icao:'ESSA',elev:137,tz:'CET/CEST',rwys:3,pax:26.8,terminals:4,rwyLen:'10830 ft',hub:'SAS',fact:'Stockholm Arlanda — named from a combination of "Ärna" (the old air base) and "landa" (to land)'},
-  CPH:{icao:'EKCH',elev:17,tz:'CET/CEST',rwys:3,pax:30.3,terminals:3,rwyLen:'11811 ft',hub:'SAS',fact:'Copenhagen Kastrup — the busiest airport in the Nordics, a 12-minute metro ride to city center'},
-  HEL:{icao:'EFHK',elev:179,tz:'EET/EEST',rwys:3,pax:18.0,terminals:2,rwyLen:'11286 ft',hub:'Finnair',fact:'Helsinki-Vantaa — Finnair\'s hub for the fastest Europe-to-Asia routing via the Arctic'},
-  OSL:{icao:'ENGM',elev:681,tz:'CET/CEST',rwys:2,pax:28.6,terminals:1,rwyLen:'11811 ft',hub:'SAS/Norwegian',fact:'Oslo Gardermoen — one of Europe\'s newest major airports, opened 1998 with a stunning timber terminal'},
-  DUB:{icao:'EIDW',elev:242,tz:'GMT/IST',rwys:2,pax:32.9,terminals:2,rwyLen:'8652 ft',hub:'Ryanair/Aer Lingus',fact:'Dublin — one of few European airports offering US Customs preclearance before departure'},
-  LIS:{icao:'LPPT',elev:374,tz:'WET/WEST',rwys:2,pax:31.2,terminals:2,rwyLen:'12484 ft',hub:'TAP Portugal',fact:'Lisbon Humberto Delgado — Europe\'s westernmost major airport, gateway to the Azores and Africa'},
-  BRU:{icao:'EBBR',elev:184,tz:'CET/CEST',rwys:3,pax:22.2,terminals:1,rwyLen:'11936 ft',hub:'Brussels Airlines',fact:'Brussels Zaventem — headquarters of the European Union is just 12 km from the airport'},
-  PRG:{icao:'LKPR',elev:1247,tz:'CET/CEST',rwys:2,pax:17.8,terminals:2,rwyLen:'12191 ft',hub:'Smartwings/Czech Airlines',fact:'Prague Václav Havel — named for the first Czech president, nestled in rolling Bohemian countryside'},
-  BUD:{icao:'LHBP',elev:495,tz:'CET/CEST',rwys:2,pax:16.2,terminals:2,rwyLen:'12162 ft',hub:'Wizz Air',fact:'Budapest Liszt Ferenc — Wizz Air\'s original base, and the largest in Central Europe\'s LCC market'},
-  WAW:{icao:'EPWA',elev:362,tz:'CET/CEST',rwys:2,pax:18.9,terminals:1,rwyLen:'11483 ft',hub:'LOT Polish',fact:'Warsaw Chopin — LOT Polish Airlines has operated from here since 1934, Poland\'s busiest'},
-  ATH:{icao:'LGAV',elev:308,tz:'EET/EEST',rwys:2,pax:28.3,terminals:2,rwyLen:'13123 ft',hub:'Aegean Airlines',fact:'Athens Eleftherios Venizelos — opened 2001, replacing the legendary Hellinikon on the coast'},
-  LED:{icao:'ULLI',elev:78,tz:'MSK',rwys:2,pax:19.6,terminals:2,rwyLen:'11483 ft',hub:'Rossiya Airlines',fact:'St. Petersburg Pulkovo — gateway to Russia\'s cultural capital and the Hermitage Museum'},
-  EDI:{icao:'EGPH',elev:135,tz:'GMT/BST',rwys:1,pax:14.7,terminals:1,rwyLen:'8399 ft',hub:'Ryanair/EasyJet',fact:'Edinburgh — Scotland\'s busiest airport, with Edinburgh Castle visible from the apron'},
-  GVA:{icao:'LSGG',elev:1411,tz:'CET/CEST',rwys:1,pax:17.9,terminals:1,rwyLen:'12795 ft',hub:'EasyJet/Swiss',fact:'Geneva — uniquely has a French-side entrance accessible without passing Swiss immigration'},
-  AGP:{icao:'LEMG',elev:53,tz:'CET/CEST',rwys:2,pax:22.0,terminals:3,rwyLen:'10499 ft',hub:'Ryanair',fact:'Málaga Costa del Sol — southern Spain\'s beach gateway, busiest non-capital airport in Spain'},
-  PMI:{icao:'LEPA',elev:27,tz:'CET/CEST',rwys:2,pax:31.1,terminals:1,rwyLen:'10728 ft',hub:'Ryanair/EasyJet',fact:'Palma de Mallorca — Europe\'s busiest seasonal airport, handling 35M+ in summer peak'},
+  LHR:{icao:'EGLL',elev:83,tz:'GMT/BST',rwys:2,pax:79.2,terminals:4,rwyLen:'12799 ft',hub:'British Airways',fact:'Europe\'s busiest at 80M+ passengers/year. A 3rd runway debate has lasted over 50 years',desc:'London is one of the great cities of human civilization — a tapestry of royal pageantry, West End theater, world-class museums like the British Museum and Tate Modern, and a food scene reborn from curry houses to Michelin-starred kitchens. The Thames weaves through centuries of history and relentless reinvention.'},
+  CDG:{icao:'LFPG',elev:392,tz:'CET/CEST',rwys:4,pax:67.4,terminals:3,rwyLen:'13829 ft',hub:'Air France',fact:'Named for Charles de Gaulle, opened 1974. Terminal 1\'s satellite pods are iconic Brutalist architecture',desc:'Paris is the City of Light — where the Eiffel Tower pierces the sky, the Louvre guards the Mona Lisa, and every arrondissement reveals another layer of art, fashion, philosophy, and cuisine. A morning croissant along the Seine remains one of life\'s great pleasures.'},
+  FRA:{icao:'EDDF',elev:364,tz:'CET/CEST',rwys:4,pax:59.4,terminals:2,rwyLen:'13123 ft',hub:'Lufthansa',fact:'Europe\'s largest cargo hub and a Lufthansa stronghold — its own on-airport train station since 1972',desc:'Frankfurt is Europe\'s financial powerhouse — a city of gleaming skyscrapers along the Main River, Goethe\'s birthplace, apple wine taverns in Sachsenhausen, and world-class museums lining the Museumsufer. Old and new Germany coexist with remarkable harmony.'},
+  AMS:{icao:'EHAM',elev:-11,tz:'CET/CEST',rwys:6,pax:61.7,terminals:1,rwyLen:'12467 ft',hub:'KLM',fact:'At -11 ft — one of the world\'s lowest airports, built on reclaimed Dutch polder land',desc:'Amsterdam is a city of canals, Rembrandt, and radical tolerance — where Golden Age merchant houses line the Grachtengordel, the Van Gogh Museum dazzles, and cyclists outnumber cars. The city\'s cozy brown cafes and vibrant Jordaan neighborhood enchant every visitor.'},
+  MAD:{icao:'LEMD',elev:2001,tz:'CET/CEST',rwys:4,pax:60.1,terminals:4,rwyLen:'13451 ft',hub:'Iberia',fact:'Highest capital-city airport in Europe at 2,001 ft. Terminal 4 by Richard Rogers spans 760,000 m²',desc:'Madrid is Spain\'s passionate heart — a city that lives late into the night, from the Prado\'s Velazquez masterpieces to tapas-hopping through La Latina\'s medieval lanes. The Retiro Park\'s crystal palace and the electric energy of Gran Via make the capital irresistible.'},
+  FCO:{icao:'LIRF',elev:14,tz:'CET/CEST',rwys:3,pax:40.4,terminals:3,rwyLen:'12795 ft',hub:'ITA Airways',fact:'Leonardo da Vinci International — Italy\'s busiest and gateway to ancient Rome',desc:'Rome is the Eternal City — where the Colosseum, Vatican, and Pantheon anchor 2,800 years of Western civilization, and every cobblestoned piazza rewards with gelato, espresso, and la dolce vita. Trastevere\'s winding streets and rooftop terraces at sunset are unforgettable.'},
+  BCN:{icao:'LEBL',elev:12,tz:'CET/CEST',rwys:3,pax:52.7,terminals:2,rwyLen:'10499 ft',hub:'Vueling',fact:'One runway extends over the Mediterranean Sea — the beach is just 500m from the terminal',desc:'Barcelona is Gaudi\'s masterpiece city — where the Sagrada Familia soars heavenward, Las Ramblas buzzes with life, and Mediterranean beaches meet Gothic Quarter alleyways. Catalan cuisine, from pintxos to paella, is among the finest on the continent.'},
+  MUC:{icao:'EDDM',elev:1487,tz:'CET/CEST',rwys:2,pax:47.9,terminals:2,rwyLen:'13123 ft',hub:'Lufthansa',fact:'Consistently rated Europe\'s best airport — opened in 1992 replacing Riem after 60 years',desc:'Munich is Bavaria\'s grand capital — a city of Oktoberfest beer gardens, BMW\'s gleaming headquarters, Marienplatz\'s Glockenspiel, and the Alps shimmering on the southern horizon. The Englischer Garten is one of the world\'s largest urban parks, complete with riverside surfers.'},
+  ZRH:{icao:'LSZH',elev:1416,tz:'CET/CEST',rwys:3,pax:31.5,terminals:3,rwyLen:'12139 ft',hub:'Swiss',fact:'Swiss precision — one of Europe\'s most punctual airports, pioneering airside transit zones',desc:'Zurich is Switzerland\'s cultural and financial capital — a pristine lakeside city of old-town cobblestones, world-class chocolate shops, and Alpine vistas that begin right at the city limits. The Bahnhofstrasse is one of Europe\'s most elegant shopping boulevards.'},
+  VIE:{icao:'LOWW',elev:600,tz:'CET/CEST',rwys:3,pax:31.7,terminals:3,rwyLen:'11811 ft',hub:'Austrian',fact:'Eastern gateway to Western Europe — Austrian Airlines hub connecting Central and Eastern Europe',desc:'Vienna is the city of Mozart, Klimt, and Freud — an imperial capital where ornate coffee houses, the Vienna State Opera, and Schonbrunn Palace transport visitors to an era of Hapsburg grandeur. The Naschmarkt\'s stalls and Heuriger wine taverns add warmth to the city\'s elegance.'},
+  IST:{icao:'LTFM',elev:325,tz:'TRT',rwys:5,pax:76.1,terminals:1,rwyLen:'13451 ft',hub:'Turkish Airlines',fact:'Istanbul Airport opened 2019 with planned ultimate capacity of 200 million passengers per year',desc:'Istanbul is where East meets West — a city of minarets and bazaars straddling the Bosphorus, where the Hagia Sophia\'s dome has witnessed empires rise and fall. The Grand Bazaar\'s labyrinthine corridors, sizzling kebab stalls, and call to prayer echoing across the Golden Horn create an atmosphere found nowhere else on Earth.'},
+  DME:{icao:'UUDD',elev:588,tz:'MSK',rwys:3,pax:22.0,terminals:2,rwyLen:'11484 ft',hub:'S7 Airlines',fact:'Russia\'s largest airport by passenger traffic, named Domodedovo after the surrounding district',desc:'Moscow is Russia\'s grand capital — a city of the Kremlin\'s red walls, St. Basil\'s psychedelic domes, and the Bolshoi Ballet\'s legendary stage. The Moscow Metro doubles as an underground palace of chandeliers and marble, and the city\'s literary and artistic heritage is staggering.'},
+  SVO:{icao:'UUEE',elev:630,tz:'MSK',rwys:3,pax:18.0,terminals:4,rwyLen:'12139 ft',hub:'Aeroflot',fact:'Sheremetyevo, formally named after Alexander Pushkin in 2019 — Aeroflot\'s primary hub',desc:'Moscow\'s northern gateway opens onto a city of Tsarist splendor and Soviet monumentalism — where the Tretyakov Gallery\'s icons, Gorky Park\'s promenades, and late-night borscht in candlelit restaurants reveal Russia\'s deep cultural soul.'},
+  ORY:{icao:'LFPO',elev:292,tz:'CET/CEST',rwys:3,pax:33.1,terminals:4,rwyLen:'11975 ft',hub:'Transavia',fact:'Paris Orly — originally the city\'s main airport before CDG opened in 1974',desc:'Paris\'s southern gateway is closer to the city\'s Left Bank charms — Montparnasse\'s literary cafes, the Luxembourg Gardens, and the bohemian spirit that inspired generations of artists.'},
+  MXP:{icao:'LIMC',elev:768,tz:'CET/CEST',rwys:2,pax:28.8,terminals:2,rwyLen:'12861 ft',hub:'Ryanair/EasyJet',fact:'Milan Malpensa — northern Italy\'s intercontinental gateway, 50 km from the city center',desc:'Milan is Italy\'s capital of fashion and design — home to Leonardo\'s Last Supper, the Duomo\'s Gothic spires, and the Quadrilatero della Moda where haute couture meets aperitivo culture.'},
+  LGW:{icao:'EGKK',elev:202,tz:'GMT/BST',rwys:2,pax:32.8,terminals:2,rwyLen:'10364 ft',hub:'EasyJet',fact:'London Gatwick — the world\'s busiest single-runway operation (the northern runway is standby only)',desc:'London\'s southern gateway sits in the Sussex countryside — offering quick access to the capital\'s theatres, pubs, and palaces, plus the rolling green hills of the English South Downs.'},
+  ARN:{icao:'ESSA',elev:137,tz:'CET/CEST',rwys:3,pax:26.8,terminals:4,rwyLen:'10830 ft',hub:'SAS',fact:'Stockholm Arlanda — named from a combination of "Ärna" (the old air base) and "landa" (to land)',desc:'Stockholm is Scandinavia\'s most beautiful capital — a city spread across 14 islands where Viking history meets cutting-edge Nordic design, and ABBA\'s legacy lives on.'},
+  CPH:{icao:'EKCH',elev:17,tz:'CET/CEST',rwys:3,pax:30.3,terminals:3,rwyLen:'11811 ft',hub:'SAS',fact:'Copenhagen Kastrup — the busiest airport in the Nordics, a 12-minute metro ride to city center',desc:'Copenhagen is the birthplace of hygge — a city of colorful Nyhavn canal houses, Tivoli Gardens\' fairy-tale charm, and the world\'s most celebrated New Nordic cuisine.'},
+  HEL:{icao:'EFHK',elev:179,tz:'EET/EEST',rwys:3,pax:18.0,terminals:2,rwyLen:'11286 ft',hub:'Finnair',fact:'Helsinki-Vantaa — Finnair\'s hub for the fastest Europe-to-Asia routing via the Arctic',desc:'Helsinki is a city of sauna culture, minimalist design, and Baltic light — where Finnish innovation meets Art Nouveau architecture and the sea is never far away.'},
+  OSL:{icao:'ENGM',elev:681,tz:'CET/CEST',rwys:2,pax:28.6,terminals:1,rwyLen:'11811 ft',hub:'SAS/Norwegian',fact:'Oslo Gardermoen — one of Europe\'s newest major airports, opened 1998 with a stunning timber terminal',desc:'Oslo sits at the head of a glittering fjord — a city of Edvard Munch\'s Scream, the Viking Ship Museum, and world-leading sustainability wrapped in stunning Nordic nature.'},
+  DUB:{icao:'EIDW',elev:242,tz:'GMT/IST',rwys:2,pax:32.9,terminals:2,rwyLen:'8652 ft',hub:'Ryanair/Aer Lingus',fact:'Dublin — one of few European airports offering US Customs preclearance before departure',desc:'Dublin is a city of literary giants and legendary pubs — where Joyce, Wilde, and Yeats walked the Georgian streets, and a pint of Guinness at the source tastes like nowhere else.'},
+  LIS:{icao:'LPPT',elev:374,tz:'WET/WEST',rwys:2,pax:31.2,terminals:2,rwyLen:'12484 ft',hub:'TAP Portugal',fact:'Lisbon Humberto Delgado — Europe\'s westernmost major airport, gateway to the Azores and Africa',desc:'Lisbon is Europe\'s sunniest capital — a city of pastel-tiled facades, melancholic fado music, custard tarts from Belem, and trams rattling through the Alfama\'s ancient lanes.'},
+  BRU:{icao:'EBBR',elev:184,tz:'CET/CEST',rwys:3,pax:22.2,terminals:1,rwyLen:'11936 ft',hub:'Brussels Airlines',fact:'Brussels Zaventem — headquarters of the European Union is just 12 km from the airport',desc:'Brussels is the capital of Europe and of fine chocolate — a city of Grand Place\'s gilded guildhalls, Art Nouveau treasures, Magritte\'s surrealism, and world-class moules-frites.'},
+  PRG:{icao:'LKPR',elev:1247,tz:'CET/CEST',rwys:2,pax:17.8,terminals:2,rwyLen:'12191 ft',hub:'Smartwings/Czech Airlines',fact:'Prague Václav Havel — named for the first Czech president, nestled in rolling Bohemian countryside',desc:'Prague is the City of a Hundred Spires — a fairy-tale capital of Gothic and Baroque architecture, Charles Bridge at dawn, and some of the world\'s finest beer at unbeatable prices.'},
+  BUD:{icao:'LHBP',elev:495,tz:'CET/CEST',rwys:2,pax:16.2,terminals:2,rwyLen:'12162 ft',hub:'Wizz Air',fact:'Budapest Liszt Ferenc — Wizz Air\'s original base, and the largest in Central Europe\'s LCC market',desc:'Budapest is the Pearl of the Danube — a city of grand thermal baths, ruin bars in the Jewish Quarter, and a stunning Parliament building illuminated along the riverbank at night.'},
+  WAW:{icao:'EPWA',elev:362,tz:'CET/CEST',rwys:2,pax:18.9,terminals:1,rwyLen:'11483 ft',hub:'LOT Polish',fact:'Warsaw Chopin — LOT Polish Airlines has operated from here since 1934, Poland\'s busiest',desc:'Warsaw is a city reborn from the ashes of war — its meticulously reconstructed Old Town, thriving arts scene, and innovative food culture showcase Poland\'s remarkable resilience.'},
+  ATH:{icao:'LGAV',elev:308,tz:'EET/EEST',rwys:2,pax:28.3,terminals:2,rwyLen:'13123 ft',hub:'Aegean Airlines',fact:'Athens Eleftherios Venizelos — opened 2001, replacing the legendary Hellinikon on the coast',desc:'Athens is the cradle of Western civilization — where the Parthenon crowns the Acropolis, tavernas serve ouzo and grilled octopus, and 3,000 years of history live in every stone.'},
+  LED:{icao:'ULLI',elev:78,tz:'MSK',rwys:2,pax:19.6,terminals:2,rwyLen:'11483 ft',hub:'Rossiya Airlines',fact:'St. Petersburg Pulkovo — gateway to Russia\'s cultural capital and the Hermitage Museum',desc:'St. Petersburg is Russia\'s imperial jewel — a city of white nights, the Hermitage\'s three million artworks, Baroque palaces, and ballet at the Mariinsky Theatre.'},
+  EDI:{icao:'EGPH',elev:135,tz:'GMT/BST',rwys:1,pax:14.7,terminals:1,rwyLen:'8399 ft',hub:'Ryanair/EasyJet',fact:'Edinburgh — Scotland\'s busiest airport, with Edinburgh Castle visible from the apron',desc:'Edinburgh is a city of dramatic volcanic crags and literary heritage — where the Royal Mile descends from the castle, whisky flows freely, and the Fringe Festival takes over every August.'},
+  GVA:{icao:'LSGG',elev:1411,tz:'CET/CEST',rwys:1,pax:17.9,terminals:1,rwyLen:'12795 ft',hub:'EasyJet/Swiss',fact:'Geneva — uniquely has a French-side entrance accessible without passing Swiss immigration',desc:'Geneva is the world\'s diplomatic capital — a pristine lakeside city framed by Mont Blanc, home to the United Nations, CERN, and exquisite Swiss watchmaking heritage.'},
+  AGP:{icao:'LEMG',elev:53,tz:'CET/CEST',rwys:2,pax:22.0,terminals:3,rwyLen:'10499 ft',hub:'Ryanair',fact:'Málaga Costa del Sol — southern Spain\'s beach gateway, busiest non-capital airport in Spain',desc:'Malaga is Picasso\'s birthplace and the Costa del Sol\'s cultural heart — a city of Moorish fortresses, buzzing tapas bars, and year-round Mediterranean sunshine.'},
+  PMI:{icao:'LEPA',elev:27,tz:'CET/CEST',rwys:2,pax:31.1,terminals:1,rwyLen:'10728 ft',hub:'Ryanair/EasyJet',fact:'Palma de Mallorca — Europe\'s busiest seasonal airport, handling 35M+ in summer peak',desc:'Palma de Mallorca is the Balearic gem — a Mediterranean island city of Gothic cathedrals, turquoise coves, and almond-blossom countryside beloved by European sun-seekers.'},
   // ── MIDDLE EAST ────────────────────────────────────────────────────────────
-  DXB:{icao:'OMDB',elev:62,tz:'GST+4',rwys:2,pax:87.0,terminals:3,rwyLen:'13124 ft',hub:'Emirates/flydubai',fact:'World\'s busiest international airport. Terminal 3 alone is one of the largest buildings on Earth'},
-  DOH:{icao:'OTHH',elev:13,tz:'AST+3',rwys:2,pax:46.3,terminals:1,rwyLen:'15912 ft',hub:'Qatar Airways',fact:'Hamad International opened 2014, with a 23m bronze teddy bear sculpture in the concourse'},
-  AUH:{icao:'OMAA',elev:88,tz:'GST+4',rwys:2,pax:24.3,terminals:3,rwyLen:'13451 ft',hub:'Etihad',fact:'Etihad\'s home — the Sheikh Zayed Grand Mosque is visible on approach to runway 31L'},
-  RUH:{icao:'OERK',elev:2049,tz:'AST+3',rwys:4,pax:29.5,terminals:5,rwyLen:'13780 ft',hub:'Saudia/flynas',fact:'King Khalid — expanding under Vision 2030. New Riyadh airport will be one of world\'s largest'},
-  JED:{icao:'OEJN',elev:48,tz:'AST+3',rwys:2,pax:40.2,terminals:2,rwyLen:'12467 ft',hub:'Saudia/flynas',fact:'King Abdulaziz — gateway for Hajj pilgrims, handling 2M+ pilgrims annually'},
-  MCT:{icao:'OOMS',elev:48,tz:'GST+4',rwys:1,pax:14.5,terminals:1,rwyLen:'13123 ft',hub:'Oman Air',fact:'Muscat — opened a stunning new terminal in 2018, designed to resemble a Bedouin tent'},
-  AMM:{icao:'OJAI',elev:2395,tz:'EET+2',rwys:2,pax:9.2,terminals:2,rwyLen:'12008 ft',hub:'Royal Jordanian',fact:'Queen Alia — gateway to Petra, the Dead Sea, and Wadi Rum, at 2,395 ft above sea level'},
-  BAH:{icao:'OBBI',elev:6,tz:'AST+3',rwys:1,pax:11.0,terminals:1,rwyLen:'12927 ft',hub:'Gulf Air',fact:'Bahrain — one of the oldest airports in the Gulf, built on an island in the Persian Gulf'},
-  KWI:{icao:'OKBK',elev:206,tz:'AST+3',rwys:2,pax:15.5,terminals:2,rwyLen:'11155 ft',hub:'Kuwait Airways',fact:'Kuwait — its new terminal by Foster+Partners features a 1.2 km roof inspired by a sail'},
-  TLV:{icao:'LLBG',elev:135,tz:'IST+2',rwys:3,pax:25.0,terminals:3,rwyLen:'11998 ft',hub:'El Al',fact:'Ben Gurion — considered one of the world\'s most secure airports with multi-layer security'},
+  DXB:{icao:'OMDB',elev:62,tz:'GST+4',rwys:2,pax:87.0,terminals:3,rwyLen:'13124 ft',hub:'Emirates/flydubai',fact:'World\'s busiest international airport. Terminal 3 alone is one of the largest buildings on Earth',desc:'Dubai is a city of superlatives rising from the desert — the world\'s tallest tower in the Burj Khalifa, gold-draped souks, ultra-luxury shopping, and a multicultural energy where over 200 nationalities coexist. From desert dune-bashing to Michelin-starred dining on the 122nd floor, Dubai redefines ambition.'},
+  DOH:{icao:'OTHH',elev:13,tz:'AST+3',rwys:2,pax:46.3,terminals:1,rwyLen:'15912 ft',hub:'Qatar Airways',fact:'Hamad International opened 2014, with a 23m bronze teddy bear sculpture in the concourse',desc:'Doha is Qatar\'s futuristic pearl — a city of the Museum of Islamic Art\'s striking I.M. Pei silhouette, the Souq Waqif\'s spice-scented alleyways, and a cultural ambition that hosted the 2022 FIFA World Cup. The desert meets the Persian Gulf in a skyline that seems to grow overnight.'},
+  AUH:{icao:'OMAA',elev:88,tz:'GST+4',rwys:2,pax:24.3,terminals:3,rwyLen:'13451 ft',hub:'Etihad',fact:'Etihad\'s home — the Sheikh Zayed Grand Mosque is visible on approach to runway 31L',desc:'Abu Dhabi is the UAE\'s cultured capital — home to the stunning Louvre Abu Dhabi floating on the sea, the Sheikh Zayed Grand Mosque\'s white marble magnificence, and Yas Island\'s Formula 1 circuit. The city balances Bedouin heritage with a vision of the future.'},
+  RUH:{icao:'OERK',elev:2049,tz:'AST+3',rwys:4,pax:29.5,terminals:5,rwyLen:'13780 ft',hub:'Saudia/flynas',fact:'King Khalid — expanding under Vision 2030. New Riyadh airport will be one of world\'s largest',desc:'Riyadh is Saudi Arabia\'s rapidly transforming capital — a desert metropolis where ancient Najdi architecture in the Diriyah district meets the ambitions of Vision 2030, and the Edge of the World escarpment offers one of the Middle East\'s most dramatic landscapes.'},
+  JED:{icao:'OEJN',elev:48,tz:'AST+3',rwys:2,pax:40.2,terminals:2,rwyLen:'12467 ft',hub:'Saudia/flynas',fact:'King Abdulaziz — gateway for Hajj pilgrims, handling 2M+ pilgrims annually',desc:'Jeddah is the gateway to Mecca and the Red Sea\'s cosmopolitan port city — where the historic Al-Balad district\'s coral-stone houses, vibrant Corniche waterfront, and rich Hejazi cuisine reflect centuries as Arabia\'s crossroads of trade and pilgrimage.'},
+  MCT:{icao:'OOMS',elev:48,tz:'GST+4',rwys:1,pax:14.5,terminals:1,rwyLen:'13123 ft',hub:'Oman Air',fact:'Muscat — opened a stunning new terminal in 2018, designed to resemble a Bedouin tent',desc:'Muscat is the Gulf\'s most understated gem — a city of frankincense-scented souks, the Sultan Qaboos Grand Mosque, and dramatic wadis carved into the Hajar Mountains.'},
+  AMM:{icao:'OJAI',elev:2395,tz:'EET+2',rwys:2,pax:9.2,terminals:2,rwyLen:'12008 ft',hub:'Royal Jordanian',fact:'Queen Alia — gateway to Petra, the Dead Sea, and Wadi Rum, at 2,395 ft above sea level',desc:'Amman is a city of ancient hills and warm hospitality — gateway to Petra\'s rose-red facades, the Dead Sea\'s mineral waters, and Wadi Rum\'s Martian landscapes.'},
+  BAH:{icao:'OBBI',elev:6,tz:'AST+3',rwys:1,pax:11.0,terminals:1,rwyLen:'12927 ft',hub:'Gulf Air',fact:'Bahrain — one of the oldest airports in the Gulf, built on an island in the Persian Gulf',desc:'Bahrain is the Gulf\'s island kingdom — a pearl-diving heritage, ancient Dilmun civilization ruins, and a Formula 1 circuit surrounded by warm Persian Gulf waters.'},
+  KWI:{icao:'OKBK',elev:206,tz:'AST+3',rwys:2,pax:15.5,terminals:2,rwyLen:'11155 ft',hub:'Kuwait Airways',fact:'Kuwait — its new terminal by Foster+Partners features a 1.2 km roof inspired by a sail',desc:'Kuwait City blends oil-era prosperity with Gulf trading heritage — the Kuwait Towers\' iconic silhouette and the Grand Mosque anchor a city rebuilding its cultural identity.'},
+  TLV:{icao:'LLBG',elev:135,tz:'IST+2',rwys:3,pax:25.0,terminals:3,rwyLen:'11998 ft',hub:'El Al',fact:'Ben Gurion — considered one of the world\'s most secure airports with multi-layer security',desc:'Tel Aviv is the Mediterranean\'s most vibrant startup city — a Bauhaus White City of beach culture, world-class nightlife, Carmel Market\'s flavors, and creative energy that never sleeps.'},
   // ── ASIA ───────────────────────────────────────────────────────────────────
-  SIN:{icao:'WSSS',elev:22,tz:'SGT+8',rwys:3,pax:62.6,terminals:4,rwyLen:'13123 ft',hub:'Singapore Airlines',fact:'Changi — voted world\'s best airport 12+ years running. Jewel Changi has a 40m indoor waterfall'},
-  PEK:{icao:'ZBAA',elev:116,tz:'CST+8',rwys:3,pax:62.0,terminals:3,rwyLen:'12467 ft',hub:'Air China',fact:'Beijing Capital — one of the world\'s top 3 busiest. Terminal 3 is the world\'s 2nd largest building'},
-  PVG:{icao:'ZSPD',elev:13,tz:'CST+8',rwys:4,pax:50.1,terminals:2,rwyLen:'12467 ft',hub:'China Eastern',fact:'Shanghai Pudong — China\'s largest cargo airport, opened 1999 on reclaimed Yangtze delta land'},
-  HND:{icao:'RJTT',elev:35,tz:'JST+9',rwys:4,pax:87.1,terminals:3,rwyLen:'9843 ft',hub:'ANA/JAL',fact:'Tokyo Haneda — consistently the world\'s most punctual major airport, rebuilt after WWII'},
-  NRT:{icao:'RJAA',elev:141,tz:'JST+9',rwys:2,pax:35.7,terminals:3,rwyLen:'13123 ft',hub:'ANA/JAL',fact:'Narita opened 1978 amid massive protests — the only Japanese airport with a curfew (23:00-06:00)'},
-  ICN:{icao:'RKSI',elev:23,tz:'KST+9',rwys:4,pax:71.2,terminals:2,rwyLen:'12300 ft',hub:'Korean Air/Asiana',fact:'Seoul Incheon — built on reclaimed sea between two islands, rated world\'s best airport repeatedly'},
-  BKK:{icao:'VTBS',elev:5,tz:'ICT+7',rwys:2,pax:60.9,terminals:1,rwyLen:'13123 ft',hub:'Thai Airways',fact:'Suvarnabhumi — "Golden Land" in Sanskrit. The terminal roof spans 563,000 m²'},
-  HKG:{icao:'VHHH',elev:28,tz:'HKT+8',rwys:2,pax:39.8,terminals:2,rwyLen:'12467 ft',hub:'Cathay Pacific',fact:'Built on reclaimed Lantau Island land — the old Kai Tak runway 13 approach was legendary'},
-  KUL:{icao:'WMKK',elev:69,tz:'MYT+8',rwys:2,pax:48.0,terminals:2,rwyLen:'13402 ft',hub:'AirAsia/Malaysia',fact:'KLIA — designed by Kisho Kurokawa with the "forest terminal" concept, connected by high-speed rail'},
-  DEL:{icao:'VIDP',elev:777,tz:'IST+5:30',rwys:3,pax:72.3,terminals:3,rwyLen:'14534 ft',hub:'IndiGo/Air India',fact:'Indira Gandhi International — India\'s busiest, handling 72M+ passengers at South Asia\'s largest hub'},
-  BOM:{icao:'VABB',elev:37,tz:'IST+5:30',rwys:2,pax:51.8,terminals:2,rwyLen:'12008 ft',hub:'IndiGo/Air India',fact:'Chhatrapati Shivaji Maharaj — sits between the Arabian Sea and the city, land is ultra-scarce'},
-  CAN:{icao:'ZGGG',elev:46,tz:'CST+8',rwys:3,pax:63.4,terminals:2,rwyLen:'12467 ft',hub:'China Southern',fact:'Guangzhou Baiyun — China Southern\'s mega-hub, one of the world\'s fastest-growing airports'},
-  CTU:{icao:'ZUUU',elev:1624,tz:'CST+8',rwys:3,pax:53.0,terminals:2,rwyLen:'11811 ft',hub:'Air China/Sichuan',fact:'Chengdu Shuangliu — in the Sichuan basin, with Chengdu Tianfu (TFU) as its newer partner'},
-  SZX:{icao:'ZGSZ',elev:13,tz:'CST+8',rwys:2,pax:52.9,terminals:2,rwyLen:'11155 ft',hub:'Shenzhen Airlines',fact:'Shenzhen Bao\'an — its futuristic terminal resembles a manta ray, designed by Studio Fuksas'},
-  CGK:{icao:'WIII',elev:34,tz:'WIB+7',rwys:3,pax:54.2,terminals:3,rwyLen:'12008 ft',hub:'Garuda/Lion Air',fact:'Jakarta Soekarno-Hatta — serves the world\'s 4th most populous country, Indonesia\'s primary gateway'},
-  MNL:{icao:'RPLL',elev:75,tz:'PHT+8',rwys:2,pax:49.8,terminals:4,rwyLen:'11004 ft',hub:'Philippine Airlines/Cebu',fact:'Ninoy Aquino — famously congested, this airport serves Metro Manila\'s 13 million residents'},
-  TPE:{icao:'RCTP',elev:106,tz:'CST+8',rwys:2,pax:48.6,terminals:2,rwyLen:'12008 ft',hub:'EVA Air/China Airlines',fact:'Taiwan Taoyuan — known for exceptional transit facilities and award-winning airline lounges'},
-  CCU:{icao:'VECC',elev:16,tz:'IST+5:30',rwys:2,pax:23.5,terminals:2,rwyLen:'11900 ft',hub:'IndiGo',fact:'Netaji Subhas Chandra Bose — Kolkata\'s gateway, serving eastern India and the Bay of Bengal'},
-  KHI:{icao:'OPKC',elev:100,tz:'PKT+5',rwys:2,pax:12.0,terminals:3,rwyLen:'10500 ft',hub:'PIA',fact:'Jinnah International — Pakistan\'s busiest airport, named for the nation\'s founder'},
-  SGN:{icao:'VVTS',elev:33,tz:'ICT+7',rwys:2,pax:41.2,terminals:2,rwyLen:'12468 ft',hub:'Vietnam Airlines/VietJet',fact:'Ho Chi Minh City Tan Son Nhat — one of the world\'s 50 busiest, surrounded entirely by urban sprawl'},
-  HAN:{icao:'VVNB',elev:39,tz:'ICT+7',rwys:2,pax:28.9,terminals:2,rwyLen:'11811 ft',hub:'Vietnam Airlines/Bamboo',fact:'Hanoi Noi Bai — Vietnam\'s capital gateway, 35 km north of the ancient Old Quarter'},
-  BLR:{icao:'VOBL',elev:3000,tz:'IST+5:30',rwys:2,pax:37.6,terminals:2,rwyLen:'13120 ft',hub:'IndiGo/Air India',fact:'Kempegowda International — India\'s tech capital airport at 3,000 ft, opened 2008'},
-  MAA:{icao:'VOMM',elev:52,tz:'IST+5:30',rwys:2,pax:22.5,terminals:2,rwyLen:'12001 ft',hub:'IndiGo/SpiceJet',fact:'Chennai — gateway to South India and the Bay of Bengal, India\'s 4th busiest airport'},
-  HYD:{icao:'VOHS',elev:2024,tz:'IST+5:30',rwys:1,pax:25.0,terminals:1,rwyLen:'13976 ft',hub:'IndiGo',fact:'Rajiv Gandhi International — at 2,024 ft with one of India\'s longest runways for A380 operations'},
-  PKX:{icao:'ZBAD',elev:102,tz:'CST+8',rwys:4,pax:26.0,terminals:1,rwyLen:'12467 ft',hub:'China Southern/China United',fact:'Beijing Daxing — the starfish terminal by Zaha Hadid is the world\'s largest single-structure airport'},
-  KIX:{icao:'RJBB',elev:26,tz:'JST+9',rwys:2,pax:31.0,terminals:2,rwyLen:'13123 ft',hub:'Peach/ANA',fact:'Kansai — built on an artificial island in Osaka Bay by Renzo Piano, it never loses luggage'},
+  SIN:{icao:'WSSS',elev:22,tz:'SGT+8',rwys:3,pax:62.6,terminals:4,rwyLen:'13123 ft',hub:'Singapore Airlines',fact:'Changi — voted world\'s best airport 12+ years running. Jewel Changi has a 40m indoor waterfall',desc:'Singapore is a tropical city-state of astonishing order and diversity — where hawker centers serve the world\'s cheapest Michelin-starred meals, Gardens by the Bay\'s supertrees glow at night, and Little India, Chinatown, and Arab Street coexist in seamless multicultural harmony.'},
+  PEK:{icao:'ZBAA',elev:116,tz:'CST+8',rwys:3,pax:62.0,terminals:3,rwyLen:'12467 ft',hub:'Air China',fact:'Beijing Capital — one of the world\'s top 3 busiest. Terminal 3 is the world\'s 2nd largest building',desc:'Beijing is the seat of Chinese civilization — where the Forbidden City\'s imperial grandeur, the Great Wall\'s mountain-spanning majesty, and hutong alleyways\' intimate charm reveal millennia of history. Peking duck in its birthplace remains one of the world\'s great culinary experiences.'},
+  PVG:{icao:'ZSPD',elev:13,tz:'CST+8',rwys:4,pax:50.1,terminals:2,rwyLen:'12467 ft',hub:'China Eastern',fact:'Shanghai Pudong — China\'s largest cargo airport, opened 1999 on reclaimed Yangtze delta land',desc:'Shanghai is China\'s dazzling metropolis of commerce and style — where the Bund\'s Art Deco facades face Pudong\'s futuristic skyline across the Huangpu River, and the city\'s xiao long bao soup dumplings are a pilgrimage-worthy culinary art form. French Concession tree-lined lanes and rooftop cocktail bars capture the city\'s dual personality.'},
+  HND:{icao:'RJTT',elev:35,tz:'JST+9',rwys:4,pax:87.1,terminals:3,rwyLen:'9843 ft',hub:'ANA/JAL',fact:'Tokyo Haneda — consistently the world\'s most punctual major airport, rebuilt after WWII',desc:'Tokyo is a city of mesmerizing contrasts — ancient Meiji Shrine tranquility steps from Shibuya\'s neon-lit scramble crossing, Tsukiji\'s sushi masters beside Akihabara\'s electric wonderland. The world\'s most Michelin-starred city rewards endlessly with precision, politeness, and creative genius.'},
+  NRT:{icao:'RJAA',elev:141,tz:'JST+9',rwys:2,pax:35.7,terminals:3,rwyLen:'13123 ft',hub:'ANA/JAL',fact:'Narita opened 1978 amid massive protests — the only Japanese airport with a curfew (23:00-06:00)',desc:'Tokyo\'s international gateway sits in Chiba\'s countryside — a launching point for the sensory overload of the world\'s largest metropolitan area, where tradition and hyper-modernity coexist in perfect harmony. Naritasan Shinshoji temple nearby offers a serene prelude to the capital.'},
+  ICN:{icao:'RKSI',elev:23,tz:'KST+9',rwys:4,pax:71.2,terminals:2,rwyLen:'12300 ft',hub:'Korean Air/Asiana',fact:'Seoul Incheon — built on reclaimed sea between two islands, rated world\'s best airport repeatedly',desc:'Seoul is the K-culture capital of the world — a city of Joseon dynasty palaces, sizzling Korean BBQ, K-pop energy, and cutting-edge design in Gangnam and Hongdae. The city\'s 600-year-old Bukchon hanok village and neon-drenched Myeongdong exist side by side in electrifying contrast.'},
+  BKK:{icao:'VTBS',elev:5,tz:'ICT+7',rwys:2,pax:60.9,terminals:1,rwyLen:'13123 ft',hub:'Thai Airways',fact:'Suvarnabhumi — "Golden Land" in Sanskrit. The terminal roof spans 563,000 m²',desc:'Bangkok is a sensory feast — a city of gilded temple spires, floating markets, fiery street food served from sizzling woks, and a nightlife scene that pulses until dawn. The Grand Palace\'s dazzling Wat Phra Kaew and the Chao Phraya River\'s longboat traffic are quintessential Southeast Asia.'},
+  HKG:{icao:'VHHH',elev:28,tz:'HKT+8',rwys:2,pax:39.8,terminals:2,rwyLen:'12467 ft',hub:'Cathay Pacific',fact:'Built on reclaimed Lantau Island land — the old Kai Tak runway 13 approach was legendary',desc:'Hong Kong is a vertical city of breathtaking contrasts — where bamboo-scaffolded skyscrapers tower above incense-filled temples, dim sum is an art form, and Victoria Peak offers one of the world\'s most iconic skyline views. The Star Ferry crossing remains one of travel\'s great bargains.'},
+  KUL:{icao:'WMKK',elev:69,tz:'MYT+8',rwys:2,pax:48.0,terminals:2,rwyLen:'13402 ft',hub:'AirAsia/Malaysia',fact:'KLIA — designed by Kisho Kurokawa with the "forest terminal" concept, connected by high-speed rail',desc:'Kuala Lumpur is a tropical melting pot — where the Petronas Twin Towers pierce the skyline, Batu Caves\' Hindu shrines glow in jungle mist, and hawker stalls serve some of Asia\'s most diverse and delicious street food. Malay, Chinese, and Indian cultures blend into something uniquely Malaysian.'},
+  DEL:{icao:'VIDP',elev:777,tz:'IST+5:30',rwys:3,pax:72.3,terminals:3,rwyLen:'14534 ft',hub:'IndiGo/Air India',fact:'Indira Gandhi International — India\'s busiest, handling 72M+ passengers at South Asia\'s largest hub',desc:'Delhi is a city layered with empires — from the Mughal majesty of the Red Fort and Jama Masjid to the colonial grandeur of Lutyens\' boulevards and the chaotic splendor of Old Delhi\'s spice markets. The street food alone, from chaat to paranthas, is worth the journey.'},
+  BOM:{icao:'VABB',elev:37,tz:'IST+5:30',rwys:2,pax:51.8,terminals:2,rwyLen:'12008 ft',hub:'IndiGo/Air India',fact:'Chhatrapati Shivaji Maharaj — sits between the Arabian Sea and the city, land is ultra-scarce',desc:'Mumbai is India\'s city of dreams — the financial capital where Bollywood glamour coexists with the Gateway of India\'s colonial grandeur, Crawford Market\'s sensory overload, and the dabbawala lunch delivery system\'s legendary precision. The Marine Drive seafront at sunset is pure magic.'},
+  CAN:{icao:'ZGGG',elev:46,tz:'CST+8',rwys:3,pax:63.4,terminals:2,rwyLen:'12467 ft',hub:'China Southern',fact:'Guangzhou Baiyun — China Southern\'s mega-hub, one of the world\'s fastest-growing airports',desc:'Guangzhou is southern China\'s culinary capital — a city where Cantonese dim sum was perfected, the Pearl River glows with neon at night, and centuries of maritime trade have made it one of Asia\'s most cosmopolitan centers. The city\'s morning tea tradition is a cultural institution.'},
+  CTU:{icao:'ZUUU',elev:1624,tz:'CST+8',rwys:3,pax:53.0,terminals:2,rwyLen:'11811 ft',hub:'Air China/Sichuan',fact:'Chengdu Shuangliu — in the Sichuan basin, with Chengdu Tianfu (TFU) as its newer partner',desc:'Chengdu is China\'s most laid-back megacity — home to giant pandas at the Research Base, face-numbing Sichuan hotpot, ancient tea houses, and a nightlife scene that rivals Shanghai\'s. The city\'s mahjong culture and misty bamboo-forested surroundings define a uniquely relaxed urbanism.'},
+  SZX:{icao:'ZGSZ',elev:13,tz:'CST+8',rwys:2,pax:52.9,terminals:2,rwyLen:'11155 ft',hub:'Shenzhen Airlines',fact:'Shenzhen Bao\'an — its futuristic terminal resembles a manta ray, designed by Studio Fuksas',desc:'Shenzhen is China\'s Silicon Valley miracle — a fishing village turned megacity in just 40 years, now a global tech hub of Huawei and Tencent headquarters, futuristic architecture, and a youthful energy that defines 21st-century China.'},
+  CGK:{icao:'WIII',elev:34,tz:'WIB+7',rwys:3,pax:54.2,terminals:3,rwyLen:'12008 ft',hub:'Garuda/Lion Air',fact:'Jakarta Soekarno-Hatta — serves the world\'s 4th most populous country, Indonesia\'s primary gateway',desc:'Jakarta is Southeast Asia\'s largest city — a sprawling, vibrant capital of 30 million where Javanese traditions meet modern ambition, street food sizzles at every corner, and the National Monument rises above a city that never stops moving.'},
+  MNL:{icao:'RPLL',elev:75,tz:'PHT+8',rwys:2,pax:49.8,terminals:4,rwyLen:'11004 ft',hub:'Philippine Airlines/Cebu',fact:'Ninoy Aquino — famously congested, this airport serves Metro Manila\'s 13 million residents',desc:'Manila is a city of irrepressible Filipino spirit — where Spanish colonial Intramuros, vibrant jeepney culture, and some of Asia\'s most exuberant nightlife create a metropolis that overwhelms and rewards in equal measure. The warmth of Filipino hospitality is legendary.'},
+  TPE:{icao:'RCTP',elev:106,tz:'CST+8',rwys:2,pax:48.6,terminals:2,rwyLen:'12008 ft',hub:'EVA Air/China Airlines',fact:'Taiwan Taoyuan — known for exceptional transit facilities and award-winning airline lounges',desc:'Taipei is one of Asia\'s most underrated capitals — a city of steaming night market stalls, Taipei 101\'s bamboo-inspired tower, serene Buddhist temples, and some of the world\'s finest Chinese cuisine. The hot springs of Beitou and misty mountain tea houses add layers of tranquility.'},
+  CCU:{icao:'VECC',elev:16,tz:'IST+5:30',rwys:2,pax:23.5,terminals:2,rwyLen:'11900 ft',hub:'IndiGo',fact:'Netaji Subhas Chandra Bose — Kolkata\'s gateway, serving eastern India and the Bay of Bengal',desc:'Kolkata is India\'s intellectual and artistic soul — the city of Rabindranath Tagore, Mother Teresa\'s mission, Durga Puja festivals, and the sweetest rasgullas in the subcontinent.'},
+  KHI:{icao:'OPKC',elev:100,tz:'PKT+5',rwys:2,pax:12.0,terminals:3,rwyLen:'10500 ft',hub:'PIA',fact:'Jinnah International — Pakistan\'s busiest airport, named for the nation\'s founder',desc:'Karachi is Pakistan\'s sprawling port metropolis — a city of Mughal-era mausoleums, vibrant Sindhi street food, and the Arabian Sea\'s crashing waves along Clifton Beach.'},
+  SGN:{icao:'VVTS',elev:33,tz:'ICT+7',rwys:2,pax:41.2,terminals:2,rwyLen:'12468 ft',hub:'Vietnam Airlines/VietJet',fact:'Ho Chi Minh City Tan Son Nhat — one of the world\'s 50 busiest, surrounded entirely by urban sprawl',desc:'Ho Chi Minh City is Vietnam\'s electric southern dynamo — a city of motorbike rivers, French colonial architecture, steaming bowls of pho, and the Cu Chi Tunnels\' haunting war history.'},
+  HAN:{icao:'VVNB',elev:39,tz:'ICT+7',rwys:2,pax:28.9,terminals:2,rwyLen:'11811 ft',hub:'Vietnam Airlines/Bamboo',fact:'Hanoi Noi Bai — Vietnam\'s capital gateway, 35 km north of the ancient Old Quarter',desc:'Hanoi is Vietnam\'s ancient heart — a city of thousand-year-old temples, fragrant street-side pho stands, the serene Hoan Kiem Lake, and the Old Quarter\'s labyrinthine charm.'},
+  BLR:{icao:'VOBL',elev:3000,tz:'IST+5:30',rwys:2,pax:37.6,terminals:2,rwyLen:'13120 ft',hub:'IndiGo/Air India',fact:'Kempegowda International — India\'s tech capital airport at 3,000 ft, opened 2008',desc:'Bangalore is India\'s Garden City and tech hub — where colonial-era parks, craft beer breweries, and a thriving startup culture coexist with ancient temple heritage.'},
+  MAA:{icao:'VOMM',elev:52,tz:'IST+5:30',rwys:2,pax:22.5,terminals:2,rwyLen:'12001 ft',hub:'IndiGo/SpiceJet',fact:'Chennai — gateway to South India and the Bay of Bengal, India\'s 4th busiest airport',desc:'Chennai is the cultural capital of South India — a city of Bharatanatyam dance, Carnatic music, magnificent Dravidian temples, and fiery Chettinad cuisine along the Bay of Bengal.'},
+  HYD:{icao:'VOHS',elev:2024,tz:'IST+5:30',rwys:1,pax:25.0,terminals:1,rwyLen:'13976 ft',hub:'IndiGo',fact:'Rajiv Gandhi International — at 2,024 ft with one of India\'s longest runways for A380 operations',desc:'Hyderabad is the City of Pearls and biryanis — where the Charminar\'s minarets anchor the old city, and a booming tech corridor earned it the nickname Cyberabad.'},
+  PKX:{icao:'ZBAD',elev:102,tz:'CST+8',rwys:4,pax:26.0,terminals:1,rwyLen:'12467 ft',hub:'China Southern/China United',fact:'Beijing Daxing — the starfish terminal by Zaha Hadid is the world\'s largest single-structure airport',desc:'Beijing\'s southern gateway connects to a capital of imperial grandeur — the Forbidden City, Temple of Heaven, and a rapidly modernizing metropolis where ancient hutong life endures.'},
+  KIX:{icao:'RJBB',elev:26,tz:'JST+9',rwys:2,pax:31.0,terminals:2,rwyLen:'13123 ft',hub:'Peach/ANA',fact:'Kansai — built on an artificial island in Osaka Bay by Renzo Piano, it never loses luggage',desc:'Osaka is Japan\'s kitchen — a city of takoyaki octopus balls, okonomiyaki, and the neon-blazing Dotonbori canal, with Kyoto\'s temples and Nara\'s sacred deer just a short train ride away.'},
   // ── AFRICA ─────────────────────────────────────────────────────────────────
-  JNB:{icao:'FAOR',elev:5558,tz:'SAST+2',rwys:2,pax:21.0,terminals:2,rwyLen:'14495 ft',hub:'South African',fact:'O.R. Tambo — Africa\'s busiest at 5,558 ft on the Highveld, handling 21M+ passengers'},
-  CAI:{icao:'HECA',elev:382,tz:'EET+2',rwys:4,pax:22.7,terminals:3,rwyLen:'13124 ft',hub:'EgyptAir',fact:'Cairo International — gateway to 5,000 years of history, EgyptAir\'s hub since 1960'},
-  CMN:{icao:'GMMN',elev:656,tz:'WET+1',rwys:2,pax:10.4,terminals:2,rwyLen:'12205 ft',hub:'Royal Air Maroc',fact:'Mohammed V — Africa\'s 3rd busiest and Royal Air Maroc\'s hub, a gateway between continents'},
-  ADD:{icao:'HAAB',elev:7625,tz:'EAT+3',rwys:3,pax:13.2,terminals:2,rwyLen:'12468 ft',hub:'Ethiopian Airlines',fact:'Bole — Ethiopian Airlines\' massive hub at 7,625 ft, Africa\'s fastest-growing carrier base'},
-  NBO:{icao:'HKJK',elev:5327,tz:'EAT+3',rwys:2,pax:8.1,terminals:2,rwyLen:'13507 ft',hub:'Kenya Airways',fact:'Jomo Kenyatta — East Africa\'s hub at 5,327 ft, Kenya Airways\' home and safari gateway'},
-  CPT:{icao:'FACT',elev:151,tz:'SAST+2',rwys:2,pax:10.7,terminals:1,rwyLen:'10502 ft',hub:'FlySafair',fact:'Cape Town — Table Mountain is visible on approach, with stunning views of the Cape coastline'},
-  LOS:{icao:'DNMM',elev:135,tz:'WAT+1',rwys:2,pax:9.1,terminals:2,rwyLen:'12795 ft',hub:'Air Peace',fact:'Murtala Muhammed — Nigeria\'s busiest, serving Lagos, Africa\'s most populous city (21M+)'},
-  ACC:{icao:'DGAA',elev:205,tz:'GMT',rwys:1,pax:3.2,terminals:3,rwyLen:'11155 ft',hub:'Africa World Airlines',fact:'Kotoka — Ghana\'s primary gateway, a growing hub for West African travel and commerce'},
-  DAR:{icao:'HTDA',elev:182,tz:'EAT+3',rwys:2,pax:3.8,terminals:3,rwyLen:'12008 ft',hub:'Air Tanzania',fact:'Julius Nyerere — gateway to Zanzibar and the Serengeti, Tanzania\'s busiest airport'},
-  ALG:{icao:'DAAG',elev:82,tz:'CET',rwys:3,pax:10.0,terminals:3,rwyLen:'11483 ft',hub:'Air Algérie',fact:'Houari Boumediene — Algeria\'s largest airport, gateway to the Sahara and Casbah of Algiers'},
-  DSS:{icao:'GOBD',elev:289,tz:'GMT',rwys:1,pax:3.0,terminals:1,rwyLen:'11483 ft',hub:'Air Sénégal',fact:'Blaise Diagne — Senegal\'s new airport, opened 2017 to replace the cramped Léopold Sédar Senghor'},
-  TUN:{icao:'DTTA',elev:22,tz:'CET',rwys:2,pax:7.8,terminals:2,rwyLen:'10827 ft',hub:'Tunisair',fact:'Tunis-Carthage — named for the ancient city of Carthage, Tunisia\'s primary gateway'},
+  JNB:{icao:'FAOR',elev:5558,tz:'SAST+2',rwys:2,pax:21.0,terminals:2,rwyLen:'14495 ft',hub:'South African',fact:'O.R. Tambo — Africa\'s busiest at 5,558 ft on the Highveld, handling 21M+ passengers',desc:'Johannesburg is South Africa\'s economic engine — a city of Apartheid Museum reflection, the vibrant Maboneng arts district, and the Cradle of Humankind on its doorstep.'},
+  CAI:{icao:'HECA',elev:382,tz:'EET+2',rwys:4,pax:22.7,terminals:3,rwyLen:'13124 ft',hub:'EgyptAir',fact:'Cairo International — gateway to 5,000 years of history, EgyptAir\'s hub since 1960',desc:'Cairo is the city of the Pyramids — a chaotic, magnificent metropolis where pharaonic tombs meet Islamic minarets, and the Nile carves through 20 million lives of ancient and modern drama.'},
+  CMN:{icao:'GMMN',elev:656,tz:'WET+1',rwys:2,pax:10.4,terminals:2,rwyLen:'12205 ft',hub:'Royal Air Maroc',fact:'Mohammed V — Africa\'s 3rd busiest and Royal Air Maroc\'s hub, a gateway between continents',desc:'Casablanca is Morocco\'s cosmopolitan Atlantic port — a city of the towering Hassan II Mosque over the sea, Art Deco boulevards, and a gateway to the medinas of Marrakech and Fez.'},
+  ADD:{icao:'HAAB',elev:7625,tz:'EAT+3',rwys:3,pax:13.2,terminals:2,rwyLen:'12468 ft',hub:'Ethiopian Airlines',fact:'Bole — Ethiopian Airlines\' massive hub at 7,625 ft, Africa\'s fastest-growing carrier base',desc:'Addis Ababa is the diplomatic capital of Africa — a highland city of ancient coffee ceremony traditions, the African Union headquarters, and Lucy\'s fossilized bones in the National Museum.'},
+  NBO:{icao:'HKJK',elev:5327,tz:'EAT+3',rwys:2,pax:8.1,terminals:2,rwyLen:'13507 ft',hub:'Kenya Airways',fact:'Jomo Kenyatta — East Africa\'s hub at 5,327 ft, Kenya Airways\' home and safari gateway',desc:'Nairobi is the safari capital of the world — a dynamic city where giraffes roam a national park within city limits, and the Maasai Mara\'s Great Migration is just a short flight away.'},
+  CPT:{icao:'FACT',elev:151,tz:'SAST+2',rwys:2,pax:10.7,terminals:1,rwyLen:'10502 ft',hub:'FlySafair',fact:'Cape Town — Table Mountain is visible on approach, with stunning views of the Cape coastline',desc:'Cape Town is one of the world\'s most beautiful cities — where Table Mountain towers above vineyards, penguins waddle on Boulders Beach, and the Cape of Good Hope marks Africa\'s dramatic edge.'},
+  LOS:{icao:'DNMM',elev:135,tz:'WAT+1',rwys:2,pax:9.1,terminals:2,rwyLen:'12795 ft',hub:'Air Peace',fact:'Murtala Muhammed — Nigeria\'s busiest, serving Lagos, Africa\'s most populous city (21M+)',desc:'Lagos is Africa\'s creative powerhouse — a megacity of Afrobeats music, Nollywood cinema, vibrant markets, and an entrepreneurial spirit that pulses through every neighborhood.'},
+  ACC:{icao:'DGAA',elev:205,tz:'GMT',rwys:1,pax:3.2,terminals:3,rwyLen:'11155 ft',hub:'Africa World Airlines',fact:'Kotoka — Ghana\'s primary gateway, a growing hub for West African travel and commerce',desc:'Accra is Ghana\'s sun-drenched coastal capital — a city of Jamestown\'s fishing heritage, vibrant kente cloth markets, and the sobering Cape Coast slave castles nearby.'},
+  DAR:{icao:'HTDA',elev:182,tz:'EAT+3',rwys:2,pax:3.8,terminals:3,rwyLen:'12008 ft',hub:'Air Tanzania',fact:'Julius Nyerere — gateway to Zanzibar and the Serengeti, Tanzania\'s busiest airport',desc:'Dar es Salaam is Tanzania\'s Indian Ocean port city — a gateway to Zanzibar\'s spice islands, Serengeti safaris, and Kilimanjaro\'s snow-capped peak.'},
+  ALG:{icao:'DAAG',elev:82,tz:'CET',rwys:3,pax:10.0,terminals:3,rwyLen:'11483 ft',hub:'Air Algérie',fact:'Houari Boumediene — Algeria\'s largest airport, gateway to the Sahara and Casbah of Algiers',desc:'Algiers is the White City — a Mediterranean capital of the UNESCO-listed Casbah\'s labyrinthine alleys, French colonial architecture, and gateway to the vast Sahara Desert.'},
+  DSS:{icao:'GOBD',elev:289,tz:'GMT',rwys:1,pax:3.0,terminals:1,rwyLen:'11483 ft',hub:'Air Sénégal',fact:'Blaise Diagne — Senegal\'s new airport, opened 2017 to replace the cramped Léopold Sédar Senghor',desc:'Dakar sits on Africa\'s westernmost point — a city of vibrant Wolof culture, thieboudienne fish dishes, and the haunting Goree Island slave memorial.'},
+  TUN:{icao:'DTTA',elev:22,tz:'CET',rwys:2,pax:7.8,terminals:2,rwyLen:'10827 ft',hub:'Tunisair',fact:'Tunis-Carthage — named for the ancient city of Carthage, Tunisia\'s primary gateway',desc:'Tunis is where the ancient ruins of Carthage meet a vibrant Mediterranean medina — a North African capital of mosaic art, jasmine-scented streets, and rich culinary traditions.'},
   // ── OCEANIA ────────────────────────────────────────────────────────────────
-  SYD:{icao:'YSSY',elev:21,tz:'AEST+10',rwys:3,pax:44.4,terminals:3,rwyLen:'12999 ft',hub:'Qantas',fact:'Kingsford Smith — named for the aviator who crossed the Pacific in 1928, Qantas\' home base'},
-  MEL:{icao:'YMML',elev:434,tz:'AEST+10',rwys:2,pax:37.7,terminals:4,rwyLen:'11998 ft',hub:'Qantas/Jetstar',fact:'Melbourne Tullamarine — Australia\'s second busiest, with a unique cross-wind runway layout'},
-  BNE:{icao:'YBBN',elev:13,tz:'AEST+10',rwys:2,pax:23.7,terminals:2,rwyLen:'11483 ft',hub:'Qantas/Virgin Australia',fact:'Brisbane — a massive new parallel runway opened 2020, making it Australia\'s best-equipped airport'},
-  PER:{icao:'YPPH',elev:67,tz:'AWST+8',rwys:3,pax:15.0,terminals:4,rwyLen:'11299 ft',hub:'Qantas',fact:'Perth — Australia\'s western gateway, endpoint of the world\'s longest non-stop flight from London'},
-  AKL:{icao:'NZAA',elev:7,tz:'NZST+12',rwys:1,pax:21.4,terminals:2,rwyLen:'11926 ft',hub:'Air New Zealand',fact:'Auckland — New Zealand\'s busiest, sitting on an isthmus between two harbours'},
-  ADL:{icao:'YPAD',elev:20,tz:'ACST+9:30',rwys:2,pax:8.6,terminals:2,rwyLen:'10171 ft',hub:'Qantas/Rex',fact:'Adelaide — South Australia\'s gateway, known for its efficient single-terminal design'},
-  NAN:{icao:'NFNA',elev:59,tz:'FJT+12',rwys:1,pax:2.5,terminals:1,rwyLen:'10502 ft',hub:'Fiji Airways',fact:'Nadi — Fiji\'s international gateway, the Pacific Islands\' busiest airport by traffic'},
+  SYD:{icao:'YSSY',elev:21,tz:'AEST+10',rwys:3,pax:44.4,terminals:3,rwyLen:'12999 ft',hub:'Qantas',fact:'Kingsford Smith — named for the aviator who crossed the Pacific in 1928, Qantas\' home base',desc:'Sydney is Australia\'s harbor jewel — where the Opera House\'s white sails and the Harbour Bridge\'s steel arc frame one of the world\'s most recognizable waterfronts. Bondi Beach\'s surf culture, Chinatown\'s dumplings, and the Blue Mountains\' ancient eucalyptus wilderness reveal a city of extraordinary range.'},
+  MEL:{icao:'YMML',elev:434,tz:'AEST+10',rwys:2,pax:37.7,terminals:4,rwyLen:'11998 ft',hub:'Qantas/Jetstar',fact:'Melbourne Tullamarine — Australia\'s second busiest, with a unique cross-wind runway layout',desc:'Melbourne is Australia\'s cultural capital — a city of hidden laneway cafes, world-class street art, the Melbourne Cup, Australian Rules football passion, and a food and coffee scene that rivals any on Earth. The Great Ocean Road begins just outside the city.'},
+  BNE:{icao:'YBBN',elev:13,tz:'AEST+10',rwys:2,pax:23.7,terminals:2,rwyLen:'11483 ft',hub:'Qantas/Virgin Australia',fact:'Brisbane — a massive new parallel runway opened 2020, making it Australia\'s best-equipped airport',desc:'Brisbane is Queensland\'s sun-soaked river city — a gateway to the Gold Coast\'s surf beaches, the Great Barrier Reef, and a rapidly maturing arts and dining scene along South Bank.'},
+  PER:{icao:'YPPH',elev:67,tz:'AWST+8',rwys:3,pax:15.0,terminals:4,rwyLen:'11299 ft',hub:'Qantas',fact:'Perth — Australia\'s western gateway, endpoint of the world\'s longest non-stop flight from London',desc:'Perth is the world\'s most isolated major city — a sun-drenched oasis of pristine Indian Ocean beaches, Kings Park\'s wildflower bushland, and a relaxed wine country in the Swan Valley.'},
+  AKL:{icao:'NZAA',elev:7,tz:'NZST+12',rwys:1,pax:21.4,terminals:2,rwyLen:'11926 ft',hub:'Air New Zealand',fact:'Auckland — New Zealand\'s busiest, sitting on an isthmus between two harbours',desc:'Auckland is the City of Sails — a Polynesian-flavored metropolis spread across volcanic cones, with harbors on both sides, Maori culture, and Middle-earth landscapes a short drive away.'},
+  ADL:{icao:'YPAD',elev:20,tz:'ACST+9:30',rwys:2,pax:8.6,terminals:2,rwyLen:'10171 ft',hub:'Qantas/Rex',fact:'Adelaide — South Australia\'s gateway, known for its efficient single-terminal design',desc:'Adelaide is Australia\'s festival city — a graceful, parkland-ringed capital renowned for the Barossa Valley\'s shiraz, Central Market\'s produce, and a world-class arts festival each March.'},
+  NAN:{icao:'NFNA',elev:59,tz:'FJT+12',rwys:1,pax:2.5,terminals:1,rwyLen:'10502 ft',hub:'Fiji Airways',fact:'Nadi — Fiji\'s international gateway, the Pacific Islands\' busiest airport by traffic',desc:'Fiji is the heart of the South Pacific — a paradise of 333 islands, crystal lagoons, traditional kava ceremonies, and the warmest welcome in Oceania.'},
   // ── LATIN AMERICA ──────────────────────────────────────────────────────────
-  GRU:{icao:'SBGR',elev:2459,tz:'BRT-3',rwys:2,pax:41.2,terminals:3,rwyLen:'12139 ft',hub:'LATAM/Gol/Azul',fact:'São Paulo Guarulhos — Latin America\'s busiest at 2,459 ft, LATAM\'s primary hub'},
-  GIG:{icao:'SBGL',elev:28,tz:'BRT-3',rwys:2,pax:12.5,terminals:2,rwyLen:'13123 ft',hub:'LATAM/Gol',fact:'Rio Galeão — stunning approach over Guanabara Bay with Sugarloaf Mountain in view'},
-  MEX:{icao:'MMMX',elev:7316,tz:'CST-6',rwys:2,pax:50.3,terminals:2,rwyLen:'12795 ft',hub:'Aeromexico/Volaris',fact:'Benito Juárez — one of the world\'s highest major airports at 7,316 ft elevation'},
-  BOG:{icao:'SKBO',elev:8361,tz:'COT-5',rwys:2,pax:38.0,terminals:2,rwyLen:'12467 ft',hub:'Avianca/LATAM',fact:'El Dorado — world\'s highest-elevation major hub at 8,361 ft above sea level in the Andes'},
-  EZE:{icao:'SAEZ',elev:67,tz:'ART-3',rwys:2,pax:14.3,terminals:3,rwyLen:'10827 ft',hub:'Aerolíneas Argentinas',fact:'Ezeiza — Buenos Aires\' international gateway, 35 km from the city, named Ministro Pistarini'},
-  SCL:{icao:'SCEL',elev:1555,tz:'CLT-4',rwys:2,pax:24.6,terminals:2,rwyLen:'12232 ft',hub:'LATAM/Sky',fact:'Santiago Arturo Merino Benítez — Chile\'s busiest, framed by the Andes on approach from the east'},
-  LIM:{icao:'SPJC',elev:113,tz:'PET-5',rwys:2,pax:24.5,terminals:1,rwyLen:'11506 ft',hub:'LATAM Peru',fact:'Jorge Chávez — named for the Peruvian aviator who first flew over the Alps in 1910'},
-  CUN:{icao:'MMUN',elev:22,tz:'EST-5',rwys:3,pax:31.4,terminals:4,rwyLen:'11484 ft',hub:'Volaris/VivaAerobus',fact:'Cancún — Mexico\'s busiest tourist airport, gateway to the Riviera Maya and Chichén Itzá'},
-  PTY:{icao:'MPTO',elev:135,tz:'EST-5',rwys:2,pax:16.7,terminals:2,rwyLen:'10006 ft',hub:'Copa Airlines',fact:'Tocumen — Copa Airlines\' hub, called the "Hub of the Americas" connecting North and South'},
-  GDL:{icao:'MMGL',elev:5016,tz:'CST-6',rwys:2,pax:15.8,terminals:2,rwyLen:'13123 ft',hub:'Volaris',fact:'Guadalajara — Mexico\'s 2nd busiest airport at 5,016 ft, gateway to tequila country'},
-  BSB:{icao:'SBBR',elev:3479,tz:'BRT-3',rwys:2,pax:15.0,terminals:1,rwyLen:'10827 ft',hub:'LATAM/Gol',fact:'Brasília — serves Brazil\'s planned capital city at 3,479 ft on the Central Plateau'},
-  CNF:{icao:'SBCF',elev:2715,tz:'BRT-3',rwys:2,pax:10.8,terminals:1,rwyLen:'9843 ft',hub:'Azul',fact:'Confins — Belo Horizonte\'s airport, Azul Airlines\' key hub in the Minas Gerais highlands'},
-  MDE:{icao:'SKRG',elev:6955,tz:'COT-5',rwys:2,pax:11.0,terminals:2,rwyLen:'11480 ft',hub:'Avianca',fact:'José María Córdova — Medellín\'s airport at 6,955 ft in the Andes, with challenging approaches'},
-  UIO:{icao:'SEQM',elev:7874,tz:'ECT-5',rwys:1,pax:5.4,terminals:1,rwyLen:'13451 ft',hub:'LATAM Ecuador',fact:'Quito Mariscal Sucre — at 7,874 ft with a 13,451 ft runway for high-altitude performance'},
-  MVD:{icao:'SUMU',elev:105,tz:'UYT-3',rwys:2,pax:3.5,terminals:1,rwyLen:'10499 ft',hub:'Amaszonas',fact:'Carrasco — Uruguay\'s gateway, its award-winning Rafael Viñoly terminal opened in 2009'},
-  SJO:{icao:'MROC',elev:3021,tz:'CST-6',rwys:1,pax:7.2,terminals:1,rwyLen:'9882 ft',hub:'Avianca CR',fact:'Juan Santamaría — Costa Rica\'s primary airport, gateway to biodiversity-rich rainforests'},
+  GRU:{icao:'SBGR',elev:2459,tz:'BRT-3',rwys:2,pax:41.2,terminals:3,rwyLen:'12139 ft',hub:'LATAM/Gol/Azul',fact:'São Paulo Guarulhos — Latin America\'s busiest at 2,459 ft, LATAM\'s primary hub',desc:'Sao Paulo is South America\'s colossal cultural engine — a city of 12 million where Japanese, Italian, and Lebanese immigrant communities have created the continent\'s most diverse food scene. The Pinacoteca\'s art, Vila Madalena\'s street murals, and a nightlife that rivals Berlin\'s make it Latin America\'s most cosmopolitan metropolis.'},
+  GIG:{icao:'SBGL',elev:28,tz:'BRT-3',rwys:2,pax:12.5,terminals:2,rwyLen:'13123 ft',hub:'LATAM/Gol',fact:'Rio Galeão — stunning approach over Guanabara Bay with Sugarloaf Mountain in view',desc:'Rio de Janeiro is the Cidade Maravilhosa — where Christ the Redeemer watches over samba rhythms on Copacabana, Carnival\'s sequined extravagance, and Sugarloaf Mountain\'s breathtaking panoramas.'},
+  MEX:{icao:'MMMX',elev:7316,tz:'CST-6',rwys:2,pax:50.3,terminals:2,rwyLen:'12795 ft',hub:'Aeromexico/Volaris',fact:'Benito Juárez — one of the world\'s highest major airports at 7,316 ft elevation',desc:'Mexico City is one of the world\'s great capitals — a sprawling metropolis built atop the Aztec city of Tenochtitlan, where Diego Rivera\'s murals adorn palatial walls, street tacos achieve perfection on every corner, and the Museo Nacional de Antropologia houses treasures of Mesoamerican civilization. Frida Kahlo\'s Blue House and the floating gardens of Xochimilco add layers of magic.'},
+  BOG:{icao:'SKBO',elev:8361,tz:'COT-5',rwys:2,pax:38.0,terminals:2,rwyLen:'12467 ft',hub:'Avianca/LATAM',fact:'El Dorado — world\'s highest-elevation major hub at 8,361 ft above sea level in the Andes',desc:'Bogota is Colombia\'s high-altitude capital of reinvention — a city of the Botero Museum\'s voluptuous sculptures, La Candelaria\'s colorful colonial streets, and a coffee culture perfected at the source.'},
+  EZE:{icao:'SAEZ',elev:67,tz:'ART-3',rwys:2,pax:14.3,terminals:3,rwyLen:'10827 ft',hub:'Aerolíneas Argentinas',fact:'Ezeiza — Buenos Aires\' international gateway, 35 km from the city, named Ministro Pistarini',desc:'Buenos Aires is the Paris of South America — a city of tango milongas, world-class steak parrillas, Recoleta\'s Parisian boulevards, and La Boca\'s colorful caminito.'},
+  SCL:{icao:'SCEL',elev:1555,tz:'CLT-4',rwys:2,pax:24.6,terminals:2,rwyLen:'12232 ft',hub:'LATAM/Sky',fact:'Santiago Arturo Merino Benítez — Chile\'s busiest, framed by the Andes on approach from the east',desc:'Santiago sits in a valley embraced by the snow-capped Andes — a sophisticated capital of Neruda\'s poetry, world-class wine from surrounding valleys, and Barrio Lastarria\'s cafe culture.'},
+  LIM:{icao:'SPJC',elev:113,tz:'PET-5',rwys:2,pax:24.5,terminals:1,rwyLen:'11506 ft',hub:'LATAM Peru',fact:'Jorge Chávez — named for the Peruvian aviator who first flew over the Alps in 1910',desc:'Lima is the gastronomic capital of South America — a city where Inca heritage meets Spanish colonial grandeur, ceviche achieves perfection, and Miraflores\'s cliffs overlook the Pacific.'},
+  CUN:{icao:'MMUN',elev:22,tz:'EST-5',rwys:3,pax:31.4,terminals:4,rwyLen:'11484 ft',hub:'Volaris/VivaAerobus',fact:'Cancún — Mexico\'s busiest tourist airport, gateway to the Riviera Maya and Chichén Itzá',desc:'Cancun is Mexico\'s Caribbean jewel — turquoise waters, Mayan ruins at Tulum and Chichen Itza, underground cenotes for swimming, and the vibrant nightlife of the Hotel Zone.'},
+  PTY:{icao:'MPTO',elev:135,tz:'EST-5',rwys:2,pax:16.7,terminals:2,rwyLen:'10006 ft',hub:'Copa Airlines',fact:'Tocumen — Copa Airlines\' hub, called the "Hub of the Americas" connecting North and South',desc:'Panama City is where two oceans meet — a city of the iconic Canal, Casco Viejo\'s colonial charm, gleaming glass towers, and the biodiversity of the surrounding rainforests.'},
+  GDL:{icao:'MMGL',elev:5016,tz:'CST-6',rwys:2,pax:15.8,terminals:2,rwyLen:'13123 ft',hub:'Volaris',fact:'Guadalajara — Mexico\'s 2nd busiest airport at 5,016 ft, gateway to tequila country',desc:'Guadalajara is the birthplace of mariachi and tequila — Mexico\'s second city of colonial plazas, the Hospicio Cabanas murals by Orozco, and the agave fields of Jalisco.'},
+  BSB:{icao:'SBBR',elev:3479,tz:'BRT-3',rwys:2,pax:15.0,terminals:1,rwyLen:'10827 ft',hub:'LATAM/Gol',fact:'Brasília — serves Brazil\'s planned capital city at 3,479 ft on the Central Plateau',desc:'Brasilia is Oscar Niemeyer\'s modernist masterpiece — a planned capital of sweeping curves and utopian architecture, a UNESCO World Heritage Site unlike any other city on Earth.'},
+  CNF:{icao:'SBCF',elev:2715,tz:'BRT-3',rwys:2,pax:10.8,terminals:1,rwyLen:'9843 ft',hub:'Azul',fact:'Confins — Belo Horizonte\'s airport, Azul Airlines\' key hub in the Minas Gerais highlands',desc:'Belo Horizonte is the gateway to Minas Gerais — a Brazilian state famous for its hearty mineiro cuisine, historic baroque towns like Ouro Preto, and warm hospitality.'},
+  MDE:{icao:'SKRG',elev:6955,tz:'COT-5',rwys:2,pax:11.0,terminals:2,rwyLen:'11480 ft',hub:'Avianca',fact:'José María Córdova — Medellín\'s airport at 6,955 ft in the Andes, with challenging approaches',desc:'Medellin is Colombia\'s city of eternal spring — transformed from notoriety into a model of urban innovation, with cable cars, botanical gardens, and Botero\'s bronze sculptures in the plazas.'},
+  UIO:{icao:'SEQM',elev:7874,tz:'ECT-5',rwys:1,pax:5.4,terminals:1,rwyLen:'13451 ft',hub:'LATAM Ecuador',fact:'Quito Mariscal Sucre — at 7,874 ft with a 13,451 ft runway for high-altitude performance',desc:'Quito is the world\'s highest official capital — a colonial gem nestled in an Andean valley, with UNESCO-listed churches, the equator monument, and volcanoes framing the horizon.'},
+  MVD:{icao:'SUMU',elev:105,tz:'UYT-3',rwys:2,pax:3.5,terminals:1,rwyLen:'10499 ft',hub:'Amaszonas',fact:'Carrasco — Uruguay\'s gateway, its award-winning Rafael Viñoly terminal opened in 2009',desc:'Montevideo is South America\'s most laid-back capital — a city of mate-sipping rambla strolls, tango milongas, asado traditions, and the charming Ciudad Vieja quarter.'},
+  SJO:{icao:'MROC',elev:3021,tz:'CST-6',rwys:1,pax:7.2,terminals:1,rwyLen:'9882 ft',hub:'Avianca CR',fact:'Juan Santamaría — Costa Rica\'s primary airport, gateway to biodiversity-rich rainforests',desc:'San Jose is Costa Rica\'s gateway to pura vida — a springboard to cloud forests, volcanic hot springs, Pacific surf, and some of the richest biodiversity on the planet.'},
 };
 
 // ── 初始化本地路由推断引擎 ───────────────────────────────────────────────────
+initAirportCities(CITIES);
 initRouteInfer(CITIES, AIRPORT_DATA);
+// T2-04: Expose CITIES for nearest airport lookup in detail.js
+window._CITIES = CITIES;
 
 function initCityPicker() {
   const overlay = document.getElementById('city-overlay');
@@ -2412,6 +3353,10 @@ function initCityPicker() {
   const closeBtn = document.getElementById('city-overlay-close');
   const hudCityBtn = document.getElementById('hud-city-btn');
   if (!overlay || !grid) return;
+
+  // Update airport count dynamically
+  const countEl = document.getElementById('city-overlay-count');
+  if (countEl) countEl.textContent = `${CITIES.length.toLocaleString()} airports · live ADS-B`;
 
   // ── Region metadata ────────────────────────────────────────────────────
   const REGION_CENTERS = {
@@ -2546,6 +3491,15 @@ function initCityPicker() {
       factEl.classList.remove('hidden');
     } else {
       factEl.classList.add('hidden');
+    }
+    const descEl = document.getElementById('cdp-desc');
+    if (descEl) {
+      if (meta.desc) {
+        descEl.textContent = meta.desc;
+        descEl.classList.remove('hidden');
+      } else {
+        descEl.classList.add('hidden');
+      }
     }
     // Nearby airports
     const nearbyEl = document.getElementById('cdp-nearby');
@@ -2744,7 +3698,7 @@ function initSearch() {
   let selectedIndex = -1;
 
   function getResultItems() {
-    return [...results.querySelectorAll('.search-result')];
+    return [...results.querySelectorAll('.search-result[data-icao], .search-result[data-airport]')];
   }
 
   function setSelection(idx, items) {
@@ -2761,41 +3715,121 @@ function initSearch() {
     selectedIndex = -1;
   }
 
+  // Search airports from CITIES array
+  function searchAirports(q, limit = 8) {
+    const scored = [];
+    const ql = q.toLowerCase();
+    for (const c of CITIES) {
+      const code = c.code.toUpperCase();
+      const name = c.name.toLowerCase();
+      const country = (c.country || '').toLowerCase();
+      let score = 0;
+      if (code === q) score = 200;
+      else if (code.startsWith(q)) score = 150;
+      else if (name === ql) score = 140;
+      else if (name.startsWith(ql)) score = 120;
+      else if (code.includes(q)) score = 80;
+      else if (name.includes(ql)) score = 60;
+      else if (country.startsWith(ql)) score = 40;
+      else if (country.includes(ql)) score = 30;
+      if (score > 0) scored.push({ city: c, score });
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, limit).map(s => s.city);
+  }
+
+  // Escape HTML
+  function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function renderResults(q) {
+    selectedIndex = -1;
+    if (q.length < 2 || !aircraftManager) { clearResults(); return; }
+
+    const acMatches = aircraftManager.search(q, 12);
+    const aptMatches = searchAirports(q, 6);
+    const hasAC = acMatches.length > 0;
+    const hasAPT = aptMatches.length > 0;
+
+    if (!hasAC && !hasAPT) {
+      results.innerHTML = `<div class="search-no-results">
+        <div class="search-no-results-icon">⌕</div>
+        <div class="search-no-results-text">No results for "${esc(q)}"</div>
+        <div class="search-no-results-hint">Try callsign, registration, type, route, or airport</div>
+      </div>`;
+      results.classList.add('open');
+      return;
+    }
+
+    let html = '';
+
+    // Aircraft results
+    if (hasAC) {
+      html += `<div class="search-category">AIRCRAFT · ${acMatches.length}</div>`;
+      for (const ac of acMatches) {
+        const d = ac.getDisplayData();
+        const cs = esc(d.callsign || d.icao24);
+        const typeReg = [d.aircraftType, d.registration].filter(Boolean).map(esc).join(' · ');
+        const route = (d.origin || d.destination)
+          ? `${esc(d.origin || '?')}→${esc(d.destination || '?')}`
+          : '';
+        const altFt = d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null;
+        const altStr = altFt != null
+          ? (altFt >= 18000 ? `FL${Math.round(altFt / 100)}` : `${altFt.toLocaleString()}ft`)
+          : '';
+        const phase = d.flightPhase || '';
+        const phaseClass = (phase === 'CLIMB' || phase === 'INITIAL CLIMB' || phase === 'TAKEOFF') ? 'climb'
+          : (phase === 'DESCENT' || phase === 'APPROACH' || phase === 'LANDING') ? 'descent'
+          : phase === 'CRUISE' ? 'cruise' : '';
+        html += `<div class="search-result" role="option" data-icao="${esc(d.icao24)}">
+          <div class="search-result-main">
+            <span class="search-result-callsign">${cs}</span>
+            ${route ? `<span class="search-result-route">${route}</span>` : ''}
+          </div>
+          <div class="search-result-detail">
+            <span class="search-result-info">${typeReg || esc(d.icao24)}</span>
+            ${altStr ? `<span class="search-result-alt">${altStr}</span>` : ''}
+            ${phaseClass ? `<span class="search-result-status ${phaseClass}">${esc(phase)}</span>` : ''}
+          </div>
+        </div>`;
+      }
+    }
+
+    // Airport results
+    if (hasAPT) {
+      html += `<div class="search-category">AIRPORTS · ${aptMatches.length}</div>`;
+      for (const apt of aptMatches) {
+        html += `<div class="search-result search-result-airport" role="option" data-airport="${esc(apt.code)}">
+          <div class="search-result-main">
+            <span class="search-result-callsign">${esc(apt.code)}</span>
+            <span class="search-result-airport-name">${esc(apt.name)}</span>
+          </div>
+          <div class="search-result-detail">
+            <span class="search-result-info">${esc(apt.country)} · ${esc(apt.region)}</span>
+          </div>
+        </div>`;
+      }
+    }
+
+    results.innerHTML = html;
+    results.classList.add('open');
+
+    // Click handlers
+    results.querySelectorAll('.search-result[data-icao]').forEach(el => {
+      el.addEventListener('click', () => selectAircraftResult(el.dataset.icao));
+    });
+    results.querySelectorAll('.search-result[data-airport]').forEach(el => {
+      el.addEventListener('click', () => selectAirportResult(el.dataset.airport));
+    });
+  }
+
   input.addEventListener('input', () => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      const q = input.value.trim().toUpperCase();
-      selectedIndex = -1;
-      if (q.length < 2 || !aircraftManager) {
-        clearResults();
-        return;
-      }
-
-      const matches = aircraftManager.search(q, 8);
-      if (matches.length === 0) {
-        results.innerHTML = '<div class="search-result"><span class="search-result-info">No results</span></div>';
-        results.classList.add('open');
-        return;
-      }
-
-      results.innerHTML = matches.map(ac => {
-        const d = ac.getDisplayData();
-        const cs = d.callsign || d.icao24;
-        const info = [d.aircraftType, d.registration].filter(Boolean).join(' · ');
-        return `<div class="search-result" role="option" data-icao="${d.icao24}">
-          <span class="search-result-callsign">${cs}</span>
-          <span class="search-result-info">${info || d.icao24}</span>
-        </div>`;
-      }).join('');
-      results.classList.add('open');
-
-      results.querySelectorAll('.search-result').forEach(el => {
-        el.addEventListener('click', () => selectResult(el.dataset.icao));
-      });
-    }, 150);
+      renderResults(input.value.trim().toUpperCase());
+    }, 120);
   });
 
-  function selectResult(icao) {
+  function selectAircraftResult(icao) {
     const ac = aircraftManager.getByIcao(icao);
     if (ac) {
       const { lat, lon } = getUserLocation();
@@ -2805,6 +3839,16 @@ function initSearch() {
       input.value = '';
       clearResults();
       input.blur();
+    }
+  }
+
+  function selectAirportResult(code) {
+    const city = CITIES.find(c => c.code === code);
+    if (city) {
+      input.value = '';
+      clearResults();
+      input.blur();
+      switchCity(city);
     }
   }
 
@@ -2820,8 +3864,9 @@ function initSearch() {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (selectedIndex >= 0 && items[selectedIndex]) {
-        const icao = items[selectedIndex].dataset.icao;
-        if (icao) selectResult(icao);
+        const el = items[selectedIndex];
+        if (el.dataset.icao) selectAircraftResult(el.dataset.icao);
+        else if (el.dataset.airport) selectAirportResult(el.dataset.airport);
       }
     }
   });
@@ -2838,16 +3883,31 @@ function initSearch() {
       input.focus();
     }
     if (e.key === 'Escape') {
+      // Close overlays/panels in priority order (highest z-index first)
       const cityOverlay = document.getElementById('city-overlay');
       if (cityOverlay && !cityOverlay.classList.contains('hidden')) {
-        cityOverlay.classList.add('hidden');
+        cityOverlay.classList.add('hidden'); return;
+      }
+      // Close any open overlay-backdrop (stats, history, spotter, notes)
+      const openBackdrop = document.querySelector('.overlay-backdrop:not(.hidden)');
+      if (openBackdrop) { openBackdrop.classList.add('hidden'); return; }
+      // Close help panel
+      const hp = document.getElementById('help-panel');
+      if (hp && !hp.classList.contains('hidden')) { hp.classList.add('hidden'); return; }
+      // Close search
+      if (document.activeElement === input) {
+        input.blur(); input.value = ''; clearResults(); return;
+      }
+      // Close detail panel
+      const dp = document.getElementById('detail-panel');
+      if (dp && !dp.classList.contains('hidden')) {
+        closeDetail();
+        if (aircraftManager) aircraftManager.deselectAircraft();
+        stopFollow();
+        removeRouteArc(scene);
         return;
       }
-      if (document.activeElement === input) {
-        input.blur();
-        input.value = '';
-        clearResults();
-      }
+      // Stop tour/follow
       if (autoTour) stopAutoTour();
       if (followTarget) stopFollow();
     }
@@ -2856,18 +3916,22 @@ function initSearch() {
 
 // --- Init ---
 async function init() {
-  // Default to JFK — no GPS needed; user picks their airspace via the city picker.
-  const defaultCity = CITIES[0]; // New York / JFK
+  // T3-15: Check for shared view link
+  const urlCity = restoreViewFromURL();
+
+  // Default to JFK — user picks their airspace via the city picker.
+  const defaultCity = (urlCity && CITIES.find(c => c.code === urlCity)) || CITIES.find(c => c.code === 'JFK') || CITIES[0];
   activeCity = defaultCity;
   setUserLocation(defaultCity.lat, defaultCity.lon);
   updateHUDCity(defaultCity.name, defaultCity.code);
   updateHUD(0, defaultCity.lat, defaultCity.lon);
 
+  // T2-14: Track city visit
+  sessionStats.cities.add(defaultCity.code);
+
   aircraftManager = new AircraftManager(scene, defaultCity.lat, defaultCity.lon);
 
   // Load base map and airports for the default city.
-  // The epoch guard in clearAirportCache() ensures any in-flight fetch here
-  // is safely discarded if the user switches cities before it completes.
   loadGroundMap(defaultCity.lat, defaultCity.lon);
   loadAirports(scene, defaultCity.lat, defaultCity.lon).then(() => {
     const aptData = getAirportData();
@@ -2878,6 +3942,28 @@ async function init() {
   initSearch();
   initCityPicker();
   initNeko();
+
+  // T2-20: Start ambient ATC chatter
+  startAmbientATC();
+
+  // T3-06: Initialize altitude filter sliders
+  initAltFilter();
+
+  // T3-14: Initialize mobile touch controls
+  initMobileTouch();
+
+  // T3-02: Weather panel — init toggle + fetch
+  initWeatherPanel();
+  updateWeatherWidget();
+
+  // Overlay close handlers (click-outside + close buttons)
+  document.querySelectorAll('.overlay-backdrop').forEach(el => {
+    el.addEventListener('click', (e) => { if (e.target === el) el.classList.add('hidden'); });
+  });
+  document.querySelectorAll('.overlay-close-btn').forEach(btn => {
+    btn.addEventListener('click', () => { btn.closest('.overlay-backdrop')?.classList.add('hidden'); });
+  });
+
   animate();
 }
 

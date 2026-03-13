@@ -120,6 +120,52 @@ export function drawRadar(elapsed) {
   ctx.fillStyle = coneGrad;
   ctx.fill();
 
+  // Density heatmap overlay (T2-10)
+  if (blips.length >= 2) {
+    const GRID = 8;
+    const cellW = (RADAR_SIZE * 2) / GRID;
+    const cellH = (RADAR_SIZE * 2) / GRID;
+    const grid = new Uint8Array(GRID * GRID);
+
+    for (const b of blips) {
+      const bx = cx + b.x * (r - 10);
+      const by = cy + b.y * (r - 10);
+      const col = Math.floor(bx / cellW);
+      const row = Math.floor(by / cellH);
+      if (col >= 0 && col < GRID && row >= 0 && row < GRID) {
+        grid[row * GRID + col]++;
+      }
+    }
+
+    for (let row = 0; row < GRID; row++) {
+      for (let col = 0; col < GRID; col++) {
+        const count = grid[row * GRID + col];
+        if (count === 0) continue;
+
+        const cellCx = col * cellW + cellW / 2;
+        const cellCy = row * cellH + cellH / 2;
+        const gradR = cellW * 0.7;
+
+        let color;
+        if (count >= 4) {
+          color = 'rgba(238, 136, 51, 0.12)';
+        } else if (count >= 2) {
+          color = 'rgba(238, 221, 85, 0.08)';
+        } else {
+          color = 'rgba(68, 221, 187, 0.05)';
+        }
+
+        const grad = ctx.createRadialGradient(cellCx, cellCy, 0, cellCx, cellCy, gradR);
+        grad.addColorStop(0, color);
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.beginPath();
+        ctx.arc(cellCx, cellCy, gradR, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+    }
+  }
+
   // Blips
   for (const b of blips) {
     const bx = cx + b.x * (r - 10);

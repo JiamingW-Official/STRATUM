@@ -135,11 +135,43 @@ const AIRPORTS = {
   PGUM:'Guam',PGSN:'Saipan',PHTO:'Hilo',
 };
 
+// IATA 3-letter → city name lookup (built from CITIES array at runtime)
+let _iataMap = null;
+
 /**
- * Returns the city name for an ICAO airport code, or null if unknown.
- * Works for both 4-letter ICAO codes (KLAX) and sometimes IATA codes.
+ * Initialize IATA lookup from CITIES array (call once during app init)
  */
-export function getAirportCity(icao) {
-  if (!icao) return null;
-  return AIRPORTS[icao.toUpperCase()] || null;
+export function initAirportCities(cities) {
+  _iataMap = {};
+  for (const c of cities) {
+    if (c.code && c.name) _iataMap[c.code.toUpperCase()] = c.name;
+  }
+}
+
+/**
+ * Returns the city name for an airport code, or null if unknown.
+ * Accepts ICAO 4-letter codes (KLAX), IATA 3-letter codes (LAX), or mixed.
+ */
+export function getAirportCity(code) {
+  if (!code) return null;
+  const uc = code.toUpperCase();
+
+  // 1. Direct ICAO lookup
+  const icaoHit = AIRPORTS[uc];
+  if (icaoHit) return icaoHit;
+
+  // 2. IATA lookup (from CITIES array)
+  if (_iataMap && _iataMap[uc]) return _iataMap[uc];
+
+  // 3. Try ICAO prefix heuristics for IATA codes:
+  //    US: K + code, Canada: C + code (CY__), etc.
+  if (uc.length === 3) {
+    const kPrefix = AIRPORTS['K' + uc];
+    if (kPrefix) return kPrefix;
+    // Hawaii/Alaska
+    const pPrefix = AIRPORTS['P' + uc];
+    if (pPrefix) return pPrefix;
+  }
+
+  return null;
 }

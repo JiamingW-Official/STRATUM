@@ -3,7 +3,7 @@ import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { getTrack, getTrackVersion, getRoute } from '../data/opensky.js';
+import { getTrack, getTrackVersion, getRoute, getHexDetail } from '../data/opensky.js';
 import { getAircraftSpecs } from '../data/aircraftDb.js';
 import { getAircraftMeta, queueHexLookup } from '../data/hexdb.js';
 import { triggerInference, getInferredRoute } from '../data/routeInfer.js';
@@ -34,14 +34,28 @@ const SPEED_STOPS = [
 const VS_THRESHOLD = 1.5;
 
 // Trail config — 30 min
-const TRAIL_SAMPLE_INTERVAL = 0.3;      // ~3Hz live sampling
-const TRAIL_MAX_POINTS = 6000;          // 30 min at ~3Hz
+const TRAIL_SAMPLE_INTERVAL = 0.5;      // 2Hz live sampling (less GC pressure)
+const TRAIL_MAX_POINTS = 3600;          // 30 min at 2Hz
 const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real track
 const SYNTHETIC_TRAIL_STEP = 0.5;
-const TRAIL_REBUILD_INTERVAL = 1.0;     // rebuild geometry 1x/sec
+const TRAIL_REBUILD_INTERVAL = 2.0;     // rebuild geometry every 2s (halves GPU work)
 const TRACK_REFRESH_INTERVAL = 300;     // re-check track API every 5 min (once loaded)
 const TRACK_INITIAL_CHECK_INTERVAL = 0.25; // check every 250ms until track arrives
 const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
+
+// T2-11: Speed-based trail width (m/s → linewidth)
+function getSpeedLineWidth(speed) {
+  if (speed == null || speed < 30) return 1.0;
+  if (speed < 80)  return 1.0 + (speed - 30) / (80 - 30) * 0.5;   // 1.0 → 1.5
+  if (speed < 200) return 1.5 + (speed - 80) / (200 - 80) * 1.0;  // 1.5 → 2.5
+  if (speed < 260) return 2.5 + (speed - 200) / (260 - 200) * 0.5; // 2.5 → 3.0
+  return 3.0;
+}
+
+// T2-19: Contrail constants
+const CONTRAIL_ALT_THRESHOLD = 9144; // FL300 in meters
+const CONTRAIL_MAX_PARTICLES = 50;
+const CONTRAIL_LIFETIME = 8.0; // seconds
 
 // --- Cached geometry / textures ---
 
@@ -347,6 +361,14 @@ export class AircraftManager {
     this.aircraft = new Map();
     this.raycasterTargets = [];
     this._highlightSet = null;
+    this._lastLabelCullTime = 0; // T2-13: throttle label culling
+    this.trailOpacityMult = parseFloat(localStorage.getItem('stratum:trailOpacity') || '1.0'); // T1-11
+  }
+
+  // T1-11: Trail opacity presets (0.2, 0.4, 0.6, 0.8, 1.0)
+  setTrailOpacity(level) {
+    this.trailOpacityMult = level;
+    localStorage.setItem('stratum:trailOpacity', String(level));
   }
 
   updateUserLocation(lat, lon) {
@@ -394,9 +416,56 @@ export class AircraftManager {
     }
   }
 
-  animate(delta, elapsed) {
+  animate(delta, elapsed, camera) {
     for (const ac of this.aircraft.values()) {
+      ac._trailOpacityMult = this.trailOpacityMult; // T1-11
       ac.animate(delta, elapsed, this._highlightSet);
+    }
+    // T2-13: Smart label density culling — every ~0.5s
+    if (camera && elapsed - this._lastLabelCullTime >= 0.5) {
+      this._lastLabelCullTime = elapsed;
+      this.cullOverlappingLabels(camera);
+    }
+  }
+
+  // T2-13: Hide labels that overlap nearer aircraft labels in screen space
+  cullOverlappingLabels(camera) {
+    const entries = [];
+    const _projVec = this._cullProjVec || (this._cullProjVec = new THREE.Vector3());
+    const w = window.innerWidth, h = window.innerHeight;
+    for (const ac of this.aircraft.values()) {
+      if (ac.fadingOut || ac.removed) continue;
+      if (!ac.labelSprite) continue;
+      _projVec.setFromMatrixPosition(ac.group.matrixWorld);
+      const dist = _projVec.distanceTo(camera.position);
+      _projVec.project(camera);
+      if (_projVec.z > 1) { ac.labelSprite.visible = false; continue; }
+      const sx = (_projVec.x * 0.5 + 0.5) * w;
+      const sy = (-_projVec.y * 0.5 + 0.5) * h;
+      // Frustum cull — skip labels clearly off-screen
+      if (sx < -50 || sx > w + 50 || sy < -50 || sy > h + 50) {
+        ac.labelSprite.visible = false; continue;
+      }
+      entries.push({ ac, sx, sy, dist });
+    }
+    entries.sort((a, b) => a.dist - b.dist);
+    const MAX_VISIBLE = 60; // cap visible labels to bound O(n²)
+    const occupied = [];
+    const MIN_DIST_SQ = 30 * 30;
+    for (const e of entries) {
+      if (occupied.length >= MAX_VISIBLE) { e.ac.labelSprite.visible = false; continue; }
+      let blocked = false;
+      for (let i = 0, len = occupied.length; i < len; i++) {
+        const dx = e.sx - occupied[i].sx;
+        const dy = e.sy - occupied[i].sy;
+        if (dx * dx + dy * dy < MIN_DIST_SQ) { blocked = true; break; }
+      }
+      if (blocked) {
+        e.ac.labelSprite.visible = false;
+      } else {
+        e.ac.labelSprite.visible = true;
+        occupied.push(e);
+      }
     }
   }
 
@@ -529,9 +598,13 @@ export class AircraftManager {
     }
   }
 
-  search(query, limit = 6) {
-    const results = [];
+  search(query, limit = 20) {
     const q = query.toUpperCase();
+    const scored = [];
+    // Support route search like "LAX-JFK" or "LAX JFK"
+    const routeParts = q.split(/[-\s>→]+/).filter(p => p.length >= 2);
+    const isRouteQuery = routeParts.length === 2 && routeParts[0].length <= 4 && routeParts[1].length <= 4;
+
     for (const ac of this.aircraft.values()) {
       if (ac.fadingOut) continue;
       const d = ac.data;
@@ -539,12 +612,46 @@ export class AircraftManager {
       const reg = (d.registration || '').toUpperCase();
       const type = (d.aircraftType || '').toUpperCase();
       const icao = (d.icao24 || '').toUpperCase();
-      if (cs.includes(q) || reg.includes(q) || type.includes(q) || icao.includes(q)) {
-        results.push(ac);
-        if (results.length >= limit) break;
+      const route = getRoute(d.callsign);
+      const origin = (d.origin || (route && route.origin) || '').toUpperCase();
+      const dest = (d.destination || (route && route.destination) || '').toUpperCase();
+      const airline = (route && route.airline || d.operator || '').toUpperCase();
+
+      let score = 0;
+
+      // Route search: "LAX-JFK" matches flights from LAX to JFK
+      if (isRouteQuery) {
+        const [rOrig, rDest] = routeParts;
+        if (origin.includes(rOrig) && dest.includes(rDest)) score = 100;
+        else if (origin.includes(rDest) && dest.includes(rOrig)) score = 90;
+        else if (origin.includes(rOrig) || dest.includes(rDest)) score = 40;
+        else if (origin.includes(rDest) || dest.includes(rOrig)) score = 35;
+      }
+
+      // Exact match scores highest
+      if (cs === q) score = Math.max(score, 200);
+      else if (reg === q) score = Math.max(score, 190);
+      else if (icao === q) score = Math.max(score, 180);
+      // Prefix match
+      else if (cs.startsWith(q)) score = Math.max(score, 150);
+      else if (reg.startsWith(q)) score = Math.max(score, 140);
+      // Contains match
+      else if (cs.includes(q)) score = Math.max(score, 100);
+      else if (reg.includes(q)) score = Math.max(score, 90);
+      else if (type.includes(q)) score = Math.max(score, 80);
+      else if (icao.includes(q)) score = Math.max(score, 70);
+      // Search by origin/destination/airline
+      else if (origin === q || dest === q) score = Math.max(score, 85);
+      else if (origin.includes(q) || dest.includes(q)) score = Math.max(score, 60);
+      else if (airline.includes(q)) score = Math.max(score, 55);
+
+      if (score > 0) {
+        scored.push({ ac, score });
       }
     }
-    return results;
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, limit).map(s => s.ac);
   }
 }
 
@@ -716,6 +823,13 @@ class AircraftObject {
 
     this._initTrail(position, data);
     this.rebuildTrail();
+
+    // T2-19: Contrail particle system (initialized lazily when above FL300)
+    this._contrailPoints = null;  // Points mesh
+    this._contrailGeo = null;
+    this._contrailMat = null;
+    this._contrailParticles = []; // { age, worldPos }
+    this._contrailActive = false;
 
     // Queue hexdb metadata lookup for operator/type info
     queueHexLookup(data.icao24);
@@ -1036,39 +1150,32 @@ class AircraftObject {
       keyPoints = raw;
     }
 
-    // Moving-average position smoothing to remove jitter from
-    // dead-reckoning jumps before Chaikin subdivision
+    // Moving-average smoothing — flat arrays, no Vector3 allocation
     const kn = keyPoints.length;
-    const smoothed = new Array(kn);
-    const R = this.hasRealTrack ? 2 : 5;  // real track already Catmull-Rom'd, less smoothing needed
+    let srcX = new Float64Array(kn);
+    let srcY = new Float64Array(kn);
+    let srcZ = new Float64Array(kn);
+    let srcS = new Float64Array(kn);
+    // Extract to flat arrays first
+    for (let i = 0; i < kn; i++) {
+      srcX[i] = keyPoints[i].pos.x; srcY[i] = keyPoints[i].pos.y;
+      srcZ[i] = keyPoints[i].pos.z; srcS[i] = keyPoints[i].speed || 0;
+    }
+    const R = this.hasRealTrack ? 2 : 5;
+    const smX = new Float64Array(kn), smY = new Float64Array(kn);
+    const smZ = new Float64Array(kn), smS = new Float64Array(kn);
     for (let i = 0; i < kn; i++) {
       let sx = 0, sy = 0, sz = 0, ss = 0, cnt = 0;
-      for (let j = Math.max(0, i - R); j <= Math.min(kn - 1, i + R); j++) {
-        sx += keyPoints[j].pos.x;
-        sy += keyPoints[j].pos.y;
-        sz += keyPoints[j].pos.z;
-        if (keyPoints[j].speed != null) ss += keyPoints[j].speed;
-        cnt++;
+      const lo = Math.max(0, i - R), hi = Math.min(kn - 1, i + R);
+      for (let j = lo; j <= hi; j++) {
+        sx += srcX[j]; sy += srcY[j]; sz += srcZ[j]; ss += srcS[j]; cnt++;
       }
-      smoothed[i] = {
-        pos: new THREE.Vector3(sx / cnt, sy / cnt, sz / cnt),
-        speed: ss / cnt,
-      };
+      smX[i] = sx / cnt; smY[i] = sy / cnt; smZ[i] = sz / cnt; smS[i] = ss / cnt;
     }
-    // Keep first and last points exact
-    smoothed[0] = keyPoints[0];
-    smoothed[kn - 1] = keyPoints[kn - 1];
-
-    // Chaikin corner-cutting — flat arrays avoid per-point Vector3 allocation
-    // Each pass: [x,y,z,speed] packed into Float64Array for speed
-    let srcX = new Float64Array(smoothed.length);
-    let srcY = new Float64Array(smoothed.length);
-    let srcZ = new Float64Array(smoothed.length);
-    let srcS = new Float64Array(smoothed.length);
-    for (let i = 0; i < smoothed.length; i++) {
-      srcX[i] = smoothed[i].pos.x; srcY[i] = smoothed[i].pos.y;
-      srcZ[i] = smoothed[i].pos.z; srcS[i] = smoothed[i].speed || 0;
-    }
+    // Keep endpoints exact
+    smX[0] = srcX[0]; smY[0] = srcY[0]; smZ[0] = srcZ[0]; smS[0] = srcS[0];
+    smX[kn-1] = srcX[kn-1]; smY[kn-1] = srcY[kn-1]; smZ[kn-1] = srcZ[kn-1]; smS[kn-1] = srcS[kn-1];
+    srcX = smX; srcY = smY; srcZ = smZ; srcS = smS;
     const chaikinPasses = this.hasRealTrack ? 2 : 4;
     for (let pass = 0; pass < chaikinPasses; pass++) {
       const n = srcX.length;
@@ -1091,24 +1198,15 @@ class AircraftObject {
       dstX[last] = srcX[n-1]; dstY[last] = srcY[n-1]; dstZ[last] = srcZ[n-1]; dstS[last] = srcS[n-1];
       srcX = dstX; srcY = dstY; srcZ = dstZ; srcS = dstS;
     }
-    // Convert back to point array for downstream use
-    const display = [];
-    for (let i = 0; i < srcX.length; i++) {
-      display.push({ pos: new THREE.Vector3(srcX[i], srcY[i], srcZ[i]), speed: srcS[i] });
-    }
-
-    const pts = display.map(p => ({
-      x: p.pos.x, y: p.pos.y, z: p.pos.z, speed: p.speed,
-    }));
-
-    // Smooth speed values — wide window for natural color transitions
-    const n = pts.length;
+    // Build positions/colors directly from flat arrays — no intermediate objects
+    const n = srcX.length;
     const smoothRadius = Math.max(Math.floor(n * 0.06), 3);
     const smoothedSpeed = new Float32Array(n);
     for (let i = 0; i < n; i++) {
       let sum = 0, count = 0;
-      for (let j = Math.max(0, i - smoothRadius); j <= Math.min(n - 1, i + smoothRadius); j++) {
-        if (pts[j].speed != null) { sum += pts[j].speed; count++; }
+      const lo = Math.max(0, i - smoothRadius), hi = Math.min(n - 1, i + smoothRadius);
+      for (let j = lo; j <= hi; j++) {
+        sum += srcS[j]; count++;
       }
       smoothedSpeed[i] = count > 0 ? sum / count : 0;
     }
@@ -1117,11 +1215,10 @@ class AircraftObject {
     const colors = new Float32Array(n * 3);
 
     for (let i = 0; i < n; i++) {
-      const p = pts[i];
       const i3 = i * 3;
-      positions[i3] = p.x;
-      positions[i3 + 1] = p.y;
-      positions[i3 + 2] = p.z;
+      positions[i3] = srcX[i];
+      positions[i3 + 1] = srcY[i];
+      positions[i3 + 2] = srcZ[i];
 
       const t = i / (n - 1);
       const fade = 0.05 + 0.95 * (t * t * (3 - 2 * t));
@@ -1139,6 +1236,9 @@ class AircraftObject {
     const geo = new LineGeometry();
     geo.setPositions(positions);
     geo.setColors(colors);
+
+    // T2-11: Speed-based trail width — use current ground speed
+    this.trailLineMat.linewidth = getSpeedLineWidth(this.data.velocity);
 
     this.trailLine = new Line2(geo, this.trailLineMat);
     this.trailLine.computeLineDistances();
@@ -1188,6 +1288,102 @@ class AircraftObject {
     this.dropGeometry.getAttribute('position').needsUpdate = true;
   }
 
+  // T2-19: Contrail particle system for high-altitude aircraft
+  _initContrail() {
+    if (this._contrailGeo) return; // already initialized
+    this._contrailGeo = new THREE.BufferGeometry();
+    const positions = new Float32Array(CONTRAIL_MAX_PARTICLES * 3);
+    const opacities = new Float32Array(CONTRAIL_MAX_PARTICLES);
+    this._contrailGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    this._contrailGeo.setAttribute('alpha', new THREE.BufferAttribute(opacities, 1));
+    this._contrailMat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.08,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true,
+    });
+    this._contrailPoints = new THREE.Points(this._contrailGeo, this._contrailMat);
+    this._contrailPoints.frustumCulled = false;
+    this._contrailPoints.renderOrder = 997;
+    this.scene.add(this._contrailPoints);
+    this._contrailActive = true;
+  }
+
+  _updateContrail(delta) {
+    const alt = this.data.baroAltitude;
+    const aboveFL300 = alt != null && alt > CONTRAIL_ALT_THRESHOLD;
+
+    if (!aboveFL300) {
+      // Below FL300 — age out existing particles but don't spawn new ones
+      if (!this._contrailActive) return;
+      if (this._contrailParticles.length === 0) {
+        this._disposeContrail();
+        return;
+      }
+    } else if (!this._contrailActive) {
+      this._initContrail();
+    }
+
+    if (!this._contrailGeo) return;
+
+    // Spawn a new particle at the aircraft's current world position (behind it)
+    if (aboveFL300 && this._contrailParticles.length < CONTRAIL_MAX_PARTICLES) {
+      this._contrailParticles.push({
+        age: 0,
+        x: this.group.position.x,
+        y: this.group.position.y,
+        z: this.group.position.z,
+      });
+    }
+
+    // Age and remove expired particles
+    const posAttr = this._contrailGeo.getAttribute('position');
+    const alphaAttr = this._contrailGeo.getAttribute('alpha');
+    let writeIdx = 0;
+    for (let i = 0; i < this._contrailParticles.length; i++) {
+      const p = this._contrailParticles[i];
+      p.age += delta;
+      if (p.age >= CONTRAIL_LIFETIME) continue;
+      this._contrailParticles[writeIdx] = p;
+      const i3 = writeIdx * 3;
+      posAttr.array[i3] = p.x;
+      posAttr.array[i3 + 1] = p.y;
+      posAttr.array[i3 + 2] = p.z;
+      // Fade out over lifetime
+      alphaAttr.array[writeIdx] = 1.0 - (p.age / CONTRAIL_LIFETIME);
+      writeIdx++;
+    }
+    this._contrailParticles.length = writeIdx;
+
+    // Zero out unused slots
+    for (let i = writeIdx; i < CONTRAIL_MAX_PARTICLES; i++) {
+      const i3 = i * 3;
+      posAttr.array[i3] = 0; posAttr.array[i3 + 1] = 0; posAttr.array[i3 + 2] = 0;
+      alphaAttr.array[i] = 0;
+    }
+
+    posAttr.needsUpdate = true;
+    alphaAttr.needsUpdate = true;
+    this._contrailGeo.setDrawRange(0, writeIdx);
+    this._contrailMat.opacity = this.masterOpacity * 0.6;
+  }
+
+  _disposeContrail() {
+    if (this._contrailPoints) {
+      this.scene.remove(this._contrailPoints);
+    }
+    if (this._contrailGeo) this._contrailGeo.dispose();
+    if (this._contrailMat) this._contrailMat.dispose();
+    this._contrailPoints = null;
+    this._contrailGeo = null;
+    this._contrailMat = null;
+    this._contrailParticles = [];
+    this._contrailActive = false;
+  }
+
   startFadeOut() {
     if (this.fadingOut) return;
     this.fadingOut = true;
@@ -1205,23 +1401,25 @@ class AircraftObject {
       if (this.fadeProgress <= 0) { this.removed = true; return; }
     }
 
-    if (highlightSet && !highlightSet.has(this.data.icao24)) {
-      this.masterOpacity = this.fadeProgress * 0.08;
-    } else {
-      this.masterOpacity = this.fadeProgress;
-    }
-    this._setModelOpacity(this.masterOpacity);
-    this._labelMat.opacity = this.masterOpacity * 0.75;
-    this.trailLineMat.opacity = this.masterOpacity * 0.85;
-    this.dropMaterial.opacity = this.masterOpacity * 0.15;
-    if (this._gapLine) this._gapLine.material.opacity = this.masterOpacity * 0.3;
+    const newOpacity = (highlightSet && !highlightSet.has(this.data.icao24))
+      ? this.fadeProgress * 0.08 : this.fadeProgress;
 
-    // Navigation lights — steady port/starboard, strobing tail
-    for (const nl of this._navLights) {
-      nl.material.opacity = this.masterOpacity * 0.8;
+    // Only update opacity-dependent materials when masterOpacity actually changed
+    const opacityChanged = newOpacity !== this.masterOpacity;
+    this.masterOpacity = newOpacity;
+
+    if (opacityChanged) {
+      this._setModelOpacity(this.masterOpacity);
+      this._labelMat.opacity = this.masterOpacity * 0.75;
+      this.trailLineMat.opacity = this.masterOpacity * 0.85 * (this._trailOpacityMult || 1.0);
+      this.dropMaterial.opacity = this.masterOpacity * 0.15;
+      if (this._gapLine) this._gapLine.material.opacity = this.masterOpacity * 0.3;
+      for (const nl of this._navLights) nl.material.opacity = this.masterOpacity * 0.8;
+      if (this._bodyGlow) this._bodyGlowMat.opacity = this.masterOpacity * 0.6;
     }
+
+    // Tail strobe — 1Hz on/off (must run every frame for crisp strobe)
     if (this._tailStrobe) {
-      // 1Hz strobe with sharp on/off
       const strobePhase = (elapsed * 1.2 + this.data.icao24.charCodeAt(0) * 0.1) % 1;
       this._tailStrobe.material.opacity = strobePhase < 0.1 ? this.masterOpacity : 0;
     }
@@ -1229,12 +1427,7 @@ class AircraftObject {
     // Sync model + glow color to current speed
     const speedCol = getSpeedColor(this.data.velocity);
     this._setModelColor(speedCol);
-
-    // Body glow — guaranteed glow regardless of model material type
-    if (this._bodyGlow) {
-      this._bodyGlowMat.opacity = this.masterOpacity * 0.6;
-      this._bodyGlowMat.color.copy(speedCol);
-    }
+    if (this._bodyGlow) this._bodyGlowMat.color.copy(speedCol);
 
     // Dead-reckoning — very smooth lerp to avoid sharp angle in trail
     const predictedTarget = this._getExtrapolatedTarget();
@@ -1276,6 +1469,9 @@ class AircraftObject {
     }
 
     this.updateDropLine(this.group.position);
+
+    // T2-19: Contrail particles
+    this._updateContrail(delta);
   }
 
   dispose(scene) {
@@ -1312,6 +1508,8 @@ class AircraftObject {
       nl.material.dispose();
     }
     if (this._bodyGlowMat) this._bodyGlowMat.dispose();
+    // T2-19: Clean up contrail particles
+    this._disposeContrail();
   }
 
   getDisplayData() {
@@ -1330,6 +1528,9 @@ class AircraftObject {
     const trackedMin = Math.floor((Date.now() - this._createdAt) / 60000);
     const meta = getAircraftMeta(this.data.icao24);
 
+    // Hex detail enrichment (from adsb.fi hex lookup on click)
+    const hexDetail = getHexDetail(this.data.icao24);
+
     // Aircraft age from API year field or hexdb
     const year = this.data.year || null;
     let age = null;
@@ -1337,16 +1538,18 @@ class AircraftObject {
       age = new Date().getFullYear() - year;
     }
 
-    // Operator: prefer API data, fallback to hexdb
-    const operator = this.data.operator || (meta && meta.operator) || null;
+    // Operator: prefer API data, then hex detail, then hexdb
+    const operator = this.data.operator || (hexDetail && hexDetail.operator) || (meta && meta.operator) || null;
 
-    // Route: prefer API oa/da, then route cache, then local inference
+    // Route: prefer API oa/da, then route cache (adsbdb), then local inference
     const route = getRoute(this.data.callsign);
     let origin = this.data.origin || (route && route.origin) || null;
     let destination = this.data.destination || (route && route.destination) || null;
     let originCity = (route && route.originCity) || null;
     let destCity   = (route && route.destCity)   || null;
     let routeEstimated = false;
+    // Airline name from adsbdb route lookup
+    const routeAirline = (route && route.airline) || null;
 
     // Fallback: local trajectory-based inference (no external API)
     if (!origin || !destination) {
@@ -1375,22 +1578,49 @@ class AircraftObject {
     // Ground speed in knots (from API)
     const gsKts = this.data.groundSpeed != null ? Math.round(this.data.groundSpeed) : null;
 
-    // IAS / TAS from API (knots)
-    const ias = this.data.ias != null ? Math.round(this.data.ias) : null;
-    const tas = this.data.tas != null ? Math.round(this.data.tas) : null;
+    // IAS / TAS from API — fallback to hex detail, then compute from GS + altitude
+    let rawIas = this.data.ias != null ? this.data.ias : (hexDetail?.ias ?? null);
+    let rawTas = this.data.tas != null ? this.data.tas : (hexDetail?.tas ?? null);
+    let rawMach = this.data.mach != null ? this.data.mach : (hexDetail?.mach ?? null);
 
-    // Mach from API (direct from transponder)
-    const mach = this.data.mach != null ? this.data.mach.toFixed(3) : null;
+    // Compute TAS/IAS/Mach from ground speed + altitude when API data is missing
+    if (rawTas == null && gsKts != null && gsKts > 50 && altFt != null && altFt > 1000) {
+      // TAS ≈ GS (ignoring wind — best available approximation)
+      rawTas = gsKts;
+      // Mach = TAS / speed_of_sound; speed_of_sound varies with temperature
+      // Below tropopause (36089 ft): T = 288.15 - 1.98·h/1000 (K)
+      // Above: T = 216.65 K (constant in stratosphere)
+      const tempK = altFt < 36089
+        ? 288.15 - 0.00198 * altFt
+        : 216.65;
+      const speedOfSound = 661.5 * Math.sqrt(tempK / 288.15); // kts
+      if (rawMach == null) rawMach = gsKts / speedOfSound;
+      // IAS ≈ TAS × √σ where σ = density ratio
+      if (rawIas == null) {
+        const sigma = altFt < 36089
+          ? Math.pow(1 - altFt / 145442, 4.256)
+          : 0.2971 * Math.exp(-(altFt - 36089) / 20806);
+        rawIas = gsKts * Math.sqrt(sigma);
+      }
+    }
+
+    const ias = rawIas != null ? Math.round(rawIas) : null;
+    const tas = rawTas != null ? Math.round(rawTas) : null;
+    const mach = rawMach != null ? Number(rawMach).toFixed(3) : null;
 
     // Squawk code
-    const squawk = this.data.squawk || null;
+    const squawk = this.data.squawk || (hexDetail?.squawk) || null;
 
     // Signal strength (RSSI)
-    const rssi = this.data.rssi != null ? this.data.rssi.toFixed(1) : null;
+    const rawRssi = this.data.rssi != null ? this.data.rssi : (hexDetail?.rssi ?? null);
+    const rssi = rawRssi != null ? Number(rawRssi).toFixed(1) : null;
 
-    // Navigation altitude (autopilot selected altitude)
-    const navAlt = this.data.navAltitude != null ? Math.round(this.data.navAltitude * METERS_TO_FEET) : null;
-    const navHdg = this.data.navHeading != null ? Math.round(this.data.navHeading) : null;
+    // Navigation altitude (autopilot selected altitude) — hex detail is in feet directly
+    const navAltRaw = this.data.navAltitude != null ? this.data.navAltitude * METERS_TO_FEET
+                    : (hexDetail?.navAltitude != null ? hexDetail.navAltitude : null);
+    const navAlt = navAltRaw != null ? Math.round(navAltRaw) : null;
+    const navHdg = this.data.navHeading != null ? Math.round(this.data.navHeading)
+                 : (hexDetail?.navHeading != null ? Math.round(hexDetail.navHeading) : null);
 
     // Emergency status
     const emergency = this.data.emergency || null;
@@ -1424,15 +1654,25 @@ class AircraftObject {
       else flightPhase = 'CRUISE';
     }
 
-    // Distance to destination (if we have both current coords and destination airport)
+    // Distance to destination and origin (if we have coords and airport codes)
     let distToDest = null;
-    if (destination && this.data.latitude != null && this.data.longitude != null) {
-      // Look up destination airport coordinates from CITIES (imported via global)
-      const destApt = typeof _findCityByCode === 'function' ? _findCityByCode(destination) : null;
-      if (destApt) {
-        distToDest = Math.round(haversineDistance(
-          this.data.latitude, this.data.longitude, destApt.lat, destApt.lon
-        ));
+    let originDist = null;
+    if (this.data.latitude != null && this.data.longitude != null) {
+      if (destination) {
+        const destApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(destination) : null;
+        if (destApt) {
+          distToDest = Math.round(haversineDistance(
+            this.data.latitude, this.data.longitude, destApt.lat, destApt.lon
+          ));
+        }
+      }
+      if (origin) {
+        const origApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(origin) : null;
+        if (origApt) {
+          originDist = Math.round(haversineDistance(
+            this.data.latitude, this.data.longitude, origApt.lat, origApt.lon
+          ));
+        }
       }
     }
 
@@ -1476,9 +1716,11 @@ class AircraftObject {
       wakeCat,
       flightPhase,
       distToDest,
+      _originDist: originDist,
       onGround: this.data.onGround,
       category: this.data.category,
       routeEstimated,
+      routeAirline,
     };
   }
 }
@@ -1497,3 +1739,89 @@ export function haversineDistance(lat1, lon1, lat2, lon2) {
     Math.cos(lat1 * DEG_TO_RAD) * Math.cos(lat2 * DEG_TO_RAD) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+// ── T3-01: Great Circle Route Arc ──
+export function createRouteArc(scene, originLat, originLon, destLat, destLon, userLat, userLon) {
+  const points = [];
+  const segments = 80;
+  const cosLat = Math.cos(userLat * DEG_TO_RAD);
+
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    // Great circle interpolation (spherical lerp simplified)
+    const lat = originLat + (destLat - originLat) * t;
+    const lon = originLon + (destLon - originLon) * t;
+    const x = (lon - userLon) * GEO_SCALE * cosLat;
+    const z = -(lat - userLat) * GEO_SCALE;
+    points.push(x, 0.05, z); // slightly above ground
+  }
+
+  const geo = new LineGeometry();
+  geo.setPositions(points);
+  const mat = new LineMaterial({
+    color: 0xc4a058,
+    linewidth: 1.5,
+    transparent: true,
+    opacity: 0.3,
+    dashSize: 0.3,
+    gapSize: 0.15,
+    dashed: true,
+    resolution,
+    depthWrite: false,
+  });
+  mat.defines.USE_DASH = '';
+  const line = new Line2(geo, mat);
+  line.computeLineDistances();
+  line.name = 'routeArc';
+  scene.add(line);
+  return line;
+}
+
+export function removeRouteArc(scene) {
+  const arc = scene.getObjectByName('routeArc');
+  if (arc) {
+    scene.remove(arc);
+    arc.geometry.dispose();
+    arc.material.dispose();
+  }
+}
+
+// ── T3-10: TCAS-style traffic display ──
+export function getTCASTraffic(followAc, allAircraft, maxRange = 15) {
+  if (!followAc || !followAc.data.latitude) return [];
+  const result = [];
+  const myAlt = followAc.data.baroAltitude || 0;
+  const myLat = followAc.data.latitude;
+  const myLon = followAc.data.longitude;
+
+  for (const [, ac] of allAircraft) {
+    if (ac === followAc || ac.fadingOut) continue;
+    if (ac.data.latitude == null) continue;
+    const dist = haversineDistance(myLat, myLon, ac.data.latitude, ac.data.longitude);
+    if (dist > maxRange) continue;
+
+    const altDiff = ((ac.data.baroAltitude || 0) - myAlt) * METERS_TO_FEET;
+    const relBearing = Math.atan2(
+      (ac.data.longitude - myLon) * Math.cos(myLat * DEG_TO_RAD),
+      ac.data.latitude - myLat
+    ) * (180 / Math.PI);
+
+    let threat = 'green';
+    if (Math.abs(altDiff) < 300 && dist < 3) threat = 'red';
+    else if (Math.abs(altDiff) < 1000 && dist < 8) threat = 'yellow';
+
+    result.push({
+      icao24: ac.data.icao24,
+      callsign: ac.data.callsign,
+      dist: Math.round(dist * 10) / 10,
+      altDiff: Math.round(altDiff),
+      bearing: relBearing,
+      threat,
+    });
+  }
+
+  return result.sort((a, b) => a.dist - b.dist).slice(0, 20);
+}
+
+// ── T2-02: Aircraft type classification export ──
+export { classifyAircraftType, TYPE_REGIONAL, TYPE_NARROW, TYPE_WIDE_TWIN, TYPE_WIDE_QUAD, TYPE_BIZJET, TYPE_PROP };
