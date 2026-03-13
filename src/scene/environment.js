@@ -1396,19 +1396,6 @@ async function loadFIRBoundaries(scene, lat, lon) {
       const vertices = [];
       for (const coord of ring) {
         const p = geoToScene(coord[1], coord[0], lat, lon);
-        // Clip to ground bounds
-        if (Math.abs(p.x) > GROUND_HALF * 1.2 || Math.abs(p.z) > GROUND_HALF * 1.2) {
-          // If we have accumulated vertices, flush them as a segment
-          if (vertices.length >= 6) {
-            const geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            const line = new THREE.Line(geo, mat);
-            line.computeLineDistances();
-            _firGroup.add(line);
-          }
-          vertices.length = 0;
-          continue;
-        }
         vertices.push(p.x, 0.008, p.z);
       }
 
