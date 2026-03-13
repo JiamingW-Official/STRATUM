@@ -62,26 +62,24 @@ async function loadTilesForRegion(centerLat, centerLon, halfDeg, zoom, maxTiles 
   ctx.fillStyle = '#050d1a';
   ctx.fillRect(0, 0, cw, ch);
 
-  const BATCH_SIZE = 24;
-  const tasks = [];
+    const tasks = [];
   for (let ty = tyMin; ty <= tyMax; ty++) {
     for (let tx = txMin; tx <= txMax; tx++) {
       tasks.push({ tx, ty });
     }
   }
 
-  for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
-    const batch = tasks.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map(({ tx, ty }) => {
-      const px = (tx - txMin) * TILE_SIZE;
-      const py = (ty - tyMin) * TILE_SIZE;
-      const sub = 'abcd'[(tx + ty) % 4];
-      const url = `https://${sub}.basemaps.cartocdn.com/dark_all/${zoom}/${tx}/${ty}@2x.png`;
-      return loadImage(url).then((img) => {
-        if (img) ctx.drawImage(img, px, py, TILE_SIZE, TILE_SIZE);
-      });
-    }));
-  }
+  // Launch all tile fetches concurrently — browser handles connection pooling.
+  // Sequential batching was creating unnecessary multi-RTT delays.
+  await Promise.all(tasks.map(({ tx, ty }) => {
+    const px = (tx - txMin) * TILE_SIZE;
+    const py = (ty - tyMin) * TILE_SIZE;
+    const sub = 'abcd'[(tx + ty) % 4];
+    const url = `https://${sub}.basemaps.cartocdn.com/dark_all/${zoom}/${tx}/${ty}@2x.png`;
+    return loadImage(url).then((img) => {
+      if (img) ctx.drawImage(img, px, py, TILE_SIZE, TILE_SIZE);
+    });
+  }));
 
   const canvasLonMin = tileXToLon(txMin, zoom);
   const canvasLonMax = tileXToLon(txMax + 1, zoom);

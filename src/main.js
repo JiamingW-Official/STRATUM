@@ -776,65 +776,67 @@ const CITIES = [
 let activeCity = null;
 
 const sceneTrans = document.getElementById('scene-transition');
-
-function flashTransition(onSwitch) {
-  if (sceneTrans) {
-    sceneTrans.style.transition = 'opacity 0.22s ease';
-    sceneTrans.style.opacity = '1';
-    sceneTrans.style.pointerEvents = 'all';
-  }
-  setTimeout(() => {
-    onSwitch();
-    if (sceneTrans) {
-      setTimeout(() => {
-        sceneTrans.style.transition = 'opacity 0.7s ease';
-        sceneTrans.style.opacity = '0';
-        sceneTrans.style.pointerEvents = '';
-      }, 80);
-    }
-  }, 240);
-}
+const sceneTransCode = document.getElementById('scene-trans-code');
+const sceneTransName = document.getElementById('scene-trans-name');
 
 async function switchCity(city) {
   if (activeCity && activeCity.code === city.code) return;
   activeCity = city;
 
-  flashTransition(() => {
-    closeDetail();
-    stopFollow();
-    if (autoTour) stopAutoTour();
-    if (selectedAirportState) {
-      deselectAirport(scene);
-      if (aircraftManager) aircraftManager.clearHighlight();
-      selectedAirportState = null;
-    }
+  // 1. Show city name and fade to black
+  if (sceneTransCode) sceneTransCode.textContent = city.code;
+  if (sceneTransName) sceneTransName.textContent = city.name;
+  if (sceneTrans) {
+    sceneTrans.style.transition = 'opacity 0.28s ease';
+    sceneTrans.style.opacity = '1';
+    sceneTrans.style.pointerEvents = 'all';
+    sceneTrans.classList.add('loading');
+  }
 
-    if (aircraftManager) aircraftManager.clearAll(scene);
-    clearGroundMap(scene);
-    clearAirports(scene);
+  // 2. Wait for screen to go dark
+  await new Promise(r => setTimeout(r, 320));
 
-    setUserLocation(city.lat, city.lon);
-    if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
+  // 3. Clear old scene while screen is dark
+  closeDetail();
+  stopFollow();
+  if (autoTour) stopAutoTour();
+  if (selectedAirportState) {
+    deselectAirport(scene);
+    if (aircraftManager) aircraftManager.clearHighlight();
+    selectedAirportState = null;
+  }
+  if (aircraftManager) aircraftManager.clearAll(scene);
+  clearGroundMap(scene);
+  clearAirports(scene);
 
-    updateHUDCity(city.name, city.code);
-    updateHUDAirports(0);
+  setUserLocation(city.lat, city.lon);
+  if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
+  updateHUDCity(city.name, city.code);
+  updateHUDAirports(0);
 
-    // Reset camera to cinematic overview angle
-    controls.enabled = false;
-    camera.position.set(8, 9, 12);
-    controls.target.set(0, 1, 0);
-    controls.update();
-    controls.enabled = true;
+  // Reset camera to cinematic angle
+  controls.enabled = false;
+  camera.position.set(8, 9, 12);
+  controls.target.set(0, 1, 0);
+  controls.update();
+  controls.enabled = true;
+
+  // 4. Load base map while screen is dark — then reveal
+  await loadGroundMap(city.lat, city.lon);
+
+  // 5. Fade back — new map is ready
+  if (sceneTrans) {
+    sceneTrans.classList.remove('loading');
+    sceneTrans.style.transition = 'opacity 0.9s ease';
+    sceneTrans.style.opacity = '0';
+    sceneTrans.style.pointerEvents = '';
+  }
+
+  // 6. Load airports non-blocking after reveal
+  loadAirports(scene, city.lat, city.lon).then(() => {
+    const aptData = getAirportData();
+    if (aptData) updateHUDAirports(aptData.airports.length);
   });
-
-  // Load in background — data arrives after flash
-  await Promise.all([
-    loadGroundMap(city.lat, city.lon),
-    loadAirports(scene, city.lat, city.lon).then(() => {
-      const aptData = getAirportData();
-      if (aptData) updateHUDAirports(aptData.airports.length);
-    }),
-  ]);
 }
 
 function initCityPicker() {
