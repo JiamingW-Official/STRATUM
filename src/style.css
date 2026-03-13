@@ -627,7 +627,9 @@ html, body {
   animation: blink 1.8s ease-in-out infinite;
 }
 
-/* ── Observer Log (Spotter) ── */
+/* ── Spotter / Challenge / Toast / Radar — removed ── */
+
+/* ── Placeholder block to preserve CSS line refs in git ── */
 .spotter-panel {
   position: fixed;
   top: 20px; right: 20px;

@@ -11,8 +11,6 @@ import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch } fr
 import { updateHUD, updateHUDTimer, updateHUDAirports, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft } from './ui/detail.js';
 import { initNeko, nekoTrackAircraft } from './ui/neko.js';
-import { initRadar, updateRadarBlips, drawRadar } from './ui/radar.js';
-import { spotAircraft, updateLiveData, onFollowStart, onFollowStop } from './ui/spotter.js';
 
 // --- Cinematic post-processing shader ---
 const CinematicShader = {
@@ -200,11 +198,9 @@ function flyToThenFollow(aircraftObj) {
     followCallsignEl.textContent = d.callsign || d.icao24;
     followIndicator.classList.remove('hidden');
   }
-  onFollowStart();
 }
 
 function stopFollow() {
-  if (followTarget) onFollowStop();
   followTarget = null;
   focusZooming = false;
   if (followIndicator) followIndicator.classList.add('hidden');
@@ -402,7 +398,6 @@ function handleAircraftSelect(ac) {
   flyToThenFollow(ac);
   nekoTrackAircraft(ac.getDisplayData());
   priorityTraceFetch(ac.data.icao24);
-  spotAircraft(ac.getDisplayData(), lat, lon);
   if (selectedAirportState) {
     deselectAirport(scene);
     aircraftManager.clearHighlight();
@@ -521,10 +516,6 @@ function handleData(dataList) {
     const { lat, lon } = getUserLocation();
     updateHUD(aircraftManager.getCount(), lat, lon);
     refreshDetail(aircraftManager, lat, lon);
-    const displayList = [...aircraftManager.aircraft.values()].map(ac => ac.getDisplayData());
-    updateLiveData(displayList);
-    const { lat: uLat, lon: uLon } = getUserLocation();
-    updateRadarBlips(lastRawData, uLat, uLon, cameraHeading);
   }
 }
 
@@ -754,9 +745,6 @@ function animate() {
     aircraftManager.animateSelection(elapsed);
   }
 
-  // Draw radar
-  drawRadar(elapsed);
-
   composer.render();
 }
 
@@ -832,7 +820,6 @@ function initSearch() {
       showDetail(ac, lat, lon);
       aircraftManager.selectAircraft(ac);
       flyToThenFollow(ac);
-      spotAircraft(ac.getDisplayData(), lat, lon);
       input.value = '';
       clearResults();
       input.blur();
@@ -887,12 +874,6 @@ async function init() {
   updateHUD(0, location.lat, location.lon);
 
   aircraftManager = new AircraftManager(scene, location.lat, location.lon);
-
-  // Wire up radar
-  initRadar((icao24) => {
-    const ac = aircraftManager.getByIcao(icao24);
-    if (ac) handleAircraftSelect(ac);
-  });
 
   loadGroundMap(location.lat, location.lon);
 

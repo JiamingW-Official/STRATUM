@@ -133,54 +133,6 @@
     </div>
   </div>
 
-  <!-- Observer Log (Spotter) — top right, hidden when detail visible -->
-  <div id="spotter-panel" class="spotter-panel glass-panel">
-    <div class="spotter-header">
-      <span id="spotter-level" class="spotter-level">LV1</span>
-      <span class="spotter-score-label">
-        <span id="spotter-score" class="spotter-score-value">0</span>
-        <span class="spotter-xp-label">XP</span>
-      </span>
-      <span id="spotter-streak" class="spotter-streak"></span>
-    </div>
-    <div class="spotter-xp-bar">
-      <div id="spotter-xp-fill" class="spotter-xp-fill"></div>
-    </div>
-    <div class="spotter-stats">
-      <div class="spotter-stat">
-        <span id="spotter-count" class="spotter-stat-value">0</span>
-        <span class="spotter-stat-label">spotted</span>
-      </div>
-      <div class="spotter-stat">
-        <span id="spotter-types" class="spotter-stat-value">0</span>
-        <span class="spotter-stat-label">types</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Active Challenge -->
-  <div id="challenge-panel" class="challenge-panel glass-panel hidden">
-    <div class="challenge-header">
-      <span class="challenge-tag">MISSION</span>
-      <span class="challenge-timer">--s</span>
-    </div>
-    <div class="challenge-label">--</div>
-    <div class="challenge-desc">--</div>
-  </div>
-
-  <!-- Achievement Toast -->
-  <div id="toast" class="toast hidden" role="alert" aria-live="polite">
-    <span class="toast-icon" aria-hidden="true">&#10022;</span>
-    <div class="toast-body">
-      <span class="toast-title"></span>
-      <span class="toast-desc"></span>
-    </div>
-    <span class="toast-points"></span>
-  </div>
-
-  <!-- Spot XP floaters -->
-  <div id="spot-feedback" class="spot-feedback" aria-hidden="true"></div>
-
   <!-- Compass Rose — bottom right -->
   <div id="compass" class="compass">
     <svg viewBox="0 0 60 60" class="compass-svg">
@@ -242,12 +194,6 @@
       <div class="signal-lost-sub">Unable to reach flight data API</div>
       <div id="signal-lost-retry" class="signal-lost-retry">Retrying...</div>
     </div>
-  </div>
-
-  <!-- Radar Minimap — bottom left -->
-  <div id="radar-panel" class="radar-panel glass-panel">
-    <canvas id="radar-canvas"></canvas>
-    <div class="radar-label">SCOPE · 150 KM</div>
   </div>
 
   <!-- Neko — ATC Channel Log -->
