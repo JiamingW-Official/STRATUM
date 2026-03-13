@@ -1380,34 +1380,23 @@ html, body {
 }
 
 /* ── Compass ── */
-/* ── FIR Toggle Button ── */
-.fir-toggle {
+/* ── FIR Hover Widget ── */
+.fir-hover-widget {
   position: fixed;
-  bottom: calc(var(--edge) + 60px); right: var(--edge);
-  width: 52px; height: 24px;
-  z-index: 10; cursor: pointer;
-  background: rgba(18, 18, 20, 0.5);
-  border: 1px solid rgba(196, 160, 88, 0.15);
-  border-radius: 4px;
-  color: rgba(238, 233, 220, 0.35);
-  font: 500 8px/1 'JetBrains Mono', monospace;
-  letter-spacing: 1.5px;
-  text-align: center;
-  opacity: 0.55; animation: fadein 1s var(--ease) 1s both;
-  transition: opacity 0.3s, border-color 0.3s, color 0.3s, background 0.3s;
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  z-index: 50;
+  pointer-events: none;
+  padding: 3px 8px;
+  background: rgba(12, 12, 14, 0.7);
+  border: 1px solid rgba(196, 160, 88, 0.25);
+  border-radius: 3px;
+  color: rgba(196, 160, 88, 0.8);
+  font: 600 9px/1.2 'JetBrains Mono', monospace;
+  letter-spacing: 1.2px;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: opacity 1.5s ease;
 }
-.fir-toggle:hover {
-  opacity: 0.85;
-  border-color: rgba(196, 160, 88, 0.3);
-  color: rgba(238, 233, 220, 0.55);
-}
-.fir-toggle.active {
-  border-color: rgba(196, 160, 88, 0.4);
-  color: rgba(196, 160, 88, 0.7);
-  background: rgba(196, 160, 88, 0.08);
-}
+.fir-hover-widget.fade-out { opacity: 0 !important; }
 
 .compass {
   position: fixed;
@@ -2483,7 +2472,6 @@ html, body {
 .screenshot-mode .search-bar,
 .screenshot-mode .search-hint,
 .screenshot-mode .compass,
-.screenshot-mode .fir-toggle,
 .screenshot-mode .follow-indicator,
 .screenshot-mode #neko-wrap,
 .screenshot-mode .airport-widget,

@@ -1344,25 +1344,9 @@ export function updateTouchdownEffects(scene) {
 // ── FIR Boundaries ──────────────────────────────────────────────────────────
 
 let _firGroup = null;
-let _firVisible = false;
+let _firVisible = true; // Always on
 let _firLoadedForLat = null;
 let _firLoadedForLon = null;
-
-export async function toggleFIRBoundaries(scene) {
-  _firVisible = !_firVisible;
-
-  if (!_firVisible) {
-    _clearFIRBoundaries(scene);
-    return false;
-  }
-
-  await loadFIRBoundaries(scene, _userLat, _userLon);
-  return true;
-}
-
-export function isFIRVisible() {
-  return _firVisible;
-}
 
 async function loadFIRBoundaries(scene, lat, lon) {
   // Skip if already loaded for this approximate location
@@ -1374,7 +1358,7 @@ async function loadFIRBoundaries(scene, lat, lon) {
   _clearFIRBoundaries(scene);
 
   const allFirs = await fetchFIRData();
-  if (!allFirs || !_firVisible) return;
+  if (!allFirs) return;
   _firCache_ref = allFirs;
 
   const nearby = filterNearbyFIRs(allFirs, lat, lon, 10);
@@ -1387,15 +1371,15 @@ async function loadFIRBoundaries(scene, lat, lon) {
   const lineMat = new THREE.LineBasicMaterial({
     color: 0xc4a058,
     transparent: true,
-    opacity: 0.18,
+    opacity: 0.32,
     depthWrite: false,
   });
 
-  // Oceanic boundaries get a different, even more subtle style
+  // Oceanic boundaries — subtler
   const oceanicMat = new THREE.LineBasicMaterial({
     color: 0x88aacc,
     transparent: true,
-    opacity: 0.08,
+    opacity: 0.12,
     depthWrite: false,
   });
 
@@ -1455,7 +1439,7 @@ function _createFIRLabel(text) {
   ctx.font = '600 14px "JetBrains Mono", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(196, 160, 88, 0.35)';
+  ctx.fillStyle = 'rgba(196, 160, 88, 0.5)';
   ctx.fillText(text, 64, 16);
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -1490,7 +1474,6 @@ function _clearFIRBoundaries(scene) {
 }
 
 export function clearFIRBoundaries(scene) {
-  _firVisible = false;
   _clearFIRBoundaries(scene);
 }
 
@@ -1502,9 +1485,17 @@ export function clearFIRBoundaries(scene) {
  * @returns {string|null} FIR identifier (e.g., "EGTT", "KZNY") or null
  */
 export function getFIRForPosition(lat, lon) {
-  if (!_firVisible) return null;
-  // Use cached FIR data from the data module
   return _findFIR(lat, lon);
+}
+
+/**
+ * Convert scene (x, z) back to geographic (lat, lon).
+ */
+export function sceneToGeo(x, z) {
+  return {
+    lat: _userLat - z / GEO_SCALE,
+    lon: _userLon + x / (GEO_SCALE * _cosLat),
+  };
 }
 
 function _findFIR(lat, lon) {
@@ -1525,7 +1516,6 @@ function _findFIR(lat, lon) {
 let _firCache_ref = null;
 
 export async function reloadFIRForLocation(scene, lat, lon) {
-  if (!_firVisible) return;
   const allFirs = await fetchFIRData();
   if (allFirs) _firCache_ref = allFirs;
   _clearFIRBoundaries(scene);

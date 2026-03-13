@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, toggleFIRBoundaries, clearFIRBoundaries, isFIRVisible, reloadFIRForLocation } from './scene/environment.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch, fetchRouteNow } from './data/opensky.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
@@ -396,8 +396,46 @@ canvas.addEventListener('pointermove', (e) => {
   } else {
     canvas.style.cursor = '';
     hideAircraftTooltip();
+    // FIR hover: raycast to ground and look up FIR
+    _checkFIRHover(e.clientX, e.clientY);
   }
 });
+
+// FIR hover widget
+const _firGroundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const _firRayTarget = new THREE.Vector3();
+let _firWidgetTimer = 0;
+let _lastFIRId = '';
+
+function _checkFIRHover(cx, cy) {
+  raycaster.ray.intersectPlane(_firGroundPlane, _firRayTarget);
+  if (!_firRayTarget) return;
+  const geo = sceneToGeo(_firRayTarget.x, _firRayTarget.z);
+  const firId = getFIRForPosition(geo.lat, geo.lon);
+  if (!firId || firId === _lastFIRId) return;
+  _lastFIRId = firId;
+  _showFIRWidget(firId, cx, cy);
+}
+
+function _showFIRWidget(firId, cx, cy) {
+  let el = document.getElementById('fir-hover');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'fir-hover';
+    el.className = 'fir-hover-widget';
+    document.body.appendChild(el);
+  }
+  el.textContent = firId;
+  el.style.left = (cx + 14) + 'px';
+  el.style.top = (cy - 10) + 'px';
+  el.classList.remove('fade-out');
+  el.style.opacity = '1';
+  clearTimeout(_firWidgetTimer);
+  _firWidgetTimer = setTimeout(() => {
+    el.classList.add('fade-out');
+    _lastFIRId = '';
+  }, 5000);
+}
 
 canvas.addEventListener('wheel', () => {
   resetIdleTimer();
@@ -901,26 +939,6 @@ function toggleHelp() {
 }
 document.getElementById('help-close')?.addEventListener('click', toggleHelp);
 
-// FIR toggle — shared by J key and button
-function _doToggleFIR() {
-  const btn = document.getElementById('fir-toggle');
-  toggleFIRBoundaries(scene).then(visible => {
-    if (btn) btn.classList.toggle('active', visible);
-    let lbl = document.getElementById('bloom-label');
-    if (!lbl) {
-      lbl = document.createElement('div');
-      lbl.id = 'bloom-label';
-      lbl.className = 'bloom-label';
-      document.body.appendChild(lbl);
-    }
-    lbl.textContent = visible ? 'ATC BOUNDARIES: ON' : 'ATC BOUNDARIES: OFF';
-    lbl.classList.remove('hidden');
-    clearTimeout(lbl._timer);
-    lbl._timer = setTimeout(() => lbl.classList.add('hidden'), 1800);
-  });
-}
-document.getElementById('fir-toggle')?.addEventListener('click', _doToggleFIR);
-
 document.addEventListener('keydown', (e) => {
   if (document.activeElement.tagName === 'INPUT') return;
   if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
@@ -997,9 +1015,6 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
-
-  // ATC FIR boundaries toggle
-  else if (k === 'j') { _doToggleFIR(); return; }
 
   // T2-18: Distance rings toggle
   else if (k === 'g') {
@@ -2434,14 +2449,14 @@ async function switchCity(city) {
   if (sceneTransCode) sceneTransCode.textContent = city.code;
   if (sceneTransName) sceneTransName.textContent = city.name;
   if (sceneTrans) {
-    sceneTrans.style.transition = 'opacity 0.28s ease';
+    sceneTrans.style.transition = 'opacity 0.2s ease';
     sceneTrans.style.opacity = '1';
     sceneTrans.style.pointerEvents = 'all';
     sceneTrans.classList.add('loading');
   }
 
   // 2. Wait for screen to go dark
-  await new Promise(r => setTimeout(r, 320));
+  await new Promise(r => setTimeout(r, 200));
 
   // 3. Clear old scene while screen is dark
   closeDetail();
@@ -2470,17 +2485,17 @@ async function switchCity(city) {
   controls.update();
   controls.enabled = true;
 
-  // 4. Load ground map + airports in parallel while screen is dark
+  // 4. Load ground map + airports + FIR all in parallel
   const mapP = loadGroundMap(city.lat, city.lon);
   const aptP = loadAirports(scene, city.lat, city.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
   });
-  // Wait for map first, then give airports up to 4s more before revealing
+  const firP = reloadFIRForLocation(scene, city.lat, city.lon);
+  // Wait for map, then give airports up to 2s more before revealing
   await mapP;
   if (sceneTransName) sceneTransName.textContent = `${city.name}  ·  Loading airports...`;
-  const aptTimeout = new Promise(r => setTimeout(r, 4000));
-  await Promise.race([aptP, aptTimeout]);
+  await Promise.race([aptP, new Promise(r => setTimeout(r, 2000))]);
 
   // 5. Fade back — map ready, airports loaded or timed out (will appear when ready)
   if (sceneTransName) sceneTransName.textContent = city.name;
@@ -2493,11 +2508,6 @@ async function switchCity(city) {
 
   // T3-02: Refresh weather for new city
   updateWeatherWidget();
-
-  // Reload FIR boundaries if they were visible
-  if (isFIRVisible()) {
-    reloadFIRForLocation(scene, city.lat, city.lon);
-  }
 }
 
 // ── Globe helpers ────────────────────────────────────────────────────────────
@@ -3960,12 +3970,13 @@ async function init() {
 
   aircraftManager = new AircraftManager(scene, defaultCity.lat, defaultCity.lon);
 
-  // Load base map and airports for the default city.
+  // Load base map, airports, and FIR boundaries for the default city.
   loadGroundMap(defaultCity.lat, defaultCity.lon);
   loadAirports(scene, defaultCity.lat, defaultCity.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
   });
+  reloadFIRForLocation(scene, defaultCity.lat, defaultCity.lon);
 
   startPolling(handleData, handleError);
   initSearch();
