@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { loadMapTexture } from './mapTiles.js';
 import { fetchAirportData, categorizeFlights, clearAirportCache } from '../data/airports.js';
+import { fetchFIRData, filterNearbyFIRs } from '../data/firBoundaries.js';
 
 
 const GROUND_SIZE = 160;
@@ -1338,4 +1339,209 @@ export function updateTouchdownEffects(scene) {
     const t = elapsed / f.duration;
     f.mesh.material.opacity = 0.5 * (1 - t); // linear fade
   }
+}
+
+// ── FIR Boundaries ──────────────────────────────────────────────────────────
+
+let _firGroup = null;
+let _firVisible = false;
+let _firLoadedForLat = null;
+let _firLoadedForLon = null;
+
+export async function toggleFIRBoundaries(scene) {
+  _firVisible = !_firVisible;
+
+  if (!_firVisible) {
+    _clearFIRBoundaries(scene);
+    return false;
+  }
+
+  await loadFIRBoundaries(scene, _userLat, _userLon);
+  return true;
+}
+
+export function isFIRVisible() {
+  return _firVisible;
+}
+
+async function loadFIRBoundaries(scene, lat, lon) {
+  // Skip if already loaded for this approximate location
+  if (_firGroup && _firLoadedForLat != null &&
+      Math.abs(lat - _firLoadedForLat) < 2 && Math.abs(lon - _firLoadedForLon) < 2) {
+    return;
+  }
+
+  _clearFIRBoundaries(scene);
+
+  const allFirs = await fetchFIRData();
+  if (!allFirs || !_firVisible) return;
+  _firCache_ref = allFirs;
+
+  const nearby = filterNearbyFIRs(allFirs, lat, lon, 10);
+  if (nearby.length === 0) return;
+
+  _firGroup = new THREE.Group();
+  _firGroup.name = 'firBoundaries';
+
+  // Shared material for boundary lines
+  const lineMat = new THREE.LineBasicMaterial({
+    color: 0xc4a058,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+  });
+
+  // Oceanic boundaries get a different, even more subtle style
+  const oceanicMat = new THREE.LineBasicMaterial({
+    color: 0x88aacc,
+    transparent: true,
+    opacity: 0.08,
+    depthWrite: false,
+  });
+
+  const GROUND_HALF = GROUND_SIZE / 2;
+
+  for (const fir of nearby) {
+    const mat = fir.oceanic ? oceanicMat : lineMat;
+
+    for (const ring of fir.polygons) {
+      const vertices = [];
+      for (const coord of ring) {
+        const p = geoToScene(coord[1], coord[0], lat, lon);
+        // Clip to ground bounds
+        if (Math.abs(p.x) > GROUND_HALF * 1.2 || Math.abs(p.z) > GROUND_HALF * 1.2) {
+          // If we have accumulated vertices, flush them as a segment
+          if (vertices.length >= 6) {
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            _firGroup.add(new THREE.Line(geo, mat));
+          }
+          vertices.length = 0;
+          continue;
+        }
+        vertices.push(p.x, 0.008, p.z);
+      }
+
+      if (vertices.length >= 6) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        _firGroup.add(new THREE.Line(geo, mat));
+      }
+    }
+
+    // FIR label at the center
+    if (!fir.oceanic) {
+      const labelPos = geoToScene(fir.labelLat, fir.labelLon, lat, lon);
+      if (Math.abs(labelPos.x) < GROUND_HALF && Math.abs(labelPos.z) < GROUND_HALF) {
+        const label = _createFIRLabel(fir.id);
+        label.position.set(labelPos.x, 0.15, labelPos.z);
+        _firGroup.add(label);
+      }
+    }
+  }
+
+  scene.add(_firGroup);
+  _firLoadedForLat = lat;
+  _firLoadedForLon = lon;
+  console.log(`[STRATUM] FIR boundaries rendered: ${nearby.length} regions`);
+}
+
+function _createFIRLabel(text) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+
+  ctx.font = '600 14px "JetBrains Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(196, 160, 88, 0.35)';
+  ctx.fillText(text, 64, 16);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+
+  const mat = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(2.4, 0.6, 1);
+  return sprite;
+}
+
+function _clearFIRBoundaries(scene) {
+  if (_firGroup) {
+    scene.remove(_firGroup);
+    _firGroup.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (obj.material.map) obj.material.map.dispose();
+        obj.material.dispose();
+      }
+    });
+    _firGroup = null;
+  }
+  _firLoadedForLat = null;
+  _firLoadedForLon = null;
+}
+
+export function clearFIRBoundaries(scene) {
+  _firVisible = false;
+  _clearFIRBoundaries(scene);
+}
+
+/**
+ * Look up which FIR an aircraft is currently in.
+ * Uses a simple point-in-polygon test.
+ * @param {number} lat - Aircraft latitude
+ * @param {number} lon - Aircraft longitude
+ * @returns {string|null} FIR identifier (e.g., "EGTT", "KZNY") or null
+ */
+export function getFIRForPosition(lat, lon) {
+  if (!_firVisible) return null;
+  // Use cached FIR data from the data module
+  return _findFIR(lat, lon);
+}
+
+function _findFIR(lat, lon) {
+  // Lazy import from cache
+  const firs = _firCache_ref;
+  if (!firs) return null;
+
+  for (const fir of firs) {
+    if (fir.oceanic) continue;
+    for (const ring of fir.polygons) {
+      if (_pointInPolygon(lat, lon, ring)) return fir.id;
+    }
+  }
+  return null;
+}
+
+// Cache reference — set when FIR data loads
+let _firCache_ref = null;
+
+export async function reloadFIRForLocation(scene, lat, lon) {
+  if (!_firVisible) return;
+  const allFirs = await fetchFIRData();
+  if (allFirs) _firCache_ref = allFirs;
+  _clearFIRBoundaries(scene);
+  await loadFIRBoundaries(scene, lat, lon);
+}
+
+// Simple ray-casting point-in-polygon for GeoJSON [lon, lat] rings
+function _pointInPolygon(lat, lon, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    if (((yi > lat) !== (yj > lat)) &&
+        (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }

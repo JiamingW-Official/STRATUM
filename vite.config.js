@@ -54,6 +54,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/adsbdb/, ''),
       },
+      '/api/fir': {
+        target: 'https://raw.githubusercontent.com/maiuswong/simaware-express/main/public/livedata',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/fir/, ''),
+      },
     },
   },
 });

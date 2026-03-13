@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading } from './scene/environment.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, toggleFIRBoundaries, clearFIRBoundaries, isFIRVisible, reloadFIRForLocation } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch, fetchRouteNow } from './data/opensky.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
@@ -975,6 +975,24 @@ document.addEventListener('keydown', (e) => {
       overlay.classList.toggle('hidden');
       if (!overlay.classList.contains('hidden')) updateStatsOverlay();
     }
+    return;
+  }
+
+  // ATC FIR boundaries toggle
+  else if (k === 'a') {
+    toggleFIRBoundaries(scene).then(visible => {
+      let lbl = document.getElementById('bloom-label');
+      if (!lbl) {
+        lbl = document.createElement('div');
+        lbl.id = 'bloom-label';
+        lbl.className = 'bloom-label';
+        document.body.appendChild(lbl);
+      }
+      lbl.textContent = visible ? 'ATC BOUNDARIES: ON' : 'ATC BOUNDARIES: OFF';
+      lbl.classList.remove('hidden');
+      clearTimeout(lbl._timer);
+      lbl._timer = setTimeout(() => lbl.classList.add('hidden'), 1800);
+    });
     return;
   }
 
@@ -2433,6 +2451,7 @@ async function switchCity(city) {
   if (aircraftManager) aircraftManager.clearAll(scene);
   clearGroundMap(scene);
   clearAirports(scene);
+  clearFIRBoundaries(scene);
 
   setUserLocation(city.lat, city.lon);
   if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
@@ -2469,6 +2488,11 @@ async function switchCity(city) {
 
   // T3-02: Refresh weather for new city
   updateWeatherWidget();
+
+  // Reload FIR boundaries if they were visible
+  if (isFIRVisible()) {
+    reloadFIRForLocation(scene, city.lat, city.lon);
+  }
 }
 
 // ── Globe helpers ────────────────────────────────────────────────────────────
