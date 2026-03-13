@@ -1383,7 +1383,7 @@ html, body {
 /* ── FIR Hover Widget ── */
 .fir-hover-widget {
   position: fixed;
-  bottom: calc(var(--edge) + 60px); left: var(--edge);
+  bottom: var(--edge); left: 50%; transform: translateX(-50%);
   z-index: 50;
   pointer-events: none;
   display: flex; align-items: baseline; gap: 8px;
