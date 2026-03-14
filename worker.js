@@ -22,7 +22,7 @@ const CACHE_TTLS = {
   '/api/adsbfi/':   0,       // Live aircraft — no cache
   '/api/adsboe/':   0,       // Live aircraft — no cache
   '/api/adsbx/':    0,       // Live aircraft — no cache
-  '/api/trace/':    300,     // Flight traces — 5 min
+  '/api/trace/':    120,     // Flight traces — 2 min (fresher trails)
   '/api/hexdb/':    3600,    // Aircraft details — 1 hour
   '/api/opensky/':  60,      // OpenSky — 1 min
   '/api/ovp-de/':   86400,   // Airport data — 24 hours
@@ -68,13 +68,23 @@ async function cacheGet(cacheKey) {
   return cache.match(cacheKey);
 }
 
-async function cachePut(cacheKey, response, ttl) {
+async function cachePut(cacheKey, response, ttl, swr = 0) {
   const cache = caches.default;
   const cached = new Response(response.body, response);
-  cached.headers.set('Cache-Control', `public, max-age=${ttl}`);
+  const cc = swr > 0
+    ? `public, max-age=${ttl}, stale-while-revalidate=${swr}`
+    : `public, max-age=${ttl}`;
+  cached.headers.set('Cache-Control', cc);
   cached.headers.set('X-Cache-TTL', String(ttl));
-  // Must be awaited but don't block on it
   cache.put(cacheKey, cached);
+}
+
+// ── Security + perf headers applied to all responses ──
+function addPerfHeaders(response) {
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  return response;
 }
 
 // ── Smart Overpass endpoint: /api/airports?lat=X&lon=Y&r=1.2 ──
@@ -136,9 +146,9 @@ async function handleAirports(url) {
     const toCache = new Response(responseBody, {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
-    await cachePut(cacheKey, toCache, 86400);
+    await cachePut(cacheKey, toCache, 86400, 3600);
 
-    return response;
+    return addPerfHeaders(response);
   } catch {
     return new Response('All Overpass endpoints failed', { status: 502, headers: corsHeaders() });
   }
@@ -289,13 +299,13 @@ async function handleEnrich(url) {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'MISS' },
   });
 
-  // Cache 2 min (trace updates frequently, but saves burst on rapid re-clicks)
+  // Cache 90s + stale-while-revalidate 30s — trace/route data doesn't change fast
   const toCache = new Response(body, {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   });
-  cachePut(cacheKey, toCache, 120);
+  cachePut(cacheKey, toCache, 90, 30);
 
-  return response;
+  return addPerfHeaders(response);
 }
 
 // ── /api/weather — Edge-cached Open-Meteo proxy ──
@@ -334,20 +344,192 @@ async function handleWeather(url) {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'MISS' },
     });
 
-    // Cache 15 min — weather doesn't change faster than that
+    // Cache 15 min + stale-while-revalidate 5 min — weather is slow-changing
     const toCache = new Response(body, {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
-    cachePut(cacheKey, toCache, 900);
+    cachePut(cacheKey, toCache, 900, 300);
 
-    return response;
+    return addPerfHeaders(response);
   } catch {
     return new Response('Weather fetch failed', { status: 502, headers: corsHeaders() });
   }
 }
 
+// ── Field pruning — strip unused fields to cut response size ~50% ──
+const KEEP_FIELDS = [
+  'hex','flight','lat','lon','alt_baro','alt_geom','gs','track','baro_rate',
+  'category','r','t','oa','da','ownOp','year','desc','squawk','rssi',
+  'nav_altitude','nav_heading','ias','tas','mach','emergency','seen_pos','seen',
+];
+function pruneAc(ac) {
+  const o = {};
+  for (const k of KEEP_FIELDS) if (ac[k] !== undefined) o[k] = ac[k];
+  return o;
+}
+
+// ── /api/positions — Multi-source aircraft position aggregation ──
+// Fetches from adsb.one + adsb.fi + airplanes.live in parallel at the edge,
+// deduplicates by hex code, returns merged data in one round trip.
+// This gives the client fresher positions (whichever source responds fastest)
+// and eliminates client-side fallback logic.
+async function handlePositions(url) {
+  const lat = url.searchParams.get('lat');
+  const lon = url.searchParams.get('lon');
+  const r = url.searchParams.get('r') || '100';
+  if (!lat || !lon) return new Response('Missing lat/lon', { status: 400 });
+
+  // Edge cache: round coords to 0.01° (~1km) so nearby users share cache
+  const rlat = parseFloat(lat).toFixed(2);
+  const rlon = parseFloat(lon).toFixed(2);
+  const cacheKey = new Request(`https://cache.internal/positions/${rlat}/${rlon}/${r}`);
+
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    const r = corsResponse(cached);
+    r.headers.set('X-Cache', 'HIT');
+    return r;
+  }
+
+  const t0 = Date.now();
+  // Smart race: collect results as they arrive, return after 2s or when all done
+  const resolved = [null, null, null];
+  let settled = 0;
+  const sources = [
+    fetch(`https://api.adsb.one/v2/point/${lat}/${lon}/${r}`, {
+      headers: { 'User-Agent': 'STRATUM/1.0' },
+      signal: AbortSignal.timeout(4000),
+    }).then(res => res.ok ? res.json() : null).catch(() => null),
+    fetch(`https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${r}`, {
+      headers: { 'User-Agent': 'STRATUM/1.0' },
+      signal: AbortSignal.timeout(4000),
+    }).then(res => res.ok ? res.json() : null).catch(() => null),
+    fetch(`https://api.airplanes.live/v2/point/${lat}/${lon}/${r}`, {
+      headers: { 'User-Agent': 'STRATUM/1.0' },
+      signal: AbortSignal.timeout(4000),
+    }).then(res => res.ok ? res.json() : null).catch(() => null),
+  ];
+  sources.forEach((p, i) => p.then(v => { resolved[i] = v; settled++; }));
+  // Wait for all sources OR 2s — whichever comes first (paid plan = 30s CPU headroom)
+  await Promise.race([
+    Promise.allSettled(sources),
+    new Promise(r => setTimeout(r, 2000)),
+  ]);
+  const results = resolved;
+  const merged = new Map(); // hex → best aircraft data
+
+  for (const data of results) {
+    if (!data) continue;
+    const list = data.ac || data.aircraft;
+    if (!Array.isArray(list)) continue;
+
+    for (const ac of list) {
+      const hex = ac.hex;
+      if (!hex || ac.lat == null || ac.lon == null) continue;
+      const alt = ac.alt_baro;
+      if (alt == null || alt === 'ground') continue;
+
+      const existing = merged.get(hex);
+      if (!existing) {
+        merged.set(hex, ac);
+      } else {
+        // Merge: prefer richer data (more fields filled)
+        // Keep the entry with more enrichment data (route, operator, IAS/TAS)
+        if (!existing.oa && ac.oa) existing.oa = ac.oa;
+        if (!existing.da && ac.da) existing.da = ac.da;
+        if (!existing.ownOp && ac.ownOp) existing.ownOp = ac.ownOp;
+        if (!existing.r && ac.r) existing.r = ac.r;
+        if (!existing.t && ac.t) existing.t = ac.t;
+        if (existing.ias == null && ac.ias != null) existing.ias = ac.ias;
+        if (existing.tas == null && ac.tas != null) existing.tas = ac.tas;
+        if (existing.mach == null && ac.mach != null) existing.mach = ac.mach;
+        if (existing.year == null && ac.year != null) existing.year = ac.year;
+        if (existing.desc == null && ac.desc != null) existing.desc = ac.desc;
+        if (!existing.squawk && ac.squawk) existing.squawk = ac.squawk;
+        // Use freshest position (higher seen_pos or now timestamp)
+        const eSeen = existing.seen_pos ?? existing.seen ?? 999;
+        const aSeen = ac.seen_pos ?? ac.seen ?? 999;
+        if (aSeen < eSeen) {
+          existing.lat = ac.lat;
+          existing.lon = ac.lon;
+          existing.alt_baro = ac.alt_baro;
+          existing.alt_geom = ac.alt_geom ?? existing.alt_geom;
+          existing.gs = ac.gs ?? existing.gs;
+          existing.track = ac.track ?? existing.track;
+          existing.baro_rate = ac.baro_rate ?? existing.baro_rate;
+          existing.nav_altitude = ac.nav_altitude ?? existing.nav_altitude;
+          existing.nav_heading = ac.nav_heading ?? existing.nav_heading;
+          existing.seen_pos = aSeen;
+        }
+      }
+    }
+  }
+
+  const pruned = [...merged.values()].map(pruneAc);
+  const fetchMs = Date.now() - t0;
+  const body = JSON.stringify({ ac: pruned, total: merged.size });
+  const response = new Response(body, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'X-Cache': 'MISS',
+      'Server-Timing': `fetch;dur=${fetchMs}, sources;desc="${settled}/3"`,
+    },
+  });
+
+  // Cache 5s at edge + stale-while-revalidate 10s — browser serves stale instantly
+  // while refreshing in background. Aircraft move ~1.2km in 5s — negligible.
+  const toCache = new Response(body, {
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
+  cachePut(cacheKey, toCache, 5, 10);
+
+  return addPerfHeaders(response);
+}
+
+// ── Cron: Pre-warm edge cache for top 20 busiest airspaces ──
+// Paid plan includes cron triggers — run every 5 min to keep cache hot.
+// When a real user visits any of these cities, data is already cached = 0ms API latency.
+const WARM_CITIES = [
+  { lat: 40.64, lon: -73.78 },  // NYC (JFK)
+  { lat: 33.94, lon: -118.41 }, // LAX
+  { lat: 41.97, lon: -87.91 },  // ORD
+  { lat: 51.47, lon: -0.46 },   // LHR
+  { lat: 49.01, lon: 2.55 },    // CDG
+  { lat: 50.03, lon: 8.57 },    // FRA
+  { lat: 25.25, lon: 55.36 },   // DXB
+  { lat: 1.36, lon: 103.99 },   // SIN
+  { lat: 35.76, lon: 140.39 },  // NRT
+  { lat: 22.31, lon: 113.91 },  // HKG
+  { lat: 40.08, lon: 116.58 },  // PEK
+  { lat: 37.46, lon: 126.44 },  // ICN
+  { lat: 33.59, lon: -84.43 },  // ATL
+  { lat: 32.90, lon: -97.04 },  // DFW
+  { lat: 39.86, lon: -104.67 }, // DEN
+  { lat: 52.31, lon: 4.77 },    // AMS
+  { lat: 40.47, lon: -3.57 },   // MAD
+  { lat: 13.69, lon: 100.75 },  // BKK
+  { lat: -33.95, lon: 151.18 }, // SYD
+  { lat: -23.43, lon: -46.47 }, // GRU
+];
+
 // ── Main handler ──
 export default {
+  // Cron trigger: pre-warm cache every 5 min (paid plan feature)
+  // Positions + weather refresh every 5 min; airports refresh daily (24h cache)
+  async scheduled(event, env, ctx) {
+    // Stagger: 4 cities at a time to avoid thundering herd on upstream APIs
+    for (let i = 0; i < WARM_CITIES.length; i += 4) {
+      const batch = WARM_CITIES.slice(i, i + 4);
+      await Promise.allSettled(batch.flatMap(c => [
+        handlePositions(new URL(`https://cache.internal/api/positions?lat=${c.lat}&lon=${c.lon}&r=100`)).catch(() => null),
+        handleWeather(new URL(`https://cache.internal/api/weather?lat=${c.lat}&lon=${c.lon}`)).catch(() => null),
+        // Airport data: Overpass queries are heavy, only warm if not cached (24h TTL)
+        handleAirports(new URL(`https://cache.internal/api/airports?lat=${c.lat}&lon=${c.lon}&r=1.2`)).catch(() => null),
+      ]));
+    }
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
 
@@ -357,9 +539,45 @@ export default {
     }
 
     // Smart endpoints
-    if (url.pathname === '/api/airports') return handleAirports(url);
-    if (url.pathname === '/api/enrich')  return handleEnrich(url);
-    if (url.pathname === '/api/weather') return handleWeather(url);
+    if (url.pathname === '/api/positions') return handlePositions(url);
+    if (url.pathname === '/api/airports')  return handleAirports(url);
+    if (url.pathname === '/api/enrich')    return handleEnrich(url);
+    if (url.pathname === '/api/weather')   return handleWeather(url);
+
+    // Font proxy — self-host Google Fonts (eliminates 2 DNS + 2 TLS handshakes)
+    if (url.pathname.startsWith('/fonts/css')) {
+      const gUrl = 'https://fonts.googleapis.com' + url.pathname.slice('/fonts/css'.length) + url.search;
+      const cacheKey = new Request(gUrl);
+      const fc = await cacheGet(cacheKey);
+      if (fc) return addPerfHeaders(corsResponse(fc));
+      const res = await fetch(gUrl, {
+        headers: { 'User-Agent': request.headers.get('User-Agent') || '' },
+      });
+      if (!res.ok) return corsResponse(res);
+      // Rewrite font URLs from fonts.gstatic.com → /fonts/file/
+      let css = await res.text();
+      css = css.replace(/https:\/\/fonts\.gstatic\.com\//g, '/fonts/file/');
+      const out = new Response(css, { headers: { 'Content-Type': 'text/css', 'Access-Control-Allow-Origin': '*' } });
+      cachePut(cacheKey, new Response(css, { headers: { 'Content-Type': 'text/css', 'Access-Control-Allow-Origin': '*' } }), 86400);
+      return addPerfHeaders(out);
+    }
+    if (url.pathname.startsWith('/fonts/file/')) {
+      const gUrl = 'https://fonts.gstatic.com/' + url.pathname.slice('/fonts/file/'.length);
+      const cacheKey = new Request(gUrl);
+      const fc = await cacheGet(cacheKey);
+      if (fc) {
+        const r = new Response(fc.body, fc);
+        r.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        return addPerfHeaders(r);
+      }
+      const res = await fetch(gUrl);
+      if (!res.ok) return res;
+      const buf = await res.arrayBuffer();
+      const ct = res.headers.get('Content-Type') || 'font/woff2';
+      const out = new Response(buf, { headers: { 'Content-Type': ct, 'Cache-Control': 'public, max-age=31536000, immutable', 'Access-Control-Allow-Origin': '*' } });
+      cachePut(cacheKey, new Response(buf, { headers: { 'Content-Type': ct, 'Access-Control-Allow-Origin': '*' } }), 31536000);
+      return addPerfHeaders(out);
+    }
 
     // Proxy routes
     for (const [prefix, target] of Object.entries(PROXY_ROUTES)) {
@@ -368,7 +586,28 @@ export default {
       }
     }
 
-    // Static assets
-    return env.ASSETS.fetch(request);
+    // Static assets — immutable hashed files get long cache, HTML gets revalidation
+    const response = await env.ASSETS.fetch(request);
+    const path = url.pathname;
+    if (path.startsWith('/assets/') && /\.[a-zA-Z0-9]{8,}\.(js|css)$/.test(path)) {
+      const cached = new Response(response.body, response);
+      cached.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      return addPerfHeaders(cached);
+    }
+    if (path === '/' || path.endsWith('.html')) {
+      // Parse HTML to extract critical asset URLs for 103 Early Hints
+      const html = await response.text();
+      const out = new Response(html, response);
+      out.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
+      const links = [];
+      const cssMatch = html.match(/href="(\/assets\/[^"]+\.css)"/);
+      if (cssMatch) links.push(`<${cssMatch[1]}>; rel=preload; as=style`);
+      // Preload all JS chunks (app + three.js) in parallel
+      const jsMatches = html.matchAll(/(?:src|href)="(\/assets\/[^"]+\.js)"/g);
+      for (const m of jsMatches) links.push(`<${m[1]}>; rel=modulepreload`);
+      if (links.length) out.headers.set('Link', links.join(', '));
+      return addPerfHeaders(out);
+    }
+    return addPerfHeaders(response);
   },
 };

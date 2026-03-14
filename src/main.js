@@ -258,6 +258,15 @@ function updateCompass(elapsed) {
   _lastCompassDeg = rounded;
   if (compassNeedle) compassNeedle.setAttribute('transform', `rotate(${deg}, 30, 30)`);
   if (compassHeading) compassHeading.textContent = `${rounded}°`;
+  // Hidden touch: compass glows subtly when facing north (±15°)
+  const compassEl = document.querySelector('.compass');
+  if (compassEl) {
+    const nearNorth = rounded <= 15 || rounded >= 345;
+    compassEl.style.opacity = nearNorth ? '0.85' : '';
+    compassEl.style.filter = nearNorth
+      ? 'drop-shadow(0 0 8px rgba(196, 160, 88, 0.3))'
+      : '';
+  }
 }
 
 // --- Environment ---
@@ -866,6 +875,12 @@ function handleData(dataList) {
     updateHUD(count, lat, lon);
     refreshDetail(aircraftManager, lat, lon);
 
+    // Hidden: milestone celebration when aircraft count hits round numbers
+    if (count >= 50 && !_milestones.has(50)) { _milestones.add(50); _showMilestone('50 aircraft in range'); }
+    if (count >= 100 && !_milestones.has(100)) { _milestones.add(100); _showMilestone('100 aircraft tracked'); }
+    if (count >= 200 && !_milestones.has(200)) { _milestones.add(200); _showMilestone('200 aircraft — busy sky'); }
+    if (count >= 300 && !_milestones.has(300)) { _milestones.add(300); _showMilestone('300 aircraft — crowded airspace'); }
+
     // T2-14: Track session stats
     if (count > sessionStats.peak) sessionStats.peak = count;
     for (const ac of dataList) {
@@ -934,13 +949,19 @@ function handleError(err, consecutiveErrors) {
 }
 
 // --- Window resize ---
+// Debounced resize — avoids multiple expensive GPU operations during drag-resize
+let _resizeTimer = null;
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  composer.setSize(window.innerWidth, window.innerHeight);
-  bloomPass.resolution.set(window.innerWidth * 0.5, window.innerHeight * 0.5);
-  colorGradePass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
+  if (_resizeTimer) cancelAnimationFrame(_resizeTimer);
+  _resizeTimer = requestAnimationFrame(() => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    bloomPass.resolution.set(window.innerWidth * 0.5, window.innerHeight * 0.5);
+    colorGradePass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
+    _resizeTimer = null;
+  });
 });
 
 // --- HUD timer update ---
@@ -969,6 +990,17 @@ let altFilterMax = 50000;
 // Session statistics (T2-14)
 const sessionStart = Date.now();
 const sessionStats = { seen: new Set(), types: new Set(), airlines: new Set(), peak: 0, cities: new Set() };
+
+// Hidden: milestone celebrations
+const _milestones = new Set();
+function _showMilestone(text) {
+  const lbl = document.getElementById('bloom-label') || document.createElement('div');
+  if (!lbl.id) { lbl.id = 'bloom-label'; lbl.className = 'bloom-label'; document.body.appendChild(lbl); }
+  lbl.textContent = text;
+  lbl.classList.remove('hidden');
+  clearTimeout(lbl._timer);
+  lbl._timer = setTimeout(() => lbl.classList.add('hidden'), 3000);
+}
 
 // Flight history (T3-13)
 const flightHistory = [];
@@ -1157,7 +1189,27 @@ document.addEventListener('keydown', (e) => {
 
   if ('wasdqe'.includes(k)) keysDown.add(k);
   if (e.key === 'Shift') shiftHeld = true;
+
+  // Hidden: Konami code → cinematic mode (↑↑↓↓←→←→BA)
+  _konamiBuffer.push(e.key);
+  if (_konamiBuffer.length > 10) _konamiBuffer.shift();
+  if (_konamiBuffer.join(',') === 'ArrowUp,ArrowUp,ArrowDown,ArrowDown,ArrowLeft,ArrowRight,ArrowLeft,ArrowRight,b,a') {
+    _konamiBuffer.length = 0;
+    _cinematicMode = !_cinematicMode;
+    bloomPass.strength = _cinematicMode ? 1.4 : BLOOM_PRESETS[bloomLevel];
+    renderer.toneMappingExposure = _cinematicMode ? 1.8 : 1.4;
+    scene.fog.density = _cinematicMode ? 0.004 : 0.008;
+    const lbl = document.getElementById('bloom-label') || document.createElement('div');
+    if (!lbl.id) { lbl.id = 'bloom-label'; lbl.className = 'bloom-label'; document.body.appendChild(lbl); }
+    lbl.textContent = _cinematicMode ? 'CINEMATIC MODE' : 'STANDARD MODE';
+    lbl.classList.remove('hidden');
+    clearTimeout(lbl._timer);
+    lbl._timer = setTimeout(() => lbl.classList.add('hidden'), 2500);
+  }
 });
+const _konamiBuffer = [];
+let _cinematicMode = false;
+
 document.addEventListener('keyup', (e) => {
   keysDown.delete(e.key.toLowerCase());
   if (e.key === 'Shift') shiftHeld = false;
@@ -1199,6 +1251,11 @@ function updateWASD(delta) {
   const heightScale = Math.max(0.2, Math.min(3.0, camera.position.y / 8));
   const speed = MOVE_BASE_SPEED * heightScale * (shiftHeld ? MOVE_SPRINT_MULT : 1);
   const factor = moveVelocity * moveVelocity * (3 - 2 * moveVelocity);
+
+  // Hidden: speed lines activate during sprint movement
+  if (speedLinesEl) {
+    speedLinesEl.classList.toggle('active', shiftHeld && factor > 0.5);
+  }
   if (hasInput) input.normalize();
 
   const move = input.multiplyScalar(speed * factor * delta);
@@ -1206,6 +1263,7 @@ function updateWASD(delta) {
   controls.target.add(move);
 }
 
+const _fwOrbitOff = new THREE.Vector3();
 function updateFollowWASD(delta) {
   const input = getWASDInput();
   const hasInput = input.lengthSq() > 0;
@@ -1224,27 +1282,27 @@ function updateFollowWASD(delta) {
 
   const horz = (keysDown.has('d') ? 1 : 0) - (keysDown.has('a') ? 1 : 0);
   if (horz !== 0) {
-    const offset = new THREE.Vector3().subVectors(camera.position, targetPos);
+    _fwOrbitOff.subVectors(camera.position, targetPos);
     const angle = horz * orbitSpeed;
     const cos = Math.cos(angle), sin = Math.sin(angle);
-    const nx = offset.x * cos - offset.z * sin;
-    const nz = offset.x * sin + offset.z * cos;
-    offset.x = nx; offset.z = nz;
-    camera.position.copy(targetPos).add(offset);
+    const nx = _fwOrbitOff.x * cos - _fwOrbitOff.z * sin;
+    const nz = _fwOrbitOff.x * sin + _fwOrbitOff.z * cos;
+    _fwOrbitOff.x = nx; _fwOrbitOff.z = nz;
+    camera.position.copy(targetPos).add(_fwOrbitOff);
   }
 
   const vert = (keysDown.has('w') ? 1 : 0) - (keysDown.has('s') ? 1 : 0);
   if (vert !== 0) {
-    const offset = new THREE.Vector3().subVectors(camera.position, targetPos);
-    const r = offset.length();
-    const currentAngle = Math.asin(offset.y / r);
+    _fwOrbitOff.subVectors(camera.position, targetPos);
+    const r = _fwOrbitOff.length();
+    const currentAngle = Math.asin(_fwOrbitOff.y / r);
     const newAngle = Math.max(-0.3, Math.min(Math.PI * 0.45, currentAngle + vert * orbitSpeed));
     const rXZ = r * Math.cos(newAngle);
-    const dirXZ = new THREE.Vector2(offset.x, offset.z).normalize();
-    offset.x = dirXZ.x * rXZ;
-    offset.y = r * Math.sin(newAngle);
-    offset.z = dirXZ.y * rXZ;
-    camera.position.copy(targetPos).add(offset);
+    const dirLen = Math.sqrt(_fwOrbitOff.x * _fwOrbitOff.x + _fwOrbitOff.z * _fwOrbitOff.z) || 1;
+    _fwOrbitOff.x = (_fwOrbitOff.x / dirLen) * rXZ;
+    _fwOrbitOff.y = r * Math.sin(newAngle);
+    _fwOrbitOff.z = (_fwOrbitOff.z / dirLen) * rXZ;
+    camera.position.copy(targetPos).add(_fwOrbitOff);
   }
 }
 
@@ -1828,6 +1886,14 @@ function animate() {
     _lastAtmosphereUpdate = elapsed;
     particleMat.opacity = 0.06 + 0.04 * Math.sin(elapsed * 0.4);
     starMat.opacity = 0.3 + 0.14 * Math.sin(elapsed * 0.3);
+
+    // Star twinkling — subtle per-star size oscillation
+    const sizeArr = stars.geometry.attributes.size.array;
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const phase = i * 1.618 + elapsed * (0.3 + (i % 7) * 0.08);
+      sizeArr[i] = (0.15 + Math.sin(phase) * 0.07) * (0.5 + starSizes[i] * 0.7);
+    }
+    stars.geometry.attributes.size.needsUpdate = true;
   }
 
   if (aircraftManager) {
@@ -2623,6 +2689,18 @@ function greatCirclePts(lat1, lon1, lat2, lon2, n = 48) {
   return pts;
 }
 
+// ── Hub tier sets (shared by GlobeView + city picker) ───────────────────────
+const _computeDotSizesSet_MEGA = new Set(['ATL','DFW','DEN','ORD','LAX','JFK','SFO','SEA','LAS','MCO',
+  'CLT','MIA','EWR','BOS','MSP','DTW','IAH','PHX','IAD','PHL','DCA',
+  'LHR','CDG','FRA','AMS','MAD','FCO','BCN','MUC','ZRH','VIE','IST','DME',
+  'DXB','DOH','RUH','SIN','PEK','PVG','HND','NRT','ICN','BKK','HKG','KUL',
+  'CAN','CTU','SZX','DEL','BOM','SYD','MEL','GRU','MEX']);
+const _computeDotSizesSet_MAJOR = new Set(['PDX','SAN','SLC','TPA','RDU','BWI','MCI','OAK','MSY',
+  'AUS','SMF','SJC','CLE','CMH','OGG','FLL','MDW','HNL','STL','BNA','RSW',
+  'ORY','MXP','LGW','ARN','CPH','HEL','OSL','DUB','LIS','BRU','PRG','BUD','WAW','ATH',
+  'AUH','SVO','LED','CAI','CMN','JNB','CPT','NBO','ADD','LOS','ACC','DAR',
+  'CGK','MNL','TPE','KUL','CCU','KHI','LHE','AKL','PER','ADL','BNE','GRU','GIG','EZE','SCL','LIM','BOG']);
+
 // ── Globe View ──────────────────────────────────────────────────────────────
 class GlobeView {
   constructor(canvas, onSelect) {
@@ -2645,7 +2723,7 @@ class GlobeView {
     this._paused = true;
     this._raf = null;
     this.cx = 0; this.cy = 0; this.R = 0;
-    this._baseR = 0; this._zoom = 1.0; this._targetZoom = 1.0;
+    this._baseR = 0; this._zoom = 1.25; this._targetZoom = 1.25;
     this._landRings = null;
     this._landGrid = null;
     this._coastGrid = null;
@@ -2895,7 +2973,7 @@ class GlobeView {
             ctx.fillStyle = `rgba(255,220,100,${0.75 * d + 0.2})`; ctx.fill();
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1.2, 0, Math.PI * 2);
             ctx.strokeStyle = `rgba(255,235,170,${0.45 * d})`; ctx.lineWidth = 0.6; ctx.stroke();
-            if (zoom > 1.2) {
+            if (zoom > 1.0) {
               this._label(ctx, p, c.code, `rgba(255,220,120,${0.7 * d})`, false);
             }
           } else if (tier === 1) {
@@ -2907,7 +2985,7 @@ class GlobeView {
             ctx.fillStyle = `rgba(220,190,100,${0.55 * d + 0.2})`; ctx.fill();
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1, 0, Math.PI * 2);
             ctx.strokeStyle = `rgba(220,200,130,${0.3 * d})`; ctx.lineWidth = 0.5; ctx.stroke();
-            if (zoom > 1.5) {
+            if (zoom > 1.3) {
               this._label(ctx, p, c.code, `rgba(220,200,130,${0.55 * d})`, false);
             }
           } else {
@@ -3165,17 +3243,7 @@ class GlobeView {
   }
 
   _computeDotSizes() {
-    const MEGA = new Set(['ATL','DFW','DEN','ORD','LAX','JFK','SFO','SEA','LAS','MCO',
-      'CLT','MIA','EWR','BOS','MSP','DTW','IAH','PHX','IAD','PHL','DCA',
-      'LHR','CDG','FRA','AMS','MAD','FCO','BCN','MUC','ZRH','VIE','IST','DME',
-      'DXB','DOH','RUH','SIN','PEK','PVG','HND','NRT','ICN','BKK','HKG','KUL',
-      'CAN','CTU','SZX','DEL','BOM','SYD','MEL','GRU','MEX']);
-    const MAJOR = new Set(['PDX','SAN','SLC','TPA','RDU','BWI','MCI','OAK','MSY',
-      'AUS','SMF','SJC','CLE','CMH','OGG','FLL','MDW','HNL','STL','BNA','RSW',
-      'ORY','MXP','LGW','ARN','CPH','HEL','OSL','DUB','LIS','BRU','PRG','BUD','WAW','ATH',
-      'AUH','SVO','LED','CAI','CMN','JNB','CPT','NBO','ADD','LOS','ACC','DAR',
-      'CGK','MNL','TPE','KUL','CCU','KHI','LHE','AKL','PER','ADL','BNE','GRU','GIG','EZE','SCL','LIM','BOG']);
-    this._dotSizes = CITIES.map(c => MEGA.has(c.code) ? 2 : MAJOR.has(c.code) ? 1 : 0);
+    this._dotSizes = CITIES.map(c => _computeDotSizesSet_MEGA.has(c.code) ? 2 : _computeDotSizesSet_MAJOR.has(c.code) ? 1 : 0);
   }
 
   _bindEvents() {
@@ -3207,7 +3275,7 @@ class GlobeView {
     c.addEventListener('wheel', e => {
       e.preventDefault();
       const factor = e.deltaY > 0 ? 0.9 : 1.11;
-      this._targetZoom = Math.max(0.6, Math.min(2.0, this._targetZoom * factor));
+      this._targetZoom = Math.max(0.6, Math.min(3.0, this._targetZoom * factor));
     }, { passive: false });
   }
 
@@ -3494,6 +3562,28 @@ function initCityPicker() {
     'Asia':        { lat: 22,  lon: 100 },
     'Pacific':     { lat: -28, lon: 148 },
   };
+
+  // ── Pre-build search index ──────────────────────────────────────────────
+  const _searchIndex = CITIES.map((c, i) => ({
+    i,
+    nameLower: c.name.toLowerCase(),
+    codeLower: c.code.toLowerCase(),
+    countryLower: (c.country || '').toLowerCase(),
+    icaoLower: (AIRPORT_DATA[c.code]?.icao || '').toLowerCase(),
+    tier: getTierNum(c),
+    pax: AIRPORT_DATA[c.code]?.pax || 0,
+    rwys: AIRPORT_DATA[c.code]?.rwys || 0,
+    elev: AIRPORT_DATA[c.code]?.elev || 0,
+  }));
+
+  function getTierNum(c) {
+    const MEGA = _computeDotSizesSet_MEGA;
+    const MAJOR = _computeDotSizesSet_MAJOR;
+    if (MEGA.has(c.code)) return 2;
+    if (MAJOR.has(c.code)) return 1;
+    return 0;
+  }
+
   const regionOrder = [];
   const regionCounts = {};
   for (const c of CITIES) {
@@ -3557,18 +3647,19 @@ function initCityPicker() {
     _globeView.onHover = updateInfoCard;
   }
 
-  // ── Search (always visible above grid) ──────────────────────────────────
-  const searchWrap = document.createElement('div');
-  searchWrap.className = 'city-search-wrap';
-  searchWrap.innerHTML =
-    `<input id="city-search-input" class="city-search-input" type="text"
-       placeholder="Search city or IATA code..." autocomplete="off" spellcheck="false">`;
-  grid.parentElement.insertBefore(searchWrap, grid);
+  // ── Elements ──────────────────────────────────────────────────────────────
   const searchInput = document.getElementById('city-search-input');
+  const tierChips = document.getElementById('city-tier-chips');
+  const regionChips = document.getElementById('city-region-chips');
+  const sortSelect = document.getElementById('city-sort-select');
+  const resultCount = document.getElementById('city-result-count');
+  const filterBar = grid.parentElement.querySelector('.city-filter-bar');
 
   // ── State ────────────────────────────────────────────────────────────────
-  let viewState = 'regions';
   let searchQuery = '';
+  let activeTier = 'all';     // all | mega | major | regional
+  let activeRegion = 'All';   // All | Americas | Europe | ...
+  let sortBy = 'name';        // name | pax | runways | elevation | country
   let _selectedIdx = -1;
   let _focusedIdx = -1;
 
@@ -3603,7 +3694,6 @@ function initCityPicker() {
     document.getElementById('cdp-rwys').textContent = meta.rwys != null ? meta.rwys : '—';
     document.getElementById('cdp-tz').textContent = meta.tz || getUtcOffset(c.lon);
     document.getElementById('cdp-coord').textContent = fmtCoord(c.lat, c.lon);
-    // New extended fields
     const paxEl = document.getElementById('cdp-pax');
     if (paxEl) paxEl.textContent = meta.pax != null ? `${meta.pax}M/yr` : '—';
     const hubEl = document.getElementById('cdp-hub');
@@ -3613,22 +3703,13 @@ function initCityPicker() {
     const rwyLenEl = document.getElementById('cdp-rwylen');
     if (rwyLenEl) rwyLenEl.textContent = meta.rwyLen || '—';
     const factEl = document.getElementById('cdp-fact');
-    if (meta.fact) {
-      factEl.textContent = `"${meta.fact}"`;
-      factEl.classList.remove('hidden');
-    } else {
-      factEl.classList.add('hidden');
-    }
+    if (meta.fact) { factEl.textContent = `"${meta.fact}"`; factEl.classList.remove('hidden'); }
+    else { factEl.classList.add('hidden'); }
     const descEl = document.getElementById('cdp-desc');
     if (descEl) {
-      if (meta.desc) {
-        descEl.textContent = meta.desc;
-        descEl.classList.remove('hidden');
-      } else {
-        descEl.classList.add('hidden');
-      }
+      if (meta.desc) { descEl.textContent = meta.desc; descEl.classList.remove('hidden'); }
+      else { descEl.classList.add('hidden'); }
     }
-    // Nearby airports
     const nearbyEl = document.getElementById('cdp-nearby');
     const nearby = getNearby(idx, 4);
     nearbyEl.innerHTML = nearby.map(({ c: nc, i, d }) =>
@@ -3645,7 +3726,7 @@ function initCityPicker() {
 
   function showDetailPane() {
     if (!detailPane) return;
-    searchWrap.style.display = 'none';
+    if (filterBar) filterBar.style.display = 'none';
     grid.style.display = 'none';
     detailPane.classList.remove('hidden');
   }
@@ -3653,7 +3734,7 @@ function initCityPicker() {
   function hideDetailPane() {
     if (!detailPane) return;
     detailPane.classList.add('hidden');
-    searchWrap.style.display = '';
+    if (filterBar) filterBar.style.display = '';
     grid.style.display = '';
     _globeView?.setFocused(-1);
     updateInfoCard(-1);
@@ -3683,79 +3764,109 @@ function initCityPicker() {
     switchCity(CITIES[idx]);
   }
 
-  // ── Render: region cards ─────────────────────────────────────────────────
-  function renderRegions() {
-    viewState = 'regions';
-    _globeView?.setFilter('All', '');
-    grid.innerHTML =
-      `<div class="city-region-cards">` +
-      regionOrder.map(r =>
-        `<button type="button" class="city-region-card" data-region="${r}">
-           <span class="crc-name">${r}</span>
-           <div class="crc-bottom">
-             <span class="crc-count">${regionCounts[r]}</span>
-             <span class="crc-unit">airports</span>
-           </div>
-         </button>`
-      ).join('') +
-      `</div>`;
-    grid.querySelector('.city-region-cards').addEventListener('click', e => {
-      const btn = e.target.closest('.city-region-card');
-      if (!btn) return;
-      const region = btn.dataset.region;
-      const center = REGION_CENTERS[region];
-      if (center) _globeView?.flyTo(center.lat, center.lon);
-      renderList(region);
-    });
+  // ── Filter + sort engine ─────────────────────────────────────────────────
+  function getFilteredList() {
+    const q = searchQuery;
+    let results = _searchIndex;
+
+    // Tier filter
+    if (activeTier !== 'all') {
+      const tierNum = activeTier === 'mega' ? 2 : activeTier === 'major' ? 1 : 0;
+      results = results.filter(e => e.tier === tierNum);
+    }
+
+    // Region filter
+    if (activeRegion !== 'All') {
+      results = results.filter(e => CITIES[e.i].region === activeRegion);
+    }
+
+    // Search filter (fuzzy: name, code, country, icao)
+    if (q) {
+      results = results.filter(e =>
+        e.nameLower.includes(q) ||
+        e.codeLower.startsWith(q) ||
+        e.countryLower.includes(q) ||
+        e.icaoLower.startsWith(q)
+      );
+    }
+
+    // Sort
+    if (sortBy === 'pax') {
+      results = results.slice().sort((a, b) => b.pax - a.pax);
+    } else if (sortBy === 'runways') {
+      results = results.slice().sort((a, b) => b.rwys - a.rwys);
+    } else if (sortBy === 'elevation') {
+      results = results.slice().sort((a, b) => b.elev - a.elev);
+    } else if (sortBy === 'country') {
+      results = results.slice().sort((a, b) => a.countryLower.localeCompare(b.countryLower) || a.nameLower.localeCompare(b.nameLower));
+    } else {
+      // name (default) — already in name order from CITIES array, unless filtered
+      if (activeTier !== 'all' || activeRegion !== 'All' || q) {
+        results = results.slice().sort((a, b) => a.nameLower.localeCompare(b.nameLower));
+      }
+    }
+
+    return results;
   }
 
-  // ── Render: airport list for a region ────────────────────────────────────
-  function renderList(region) {
-    viewState = 'list';
-    _globeView?.setFilter(region, '');
-    const airports = CITIES.map((c, i) => ({ c, i })).filter(({ c }) => c.region === region);
-    grid.innerHTML =
-      `<div class="city-list-header">
-         <button type="button" class="city-back-btn" id="city-back-btn">‹ Regions</button>
-         <span class="city-list-region-label">${region}</span>
-       </div>
-       <div class="city-list-items" id="city-list-items">
-         ${airports.map(({ c, i }) =>
-           `<div class="city-list-item${i === _selectedIdx ? ' active' : ''}" data-idx="${i}">
-              <span class="cli-code">${c.code}</span>
-              <div class="cli-info"><span class="cli-name">${c.name}</span><span class="cli-country">${c.country || ''}</span></div>
-              <span class="cli-chevron">›</span>
-            </div>`
-         ).join('')}
-       </div>`;
-    document.getElementById('city-back-btn').addEventListener('click', () => {
-      searchInput.value = ''; searchQuery = '';
-      renderRegions();
-    });
-    bindListItems();
-  }
+  const TIER_LABELS = ['Regional', 'Major', 'Mega Hub'];
+  const TIER_CLASSES = ['cli-tier-regional', 'cli-tier-major', 'cli-tier-mega'];
 
-  // ── Render: search results ────────────────────────────────────────────────
-  function renderSearch(q) {
-    viewState = 'search';
-    _globeView?.setFilter('All', q);
-    const matches = CITIES.map((c, i) => ({ c, i }))
-      .filter(({ c }) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().startsWith(q) || (c.country && c.country.toLowerCase().includes(q)));
-    if (!matches.length) {
-      grid.innerHTML = `<div class="city-no-results">No airports found</div>`;
+  function renderList() {
+    const filtered = getFilteredList();
+    if (resultCount) resultCount.textContent = `${filtered.length} airport${filtered.length !== 1 ? 's' : ''}`;
+
+    // Update globe filter
+    _globeView?.setFilter(activeRegion, searchQuery);
+
+    if (!filtered.length) {
+      grid.innerHTML = `<div class="city-no-results">No airports match your filters</div>`;
       return;
     }
+
+    // Virtual scroll: only render first 80 for performance, expand on scroll
+    const BATCH = 80;
+    const toRender = filtered.slice(0, BATCH);
+    let rendered = BATCH;
+
     grid.innerHTML =
       `<div class="city-list-items" id="city-list-items">
-         ${matches.map(({ c, i }) =>
-           `<div class="city-list-item${i === _selectedIdx ? ' active' : ''}" data-idx="${i}">
-              <span class="cli-code">${c.code}</span>
-              <div class="cli-info"><span class="cli-name">${c.name}</span><span class="cli-country">${c.country || ''}</span></div>
-              <span class="cli-chevron">›</span>
-            </div>`
-         ).join('')}
+         ${toRender.map(e => renderItem(e)).join('')}
        </div>`;
+
+    // Lazy load more on scroll
+    if (filtered.length > BATCH) {
+      grid.addEventListener('scroll', function onScroll() {
+        if (grid.scrollTop + grid.clientHeight >= grid.scrollHeight - 80 && rendered < filtered.length) {
+          const next = filtered.slice(rendered, rendered + BATCH);
+          const el = document.getElementById('city-list-items');
+          if (el) el.insertAdjacentHTML('beforeend', next.map(e => renderItem(e)).join(''));
+          rendered += BATCH;
+          if (rendered >= filtered.length) grid.removeEventListener('scroll', onScroll);
+        }
+      });
+    }
+
     bindListItems();
+  }
+
+  function renderItem(e) {
+    const c = CITIES[e.i];
+    const meta = AIRPORT_DATA[c.code] || {};
+    const tierLabel = TIER_LABELS[e.tier];
+    const tierClass = TIER_CLASSES[e.tier];
+    const paxStr = e.pax > 0 ? `${e.pax}M` : '';
+    const icao = meta.icao || '';
+    return `<div class="city-list-item${e.i === _selectedIdx ? ' active' : ''}" data-idx="${e.i}">
+      <span class="cli-code">${c.code}</span>
+      <div class="cli-info">
+        <span class="cli-name">${c.name}</span>
+        <span class="cli-sub">${c.country || ''}${icao ? ' · ' + icao : ''}</span>
+      </div>
+      <span class="cli-tier ${tierClass}">${tierLabel}</span>
+      ${paxStr ? `<span class="cli-pax">${paxStr}</span>` : '<span class="cli-pax"></span>'}
+      <span class="cli-chevron">›</span>
+    </div>`;
   }
 
   function bindListItems() {
@@ -3779,18 +3890,50 @@ function initCityPicker() {
     });
   }
 
+  // ── Event bindings ───────────────────────────────────────────────────────
+  // Search input
+  let _searchTimer = null;
   searchInput.addEventListener('input', () => {
-    searchQuery = searchInput.value.toLowerCase().trim();
-    if (searchQuery) renderSearch(searchQuery);
-    else if (viewState === 'search') renderRegions();
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(() => {
+      searchQuery = searchInput.value.toLowerCase().trim();
+      renderList();
+    }, 80);
   });
 
+  // Tier chips
+  tierChips.addEventListener('click', e => {
+    const chip = e.target.closest('.tier-chip');
+    if (!chip) return;
+    activeTier = chip.dataset.tier;
+    tierChips.querySelectorAll('.tier-chip').forEach(c => c.classList.toggle('active', c === chip));
+    renderList();
+  });
+
+  // Region chips
+  regionChips.addEventListener('click', e => {
+    const chip = e.target.closest('.region-chip');
+    if (!chip) return;
+    activeRegion = chip.dataset.region;
+    regionChips.querySelectorAll('.region-chip').forEach(c => c.classList.toggle('active', c === chip));
+    // Fly globe to region center
+    if (activeRegion !== 'All') {
+      const center = REGION_CENTERS[activeRegion];
+      if (center) _globeView?.flyTo(center.lat, center.lon);
+    }
+    renderList();
+  });
+
+  // Sort select
+  sortSelect.addEventListener('change', () => {
+    sortBy = sortSelect.value;
+    renderList();
+  });
+
+  // Close overlay
   const closeOverlay = () => { overlay.classList.add('hidden'); _globeView?.pause(); };
   overlay.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      if (viewState === 'list') { searchInput.value = ''; searchQuery = ''; renderRegions(); }
-      else closeOverlay();
-    }
+    if (e.key === 'Escape') closeOverlay();
   });
   if (closeBtn) closeBtn.addEventListener('click', closeOverlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) closeOverlay(); });
@@ -3801,7 +3944,8 @@ function initCityPicker() {
   }
   if (!localStorage.getItem('stratum:city-picked')) setTimeout(() => openCityPicker(), 1200);
 
-  renderRegions();
+  // Initial render — flat list, all airports, sorted by name
+  renderList();
 }
 
 function openCityPicker() {

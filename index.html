@@ -4,12 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>STRATUM</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://a.basemaps.cartocdn.com" crossorigin />
   <link rel="preconnect" href="https://b.basemaps.cartocdn.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/src/style.css" />
+  <link href="/fonts/css/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" fetchpriority="high" />
 </head>
 <body>
   <canvas id="scene"></canvas>
@@ -318,6 +316,43 @@
           </div>
         </div>
         <div class="city-list-pane">
+          <!-- Filter controls -->
+          <div class="city-filter-bar">
+            <div class="city-search-wrap">
+              <input id="city-search-input" class="city-search-input" type="text"
+                placeholder="Search airport, city, ICAO..." autocomplete="off" spellcheck="false">
+            </div>
+            <div class="city-filter-row">
+              <div class="city-tier-chips" id="city-tier-chips">
+                <button type="button" class="tier-chip active" data-tier="all">All</button>
+                <button type="button" class="tier-chip" data-tier="mega">Mega Hub</button>
+                <button type="button" class="tier-chip" data-tier="major">Major</button>
+                <button type="button" class="tier-chip" data-tier="regional">Regional</button>
+              </div>
+            </div>
+            <div class="city-filter-row">
+              <div class="city-region-chips" id="city-region-chips">
+                <button type="button" class="region-chip active" data-region="All">All</button>
+                <button type="button" class="region-chip" data-region="Americas">Americas</button>
+                <button type="button" class="region-chip" data-region="Europe">Europe</button>
+                <button type="button" class="region-chip" data-region="Middle East">Mid-East</button>
+                <button type="button" class="region-chip" data-region="Africa">Africa</button>
+                <button type="button" class="region-chip" data-region="Asia">Asia</button>
+                <button type="button" class="region-chip" data-region="Pacific">Pacific</button>
+              </div>
+            </div>
+            <div class="city-sort-row">
+              <span class="city-sort-label">SORT</span>
+              <select id="city-sort-select" class="city-sort-select" aria-label="Sort airports" title="Sort airports">
+                <option value="name">Name A-Z</option>
+                <option value="pax">Passengers ↓</option>
+                <option value="runways">Runways ↓</option>
+                <option value="elevation">Elevation ↓</option>
+                <option value="country">Country</option>
+              </select>
+              <span class="city-result-count" id="city-result-count">0 airports</span>
+            </div>
+          </div>
           <div id="city-grid" class="city-grid"></div>
           <!-- Airport detail pane — shown when airport is focused -->
           <div id="city-detail-pane" class="city-detail-pane hidden">
@@ -643,5 +678,6 @@
   </div>
 
   <script type="module" src="/src/main.js"></script>
+  <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')</script>
 </body>
 </html>

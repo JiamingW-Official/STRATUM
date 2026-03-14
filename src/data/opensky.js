@@ -2,16 +2,15 @@ import { getAirportCity } from './airportCities.js';
 import { batchUpdate as inferBatchUpdate, cleanupStale as inferCleanup, feedTrace as inferFeedTrace } from './routeInfer.js';
 
 // Position APIs (proxied — no CORS from browser)
-// Primary: adsb.fi (/api/v2/lat/{lat}/lon/{lon}/dist/{nm})
-// Fallback: adsb.one (/v2/point/{lat}/{lon}/{nm} — different path format)
 const ADSB_FI_BASE   = '/api/adsbfi/api/v2';
 const ADSB_ONE_BASE  = '/api/adsboe/v2';
 const ADSBX_BASE     = '/api/adsbx/v2';
 const OPENSKY_BASE   = '/api/opensky';
 const ADSBDB_BASE    = '/api/adsbdb/v0';
 const TRACE_BASE     = '/api/trace/data/traces';
-const FETCH_TIMEOUT_MS = 8000;
-const POLL_INTERVAL  = 4000;   // 4s — generous interval to avoid 429s
+const FETCH_TIMEOUT_MS = 6000;
+const POLL_INTERVAL  = 3000;   // 3s — paid plan has 10M/day headroom
+const POLL_INTERVAL_BG = 10000; // 10s when tab hidden — still saves 70%
 const BBOX_RADIUS_NM = 100;
 
 let userLat = 40.7128;
@@ -21,6 +20,7 @@ let pollTimer = null;
 let onDataCallback = null;
 let onErrorCallback = null;
 let consecutiveErrors = 0;
+let _tabVisible = true;
 
 // Route cache
 const routeCache = new Map();
@@ -29,8 +29,8 @@ const routeFetchQueue = new Set();
 
 // Track cache — stores full trace history per aircraft
 const trackCache = new Map();
-const TRACK_CACHE_TTL = 900000;    // re-fetch trace every 15 min
-const TRACK_RETAIN_TTL = 1800000;  // keep in cache 30 min
+const TRACK_CACHE_TTL = 300000;    // re-fetch trace every 5 min (fresher trails)
+const TRACK_RETAIN_TTL = 1200000;  // keep in cache 20 min
 const trackFetchQueue = new Set();
 
 export function setUserLocation(lat, lon) {
@@ -109,16 +109,24 @@ async function _doFetch(url, pauseRef, label) {
   }
 }
 
-// Position poll: adsb.one primary, adsb.fi fallback only.
-// adsb.fi rate limit is reserved entirely for on-demand hex route lookups.
+// Primary: Worker /api/positions — fetches all 3 sources in parallel at the edge,
+// merges by hex, returns best-of data in one round trip.
+// Fallback: direct adsb.one if Worker is down.
 async function fetchStates() {
   const lat = userLat.toFixed(4);
   const lon = userLon.toFixed(4);
-  const t   = Math.floor(Date.now() / 1000);
 
+  // Primary: Worker multi-source aggregation (no cache: 'no-store' — let CDN edge cache work)
+  try {
+    const r = await fetch(`/api/positions?lat=${lat}&lon=${lon}&r=${BBOX_RADIUS_NM}`, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (r.ok) return parseAdsbResponse(await r.json());
+  } catch { /* fall through to direct sources */ }
+
+  // Fallback: direct adsb.one
+  const t = Math.floor(Date.now() / 1000);
   const oneRef = { v: _adsbOnePausedUntil };
-
-  // Primary: adsb.one (no route data, but stable and no rate limit conflicts)
   if (Date.now() >= _adsbOnePausedUntil) {
     try {
       const result = await _doFetch(`${ADSB_ONE_BASE}/point/${lat}/${lon}/${BBOX_RADIUS_NM}?_t=${t}`, oneRef, 'adsb.one');
@@ -127,7 +135,7 @@ async function fetchStates() {
     } catch { _adsbOnePausedUntil = oneRef.v; }
   }
 
-  // Fallback: adsb.fi (only when adsb.one is paused)
+  // Last resort: adsb.fi
   const fiRef = { v: _adsbFiPausedUntil };
   if (Date.now() >= _adsbFiPausedUntil) {
     const result = await _doFetch(`${ADSB_FI_BASE}/lat/${lat}/lon/${lon}/dist/${BBOX_RADIUS_NM}?_t=${t}`, fiRef, 'adsb.fi');
@@ -135,7 +143,7 @@ async function fetchStates() {
     return result;
   }
 
-  throw new Error('all sources rate-limited');
+  throw new Error('all sources unavailable');
 }
 
 // pollInFlight guard with 5s safety reset to prevent permanent stall
@@ -308,11 +316,28 @@ async function poll() {
   }
 }
 
+function _getInterval() {
+  return _tabVisible ? POLL_INTERVAL : POLL_INTERVAL_BG;
+}
+
+function _restartTimer() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(poll, _getInterval());
+}
+
 export function startPolling(onData, onError) {
   onDataCallback = onData;
   onErrorCallback = onError;
   poll();
   pollTimer = setInterval(poll, POLL_INTERVAL);
+
+  // Slow down when tab hidden — saves ~90% of Worker quota for background tabs
+  document.addEventListener('visibilitychange', () => {
+    _tabVisible = !document.hidden;
+    _restartTimer();
+    // Immediate poll on return to foreground for instant freshness
+    if (_tabVisible) poll();
+  });
 }
 
 export function stopPolling() {

@@ -34,22 +34,22 @@ const SPEED_STOPS = [
 const VS_THRESHOLD = 1.5;
 
 // Trail config — 30 min
-const TRAIL_SAMPLE_INTERVAL = 0.5;      // 2Hz live sampling (less GC pressure)
-const TRAIL_MAX_POINTS = 3600;          // 30 min at 2Hz
+const TRAIL_SAMPLE_INTERVAL = 0.25;     // 4Hz live sampling (smoother, more accurate trails)
+const TRAIL_MAX_POINTS = 7200;          // 30 min at 4Hz
 const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real track
 const SYNTHETIC_TRAIL_STEP = 0.5;
-const TRAIL_REBUILD_INTERVAL = 2.0;     // rebuild geometry every 2s (halves GPU work)
-const TRACK_REFRESH_INTERVAL = 300;     // re-check track API every 5 min (once loaded)
-const TRACK_INITIAL_CHECK_INTERVAL = 0.25; // check every 250ms until track arrives
+const TRAIL_REBUILD_INTERVAL = 1.0;     // rebuild geometry every 1s (responsive updates)
+const TRACK_REFRESH_INTERVAL = 180;     // re-check track API every 3 min (fresher trails)
+const TRACK_INITIAL_CHECK_INTERVAL = 0.2; // check every 200ms until track arrives
 const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
 
-// T2-11: Speed-based trail width (m/s → linewidth)
+// T2-11: Speed-based trail width (m/s → linewidth) — thin, precise lines
 function getSpeedLineWidth(speed) {
-  if (speed == null || speed < 30) return 1.0;
-  if (speed < 80)  return 1.0 + (speed - 30) / (80 - 30) * 0.5;   // 1.0 → 1.5
-  if (speed < 200) return 1.5 + (speed - 80) / (200 - 80) * 1.0;  // 1.5 → 2.5
-  if (speed < 260) return 2.5 + (speed - 200) / (260 - 200) * 0.5; // 2.5 → 3.0
-  return 3.0;
+  if (speed == null || speed < 30) return 0.6;
+  if (speed < 80)  return 0.6 + (speed - 30) / (80 - 30) * 0.3;   // 0.6 → 0.9
+  if (speed < 200) return 0.9 + (speed - 80) / (200 - 80) * 0.5;  // 0.9 → 1.4
+  if (speed < 260) return 1.4 + (speed - 200) / (260 - 200) * 0.3; // 1.4 → 1.7
+  return 1.7;
 }
 
 // T2-19: Contrail constants
@@ -216,6 +216,8 @@ function cloneModelForAircraft(typeCode) {
       child.material = child.material.clone();
       child.material.transparent = true;
       child.material.opacity = 0;
+      // Pre-init emissive to avoid per-frame allocation check in _setModelColor
+      if (!child.material.emissive) child.material.emissive = new THREE.Color();
     }
   });
   return clone;
@@ -335,20 +337,35 @@ function extrapolatePosition(pos, velocity, heading, verticalRate, dt, out) {
   return out;
 }
 
+const _tmpScenePos = new THREE.Vector3();
 export function dataToScenePos(data, userLat, userLon) {
   const cosLat = Math.cos(userLat * DEG_TO_RAD);
   const x = (data.longitude - userLon) * GEO_SCALE * cosLat;
   const z = -(data.latitude - userLat) * GEO_SCALE;
   const y = (data.baroAltitude * METERS_TO_FEET) / 1000 * ALT_SCALE;
-  return new THREE.Vector3(x, y, z);
+  return _tmpScenePos.set(x, y, z);
 }
 
+const _tmpWaypointPos = new THREE.Vector3();
 function waypointToScenePos(wp, userLat, userLon) {
   const cosLat = Math.cos(userLat * DEG_TO_RAD);
   const x = (wp.longitude - userLon) * GEO_SCALE * cosLat;
   const z = -(wp.latitude - userLat) * GEO_SCALE;
   const y = wp.baroAltitude != null ? (wp.baroAltitude * METERS_TO_FEET) / 1000 * ALT_SCALE : 0;
-  return new THREE.Vector3(x, y, z);
+  return _tmpWaypointPos.set(x, y, z);
+}
+
+// --- Shared geometries / materials (one instance, many aircraft) ---
+let _sharedHitGeo = null;
+function getSharedHitGeometry() {
+  if (!_sharedHitGeo) _sharedHitGeo = new THREE.SphereGeometry(2.0, 8, 8);
+  return _sharedHitGeo;
+}
+
+let _sharedHitMat = null;
+function getSharedHitMaterial() {
+  if (!_sharedHitMat) _sharedHitMat = new THREE.MeshBasicMaterial({ visible: false });
+  return _sharedHitMat;
 }
 
 // --- Aircraft Manager ---
@@ -362,6 +379,11 @@ export class AircraftManager {
     this.raycasterTargets = [];
     this._highlightSet = null;
     this._lastLabelCullTime = 0; // T2-13: throttle label culling
+    this._activeCount = 0; // cached count — avoids O(n) in getCount()
+    this._viewW = window.innerWidth;
+    this._viewH = window.innerHeight;
+    this._onResize = () => { this._viewW = window.innerWidth; this._viewH = window.innerHeight; };
+    window.addEventListener('resize', this._onResize);
     this.trailOpacityMult = parseFloat(localStorage.getItem('stratum:trailOpacity') || '1.0'); // T1-11
   }
 
@@ -404,6 +426,7 @@ export class AircraftManager {
       }
     }
 
+    let activeCount = 0;
     for (const [id, ac] of this.aircraft) {
       if (ac.removed) {
         ac.dispose(this.scene);
@@ -412,8 +435,11 @@ export class AircraftManager {
         if (idx !== -1) this.raycasterTargets.splice(idx, 1);
         const spriteIdx = this.raycasterTargets.indexOf(ac.labelSprite);
         if (spriteIdx !== -1) this.raycasterTargets.splice(spriteIdx, 1);
+      } else if (!ac.fadingOut) {
+        activeCount++;
       }
     }
+    this._activeCount = activeCount;
   }
 
   animate(delta, elapsed, camera) {
@@ -432,7 +458,7 @@ export class AircraftManager {
   cullOverlappingLabels(camera) {
     const entries = [];
     const _projVec = this._cullProjVec || (this._cullProjVec = new THREE.Vector3());
-    const w = window.innerWidth, h = window.innerHeight;
+    const w = this._viewW, h = this._viewH;
     for (const ac of this.aircraft.values()) {
       if (ac.fadingOut || ac.removed) continue;
       if (!ac.labelSprite) continue;
@@ -495,11 +521,8 @@ export class AircraftManager {
   }
 
   getCount() {
-    let count = 0;
-    for (const ac of this.aircraft.values()) {
-      if (!ac.fadingOut) count++;
-    }
-    return count;
+    // Use cached count — updated in update() which runs every poll
+    return this._activeCount;
   }
 
   getByIcao(icao24) {
@@ -736,9 +759,7 @@ class AircraftObject {
     this.labelSprite.position.set(0, 0.18, 0);
     this.group.add(this.labelSprite);
 
-    const hitGeo = new THREE.SphereGeometry(2.0, 8, 8);
-    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
-    this.hitMesh = new THREE.Mesh(hitGeo, hitMat);
+    this.hitMesh = new THREE.Mesh(getSharedHitGeometry(), getSharedHitMaterial());
     this.hitMesh.userData.icao24 = data.icao24;
     this.group.add(this.hitMesh);
 
@@ -884,7 +905,7 @@ class AircraftObject {
           speed = dist / dt;
         }
       }
-      withSpeed.push({ pos: waypointToScenePos(wp, this.userLat, this.userLon), speed, isGapStart });
+      withSpeed.push({ pos: waypointToScenePos(wp, this.userLat, this.userLon).clone(), speed, isGapStart });
     }
 
     // Split into segments at gap boundaries, interpolate each separately
@@ -947,9 +968,11 @@ class AircraftObject {
       return;
     }
 
+    const _tmpOut = new THREE.Vector3();
     for (let t = SYNTHETIC_TRAIL_SECONDS; t >= 0; t -= SYNTHETIC_TRAIL_STEP) {
+      extrapolatePosition(currentPos, data.velocity, data.trueTrack, data.verticalRate || 0, -t, _tmpOut);
       this.trailPositions.push({
-        pos: extrapolatePosition(currentPos, data.velocity, data.trueTrack, data.verticalRate || 0, -t),
+        pos: _tmpOut.clone(),
         speed: data.velocity,
       });
     }
@@ -1049,7 +1072,7 @@ class AircraftObject {
 
     if (this._useGLB && this._modelMeshes.length > 0) {
       for (const m of this._modelMeshes) {
-        m.material.emissive = m.material.emissive || new THREE.Color();
+        if (!m.material.emissive) m.material.emissive = new THREE.Color();
         m.material.emissive.copy(color);
         m.material.emissiveIntensity = 1.5;
         m.material.color.copy(color);
@@ -1130,8 +1153,8 @@ class AircraftObject {
     const raw = this.trailPositions;
     if (raw.length < 2) return;
 
-    // Don't render trail until we have real track data or enough live samples (~8s)
-    if (!this.hasRealTrack && raw.length < 16) {
+    // Don't render trail until we have real track data or enough live samples (~2s)
+    if (!this.hasRealTrack && raw.length < 8) {
       if (this.trailLine) this.trailLine.visible = false;
       return;
     }
@@ -1139,9 +1162,9 @@ class AircraftObject {
 
     // Subsample dense data to manageable key points
     let keyPoints;
-    if (raw.length > 600) {
+    if (raw.length > 800) {
       keyPoints = [];
-      const step = Math.max(Math.floor(raw.length / 400), 1);
+      const step = Math.max(Math.floor(raw.length / 600), 1);
       for (let i = 0; i < raw.length - 1; i += step) {
         keyPoints.push(raw[i]);
       }
@@ -1161,7 +1184,7 @@ class AircraftObject {
       srcX[i] = keyPoints[i].pos.x; srcY[i] = keyPoints[i].pos.y;
       srcZ[i] = keyPoints[i].pos.z; srcS[i] = keyPoints[i].speed || 0;
     }
-    const R = this.hasRealTrack ? 2 : 5;
+    const R = this.hasRealTrack ? 1 : 3;
     const smX = new Float64Array(kn), smY = new Float64Array(kn);
     const smZ = new Float64Array(kn), smS = new Float64Array(kn);
     for (let i = 0; i < kn; i++) {
@@ -1176,10 +1199,10 @@ class AircraftObject {
     smX[0] = srcX[0]; smY[0] = srcY[0]; smZ[0] = srcZ[0]; smS[0] = srcS[0];
     smX[kn-1] = srcX[kn-1]; smY[kn-1] = srcY[kn-1]; smZ[kn-1] = srcZ[kn-1]; smS[kn-1] = srcS[kn-1];
     srcX = smX; srcY = smY; srcZ = smZ; srcS = smS;
-    const chaikinPasses = this.hasRealTrack ? 2 : 4;
+    const chaikinPasses = this.hasRealTrack ? 1 : 3;
     for (let pass = 0; pass < chaikinPasses; pass++) {
       const n = srcX.length;
-      if (n < 3 || n > 3000) break;
+      if (n < 3 || n > 4000) break;
       const dstLen = (n - 1) * 2 + 2;
       const dstX = new Float64Array(dstLen);
       const dstY = new Float64Array(dstLen);
@@ -1429,9 +1452,9 @@ class AircraftObject {
     this._setModelColor(speedCol);
     if (this._bodyGlow) this._bodyGlowMat.color.copy(speedCol);
 
-    // Dead-reckoning — very smooth lerp to avoid sharp angle in trail
+    // Dead-reckoning — responsive lerp for accurate real-time tracking
     const predictedTarget = this._getExtrapolatedTarget();
-    this.group.position.lerp(predictedTarget, Math.min(delta * 3, 0.3));
+    this.group.position.lerp(predictedTarget, Math.min(delta * 5, 0.45));
 
     // Heading — model nose is +X, north is -Z → offset by π/2
     if (this.data.trueTrack != null) {
@@ -1442,7 +1465,7 @@ class AircraftObject {
       if (Math.abs(diff) < 0.005) {
         this.group.rotation.y = targetRotY;
       } else {
-        this.group.rotation.y += diff * Math.min(delta * 3, 0.25);
+        this.group.rotation.y += diff * Math.min(delta * 4.5, 0.35);
       }
     }
 
