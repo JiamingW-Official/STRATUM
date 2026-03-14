@@ -2001,6 +2001,40 @@ export function getTCASTraffic(followAc, allAircraft, maxRange = 15) {
     if (distNm < reqLateral && Math.abs(altDiff) < reqVertical) separation = 'VIOLATION';
     else if (distNm < reqLateral * 1.5 && Math.abs(altDiff) < reqVertical * 1.5) separation = 'REDUCED';
 
+    // S2: Conflict Prediction — Closest Point of Approach (CPA)
+    // Linear extrapolation at 60/120/180s using velocity vectors
+    let cpaDist = null, cpaTime = null, cpaAltDiff = null;
+    const myVel = followAc.data.velocity;
+    const myTrack = followAc.data.trueTrack;
+    const acVel = ac.data.velocity;
+    const acTrack = ac.data.trueTrack;
+    const myVr = followAc.data.verticalRate || 0;
+    const acVr = ac.data.verticalRate || 0;
+    if (myVel != null && myTrack != null && acVel != null && acTrack != null) {
+      // Velocity components in km/s (velocity is m/s, track is degrees)
+      const myVx = myVel * Math.sin(myTrack * DEG_TO_RAD) / 1000;
+      const myVz = myVel * Math.cos(myTrack * DEG_TO_RAD) / 1000;
+      const acVx = acVel * Math.sin(acTrack * DEG_TO_RAD) / 1000;
+      const acVz = acVel * Math.cos(acTrack * DEG_TO_RAD) / 1000;
+      // Relative position (km) and velocity (km/s)
+      const cosLat = Math.cos(myLat * DEG_TO_RAD);
+      const dx = (ac.data.longitude - myLon) * 111.32 * cosLat;
+      const dz = (ac.data.latitude - myLat) * 111.32;
+      const dvx = acVx - myVx;
+      const dvz = acVz - myVz;
+      // CPA time: t = -(dx·dvx + dz·dvz) / (dvx² + dvz²)
+      const denom = dvx * dvx + dvz * dvz;
+      if (denom > 1e-10) {
+        const t = -(dx * dvx + dz * dvz) / denom;
+        const tClamped = Math.max(0, Math.min(t, 180)); // cap at 3min
+        const cpx = dx + dvx * tClamped;
+        const cpz = dz + dvz * tClamped;
+        cpaDist = Math.round(Math.sqrt(cpx * cpx + cpz * cpz) * 0.53996 * 10) / 10; // km → nm
+        cpaTime = Math.round(tClamped);
+        cpaAltDiff = Math.round(altDiff + (acVr - myVr) * METERS_TO_FEET * 60 * tClamped / 3600);
+      }
+    }
+
     result.push({
       icao24: ac.data.icao24,
       callsign: ac.data.callsign,
@@ -2010,6 +2044,9 @@ export function getTCASTraffic(followAc, allAircraft, maxRange = 15) {
       bearing: relBearing,
       threat,
       separation,
+      cpaDist,
+      cpaTime,
+      cpaAltDiff,
     });
   }
 

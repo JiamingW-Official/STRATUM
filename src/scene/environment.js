@@ -1914,6 +1914,89 @@ export async function reloadNavChart(scene, lat, lon) {
   await loadNavChart(scene, lat, lon);
 }
 
+// ── A4: Airspace Layer Visualization ──
+// Draw Class B/C airspace cylinders around airports based on tier
+let _airspaceGroup = null;
+
+export function renderAirspaceOverlay(scene, airports, userLat, userLon) {
+  clearAirspaceOverlay(scene);
+  if (!airports || airports.length === 0) return;
+
+  _airspaceGroup = new THREE.Group();
+  _airspaceGroup.name = 'airspaceOverlay';
+  const cosLat = Math.cos(userLat * Math.PI / 180);
+
+  for (const apt of airports) {
+    const dist = Math.sqrt(
+      Math.pow((apt.lon - userLon) * 111.32 * cosLat, 2) +
+      Math.pow((apt.lat - userLat) * 111.32, 2)
+    );
+    if (dist > 150) continue; // Only render within 150km
+
+    // Determine airspace class from airport size
+    // tier 1 / major international = Class B (blue), others = Class C (magenta)
+    const pax = apt.pax || 0;
+    const isClassB = pax >= 10000000 || apt.tier === 1; // 10M+ pax or tier 1
+    const color = isClassB ? 0x4488ff : 0xcc44cc;
+    const radiusNm = isClassB ? 15 : 8; // Class B ~15nm, Class C ~8nm
+    const ceilingFt = isClassB ? 10000 : 5000;
+
+    const cx = (apt.lon - userLon) * GEO_SCALE * cosLat;
+    const cz = -(apt.lat - userLat) * GEO_SCALE;
+
+    // Convert radius to scene units: 1nm = 1.852km, 1 deg lat ≈ 111km, scene = deg * GEO_SCALE
+    const radiusScene = (radiusNm * 1.852 / 111) * GEO_SCALE;
+    // Ceiling height in scene units
+    const ALT_SCALE = 0.06;
+    const ceilingScene = ceilingFt * 0.3048 * ALT_SCALE / (111000 / GEO_SCALE);
+
+    // Outer cylinder (wireframe ring at top and bottom)
+    const ringGeo = new THREE.RingGeometry(radiusScene - 0.01, radiusScene + 0.01, 48);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0.06, side: THREE.DoubleSide,
+    });
+
+    // Bottom ring
+    const bottomRing = new THREE.Mesh(ringGeo, ringMat);
+    bottomRing.rotation.x = -Math.PI / 2;
+    bottomRing.position.set(cx, 0.005, cz);
+    _airspaceGroup.add(bottomRing);
+
+    // Top ring
+    const topRing = new THREE.Mesh(ringGeo.clone(), ringMat.clone());
+    topRing.material.opacity = 0.03;
+    topRing.rotation.x = -Math.PI / 2;
+    topRing.position.set(cx, ceilingScene, cz);
+    _airspaceGroup.add(topRing);
+
+    // Vertical line segments (4 cardinal points)
+    const vLineMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.04 });
+    for (let a = 0; a < 4; a++) {
+      const angle = (a / 4) * Math.PI * 2;
+      const lx = cx + Math.cos(angle) * radiusScene;
+      const lz = cz + Math.sin(angle) * radiusScene;
+      const geo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(lx, 0.005, lz),
+        new THREE.Vector3(lx, ceilingScene, lz),
+      ]);
+      _airspaceGroup.add(new THREE.Line(geo, vLineMat));
+    }
+  }
+
+  scene.add(_airspaceGroup);
+}
+
+export function clearAirspaceOverlay(scene) {
+  if (_airspaceGroup) {
+    scene.remove(_airspaceGroup);
+    _airspaceGroup.traverse(c => {
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) c.material.dispose();
+    });
+    _airspaceGroup = null;
+  }
+}
+
 // Simple ray-casting point-in-polygon for GeoJSON [lon, lat] rings
 function _pointInPolygon(lat, lon, ring) {
   let inside = false;

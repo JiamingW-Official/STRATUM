@@ -140,6 +140,13 @@ export function nekoTrackAircraft(d) {
 
   let text;
 
+  // A3: FIR transition log entry
+  if (d._firTransition) {
+    text = `Entering ${d._firTo}, ${d._firFL}. Leaving ${d._firFrom}.`;
+    addEntry(callsign, text);
+    return;
+  }
+
   if (origin && dest) {
     const alt = rawAlt != null ? `, ${d.altitude}` : '';
     text = _pick(_routePool)(d, origin, dest, alt);

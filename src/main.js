@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart } from './scene/environment.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderAirspaceOverlay, clearAirspaceOverlay } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
@@ -1037,6 +1037,10 @@ function handleData(dataList) {
 
     // T2-15: Check emergency squawks
     checkEmergencySquawks();
+    // S3: Track emergency events timeline
+    trackEmergencyEvents();
+    // A3: FIR entry/exit tracking
+    trackFIRTransitions();
 
     // T2-17: Wind direction indicators on runways
     const aptData = getAirportData();
@@ -1490,6 +1494,140 @@ document.getElementById('emergency-dismiss')?.addEventListener('click', () => {
   }
 });
 
+// ── A3: FIR Entry/Exit Logger ──
+const _aircraftFIR = new Map(); // icao24 → last known FIR id
+
+function trackFIRTransitions() {
+  if (!aircraftManager) return;
+
+  for (const [, ac] of aircraftManager.aircraft) {
+    if (ac.fadingOut || ac.data.latitude == null) continue;
+    const icao = ac.data.icao24;
+    const currentFIR = getFIRForPosition(ac.data.latitude, ac.data.longitude);
+    const prevFIR = _aircraftFIR.get(icao);
+
+    if (currentFIR && prevFIR && currentFIR !== prevFIR) {
+      // FIR transition detected
+      const cs = ac.data.callsign || icao;
+      const altFt = ac.data.baroAltitude != null ? Math.round(ac.data.baroAltitude * 3.28084) : null;
+      const flStr = altFt != null ? `FL${Math.round(altFt / 100)}` : '';
+      const fromName = FIR_NAMES[prevFIR] || prevFIR;
+      const toName = FIR_NAMES[currentFIR] || currentFIR;
+      nekoTrackAircraft({
+        callsign: cs,
+        icao24: icao,
+        _firTransition: true,
+        _firFrom: fromName,
+        _firTo: toName,
+        _firFL: flStr,
+      });
+    }
+
+    if (currentFIR) {
+      _aircraftFIR.set(icao, currentFIR);
+    }
+  }
+
+  // Clean up stale entries
+  for (const icao of _aircraftFIR.keys()) {
+    if (!aircraftManager.aircraft.has(icao)) {
+      _aircraftFIR.delete(icao);
+    }
+  }
+}
+
+// ── S3: Emergency Event Timeline ──
+const _emergencyEvents = new Map(); // icao24 → event object
+let _emergencyTimelineEl = null;
+
+function trackEmergencyEvents() {
+  if (!aircraftManager) return;
+  const now = Date.now();
+
+  for (const [, ac] of aircraftManager.aircraft) {
+    if (ac.fadingOut) continue;
+    const sq = ac.data.squawk;
+    const icao = ac.data.icao24;
+    const isEmergency = sq === '7500' || sq === '7600' || sq === '7700' || ac.data.emergency === 'general';
+
+    if (isEmergency && !_emergencyEvents.has(icao)) {
+      // New emergency detected
+      _emergencyEvents.set(icao, {
+        icao,
+        callsign: ac.data.callsign || icao,
+        squawk: sq,
+        type: ac.data.aircraftType || '--',
+        detectedAt: now,
+        altitude: ac.data.baroAltitude != null ? Math.round(ac.data.baroAltitude * 3.28084) : null,
+        lat: ac.data.latitude,
+        lon: ac.data.longitude,
+        resolved: false,
+        resolvedAt: null,
+      });
+    } else if (!isEmergency && _emergencyEvents.has(icao) && !_emergencyEvents.get(icao).resolved) {
+      // Emergency resolved
+      const evt = _emergencyEvents.get(icao);
+      evt.resolved = true;
+      evt.resolvedAt = now;
+    }
+
+    // Update altitude for active emergencies
+    if (_emergencyEvents.has(icao) && !_emergencyEvents.get(icao).resolved) {
+      const evt = _emergencyEvents.get(icao);
+      evt.altitude = ac.data.baroAltitude != null ? Math.round(ac.data.baroAltitude * 3.28084) : evt.altitude;
+      evt.lat = ac.data.latitude || evt.lat;
+      evt.lon = ac.data.longitude || evt.lon;
+    }
+  }
+
+  // Remove events older than 30 min that are resolved
+  for (const [icao, evt] of _emergencyEvents) {
+    if (evt.resolved && evt.resolvedAt && now - evt.resolvedAt > 1800000) {
+      _emergencyEvents.delete(icao);
+    }
+  }
+
+  renderEmergencyTimeline();
+}
+
+function renderEmergencyTimeline() {
+  if (_emergencyEvents.size === 0) {
+    if (_emergencyTimelineEl) _emergencyTimelineEl.style.display = 'none';
+    return;
+  }
+
+  if (!_emergencyTimelineEl) {
+    _emergencyTimelineEl = document.createElement('div');
+    _emergencyTimelineEl.id = 'emergency-timeline';
+    _emergencyTimelineEl.className = 'stratum-widget';
+    _emergencyTimelineEl.style.cssText = 'top:80px;right:var(--edge);max-width:240px;pointer-events:auto;border-top-color:rgba(232,68,68,0.6);';
+    document.body.appendChild(_emergencyTimelineEl);
+  }
+
+  _emergencyTimelineEl.style.display = '';
+  const sqLabels = { '7500': 'HIJACK', '7600': 'COMM FAIL', '7700': 'EMERGENCY' };
+  let html = '<div class="widget-label" style="color:rgba(232,68,68,0.7)">EMERGENCY EVENTS</div>';
+
+  for (const [, evt] of _emergencyEvents) {
+    const elapsed = Math.round((Date.now() - evt.detectedAt) / 60000);
+    const sqLabel = sqLabels[evt.squawk] || 'ALERT';
+    const altStr = evt.altitude != null ? `FL${Math.round(evt.altitude / 100)}` : '--';
+    const statusColor = evt.resolved ? '#44dd88' : '#ff4444';
+    const statusText = evt.resolved ? 'RESOLVED' : 'ACTIVE';
+    html += `<div style="margin:4px 0;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="color:#ff4444;font-weight:700;font-size:9px">${evt.squawk} ${sqLabel}</span>
+        <span style="color:${statusColor};font-size:7px;font-weight:600">${statusText}</span>
+      </div>
+      <div style="font-size:8px;color:rgba(255,255,255,0.6);margin-top:2px">
+        ${evt.callsign} · ${evt.type} · ${altStr} · ${elapsed}min ago
+      </div>
+    </div>`;
+  }
+
+  _emergencyTimelineEl.innerHTML = html;
+}
+
 // ── T2-18: Distance rings ──
 function toggleDistanceRings() {
   if (distanceRingsGroup) {
@@ -1699,7 +1837,7 @@ function updateTCASDisplay(followAc, allAircraft, elapsed) {
   _tcasEl.style.display = '';
   const top5 = threats.slice(0, 5);
   // Skip innerHTML rebuild if data unchanged
-  const hash = top5.map(t => `${t.icao24}${t.dist}${t.altDiff}${t.threat}${t.separation}`).join('|');
+  const hash = top5.map(t => `${t.icao24}${t.dist}${t.altDiff}${t.threat}${t.separation}${t.cpaDist}${t.cpaTime}`).join('|');
   if (hash === _lastTCASHash) return;
   _lastTCASHash = hash;
   // A1: Count separation violations/reduced
@@ -1713,7 +1851,9 @@ function updateTCASDisplay(followAc, allAircraft, elapsed) {
       const color = t.threat === 'red' ? '#ff4444' : t.threat === 'yellow' ? '#ffcc00' : '#44dd88';
       const arrow = t.altDiff > 100 ? '▲' : t.altDiff < -100 ? '▼' : '—';
       const sepIcon = t.separation === 'VIOLATION' ? ' ⚠' : t.separation === 'REDUCED' ? ' !' : '';
-      return `<div style="color:${color};margin:2px 0">◆ ${(t.callsign || t.icao24).padEnd(8)} ${t.distNm}nm ${arrow}${Math.abs(t.altDiff)}ft${sepIcon}</div>`;
+      // S2: CPA prediction
+      const cpa = t.cpaDist != null && t.cpaTime > 0 ? ` CPA ${t.cpaDist}nm/${t.cpaTime}s` : '';
+      return `<div style="color:${color};margin:2px 0">◆ ${(t.callsign || t.icao24).padEnd(8)} ${t.distNm}nm ${arrow}${Math.abs(t.altDiff)}ft${sepIcon}${cpa}</div>`;
     }).join('');
 }
 function hideTCASDisplay() {
@@ -2769,6 +2909,7 @@ async function switchCity(city) {
   clearGroundMap(scene);
   clearAirports(scene);
   clearFIRBoundaries(scene);
+  clearAirspaceOverlay(scene);
   clearNavChart(scene);
 
   setUserLocation(city.lat, city.lon);
@@ -2788,6 +2929,8 @@ async function switchCity(city) {
   const aptP = loadAirports(scene, city.lat, city.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
+    // A4: Render airspace class B/C overlays
+    renderAirspaceOverlay(scene, window._CITIES, city.lat, city.lon);
   });
   reloadFIRForLocation(scene, city.lat, city.lon);
   // Nav chart needs airportData for ILS corridors — wait for airports
@@ -4360,6 +4503,8 @@ async function init() {
   const aptP = loadAirports(scene, defaultCity.lat, defaultCity.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
+    // A4: Render airspace class B/C overlays
+    renderAirspaceOverlay(scene, window._CITIES, defaultCity.lat, defaultCity.lon);
   });
 
   // ── 4. Start live data polling immediately (doesn't block rendering) ──
