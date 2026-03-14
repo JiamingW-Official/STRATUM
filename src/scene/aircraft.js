@@ -385,6 +385,7 @@ export class AircraftManager {
     this.aircraft = new Map();
     this.raycasterTargets = [];
     this._highlightSet = null;
+    this._filterSet = null;    // null = no filter (all pass), Set = only these icao24s pass
     this._lastLabelCullTime = 0; // T2-13: throttle label culling
     this._activeCount = 0; // cached count — avoids O(n) in getCount()
     this._viewW = window.innerWidth;
@@ -465,7 +466,7 @@ export class AircraftManager {
   animate(delta, elapsed, camera) {
     for (const ac of this.aircraft.values()) {
       ac._trailOpacityMult = this.trailOpacityMult; // T1-11
-      ac.animate(delta, elapsed, this._highlightSet);
+      ac.animate(delta, elapsed, this._highlightSet, this._filterSet);
     }
     // T2-13: Smart label density culling — every ~0.5s
     if (camera && elapsed - this._lastLabelCullTime >= 0.5) {
@@ -523,6 +524,14 @@ export class AircraftManager {
     this._highlightSet = null;
   }
 
+  setFilter(icao24Set) {
+    this._filterSet = icao24Set;
+  }
+
+  clearFilter() {
+    this._filterSet = null;
+  }
+
   clearAll(scene) {
     for (const ac of this.aircraft.values()) {
       ac.dispose(scene);
@@ -530,6 +539,7 @@ export class AircraftManager {
     this.aircraft.clear();
     this.raycasterTargets.length = 0;
     this._highlightSet = null;
+    this._filterSet = null;
     this._selectedAc = null;
   }
 
@@ -1444,7 +1454,7 @@ class AircraftObject {
     this.fadeProgress = 1;
   }
 
-  animate(delta, elapsed, highlightSet) {
+  animate(delta, elapsed, highlightSet, filterSet) {
     if (this.fadingIn) {
       this.fadeProgress = Math.min(this.fadeProgress + delta * 1.2, 1);
       if (this.fadeProgress >= 1) this.fadingIn = false;
@@ -1455,8 +1465,17 @@ class AircraftObject {
       if (this.fadeProgress <= 0) { this.removed = true; return; }
     }
 
-    const newOpacity = (highlightSet && !highlightSet.has(this.data.icao24))
-      ? this.fadeProgress * 0.08 : this.fadeProgress;
+    // Filter opacity — smooth transition to dimmed state
+    const filterTarget = (filterSet && !filterSet.has(this.data.icao24)) ? 0.06 : 1;
+    if (this._filterOpacity === undefined) this._filterOpacity = 1;
+    this._filterOpacity += (filterTarget - this._filterOpacity) * Math.min(delta * 4, 0.5);
+    if (Math.abs(this._filterOpacity - filterTarget) < 0.005) this._filterOpacity = filterTarget;
+
+    // Highlight dims non-highlighted to 8%
+    const highlightMul = (highlightSet && !highlightSet.has(this.data.icao24)) ? 0.08 : 1;
+
+    // Combine: fade × min(filter, highlight)
+    const newOpacity = this.fadeProgress * Math.min(this._filterOpacity, highlightMul);
 
     // Only update opacity-dependent materials when masterOpacity actually changed
     const opacityChanged = newOpacity !== this.masterOpacity;

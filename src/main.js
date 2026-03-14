@@ -854,6 +854,12 @@ function handleAirportClick(airport) {
     aircraftManager.clearHighlight();
     hideAirportWidget();
     selectedAirportState = null;
+    if (filterState.active && window._filterPanelRender) {
+      filterState.isolate = false;
+      filterState.airportMode = 'ALL';
+      window._filterPanelRender();
+      applyFilters(lastRawData);
+    }
     return;
   }
 
@@ -875,6 +881,12 @@ function handleAirportClick(airport) {
   const code = airport.iata || airport.icao;
   console.log(`[STRATUM] ${code}: ${arrivals.length} arrivals, ${departures.length} departures`);
   showAirportWidget(airport, arrivals, departures);
+
+  // Re-render filter panel if open
+  if (filterState.active && window._filterPanelRender) {
+    window._filterPanelRender();
+    applyFilters(lastRawData);
+  }
 }
 
 // --- Geolocation ---
@@ -986,16 +998,8 @@ function handleData(dataList) {
       checkLandings(dataList, aptData.runways, scene);
     }
 
-    // T3-06: Altitude filter — dim out-of-range aircraft
-    if (altFilterActive && aircraftManager) {
-      for (const [, ac] of aircraftManager.aircraft) {
-        if (ac.fadingOut) continue;
-        const altM = ac.data.baroAltitude;
-        const altFt = altM != null ? altM * 3.28084 : null;
-        const inRange = altFt == null || (altFt >= altFilterMin && altFt <= altFilterMax);
-        if (ac.group) ac.group.visible = inRange;
-      }
-    }
+    // Unified filter — build filterSet for smooth opacity dimming
+    applyFilters(dataList);
 
     // I1: Fleet mix statistics (data for spotter overlay)
     updateFleetStats(dataList);
@@ -1042,9 +1046,20 @@ const BLOOM_PRESETS = [0.35, 0.65, 1.2];
 const BLOOM_LABELS = ['SUBTLE', 'NORMAL', 'CINEMATIC'];
 let distanceRingsVisible = false;
 let distanceRingsGroup = null;
-let altFilterActive = false;
-let altFilterMin = 0;
-let altFilterMax = 50000;
+// ── Unified filter state ──
+const filterState = {
+  altPreset: 'ALL',       // GND | TERMINAL | TRANS | HIGH | ALL
+  airportMode: 'ALL',     // ALL | ARR | DEP
+  isolate: false,         // true = only show filtered set, mute rest
+  active: false,          // is the panel open?
+};
+const ALT_PRESETS = {
+  GND:      { min: 0, max: 1500, label: 'GND' },
+  TERMINAL: { min: 0, max: 10000, label: '<FL100' },
+  TRANS:    { min: 10000, max: 24000, label: 'TRANS' },
+  HIGH:     { min: 24000, max: 60000, label: 'HIGH' },
+  ALL:      { min: 0, max: 99999, label: 'ALL' },
+};
 
 // Session statistics (T2-14)
 const sessionStart = Date.now();
@@ -1991,40 +2006,150 @@ function _renderDailyForecast(daily) {
   }).join('');
 }
 
-// ── T3-06: Altitude filter slider wiring ──
-function initAltFilter() {
-  const minSlider = document.getElementById('alt-filter-min');
-  const maxSlider = document.getElementById('alt-filter-max');
-  const minLabel = document.getElementById('alt-filter-lo');
-  const maxLabel = document.getElementById('alt-filter-hi');
-  const filterDiv = document.getElementById('alt-filter');
-  if (!minSlider || !maxSlider) return;
+// ── Unified filter panel ──
+function applyFilters(dataList) {
+  if (!aircraftManager) return;
+  const hasAltFilter = filterState.altPreset !== 'ALL';
+  const hasAptFilter = filterState.isolate && selectedAirportState;
 
-  function updateLabels() {
-    if (minLabel) minLabel.textContent = `FL${Math.round(altFilterMin / 100)}`;
-    if (maxLabel) maxLabel.textContent = `FL${Math.round(altFilterMax / 100)}`;
+  if (!hasAltFilter && !hasAptFilter) {
+    aircraftManager.clearFilter();
+    return;
   }
-  minSlider.addEventListener('input', () => {
-    altFilterMin = parseInt(minSlider.value);
-    if (altFilterMin > altFilterMax - 1000) { altFilterMin = altFilterMax - 1000; minSlider.value = altFilterMin; }
-    updateLabels();
-  });
-  maxSlider.addEventListener('input', () => {
-    altFilterMax = parseInt(maxSlider.value);
-    if (altFilterMax < altFilterMin + 1000) { altFilterMax = altFilterMin + 1000; maxSlider.value = altFilterMax; }
-    updateLabels();
-  });
-  // Toggle alt filter with 'F' key — show/hide the slider panel
+
+  const preset = ALT_PRESETS[filterState.altPreset];
+  let aptSet = null;
+
+  if (hasAptFilter && selectedAirportState) {
+    const aptData = getAirportData();
+    const { arrivals, departures } = categorizeFlights(dataList || lastRawData, selectedAirportState, aptData?.runways);
+    if (filterState.airportMode === 'ARR') {
+      aptSet = new Set(arrivals.map(a => a.icao24));
+    } else if (filterState.airportMode === 'DEP') {
+      aptSet = new Set(departures.map(a => a.icao24));
+    } else {
+      aptSet = new Set([...arrivals.map(a => a.icao24), ...departures.map(a => a.icao24)]);
+    }
+  }
+
+  const passSet = new Set();
+  for (const [icao, ac] of aircraftManager.aircraft) {
+    if (ac.fadingOut) continue;
+    let pass = true;
+
+    // Altitude filter
+    if (hasAltFilter) {
+      const altM = ac.data.baroAltitude;
+      const altFt = altM != null ? altM * 3.28084 : null;
+      if (altFt != null && (altFt < preset.min || altFt > preset.max)) pass = false;
+    }
+
+    // Airport isolate filter
+    if (hasAptFilter && aptSet && !aptSet.has(icao)) pass = false;
+
+    // Selected/followed aircraft always pass
+    const sel = getSelectedAircraft();
+    if (sel && sel.data.icao24 === icao) pass = true;
+
+    if (pass) passSet.add(icao);
+  }
+
+  aircraftManager.setFilter(passSet);
+}
+
+function initFilterPanel() {
+  const panel = document.createElement('div');
+  panel.className = 'filter-panel hidden';
+  panel.id = 'filter-panel';
+  document.body.appendChild(panel);
+
+  function render() {
+    const hasAirport = !!selectedAirportState;
+    const code = hasAirport ? (selectedAirportState.iata || selectedAirportState.icao || '') : '';
+
+    panel.innerHTML = `
+      <div class="filter-section">
+        <div class="filter-section-label">ALTITUDE</div>
+        <div class="filter-btn-row" id="filter-alt-row">
+          ${Object.keys(ALT_PRESETS).map(k => `
+            <button class="filter-btn${filterState.altPreset === k ? ' active' : ''}" data-alt="${k}">${ALT_PRESETS[k].label}</button>
+          `).join('')}
+        </div>
+      </div>
+      ${hasAirport ? `
+      <div class="filter-section">
+        <div class="filter-section-label">AIRPORT · ${code}</div>
+        <div class="filter-btn-row">
+          ${['ALL', 'ARR', 'DEP'].map(m => `
+            <button class="filter-btn${filterState.airportMode === m ? ' active' : ''}" data-apt="${m}">${m}</button>
+          `).join('')}
+          <button class="filter-btn isolate-btn${filterState.isolate ? ' active' : ''}" data-isolate="1">ISOLATE</button>
+        </div>
+      </div>` : ''}
+      <div class="filter-key-hint">F to toggle</div>
+    `;
+
+    // Altitude preset buttons
+    panel.querySelectorAll('[data-alt]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterState.altPreset = btn.dataset.alt;
+        render();
+        applyFilters(lastRawData);
+      });
+    });
+
+    // Airport mode buttons
+    panel.querySelectorAll('[data-apt]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterState.airportMode = btn.dataset.apt;
+        render();
+        applyFilters(lastRawData);
+        // Update highlight set to match mode
+        if (selectedAirportState) {
+          const aptData = getAirportData();
+          const { arrivals, departures } = categorizeFlights(lastRawData, selectedAirportState, aptData?.runways);
+          let set;
+          if (filterState.airportMode === 'ARR') set = new Set(arrivals.map(a => a.icao24));
+          else if (filterState.airportMode === 'DEP') set = new Set(departures.map(a => a.icao24));
+          else set = new Set([...arrivals.map(a => a.icao24), ...departures.map(a => a.icao24)]);
+          if (set.size > 0) aircraftManager.setHighlight(set);
+        }
+      });
+    });
+
+    // Isolate toggle
+    const isoBtn = panel.querySelector('[data-isolate]');
+    if (isoBtn) {
+      isoBtn.addEventListener('click', () => {
+        filterState.isolate = !filterState.isolate;
+        render();
+        applyFilters(lastRawData);
+      });
+    }
+  }
+
+  // Toggle with F key
   document.addEventListener('keydown', (e) => {
-    if (document.activeElement.tagName === 'INPUT') return;
+    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
     if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey) {
-      altFilterActive = !altFilterActive;
-      if (filterDiv) filterDiv.classList.toggle('hidden', !altFilterActive);
-      if (!altFilterActive && aircraftManager) {
-        for (const [, ac] of aircraftManager.aircraft) { if (ac.group) ac.group.visible = true; }
+      filterState.active = !filterState.active;
+      panel.classList.toggle('hidden', !filterState.active);
+      if (filterState.active) {
+        render();
+        requestAnimationFrame(() => panel.classList.add('visible'));
+      } else {
+        panel.classList.remove('visible');
+        // Reset filters when closing
+        filterState.altPreset = 'ALL';
+        filterState.isolate = false;
+        filterState.airportMode = 'ALL';
+        aircraftManager?.clearFilter();
       }
     }
   });
+
+  // Expose render for external triggers (airport selection changes)
+  window._filterPanelRender = render;
 }
 
 // ── T2-16: Auto-tour type filter ──
@@ -4612,7 +4737,7 @@ async function init() {
   requestAnimationFrame(() => {
     initSearch();
     initCityPicker();
-    initAltFilter();
+    initFilterPanel();
     initMobileTouch();
     initWeatherPanel();
     updateWeatherWidget();

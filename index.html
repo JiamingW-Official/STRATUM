@@ -479,7 +479,7 @@
     <div class="help-grid">
       <div class="help-row"><kbd>B</kbd><span>Bloom cycle</span></div>
       <div class="help-row"><kbd>G</kbd><span>Distance rings</span></div>
-      <div class="help-row"><kbd>F</kbd><span>Altitude filter</span></div>
+      <div class="help-row"><kbd>F</kbd><span>Filter panel</span></div>
       <div class="help-row"><kbd>P</kbd><span>Screenshot mode</span></div>
     </div>
 
@@ -618,13 +618,6 @@
     <button type="button" id="emergency-dismiss" class="emergency-dismiss" aria-label="Dismiss">&times;</button>
   </div>
 
-  <!-- Altitude filter slider -->
-  <div id="alt-filter" class="alt-filter hidden">
-    <div class="alt-filter-label"><span id="alt-filter-hi">FL500</span></div>
-    <input type="range" id="alt-filter-max" class="alt-slider" min="0" max="50000" value="50000" orient="vertical" title="Maximum altitude" aria-label="Maximum altitude filter" />
-    <input type="range" id="alt-filter-min" class="alt-slider" min="0" max="50000" value="0" orient="vertical" title="Minimum altitude" aria-label="Minimum altitude filter" />
-    <div class="alt-filter-label"><span id="alt-filter-lo">GND</span></div>
-  </div>
 
   <script type="module" src="/src/main.js"></script>
   <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')</script>
