@@ -59,10 +59,28 @@ async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
   // 1. Check localStorage cache first — instant
   const cached = _loadFromCache(centerLat, centerLon);
   if (cached) {
-    console.log('[STRATUM] Airport data from cache');
+    console.log('[STRATUM] Airport data from localStorage cache');
     return cached;
   }
 
+  // 2. Try Worker smart endpoint — edge-cached 24h, races all Overpass servers
+  try {
+    const res = await fetch(`/api/airports?lat=${centerLat}&lon=${centerLon}&r=${radiusDeg}`, {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const cacheHit = res.headers.get('X-Cache');
+      console.log(`[STRATUM] Airport data from Worker (${cacheHit || 'MISS'})`);
+      const result = parseOverpassData(data);
+      _saveToCache(centerLat, centerLon, result);
+      return result;
+    }
+  } catch (err) {
+    console.warn('[STRATUM] Worker /api/airports failed:', err.message);
+  }
+
+  // 3. Fallback: race Overpass endpoints directly (dev mode / Worker unavailable)
   const south = (centerLat - radiusDeg).toFixed(4);
   const north = (centerLat + radiusDeg).toFixed(4);
   const west = (centerLon - radiusDeg).toFixed(4);
@@ -81,10 +99,7 @@ async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
 );
 out body geom;
 `;
-
   const body = `data=${encodeURIComponent(query)}`;
-
-  // 2. Race all endpoints in parallel — use first success
   const racePromises = OVERPASS_ENDPOINTS.map(endpoint => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10000);
@@ -101,18 +116,16 @@ out body geom;
       return data;
     }).catch(err => {
       clearTimeout(timer);
-      console.warn(`[STRATUM] Overpass failed (${endpoint}):`, err.message);
       throw err;
     });
   });
 
-  // Promise.any resolves with the first fulfilled promise
   try {
     const data = await Promise.any(racePromises);
     const result = parseOverpassData(data);
     _saveToCache(centerLat, centerLon, result);
     return result;
-  } catch (aggregateErr) {
+  } catch {
     throw new Error('All Overpass endpoints failed');
   }
 }
@@ -265,43 +278,32 @@ export function prefetchAirportData(cities) {
   if (uncached.length === 0) return;
   console.log(`[STRATUM] Prefetching airport data for ${uncached.length} cities`);
   let i = 0;
-  let backoff = 3000; // start with 3s between requests
+  let backoff = 800; // Worker handles caching — can be faster
   const next = () => {
     if (i >= uncached.length) return;
     const c = uncached[i++];
     _prefetchSingle(c.lat, c.lon)
-      .then(() => { backoff = 3000; setTimeout(next, backoff); })
-      .catch(() => { backoff = Math.min(backoff * 2, 30000); setTimeout(next, backoff); });
+      .then(() => { backoff = 800; setTimeout(next, backoff); })
+      .catch(() => { backoff = Math.min(backoff * 2, 10000); setTimeout(next, backoff); });
   };
   next();
 }
 
-// Prefetch uses a single random endpoint to avoid hammering all three
+// Prefetch uses Worker smart endpoint — edge-cached, no 429 risk
 async function _prefetchSingle(lat, lon) {
   const cached = _loadFromCache(lat, lon);
   if (cached) return cached;
 
-  const ep = OVERPASS_ENDPOINTS[Math.floor(Math.random() * OVERPASS_ENDPOINTS.length)];
-  const south = (lat - 1.2).toFixed(4), north = (lat + 1.2).toFixed(4);
-  const west = (lon - 1.2).toFixed(4), east = (lon + 1.2).toFixed(4);
-  const query = `[out:json][timeout:15];(way["aeroway"="runway"](${south},${west},${north},${east});way["aeroway"="taxiway"](${south},${west},${north},${east});way["aeroway"="terminal"](${south},${west},${north},${east});way["building"]["aeroway"](${south},${west},${north},${east});node["aeroway"="aerodrome"](${south},${west},${north},${east});way["aeroway"="aerodrome"](${south},${west},${north},${east});relation["aeroway"="aerodrome"](${south},${west},${north},${east}););out body geom;`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
   try {
-    const res = await fetch(ep, {
-      method: 'POST', body: `data=${encodeURIComponent(query)}`,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      signal: controller.signal,
+    const res = await fetch(`/api/airports?lat=${lat}&lon=${lon}&r=1.2`, {
+      signal: AbortSignal.timeout(15000),
     });
-    clearTimeout(timer);
-    if (res.status === 429) throw new Error('429');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const result = parseOverpassData(data);
     _saveToCache(lat, lon, result);
     return result;
   } catch (err) {
-    clearTimeout(timer);
     throw err;
   }
 }
