@@ -1863,6 +1863,13 @@ html, body {
   opacity: 0; pointer-events: none;
   display: flex; align-items: center; justify-content: center;
 }
+/* Boot splash — visible immediately on page load, before JS runs */
+.scene-transition--boot {
+  opacity: 1; pointer-events: all;
+}
+.scene-transition--boot .scene-trans-body {
+  opacity: 1;
+}
 
 .scene-trans-body {
   display: flex; flex-direction: column;

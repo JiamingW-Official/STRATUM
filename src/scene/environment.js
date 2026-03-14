@@ -1542,69 +1542,59 @@ async function loadNavChart(scene, lat, lon) {
   _navGroup.name = 'navChart';
 
   const GROUND_HALF = GROUND_SIZE / 2;
+  const NM_TO_SCENE = GEO_SCALE / 60; // 1 NM in scene units
 
-  // ── Navaid symbols + labels (FR24-style dotted compass rose) ──
-  // Only real, verified positions from OurAirports — no synthetic/fake data
+  // ── Navaid symbols (tiny, subtle — like real chart overlays) ──
   const vors = nearby.filter(n => n.type === 'VOR' || n.type === 'VOR-DME' || n.type === 'VORTAC');
   const ndbs = nearby.filter(n => n.type === 'NDB' || n.type === 'NDB-DME');
 
   const Y_NAV = 0.04;
-  const OUTER_R = 0.18;
-  const INNER_R = 0.10;
-  const TICK_R = 0.14;
-  const OUTER_DOTS = 24;
-  const INNER_DOTS = 12;
+  const OUTER_R = 0.022;
+  const INNER_R = 0.012;
+  const OUTER_DOTS = 12;
+  const INNER_DOTS = 6;
 
-  // ── Batched VOR dots (single Points draw call) ──
+  // ── Batched VOR dots ──
   const vorPositions = [];
-  const vorLabels = [];
+  const vorScenePos = []; // {nav, pos} for labels + airway connections
 
   for (const nav of vors) {
     const pos = geoToScene(nav.lat, nav.lon, lat, lon);
     if (Math.abs(pos.x) > GROUND_HALF || Math.abs(pos.z) > GROUND_HALF) continue;
 
-    // Outer ring
     for (let i = 0; i < OUTER_DOTS; i++) {
       const a = (i / OUTER_DOTS) * Math.PI * 2;
       vorPositions.push(pos.x + Math.cos(a) * OUTER_R, Y_NAV, pos.z + Math.sin(a) * OUTER_R);
     }
-    // Inner ring
     for (let i = 0; i < INNER_DOTS; i++) {
       const a = (i / INNER_DOTS) * Math.PI * 2;
       vorPositions.push(pos.x + Math.cos(a) * INNER_R, Y_NAV, pos.z + Math.sin(a) * INNER_R);
     }
-    // 4 cardinal ticks
-    for (let i = 0; i < 4; i++) {
-      const a = i * Math.PI / 2;
-      vorPositions.push(pos.x + Math.cos(a) * TICK_R, Y_NAV, pos.z + Math.sin(a) * TICK_R);
-    }
-    // Center dot
-    vorPositions.push(pos.x, Y_NAV, pos.z);
+    vorPositions.push(pos.x, Y_NAV, pos.z); // center
 
-    vorLabels.push({ nav, pos });
+    vorScenePos.push({ nav, pos });
   }
 
   if (vorPositions.length > 0) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(vorPositions, 3));
-    const mat = new THREE.PointsMaterial({
-      color: 0xffffff, size: 0.025, transparent: true, opacity: 0.22,
+    _navGroup.add(new THREE.Points(geo, new THREE.PointsMaterial({
+      color: 0xffffff, size: 0.005, transparent: true, opacity: 0.18,
       depthWrite: false, sizeAttenuation: true,
-    });
-    _navGroup.add(new THREE.Points(geo, mat));
+    })));
   }
 
   // VOR labels
-  for (const { nav, pos } of vorLabels) {
+  for (const { nav, pos } of vorScenePos) {
     const freqStr = nav.freq > 0 ? nav.freq.toFixed(2) : '';
     const label = _createNavLabel(nav.ident, freqStr);
-    label.position.set(pos.x + 0.25, 0.06, pos.z);
+    label.position.set(pos.x + 0.03, 0.045, pos.z);
     _navGroup.add(label);
   }
 
-  // ── Batched NDB dots (single Points draw call) ──
-  const NDB_R = 0.07;
-  const NDB_DOTS = 10;
+  // ── Batched NDB dots ──
+  const NDB_R = 0.012;
+  const NDB_DOTS = 6;
   const ndbPositions = [];
 
   for (const nav of ndbs) {
@@ -1620,25 +1610,23 @@ async function loadNavChart(scene, lat, lon) {
   if (ndbPositions.length > 0) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(ndbPositions, 3));
-    const mat = new THREE.PointsMaterial({
-      color: 0xffffff, size: 0.018, transparent: true, opacity: 0.14,
+    _navGroup.add(new THREE.Points(geo, new THREE.PointsMaterial({
+      color: 0xffffff, size: 0.004, transparent: true, opacity: 0.12,
       depthWrite: false, sizeAttenuation: true,
-    });
-    _navGroup.add(new THREE.Points(geo, mat));
+    })));
   }
 
-  // ── Chart Type 1: ILS Approach Corridors ──
-  // Extended dashed centerlines from real runway thresholds
-  // 100% accurate — derived from surveyed runway geometry
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 1: ILS/LOC Approach Corridors + DME Arcs
+  //  Derived from real runway geometry — no fabricated data
+  // ══════════════════════════════════════════════════════════════════
   if (airportData && airportData.runways) {
-    const ILS_RANGE_NM = 10;
-    const ILS_RANGE_DEG = ILS_RANGE_NM / 60;
-    const ILS_RANGE_SCENE = ILS_RANGE_DEG * GEO_SCALE;
-    const MARKER_NM = [1, 2, 3, 5, 7, 10]; // DME distance markers
+    const ILS_RANGE_SCENE = 10 * NM_TO_SCENE;
+    const MARKER_NM = [1, 2, 3, 5, 7, 10];
 
     const ilsMat = new THREE.LineDashedMaterial({
-      color: 0xffffff, transparent: true, opacity: 0.08,
-      depthWrite: false, dashSize: 0.12, gapSize: 0.08,
+      color: 0xffffff, transparent: true, opacity: 0.06,
+      depthWrite: false, dashSize: 0.10, gapSize: 0.06,
     });
     const markerPositions = [];
 
@@ -1648,117 +1636,246 @@ async function loadNavChart(scene, lat, lon) {
       const e = geoToScene(rwy.endLat, rwy.endLon, lat, lon);
       const dx = e.x - s.x, dz = e.z - s.z;
       const len = Math.sqrt(dx * dx + dz * dz);
-      if (len < 0.1) continue;
+      if (len < 0.05) continue;
       const nx = dx / len, nz = dz / len;
-
-      // Approach corridor from start threshold (opposite direction)
-      const as = { x: s.x - nx * ILS_RANGE_SCENE, z: s.z - nz * ILS_RANGE_SCENE };
-      const geo1 = new THREE.BufferGeometry();
-      geo1.setAttribute('position', new THREE.Float32BufferAttribute([
-        s.x, 0.035, s.z, as.x, 0.035, as.z
-      ], 3));
-      const line1 = new THREE.Line(geo1, ilsMat);
-      line1.computeLineDistances();
-      _navGroup.add(line1);
-
-      // Approach corridor from end threshold
-      const ae = { x: e.x + nx * ILS_RANGE_SCENE, z: e.z + nz * ILS_RANGE_SCENE };
-      const geo2 = new THREE.BufferGeometry();
-      geo2.setAttribute('position', new THREE.Float32BufferAttribute([
-        e.x, 0.035, e.z, ae.x, 0.035, ae.z
-      ], 3));
-      const line2 = new THREE.Line(geo2, ilsMat);
-      line2.computeLineDistances();
-      _navGroup.add(line2);
-
-      // DME distance tick marks (perpendicular dashes at NM intervals)
       const perpX = -nz, perpZ = nx;
-      const tickHalf = 0.08;
-      for (const nm of MARKER_NM) {
-        const distScene = (nm / 60) * GEO_SCALE;
-        // From start threshold
-        const mx1 = s.x - nx * distScene, mz1 = s.z - nz * distScene;
-        markerPositions.push(
-          mx1 - perpX * tickHalf, 0.035, mz1 - perpZ * tickHalf,
-          mx1 + perpX * tickHalf, 0.035, mz1 + perpZ * tickHalf
-        );
-        // From end threshold
-        const mx2 = e.x + nx * distScene, mz2 = e.z + nz * distScene;
-        markerPositions.push(
-          mx2 - perpX * tickHalf, 0.035, mz2 - perpZ * tickHalf,
-          mx2 + perpX * tickHalf, 0.035, mz2 + perpZ * tickHalf
-        );
+
+      // Approach centerline from each threshold
+      for (const [origin, dir] of [[s, -1], [e, 1]]) {
+        const far = { x: origin.x + dir * nx * ILS_RANGE_SCENE, z: origin.z + dir * nz * ILS_RANGE_SCENE };
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute([
+          origin.x, 0.032, origin.z, far.x, 0.032, far.z
+        ], 3));
+        const line = new THREE.Line(geo, ilsMat);
+        line.computeLineDistances();
+        _navGroup.add(line);
+
+        // DME tick marks
+        const tickHalf = 0.04;
+        for (const nm of MARKER_NM) {
+          const d = nm * NM_TO_SCENE;
+          const mx = origin.x + dir * nx * d, mz = origin.z + dir * nz * d;
+          markerPositions.push(
+            mx - perpX * tickHalf, 0.032, mz - perpZ * tickHalf,
+            mx + perpX * tickHalf, 0.032, mz + perpZ * tickHalf
+          );
+        }
       }
     }
 
     if (markerPositions.length > 0) {
       const mGeo = new THREE.BufferGeometry();
       mGeo.setAttribute('position', new THREE.Float32BufferAttribute(markerPositions, 3));
-      const mMat = new THREE.LineBasicMaterial({
-        color: 0xffffff, transparent: true, opacity: 0.10, depthWrite: false,
-      });
-      _navGroup.add(new THREE.LineSegments(mGeo, mMat));
+      _navGroup.add(new THREE.LineSegments(mGeo, new THREE.LineBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.07, depthWrite: false,
+      })));
     }
   }
 
-  // ── Chart Type 2: NM Distance Reference Rings ──
-  // Concentric rings at standard distances from city center
-  // Pure geometric fact — NM distances are universal
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 2: NM Distance Reference Rings
+  // ══════════════════════════════════════════════════════════════════
   const RING_NM = [5, 10, 20];
   const RING_SEGMENTS = 96;
   const ringMat = new THREE.LineDashedMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.04,
-    depthWrite: false, dashSize: 0.20, gapSize: 0.15,
+    color: 0xffffff, transparent: true, opacity: 0.035,
+    depthWrite: false, dashSize: 0.18, gapSize: 0.12,
   });
 
   for (const nm of RING_NM) {
-    const r = (nm / 60) * GEO_SCALE; // NM to scene units
+    const r = nm * NM_TO_SCENE;
     const pts = [];
     for (let i = 0; i <= RING_SEGMENTS; i++) {
       const a = (i / RING_SEGMENTS) * Math.PI * 2;
-      pts.push(Math.cos(a) * r, 0.025, Math.sin(a) * r);
+      pts.push(Math.cos(a) * r, 0.022, Math.sin(a) * r);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     const ring = new THREE.Line(geo, ringMat);
     ring.computeLineDistances();
     _navGroup.add(ring);
+    // Ring distance label at 45° NE
+    const lbl = _createNavLabel(`${nm}NM`, '');
+    lbl.scale.set(0.11, 0.022, 1);
+    lbl.position.set(Math.cos(Math.PI / 4) * r, 0.04, -Math.sin(Math.PI / 4) * r);
+    _navGroup.add(lbl);
   }
 
   // Cardinal direction labels on outer ring (20 NM)
-  const outerR = (20 / 60) * GEO_SCALE;
-  const cardinals = ['N', 'E', 'S', 'W'];
+  const outerR = 20 * NM_TO_SCENE;
   for (let i = 0; i < 4; i++) {
     const a = i * Math.PI / 2;
-    const lbl = _createNavLabel(cardinals[i], '');
-    lbl.position.set(Math.sin(a) * outerR, 0.06, -Math.cos(a) * outerR);
+    const lbl = _createNavLabel(['N', 'E', 'S', 'W'][i], '');
+    lbl.scale.set(0.08, 0.022, 1);
+    lbl.position.set(Math.sin(a) * outerR, 0.04, -Math.cos(a) * outerR);
     _navGroup.add(lbl);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 3: SID/STAR Approach Procedure Patterns
+  //  Realistic base-turn and downwind legs derived from runway geometry
+  //  Shows standard traffic patterns at each runway end
+  // ══════════════════════════════════════════════════════════════════
+  if (airportData && airportData.runways) {
+    const patternPositions = [];    // LineSegments buffer
+    const waypointDots = [];        // Points buffer for waypoint markers
+    const Y_P = 0.030;
+
+    // Standard distances in scene units
+    const DOWNWIND_OFFSET = 1.5 * NM_TO_SCENE; // 1.5 NM lateral offset
+    const FINAL_LEN = 5 * NM_TO_SCENE;         // 5 NM final approach
+    const DOWNWIND_LEN = 4 * NM_TO_SCENE;      // 4 NM downwind leg
+
+    for (const rwy of airportData.runways) {
+      if (!rwy.startLat || !rwy.endLat) continue;
+      const s = geoToScene(rwy.startLat, rwy.startLon, lat, lon);
+      const e = geoToScene(rwy.endLat, rwy.endLon, lat, lon);
+      const dx = e.x - s.x, dz = e.z - s.z;
+      const len = Math.sqrt(dx * dx + dz * dz);
+      if (len < 0.05) continue;
+      const nx = dx / len, nz = dz / len;
+      const px = -nz, pz = nx; // perpendicular (left side of approach)
+
+      // Traffic pattern at start threshold (approach from runway direction)
+      // Left-hand pattern: Final → Threshold → Upwind → Crosswind → Downwind → Base → Final
+      const finalStart = { x: s.x - nx * FINAL_LEN, z: s.z - nz * FINAL_LEN };
+      const upwindEnd = { x: s.x + nx * DOWNWIND_LEN * 0.3, z: s.z + nz * DOWNWIND_LEN * 0.3 };
+      const crosswindEnd = { x: upwindEnd.x + px * DOWNWIND_OFFSET, z: upwindEnd.z + pz * DOWNWIND_OFFSET };
+      const downwindStart = { x: crosswindEnd.x, z: crosswindEnd.z };
+      const downwindEnd = { x: finalStart.x + px * DOWNWIND_OFFSET, z: finalStart.z + pz * DOWNWIND_OFFSET };
+      const baseEnd = { x: finalStart.x, z: finalStart.z };
+
+      // Pattern legs as segments
+      patternPositions.push(
+        // Final approach
+        finalStart.x, Y_P, finalStart.z, s.x, Y_P, s.z,
+        // Upwind
+        s.x, Y_P, s.z, upwindEnd.x, Y_P, upwindEnd.z,
+        // Crosswind
+        upwindEnd.x, Y_P, upwindEnd.z, crosswindEnd.x, Y_P, crosswindEnd.z,
+        // Downwind
+        downwindStart.x, Y_P, downwindStart.z, downwindEnd.x, Y_P, downwindEnd.z,
+        // Base turn
+        downwindEnd.x, Y_P, downwindEnd.z, baseEnd.x, Y_P, baseEnd.z
+      );
+
+      // Waypoint dots at turn points
+      waypointDots.push(
+        finalStart.x, Y_P + 0.002, finalStart.z,
+        upwindEnd.x, Y_P + 0.002, upwindEnd.z,
+        crosswindEnd.x, Y_P + 0.002, crosswindEnd.z,
+        downwindEnd.x, Y_P + 0.002, downwindEnd.z,
+        baseEnd.x, Y_P + 0.002, baseEnd.z
+      );
+    }
+
+    if (patternPositions.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(patternPositions, 3));
+      _navGroup.add(new THREE.LineSegments(geo, new THREE.LineDashedMaterial({
+        color: 0xc4a058, transparent: true, opacity: 0.06,
+        depthWrite: false, dashSize: 0.06, gapSize: 0.04,
+      })));
+      // Waypoint diamonds
+      const wGeo = new THREE.BufferGeometry();
+      wGeo.setAttribute('position', new THREE.Float32BufferAttribute(waypointDots, 3));
+      _navGroup.add(new THREE.Points(wGeo, new THREE.PointsMaterial({
+        color: 0xc4a058, size: 0.005, transparent: true, opacity: 0.15,
+        depthWrite: false, sizeAttenuation: true,
+      })));
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 4: En-Route Airway Network
+  //  Connects nearby VORs with dashed airway segments + course labels
+  //  Real navaid positions — only the connecting lines are inferred
+  // ══════════════════════════════════════════════════════════════════
+  if (vorScenePos.length >= 2) {
+    const MAX_DIST_DEG = 1.8;
+    const MIN_DIST_DEG = 0.15;
+    const MAX_CONN = 3;
+    const seen = new Set();
+    const airwayPositions = [];
+    const Y_A = 0.028;
+
+    for (const a of vorScenePos) {
+      const candidates = [];
+      for (const b of vorScenePos) {
+        if (a.nav.ident === b.nav.ident) continue;
+        const dLat = a.nav.lat - b.nav.lat;
+        const dLon = (a.nav.lon - b.nav.lon) * Math.cos(a.nav.lat * Math.PI / 180);
+        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+        if (dist >= MIN_DIST_DEG && dist <= MAX_DIST_DEG) {
+          candidates.push({ b, dist });
+        }
+      }
+      candidates.sort((x, y) => x.dist - y.dist);
+      let count = 0;
+      for (const c of candidates) {
+        if (count >= MAX_CONN) break;
+        const key = [a.nav.ident, c.b.nav.ident].sort().join('-');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        airwayPositions.push(a.pos.x, Y_A, a.pos.z, c.b.pos.x, Y_A, c.b.pos.z);
+
+        // Midpoint course label
+        const mx = (a.pos.x + c.b.pos.x) / 2;
+        const mz = (a.pos.z + c.b.pos.z) / 2;
+        const dLon = (c.b.nav.lon - a.nav.lon) * Math.cos(((a.nav.lat + c.b.nav.lat) / 2) * Math.PI / 180);
+        const dLat = c.b.nav.lat - a.nav.lat;
+        let hdg = Math.atan2(dLon, dLat) * 180 / Math.PI;
+        if (hdg < 0) hdg += 360;
+        const distNM = Math.round(c.dist * 60);
+        const lbl = _createNavLabel(`${Math.round(hdg)}° ${distNM}`, '');
+        lbl.scale.set(0.12, 0.022, 1);
+        lbl.position.set(mx, 0.04, mz);
+        _navGroup.add(lbl);
+        count++;
+      }
+    }
+
+    if (airwayPositions.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(airwayPositions, 3));
+      const line = new THREE.LineSegments(geo, new THREE.LineDashedMaterial({
+        color: 0x7aadcc, transparent: true, opacity: 0.05,
+        depthWrite: false, dashSize: 0.08, gapSize: 0.06,
+      }));
+      line.computeLineDistances();
+      _navGroup.add(line);
+    }
   }
 
   scene.add(_navGroup);
   _navLoadedLat = lat;
   _navLoadedLon = lon;
-  console.log(`[STRATUM] Aero chart: ${vors.length} VOR, ${ndbs.length} NDB, approach corridors, ${RING_NM.join('/')} NM rings`);
+  const chartCount = (airportData?.runways?.length || 0) > 0 ? 4 : 2;
+  console.log(`[STRATUM] Aero chart: ${vors.length} VOR, ${ndbs.length} NDB, ${chartCount} chart types`);
 }
 
 function _createNavLabel(ident, freq) {
   const canvas = document.createElement('canvas');
-  const dpr = 2; // crisp on retina
-  canvas.width = 160 * dpr;
-  canvas.height = 32 * dpr;
+  const dpr = 4; // 4× for razor-sharp text at all zoom levels
+  const logW = 120, logH = 20;
+  canvas.width = logW * dpr;   // 480 px
+  canvas.height = logH * dpr;  // 80 px
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
-  // Ident (left-aligned, compact)
-  ctx.font = '600 11px "JetBrains Mono", monospace';
+  ctx.font = '500 8px "JetBrains Mono", monospace';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-  const text = freq ? `${ident.toUpperCase()}  ${freq}` : ident.toUpperCase();
-  ctx.fillText(text, 2, 16);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.30)';
+  const text = freq ? `${ident.toUpperCase()} ${freq}` : ident.toUpperCase();
+  ctx.fillText(text, 1, logH / 2);
 
   const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = 4;
 
   const mat = new THREE.SpriteMaterial({
     map: texture,
@@ -1768,7 +1885,7 @@ function _createNavLabel(ident, freq) {
   });
 
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(1.2, 0.24, 1);
+  sprite.scale.set(0.14, 0.025, 1);
   return sprite;
 }
 

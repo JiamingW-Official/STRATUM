@@ -1,45 +1,49 @@
 // Worldwide navaid data from OurAirports (public domain)
 // Source: https://ourairports.com/data/navaids.csv
 
-const NAVAIDS_URL = 'https://davidmegginson.github.io/ourairports-data/navaids.csv';
-const FALLBACK_URL = '/api/navaids/ourairports-data/navaids.csv';
+// Worker proxy first (edge-cached 7 days), direct GitHub Pages as fallback
+const NAVAIDS_URL = '/api/navaids/ourairports-data/navaids.csv';
+const FALLBACK_URL = 'https://davidmegginson.github.io/ourairports-data/navaids.csv';
 
 let _cache = null;
-let _fetching = false;
+let _fetchPromise = null;
 
 /**
  * Fetch worldwide navaid data (~11K records, ~1.5MB).
- * Cached in memory after first fetch.
+ * Cached in memory after first fetch. Concurrent callers share one fetch.
  * @returns {Promise<Array|null>} Array of { ident, name, type, freq, lat, lon }
  */
 export async function fetchNavaidData() {
   if (_cache) return _cache;
-  if (_fetching) return null;
-  _fetching = true;
+  if (_fetchPromise) return _fetchPromise;
 
-  try {
-    let csv;
+  _fetchPromise = (async () => {
     try {
-      const res = await fetch(NAVAIDS_URL, { signal: AbortSignal.timeout(12000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      csv = await res.text();
-    } catch {
-      // Fallback to proxy
-      const res = await fetch(FALLBACK_URL, { signal: AbortSignal.timeout(12000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      csv = await res.text();
-    }
+      let csv;
+      try {
+        const res = await fetch(NAVAIDS_URL, { signal: AbortSignal.timeout(12000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        csv = await res.text();
+      } catch {
+        // Fallback to proxy
+        const res = await fetch(FALLBACK_URL, { signal: AbortSignal.timeout(12000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        csv = await res.text();
+      }
 
-    const navaids = _parseCSV(csv);
-    _cache = navaids;
-    console.log(`[STRATUM] Navaids loaded: ${navaids.length}`);
-    return navaids;
-  } catch (err) {
-    console.warn('[STRATUM] Navaids fetch failed:', err.message);
-    return null;
-  } finally {
-    _fetching = false;
-  }
+      const navaids = _parseCSV(csv);
+      _cache = navaids;
+      console.log(`[STRATUM] Navaids loaded: ${navaids.length}`);
+      return navaids;
+    } catch (err) {
+      console.warn('[STRATUM] Navaids fetch failed:', err.message);
+      return null;
+    } finally {
+      _fetchPromise = null;
+    }
+  })();
+
+  return _fetchPromise;
 }
 
 function _parseCSV(csv) {

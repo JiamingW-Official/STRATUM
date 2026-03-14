@@ -6,6 +6,8 @@
   <title>STRATUM</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://a.basemaps.cartocdn.com" crossorigin />
+  <link rel="preconnect" href="https://b.basemaps.cartocdn.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
@@ -13,10 +15,10 @@
   <canvas id="scene"></canvas>
   <div id="vignette" class="vignette"></div>
   <div id="speed-lines" class="speed-lines"></div>
-  <div id="scene-transition" class="scene-transition">
-    <div class="scene-trans-body">
-      <div id="scene-trans-code" class="scene-trans-code"></div>
-      <div id="scene-trans-name" class="scene-trans-name"></div>
+  <div id="scene-transition" class="scene-transition scene-transition--boot" style="opacity:1;pointer-events:all">
+    <div class="scene-trans-body" style="opacity:1">
+      <div id="scene-trans-code" class="scene-trans-code">STR</div>
+      <div id="scene-trans-name" class="scene-trans-name">INITIALIZING</div>
       <div class="scene-trans-bar"></div>
     </div>
   </div>

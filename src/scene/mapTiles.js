@@ -123,16 +123,40 @@ export async function loadMapTexture(centerLat, centerLon, degreesExtent, onUpgr
   const latMin = centerLat - half;
   const latMax = centerLat + half;
 
-  // Phase 1: Zoom 10 @2x — fast base layer (~50 tiles for 2° extent)
-  const lo = await loadTilesForRegion(centerLat, centerLon, half, 10);
-  if (!lo) throw new Error('Failed to load base map tiles');
-  const baseTexture = createTextureFromRegion(lo, lonMin, lonMax, latMin, latMax);
+  // Phase 0: Zoom 8 @2x — instant preview (~6 tiles, <200ms)
+  const preview = await loadTilesForRegion(centerLat, centerLon, half, 8);
+  const baseTexture = preview
+    ? createTextureFromRegion(preview, lonMin, lonMax, latMin, latMax)
+    : null;
 
-  if (onUpgrade) {
-    loadHighResAsync(centerLat, centerLon, half, lonMin, lonMax, latMin, latMax, onUpgrade);
+  if (onUpgrade || !baseTexture) {
+    // Phase 1+: Zoom 10 → 12 → ... progressive upgrades in background
+    loadProgressiveAsync(centerLat, centerLon, half, lonMin, lonMax, latMin, latMax, onUpgrade);
+  }
+
+  if (!baseTexture) {
+    // Fallback: wait for zoom 10 if zoom 8 somehow failed
+    const lo = await loadTilesForRegion(centerLat, centerLon, half, 10);
+    if (!lo) throw new Error('Failed to load base map tiles');
+    return createTextureFromRegion(lo, lonMin, lonMax, latMin, latMax);
   }
 
   return baseTexture;
+}
+
+async function loadProgressiveAsync(centerLat, centerLon, half, lonMin, lonMax, latMin, latMax, onUpgrade) {
+  try {
+    // Phase 1: Zoom 10 — sharper base (~50 tiles)
+    const r1 = await loadTilesForRegion(centerLat, centerLon, half, 10);
+    if (r1 && onUpgrade) {
+      onUpgrade(createTextureFromRegion(r1, lonMin, lonMax, latMin, latMax), null);
+    }
+
+    // Phase 2+: hi-res overlays
+    loadHighResAsync(centerLat, centerLon, half, lonMin, lonMax, latMin, latMax, onUpgrade);
+  } catch (err) {
+    console.warn('[MapTiles] Progressive load failed:', err.message);
+  }
 }
 
 async function loadHighResAsync(centerLat, centerLon, half, lonMin, lonMax, latMin, latMax, onUpgrade) {

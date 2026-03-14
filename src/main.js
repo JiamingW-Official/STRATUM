@@ -2571,14 +2571,15 @@ async function switchCity(city) {
   controls.update();
   controls.enabled = true;
 
-  // 4. Load ground map + airports + FIR all in parallel
+  // 4. Load ground map + airports + FIR in parallel; nav chart after airports
   const mapP = loadGroundMap(city.lat, city.lon);
   const aptP = loadAirports(scene, city.lat, city.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
   });
-  const firP = reloadFIRForLocation(scene, city.lat, city.lon);
-  const navP = reloadNavChart(scene, city.lat, city.lon);
+  reloadFIRForLocation(scene, city.lat, city.lon);
+  // Nav chart needs airportData for ILS corridors — wait for airports
+  aptP.then(() => reloadNavChart(scene, city.lat, city.lon));
   // Wait for map, then give airports up to 2s more before revealing
   await mapP;
   if (sceneTransName) sceneTransName.textContent = `${city.name}  ·  Loading airports...`;
@@ -4057,42 +4058,62 @@ async function init() {
 
   aircraftManager = new AircraftManager(scene, defaultCity.lat, defaultCity.lon);
 
-  // Load base map, airports, and FIR boundaries for the default city.
-  loadGroundMap(defaultCity.lat, defaultCity.lon);
-  loadAirports(scene, defaultCity.lat, defaultCity.lon).then(() => {
+  // ── 1. Start render loop IMMEDIATELY — intro camera animation plays while data loads ──
+  animate();
+
+  // ── 2. Boot splash — show city code while loading ──
+  if (sceneTransCode) sceneTransCode.textContent = defaultCity.code;
+  if (sceneTransName) sceneTransName.textContent = 'Loading airspace...';
+
+  // ── 3. Kick off map + airports in parallel (highest visual impact) ──
+  const mapP = loadGroundMap(defaultCity.lat, defaultCity.lon);
+  const aptP = loadAirports(scene, defaultCity.lat, defaultCity.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
   });
-  reloadFIRForLocation(scene, defaultCity.lat, defaultCity.lon);
-  reloadNavChart(scene, defaultCity.lat, defaultCity.lon);
 
+  // ── 4. Start live data polling immediately (doesn't block rendering) ──
   startPolling(handleData, handleError);
-  initSearch();
-  initCityPicker();
-  initNeko();
 
-  // T2-20: Start ambient ATC chatter
-  startAmbientATC();
+  // ── 5. Wait for map to load, then fade in the scene ──
+  await mapP;
+  if (sceneTransName) sceneTransName.textContent = defaultCity.name;
+  // Give airports up to 1.5s to finish before revealing
+  await Promise.race([aptP, new Promise(r => setTimeout(r, 1500))]);
 
-  // T3-06: Initialize altitude filter sliders
-  initAltFilter();
+  // Fade out boot splash
+  if (sceneTrans) {
+    sceneTrans.classList.remove('scene-transition--boot');
+    sceneTrans.classList.remove('loading');
+    sceneTrans.style.transition = 'opacity 0.8s ease';
+    sceneTrans.style.opacity = '0';
+    sceneTrans.style.pointerEvents = '';
+  }
 
-  // T3-14: Initialize mobile touch controls
-  initMobileTouch();
+  // ── 6. Deferred UI init — next frame, after scene is visible ──
+  requestAnimationFrame(() => {
+    initSearch();
+    initCityPicker();
+    initNeko();
+    initAltFilter();
+    initMobileTouch();
+    initWeatherPanel();
+    updateWeatherWidget();
+    startAmbientATC();
 
-  // T3-02: Weather panel — init toggle + fetch
-  initWeatherPanel();
-  updateWeatherWidget();
-
-  // Overlay close handlers (click-outside + close buttons)
-  document.querySelectorAll('.overlay-backdrop').forEach(el => {
-    el.addEventListener('click', (e) => { if (e.target === el) el.classList.add('hidden'); });
+    // Overlay close handlers
+    document.querySelectorAll('.overlay-backdrop').forEach(el => {
+      el.addEventListener('click', (e) => { if (e.target === el) el.classList.add('hidden'); });
+    });
+    document.querySelectorAll('.overlay-close-btn').forEach(btn => {
+      btn.addEventListener('click', () => { btn.closest('.overlay-backdrop')?.classList.add('hidden'); });
+    });
   });
-  document.querySelectorAll('.overlay-close-btn').forEach(btn => {
-    btn.addEventListener('click', () => { btn.closest('.overlay-backdrop')?.classList.add('hidden'); });
-  });
 
-  animate();
+  // ── 7. Deferred data loads — FIR loads soon, nav chart waits for airport data ──
+  setTimeout(() => reloadFIRForLocation(scene, defaultCity.lat, defaultCity.lon), 1500);
+  // Nav chart needs airportData for ILS corridors — wait for airports then load
+  aptP.then(() => reloadNavChart(scene, defaultCity.lat, defaultCity.lon));
 
   // Background-prefetch airport data after initial load settles (15s)
   setTimeout(() => prefetchAirportData(CITIES), 15000);
