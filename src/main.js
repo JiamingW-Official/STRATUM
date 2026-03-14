@@ -921,14 +921,26 @@ function updateFleetStats(dataList) {
     _fleetEl = document.createElement('div');
     _fleetEl.id = 'fleet-stats';
     _fleetEl.className = 'stratum-widget fleet-widget';
-    _fleetEl.style.cssText = 'bottom:12px;left:var(--edge);pointer-events:auto;cursor:pointer;max-width:220px;';
     _fleetEl.addEventListener('click', () => {
       _fleetExpanded = !_fleetExpanded;
       renderFleetContent(dataList);
     });
     document.body.appendChild(_fleetEl);
+    // Position above weather panel dynamically
+    _positionFleetWidget();
   }
   renderFleetContent(dataList);
+}
+
+function _positionFleetWidget() {
+  if (!_fleetEl) return;
+  const wp = document.getElementById('weather-widget');
+  if (wp && !wp.classList.contains('hidden')) {
+    const wpRect = wp.getBoundingClientRect();
+    _fleetEl.style.bottom = `${window.innerHeight - wpRect.top + 8}px`;
+  } else {
+    _fleetEl.style.bottom = `${parseInt(getComputedStyle(document.documentElement).getPropertyValue('--edge')) || 20}px`;
+  }
 }
 
 function renderFleetContent(dataList) {
@@ -978,12 +990,10 @@ function renderFleetContent(dataList) {
   const total = dataList.length || 1;
   const typeBar = (label, count, color) => {
     const pct = Math.round(count / total * 100);
-    return `<div style="display:flex;align-items:center;gap:4px;margin:1px 0">
-      <span style="width:16px;text-align:right;color:${color}">${count}</span>
-      <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden">
-        <div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div>
-      </div>
-      <span style="width:18px;font-size:7px;color:rgba(255,255,255,0.4)">${label}</span>
+    return `<div class="fleet-bar-row">
+      <span class="fleet-bar-count" style="color:${color}">${count}</span>
+      <div class="fleet-bar-track"><div class="fleet-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <span class="fleet-bar-label">${label}</span>
     </div>`;
   };
 
@@ -991,31 +1001,24 @@ function renderFleetContent(dataList) {
     FLEET MIX <span style="font-size:7px;letter-spacing:0;color:rgba(196,160,88,0.4)">${_fleetExpanded ? '▴' : '▾'}</span>
   </div>`;
 
-  // Compact: always show type bars
   html += typeBar('NB', types.NB, '#5aacff');
   html += typeBar('WB', types.WB, '#ee8833');
   html += typeBar('RJ', types.RJ, '#44dd88');
   html += typeBar('BJ', types.BJ, '#cc88ff');
 
   if (_fleetExpanded) {
-    // Top 5 airlines
     const sortedAirlines = Object.entries(airlines).sort((a, b) => b[1] - a[1]).slice(0, 5);
     if (sortedAirlines.length > 0) {
-      html += `<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.06);padding-top:4px">
-        <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:2px">TOP AIRLINES</div>`;
+      html += `<div class="fleet-section"><div class="fleet-section-title">TOP AIRLINES</div>`;
       for (const [code, cnt] of sortedAirlines) {
         const name = _getAirlineName(code);
-        html += `<div style="display:flex;justify-content:space-between;font-size:8px;color:rgba(255,255,255,0.6);margin:1px 0">
-          <span>${name || code}</span><span style="color:rgba(196,160,88,0.7)">${cnt}</span>
-        </div>`;
+        html += `<div class="fleet-airline-row"><span>${name || code}</span><span class="fleet-airline-count">${cnt}</span></div>`;
       }
       html += '</div>';
     }
 
-    // Phase distribution
-    html += `<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.06);padding-top:4px">
-      <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:2px">FLIGHT PHASE</div>
-      <div style="display:flex;gap:6px;font-size:8px">
+    html += `<div class="fleet-section"><div class="fleet-section-title">FLIGHT PHASE</div>
+      <div class="fleet-phase-row">
         <span style="color:#6ec87a">CLB ${phases.CLB}</span>
         <span style="color:rgba(196,160,88,0.8)">CRZ ${phases.CRZ}</span>
         <span style="color:#e8836a">DES ${phases.DES}</span>
@@ -1023,27 +1026,24 @@ function renderFleetContent(dataList) {
       </div>
     </div>`;
 
-    // Altitude histogram
     const bucketKeys = Object.keys(altBuckets).map(Number).sort((a, b) => a - b);
     if (bucketKeys.length > 0) {
       const maxBucket = Math.max(...Object.values(altBuckets));
-      html += `<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.06);padding-top:4px">
-        <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:2px">ALTITUDE DIST (×1000ft)</div>
-        <div style="display:flex;align-items:flex-end;gap:1px;height:24px">`;
+      html += `<div class="fleet-section"><div class="fleet-section-title">ALTITUDE DIST (×1000ft)</div>
+        <div class="fleet-alt-bars">`;
       for (const k of bucketKeys) {
         const pct = Math.round(altBuckets[k] / maxBucket * 100);
         const color = k >= 30 ? '#5aacff' : k >= 15 ? '#44dd88' : '#ee8833';
-        html += `<div title="FL${k}0-${k + 5}0: ${altBuckets[k]}" style="flex:1;min-width:6px;height:${pct}%;background:${color};border-radius:1px 1px 0 0;opacity:0.7"></div>`;
+        html += `<div class="fleet-alt-bar" title="FL${k}0-${k + 5}0: ${altBuckets[k]}" style="height:${pct}%;background:${color}"></div>`;
       }
       html += `</div>
-        <div style="display:flex;justify-content:space-between;font-size:6px;color:rgba(255,255,255,0.25);margin-top:1px">
-          <span>${bucketKeys[0]}k</span><span>${bucketKeys[bucketKeys.length - 1] + 5}k</span>
-        </div>
+        <div class="fleet-alt-labels"><span>${bucketKeys[0]}k</span><span>${bucketKeys[bucketKeys.length - 1] + 5}k</span></div>
       </div>`;
     }
   }
 
   _fleetEl.innerHTML = html;
+  _positionFleetWidget();
 }
 
 // --- Data handling ---
@@ -1649,9 +1649,16 @@ function renderEmergencyTimeline() {
   if (!_emergencyTimelineEl) {
     _emergencyTimelineEl = document.createElement('div');
     _emergencyTimelineEl.id = 'emergency-timeline';
-    _emergencyTimelineEl.className = 'stratum-widget';
-    _emergencyTimelineEl.style.cssText = 'top:80px;right:var(--edge);max-width:240px;pointer-events:auto;border-top-color:rgba(232,68,68,0.6);';
+    _emergencyTimelineEl.className = 'stratum-widget emergency-timeline-widget';
     document.body.appendChild(_emergencyTimelineEl);
+    // Position below HUD
+    const hud = document.getElementById('hud');
+    if (hud) {
+      const hudRect = hud.getBoundingClientRect();
+      _emergencyTimelineEl.style.top = `${hudRect.bottom + 10}px`;
+    } else {
+      _emergencyTimelineEl.style.top = '200px';
+    }
   }
 
   _emergencyTimelineEl.style.display = '';
@@ -1662,14 +1669,14 @@ function renderEmergencyTimeline() {
     const elapsed = Math.round((Date.now() - evt.detectedAt) / 60000);
     const sqLabel = sqLabels[evt.squawk] || 'ALERT';
     const altStr = evt.altitude != null ? `FL${Math.round(evt.altitude / 100)}` : '--';
-    const statusColor = evt.resolved ? '#44dd88' : '#ff4444';
+    const statusCls = evt.resolved ? 'emergency-status--resolved' : 'emergency-status--active';
     const statusText = evt.resolved ? 'RESOLVED' : 'ACTIVE';
-    html += `<div style="margin:4px 0;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="color:#ff4444;font-weight:700;font-size:9px">${evt.squawk} ${sqLabel}</span>
-        <span style="color:${statusColor};font-size:7px;font-weight:600">${statusText}</span>
+    html += `<div class="emergency-event">
+      <div class="emergency-event-header">
+        <span class="emergency-squawk">${evt.squawk} ${sqLabel}</span>
+        <span class="emergency-status ${statusCls}">${statusText}</span>
       </div>
-      <div style="font-size:8px;color:rgba(255,255,255,0.6);margin-top:2px">
+      <div class="emergency-detail">
         ${evt.callsign} · ${evt.type} · ${altStr} · ${elapsed}min ago
       </div>
     </div>`;

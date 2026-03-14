@@ -437,7 +437,7 @@ function renderSpeedChart() {
   if (!canvas) {
     canvas = document.createElement('canvas');
     canvas.id = 'detail-spd-chart';
-    canvas.style.cssText = 'display:none;width:100%;height:72px;margin:2px 0 4px;border-radius:6px;background:rgba(0,0,0,0.25);';
+    canvas.className = 'detail-speed-chart';
     const altCanvas = document.getElementById('detail-alt-chart');
     if (altCanvas && altCanvas.parentNode) {
       altCanvas.parentNode.insertBefore(canvas, altCanvas.nextSibling);
@@ -447,11 +447,11 @@ function renderSpeedChart() {
   // Filter entries with speed data
   const speedEntries = altHistory.filter(e => e.gsKts != null && isFinite(e.gsKts));
   if (speedEntries.length < 2) {
-    canvas.style.display = 'none';
+    canvas.classList.remove('active');
     return;
   }
 
-  canvas.style.display = 'block';
+  canvas.classList.add('active');
   const rect = canvas.getBoundingClientRect();
   const w = Math.round(rect.width) || 260;
   const h = 72;
@@ -670,16 +670,16 @@ export function showDetail(aircraftObj, userLat, userLon) {
   if (!uaAlert) {
     uaAlert = document.createElement('div');
     uaAlert.id = 'detail-ua-alert';
-    uaAlert.style.cssText = 'display:none;background:rgba(232,68,68,0.15);border:1px solid rgba(232,68,68,0.4);border-radius:6px;padding:4px 8px;margin:4px 0;color:#e84444;font-size:11px;font-weight:700;text-align:center;animation:pulse 1s infinite';
+    uaAlert.className = 'ua-alert';
     if (elStatusBadge && elStatusBadge.parentNode) {
       elStatusBadge.parentNode.insertBefore(uaAlert, elStatusBadge.nextSibling);
     }
   }
   if (d.unusualAttitude) {
-    uaAlert.style.display = 'block';
+    uaAlert.classList.add('active');
     uaAlert.textContent = `⚠ ${d.unusualAttitude}`;
   } else {
-    uaAlert.style.display = 'none';
+    uaAlert.classList.remove('active');
   }
 
   // A2: Holding Pattern badge
@@ -687,13 +687,14 @@ export function showDetail(aircraftObj, userLat, userLon) {
   if (!holdBadge) {
     holdBadge = document.createElement('div');
     holdBadge.id = 'detail-hold-badge';
-    holdBadge.style.cssText = 'display:none;background:rgba(232,195,106,0.15);border:1px solid rgba(232,195,106,0.4);border-radius:6px;padding:3px 8px;margin:4px 0;color:#e8c36a;font-size:11px;font-weight:700;text-align:center';
+    holdBadge.className = 'hold-badge';
+    holdBadge.textContent = 'HOLDING PATTERN';
     if (uaAlert && uaAlert.parentNode) {
       uaAlert.parentNode.insertBefore(holdBadge, uaAlert.nextSibling);
     }
   }
-  holdBadge.style.display = d.isHolding ? 'block' : 'none';
-  if (d.isHolding) holdBadge.textContent = 'HOLDING PATTERN';
+  if (d.isHolding) holdBadge.classList.add('active');
+  else holdBadge.classList.remove('active');
 
   // ── AIRLINE ──
   const cs = d.callsign || '';
@@ -842,27 +843,31 @@ export function showDetail(aircraftObj, userLat, userLon) {
     elExtGrid.classList.add('hidden');
   }
 
+  // ── CONDITIONS SECTION (W1 DA, W2 Dest Wind, W3 Turbulence) ──
+  const condSection = document.getElementById('detail-conditions');
+  const condMeta = document.getElementById('detail-cond-meta');
+  let showCond = false;
+
   // W1: Density Altitude — shown during takeoff/approach/landing
   let daRow = document.getElementById('detail-da-row');
   if (!daRow) {
     daRow = document.createElement('div');
     daRow.id = 'detail-da-row';
     daRow.className = 'detail-meta-row hidden';
-    daRow.innerHTML = '<span class="detail-meta-label">DA</span><span id="detail-da" class="detail-meta-value">--</span>';
-    if (elExtGrid && elExtGrid.parentNode) {
-      elExtGrid.parentNode.insertBefore(daRow, elExtGrid.nextSibling);
-    }
+    daRow.innerHTML = '<span class="detail-meta-label">DENSITY ALT</span><span id="detail-da" class="detail-meta-value">--</span>';
+    condMeta.appendChild(daRow);
   }
   const lowPhase = d.flightPhase === 'TAKEOFF' || d.flightPhase === 'INITIAL CLIMB' ||
                    d.flightPhase === 'APPROACH' || d.flightPhase === 'LANDING' || d.flightPhase === 'ON GROUND';
   if (lowPhase && typeof window._cachedWeather !== 'undefined' && window._cachedWeather) {
-    const w = window._cachedWeather;
-    const da = computeDensityAltitude(w.pressure, w.temp, 0);
+    const wda = window._cachedWeather;
+    const da = computeDensityAltitude(wda.pressure, wda.temp, 0);
     if (da != null) {
       daRow.classList.remove('hidden');
+      showCond = true;
       const daEl = document.getElementById('detail-da');
-      const color = da > 5000 ? '#e8836a' : da > 3000 ? '#e8c36a' : '#6ec87a';
-      daEl.innerHTML = `<span style="color:${color}">${da.toLocaleString()} ft</span>`;
+      const cls = da > 5000 ? 'detail-indicator--danger' : da > 3000 ? 'detail-indicator--warn' : 'detail-indicator--ok';
+      daEl.innerHTML = `<span class="detail-indicator ${cls}">${da.toLocaleString()} ft</span>`;
     } else {
       daRow.classList.add('hidden');
     }
@@ -870,39 +875,35 @@ export function showDetail(aircraftObj, userLat, userLon) {
     daRow.classList.add('hidden');
   }
 
-  // ── W2: Destination Crosswind ──
+  // W2: Destination Crosswind
   let destWindRow = document.getElementById('detail-destwind-row');
   if (!destWindRow) {
     destWindRow = document.createElement('div');
     destWindRow.id = 'detail-destwind-row';
     destWindRow.className = 'detail-meta-row hidden';
     destWindRow.innerHTML = '<span class="detail-meta-label">DEST WIND</span><span id="detail-destwind" class="detail-meta-value">--</span>';
-    if (daRow && daRow.parentNode) {
-      daRow.parentNode.insertBefore(destWindRow, daRow.nextSibling);
-    }
+    condMeta.appendChild(destWindRow);
   }
   const isDescending = d.flightPhase === 'DESCENT' || d.flightPhase === 'APPROACH';
   if (isDescending && d.destination && d.latitude != null) {
     const destApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(d.destination) : null;
     if (destApt) {
-      // Async fetch destination weather (non-blocking)
       fetchDestinationWeather(destApt.lat, destApt.lon).then(dw => {
         if (!dw || !document.getElementById('detail-destwind-row')) return;
         destWindRow.classList.remove('hidden');
+        condSection.classList.remove('hidden');
         const destWindEl = document.getElementById('detail-destwind');
-        // Compute crosswind component on estimated runway heading
         const hdgRaw = d.heading ? parseInt(d.heading) : null;
         const rwyHdg = hdgRaw != null ? Math.round(hdgRaw / 10) * 10 : null;
         if (rwyHdg != null && dw.windDir != null && dw.windSpeed != null) {
           const angleDiff = (dw.windDir - rwyHdg) * Math.PI / 180;
-          const xwind = Math.round(Math.abs(dw.windSpeed * Math.sin(angleDiff) * 0.539957)); // km/h → kts
+          const xwind = Math.round(Math.abs(dw.windSpeed * Math.sin(angleDiff) * 0.539957));
           const hwind = Math.round(dw.windSpeed * Math.cos(angleDiff) * 0.539957);
           const hwLabel = hwind >= 0 ? `H/W ${Math.abs(hwind)}` : `T/W ${Math.abs(hwind)}`;
-          const color = xwind > 25 ? '#ff4444' : xwind > 15 ? '#e8c36a' : '#6ec87a';
-          destWindEl.innerHTML = `<span style="color:${color}">X/W ${xwind} kts</span> · ${hwLabel}`;
-          if (xwind > 25) {
-            destWindEl.innerHTML += ' <span style="color:#ff4444;font-weight:700">LIMIT</span>';
-          }
+          const cls = xwind > 25 ? 'detail-indicator--critical' : xwind > 15 ? 'detail-indicator--warn' : 'detail-indicator--ok';
+          let html = `<span class="detail-indicator ${cls}">X/W ${xwind}</span> · ${hwLabel} kts`;
+          if (xwind > 25) html += ' <span class="detail-indicator detail-indicator--critical">LIMIT</span>';
+          destWindEl.innerHTML = html;
         } else {
           destWindEl.textContent = `${Math.round(dw.windSpeed * 0.539957)} kts / ${Math.round(dw.windDir)}°`;
         }
@@ -912,21 +913,17 @@ export function showDetail(aircraftObj, userLat, userLon) {
     destWindRow.classList.add('hidden');
   }
 
-  // ── W3: Turbulence Indicator ──
+  // W3: Turbulence Indicator
   let turbRow = document.getElementById('detail-turb-row');
   if (!turbRow) {
     turbRow = document.createElement('div');
     turbRow.id = 'detail-turb-row';
     turbRow.className = 'detail-meta-row hidden';
-    turbRow.innerHTML = '<span class="detail-meta-label">TURB</span><span id="detail-turb" class="detail-meta-value">--</span>';
-    if (destWindRow && destWindRow.parentNode) {
-      destWindRow.parentNode.insertBefore(turbRow, destWindRow.nextSibling);
-    }
+    turbRow.innerHTML = '<span class="detail-meta-label">TURBULENCE</span><span id="detail-turb" class="detail-meta-value">--</span>';
+    condMeta.appendChild(turbRow);
   }
   const w = typeof window._cachedWeather !== 'undefined' ? window._cachedWeather : null;
   if (w) {
-    // Count nearby heavy aircraft for wake turbulence factor
-    const cities = window._CITIES;
     let nearbyHeavy = 0;
     if (d.latitude != null && typeof window._aircraftManager !== 'undefined' && window._aircraftManager) {
       for (const [, ac] of window._aircraftManager.aircraft) {
@@ -938,19 +935,29 @@ export function showDetail(aircraftObj, userLat, userLon) {
         if (isHeavy) {
           const dx = (ac.data.latitude - d.latitude);
           const dy = (ac.data.longitude - d.longitude);
-          if (Math.sqrt(dx*dx + dy*dy) < 0.2) nearbyHeavy++; // ~20km
+          if (Math.sqrt(dx*dx + dy*dy) < 0.2) nearbyHeavy++;
         }
       }
     }
     const turb = estimateTurbulence(w, nearbyHeavy);
     if (turb) {
       turbRow.classList.remove('hidden');
-      document.getElementById('detail-turb').innerHTML = `<span style="color:${turb.color};font-weight:600">${turb.label}</span>`;
+      showCond = true;
+      const cls = turb.label === 'SEVERE' ? 'detail-indicator--critical'
+        : turb.label === 'MODERATE' ? 'detail-indicator--danger'
+        : turb.label === 'LIGHT' ? 'detail-indicator--warn' : 'detail-indicator--ok';
+      document.getElementById('detail-turb').innerHTML = `<span class="detail-indicator ${cls}">${turb.label}</span>`;
     } else {
       turbRow.classList.add('hidden');
     }
   } else {
     turbRow.classList.add('hidden');
+  }
+
+  // Show/hide CONDITIONS section
+  if (condSection) {
+    if (showCond) condSection.classList.remove('hidden');
+    else condSection.classList.add('hidden');
   }
 
   // ── AIRCRAFT SECTION ──
@@ -1154,9 +1161,9 @@ export function showDetail(aircraftObj, userLat, userLon) {
       rvsmRow.classList.remove('hidden');
       const rvsmEl = document.getElementById('detail-rvsm');
       if (d.rvsm === 'OK') {
-        rvsmEl.innerHTML = '<span style="color:#6ec87a">COMPLIANT</span>';
+        rvsmEl.innerHTML = '<span class="detail-indicator detail-indicator--ok">COMPLIANT</span>';
       } else {
-        rvsmEl.innerHTML = '<span style="color:#e8836a">NON-STANDARD</span>';
+        rvsmEl.innerHTML = '<span class="detail-indicator detail-indicator--danger">NON-STANDARD</span>';
       }
     } else if (rvsmRow) {
       rvsmRow.classList.add('hidden');
@@ -1166,23 +1173,26 @@ export function showDetail(aircraftObj, userLat, userLon) {
     elXpdrDivider.classList.add('hidden');
   }
 
-  // ── P2: Top of Descent ──
+  // ── PERFORMANCE SECTION (P2 TOD, P5 Efficiency) ──
+  const perfSection = document.getElementById('detail-performance');
+  const perfMeta = document.getElementById('detail-perf-meta');
+  let showPerf = false;
+
+  // P2: Top of Descent
   let todRow = document.getElementById('detail-tod-row');
   if (!todRow) {
     todRow = document.createElement('div');
     todRow.id = 'detail-tod-row';
     todRow.className = 'detail-meta-row hidden';
-    todRow.innerHTML = '<span class="detail-meta-label">TOD</span><span id="detail-tod" class="detail-meta-value">--</span>';
-    // Add after distance to destination
-    if (elDtdRow && elDtdRow.parentNode) {
-      elDtdRow.parentNode.insertBefore(todRow, elDtdRow.nextSibling);
-    }
+    todRow.innerHTML = '<span class="detail-meta-label">TOP OF DESC</span><span id="detail-tod" class="detail-meta-value">--</span>';
+    perfMeta.appendChild(todRow);
   }
   if (d.todNm != null) {
     todRow.classList.remove('hidden');
+    showPerf = true;
     const todEl = document.getElementById('detail-tod');
     if (d.todNm === 0) {
-      todEl.innerHTML = '<span style="color:#e8c36a">PAST TOD</span>';
+      todEl.innerHTML = '<span class="detail-indicator detail-indicator--warn">PAST TOD</span>';
     } else {
       const minStr = d.todMin != null ? ` (${d.todMin} min)` : '';
       todEl.textContent = `${d.todNm} nm${minStr}`;
@@ -1191,25 +1201,30 @@ export function showDetail(aircraftObj, userLat, userLon) {
     todRow.classList.add('hidden');
   }
 
-  // ── P5: Route Efficiency ──
+  // P5: Route Efficiency
   let effRow = document.getElementById('detail-eff-row');
   if (!effRow) {
     effRow = document.createElement('div');
     effRow.id = 'detail-eff-row';
     effRow.className = 'detail-meta-row hidden';
     effRow.innerHTML = '<span class="detail-meta-label">EFFICIENCY</span><span id="detail-eff" class="detail-meta-value">--</span>';
-    if (elDtdRow && elDtdRow.parentNode) {
-      elDtdRow.parentNode.appendChild(effRow);
-    }
+    perfMeta.appendChild(effRow);
   }
   if (d.routeEfficiency != null) {
     effRow.classList.remove('hidden');
+    showPerf = true;
     const effEl = document.getElementById('detail-eff');
     const pct = d.routeEfficiency;
-    const color = pct >= 95 ? '#6ec87a' : pct >= 85 ? '#e8c36a' : '#e8836a';
-    effEl.innerHTML = `<span style="color:${color}">${pct}%</span>`;
+    const cls = pct >= 95 ? 'detail-indicator--ok' : pct >= 85 ? 'detail-indicator--warn' : 'detail-indicator--danger';
+    effEl.innerHTML = `<span class="detail-indicator ${cls}">${pct}%</span>`;
   } else if (effRow) {
     effRow.classList.add('hidden');
+  }
+
+  // Show/hide PERFORMANCE section
+  if (perfSection) {
+    if (showPerf) perfSection.classList.remove('hidden');
+    else perfSection.classList.add('hidden');
   }
 
   // ── POSITION SECTION ──
@@ -1299,7 +1314,12 @@ export function closeDetail() {
   const altCanvas = document.getElementById('detail-alt-chart');
   if (altCanvas) altCanvas.style.display = 'none';
   const spdCanvas = document.getElementById('detail-spd-chart');
-  if (spdCanvas) spdCanvas.style.display = 'none';
+  if (spdCanvas) spdCanvas.classList.remove('active');
+  // Hide dynamic sections
+  const condSec = document.getElementById('detail-conditions');
+  if (condSec) condSec.classList.add('hidden');
+  const perfSec = document.getElementById('detail-performance');
+  if (perfSec) perfSec.classList.add('hidden');
 }
 
 export function showDetailLoading(loading) {
