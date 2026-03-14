@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderAirspaceOverlay, clearAirspaceOverlay } from './scene/environment.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderAirspaceOverlay, clearAirspaceOverlay, renderVisibilityRing, clearVisibilityRing, renderFuelRangeRing, clearFuelRangeRing } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
@@ -777,8 +777,58 @@ function showAirportWidget(airport, arrivals, departures) {
     });
   });
 
+  // ── I2: Airport Activity Timeline ──
+  let activityEl = document.getElementById('aw-activity');
+  if (!activityEl) {
+    activityEl = document.createElement('div');
+    activityEl.id = 'aw-activity';
+    activityEl.style.cssText = 'margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)';
+    w.appendChild(activityEl);
+  }
+  // Record this observation
+  const aptCode = airport.iata || airport.icao;
+  if (!_airportActivity[aptCode]) _airportActivity[aptCode] = [];
+  const nowHour = new Date().getHours();
+  _airportActivity[aptCode].push({
+    hour: nowHour,
+    time: Date.now(),
+    arr: arrivals.length,
+    dep: departures.length,
+  });
+  // Render hourly bars for this session
+  const records = _airportActivity[aptCode];
+  // Aggregate by hour
+  const hourData = {};
+  for (const r of records) {
+    if (!hourData[r.hour]) hourData[r.hour] = { arr: 0, dep: 0, count: 0 };
+    hourData[r.hour].arr = Math.max(hourData[r.hour].arr, r.arr);
+    hourData[r.hour].dep = Math.max(hourData[r.hour].dep, r.dep);
+    hourData[r.hour].count++;
+  }
+  const hours = Object.keys(hourData).map(Number).sort((a, b) => a - b);
+  if (hours.length > 0) {
+    const maxTraffic = Math.max(...hours.map(h => hourData[h].arr + hourData[h].dep), 1);
+    let html = '<div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:3px">SESSION ACTIVITY</div>';
+    html += '<div style="display:flex;align-items:flex-end;gap:2px;height:24px">';
+    for (const h of hours) {
+      const total = hourData[h].arr + hourData[h].dep;
+      const pct = Math.round(total / maxTraffic * 100);
+      const arrPct = total > 0 ? Math.round(hourData[h].arr / total * 100) : 50;
+      html += `<div title="${String(h).padStart(2,'0')}:00 — ${hourData[h].arr} arr / ${hourData[h].dep} dep" style="flex:1;height:${Math.max(pct, 8)}%;min-width:8px;border-radius:2px 2px 0 0;background:linear-gradient(to top, #ee8833 ${100 - arrPct}%, #5aacff ${100 - arrPct}%);opacity:0.6"></div>`;
+    }
+    html += '</div>';
+    html += `<div style="display:flex;justify-content:space-between;font-size:6px;color:rgba(255,255,255,0.25);margin-top:1px">
+      <span>${String(hours[0]).padStart(2,'0')}:00</span><span>${String(hours[hours.length-1]).padStart(2,'0')}:00</span>
+    </div>`;
+    html += '<div style="display:flex;gap:8px;font-size:7px;margin-top:2px"><span style="color:#5aacff">ARR</span><span style="color:#ee8833">DEP</span></div>';
+    activityEl.innerHTML = html;
+  }
+
   w.classList.remove('hidden');
 }
+
+// I2: Airport activity session store
+const _airportActivity = {};
 
 function hideAirportWidget() {
   const w = document.getElementById('airport-widget');
@@ -1821,6 +1871,7 @@ function startAmbientATC() {
 // ── T3-10: TCAS traffic display ──
 let _tcasEl = null;
 let _lastTCASUpdate = 0;
+let _lastFuelRingUpdate = 0;
 let _lastTCASHash = '';
 function updateTCASDisplay(followAc, allAircraft, elapsed) {
   // Throttle to ~2 Hz — TCAS doesn't need 60fps updates
@@ -1881,6 +1932,8 @@ async function updateWeatherWidget() {
   if (!data) return;
   _weatherData = data;
   window._cachedWeather = data; // expose for detail.js density altitude
+  // W4: Visibility ring on ground
+  renderVisibilityRing(scene, data.visibility, data.cloudCover);
   const el = document.getElementById('weather-widget');
   if (!el) return;
   el.classList.remove('hidden');
@@ -2193,8 +2246,22 @@ function animate() {
   // T3-10: TCAS traffic display in follow mode
   if (followTarget && aircraftManager && !followTarget.removed) {
     updateTCASDisplay(followTarget, aircraftManager.aircraft, elapsed);
+    // S4: Fuel range ring — update every 2s
+    if (elapsed - _lastFuelRingUpdate > 2) {
+      _lastFuelRingUpdate = elapsed;
+      const fd = followTarget.getDisplayData();
+      if (fd.specs && fd.specs.range && fd._originDist != null && fd.distToDest != null) {
+        const flownNm = fd._originDist * 0.539957;
+        const remainingRangeNm = Math.max(0, fd.specs.range - flownNm);
+        const { lat, lon } = getUserLocation();
+        renderFuelRangeRing(scene, fd.latitude, fd.longitude, remainingRangeNm, lat, lon);
+      } else {
+        clearFuelRangeRing(scene);
+      }
+    }
   } else {
     hideTCASDisplay();
+    clearFuelRangeRing(scene);
   }
 
   composer.render();
@@ -4490,6 +4557,7 @@ async function init() {
   sessionStats.cities.add(defaultCity.code);
 
   aircraftManager = new AircraftManager(scene, defaultCity.lat, defaultCity.lon);
+  window._aircraftManager = aircraftManager; // expose for W3 turbulence indicator
 
   // ── 1. Start render loop IMMEDIATELY — intro camera animation plays while data loads ──
   animate();

@@ -1,6 +1,6 @@
 import { haversineDistance } from '../scene/aircraft.js';
 import { getAirlineName } from '../data/airlineDb.js';
-import { computeDensityAltitude } from '../data/weather.js';
+import { computeDensityAltitude, fetchDestinationWeather, estimateTurbulence } from '../data/weather.js';
 
 // ── T2-02: Aircraft type silhouette SVG paths ──
 const SILHOUETTES = {
@@ -868,6 +868,89 @@ export function showDetail(aircraftObj, userLat, userLon) {
     }
   } else {
     daRow.classList.add('hidden');
+  }
+
+  // ── W2: Destination Crosswind ──
+  let destWindRow = document.getElementById('detail-destwind-row');
+  if (!destWindRow) {
+    destWindRow = document.createElement('div');
+    destWindRow.id = 'detail-destwind-row';
+    destWindRow.className = 'detail-meta-row hidden';
+    destWindRow.innerHTML = '<span class="detail-meta-label">DEST WIND</span><span id="detail-destwind" class="detail-meta-value">--</span>';
+    if (daRow && daRow.parentNode) {
+      daRow.parentNode.insertBefore(destWindRow, daRow.nextSibling);
+    }
+  }
+  const isDescending = d.flightPhase === 'DESCENT' || d.flightPhase === 'APPROACH';
+  if (isDescending && d.destination && d.latitude != null) {
+    const destApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(d.destination) : null;
+    if (destApt) {
+      // Async fetch destination weather (non-blocking)
+      fetchDestinationWeather(destApt.lat, destApt.lon).then(dw => {
+        if (!dw || !document.getElementById('detail-destwind-row')) return;
+        destWindRow.classList.remove('hidden');
+        const destWindEl = document.getElementById('detail-destwind');
+        // Compute crosswind component on estimated runway heading
+        const hdgRaw = d.heading ? parseInt(d.heading) : null;
+        const rwyHdg = hdgRaw != null ? Math.round(hdgRaw / 10) * 10 : null;
+        if (rwyHdg != null && dw.windDir != null && dw.windSpeed != null) {
+          const angleDiff = (dw.windDir - rwyHdg) * Math.PI / 180;
+          const xwind = Math.round(Math.abs(dw.windSpeed * Math.sin(angleDiff) * 0.539957)); // km/h → kts
+          const hwind = Math.round(dw.windSpeed * Math.cos(angleDiff) * 0.539957);
+          const hwLabel = hwind >= 0 ? `H/W ${Math.abs(hwind)}` : `T/W ${Math.abs(hwind)}`;
+          const color = xwind > 25 ? '#ff4444' : xwind > 15 ? '#e8c36a' : '#6ec87a';
+          destWindEl.innerHTML = `<span style="color:${color}">X/W ${xwind} kts</span> · ${hwLabel}`;
+          if (xwind > 25) {
+            destWindEl.innerHTML += ' <span style="color:#ff4444;font-weight:700">LIMIT</span>';
+          }
+        } else {
+          destWindEl.textContent = `${Math.round(dw.windSpeed * 0.539957)} kts / ${Math.round(dw.windDir)}°`;
+        }
+      });
+    }
+  } else {
+    destWindRow.classList.add('hidden');
+  }
+
+  // ── W3: Turbulence Indicator ──
+  let turbRow = document.getElementById('detail-turb-row');
+  if (!turbRow) {
+    turbRow = document.createElement('div');
+    turbRow.id = 'detail-turb-row';
+    turbRow.className = 'detail-meta-row hidden';
+    turbRow.innerHTML = '<span class="detail-meta-label">TURB</span><span id="detail-turb" class="detail-meta-value">--</span>';
+    if (destWindRow && destWindRow.parentNode) {
+      destWindRow.parentNode.insertBefore(turbRow, destWindRow.nextSibling);
+    }
+  }
+  const w = typeof window._cachedWeather !== 'undefined' ? window._cachedWeather : null;
+  if (w) {
+    // Count nearby heavy aircraft for wake turbulence factor
+    const cities = window._CITIES;
+    let nearbyHeavy = 0;
+    if (d.latitude != null && typeof window._aircraftManager !== 'undefined' && window._aircraftManager) {
+      for (const [, ac] of window._aircraftManager.aircraft) {
+        if (ac.fadingOut || ac.data.latitude == null) continue;
+        const acType = ac.data.aircraftType;
+        if (!acType) continue;
+        const t = acType.toUpperCase();
+        const isHeavy = ['A380','A388','B744','B748','A340','A342','A343','A345','A346','B772','B773','B77L','B77W','A332','A333','A338','A339','A359','A35K','B788','B789','B78X'].includes(t);
+        if (isHeavy) {
+          const dx = (ac.data.latitude - d.latitude);
+          const dy = (ac.data.longitude - d.longitude);
+          if (Math.sqrt(dx*dx + dy*dy) < 0.2) nearbyHeavy++; // ~20km
+        }
+      }
+    }
+    const turb = estimateTurbulence(w, nearbyHeavy);
+    if (turb) {
+      turbRow.classList.remove('hidden');
+      document.getElementById('detail-turb').innerHTML = `<span style="color:${turb.color};font-weight:600">${turb.label}</span>`;
+    } else {
+      turbRow.classList.add('hidden');
+    }
+  } else {
+    turbRow.classList.add('hidden');
   }
 
   // ── AIRCRAFT SECTION ──

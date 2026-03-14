@@ -1914,6 +1914,80 @@ export async function reloadNavChart(scene, lat, lon) {
   await loadNavChart(scene, lat, lon);
 }
 
+// ── W4: Visibility Rings ──
+// Ground ring showing current visibility distance, colored by flight category
+let _visRing = null;
+
+export function renderVisibilityRing(scene, visibilityMeters, cloudCover) {
+  clearVisibilityRing(scene);
+  if (visibilityMeters == null || visibilityMeters <= 0) return;
+
+  const visKm = visibilityMeters / 1000;
+  // Color by flight category
+  let color;
+  if (visKm >= 8 && cloudCover < 50) color = 0x44dd88; // VFR green
+  else if (visKm >= 5 && cloudCover < 75) color = 0x5aacff; // MVFR blue
+  else if (visKm >= 1.6 && cloudCover < 90) color = 0xff4444; // IFR red
+  else color = 0xcc44cc; // LIFR purple
+
+  // Convert visibility to scene units
+  const radiusScene = (visKm / 111) * GEO_SCALE;
+  const thickness = 0.03;
+
+  const geo = new THREE.RingGeometry(radiusScene - thickness, radiusScene + thickness, 64);
+  const mat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0.08, side: THREE.DoubleSide,
+  });
+  _visRing = new THREE.Mesh(geo, mat);
+  _visRing.rotation.x = -Math.PI / 2;
+  _visRing.position.y = 0.008;
+  scene.add(_visRing);
+}
+
+export function clearVisibilityRing(scene) {
+  if (_visRing) {
+    scene.remove(_visRing);
+    if (_visRing.geometry) _visRing.geometry.dispose();
+    if (_visRing.material) _visRing.material.dispose();
+    _visRing = null;
+  }
+}
+
+// ── S4: Fuel Range Ring ──
+// Shows estimated remaining range as a ground circle around the selected aircraft
+let _fuelRangeRing = null;
+
+export function renderFuelRangeRing(scene, acLat, acLon, rangeNm, userLat, userLon) {
+  clearFuelRangeRing(scene);
+  if (rangeNm == null || rangeNm <= 0 || acLat == null) return;
+
+  const cosLat = Math.cos(userLat * Math.PI / 180);
+  const cx = (acLon - userLon) * GEO_SCALE * cosLat;
+  const cz = -(acLat - userLat) * GEO_SCALE;
+
+  // Convert nm to scene units
+  const radiusScene = (rangeNm * 1.852 / 111) * GEO_SCALE;
+  const thickness = 0.02;
+
+  const geo = new THREE.RingGeometry(radiusScene - thickness, radiusScene + thickness, 64);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xe8c36a, transparent: true, opacity: 0.06, side: THREE.DoubleSide,
+  });
+  _fuelRangeRing = new THREE.Mesh(geo, mat);
+  _fuelRangeRing.rotation.x = -Math.PI / 2;
+  _fuelRangeRing.position.set(cx, 0.006, cz);
+  scene.add(_fuelRangeRing);
+}
+
+export function clearFuelRangeRing(scene) {
+  if (_fuelRangeRing) {
+    scene.remove(_fuelRangeRing);
+    if (_fuelRangeRing.geometry) _fuelRangeRing.geometry.dispose();
+    if (_fuelRangeRing.material) _fuelRangeRing.material.dispose();
+    _fuelRangeRing = null;
+  }
+}
+
 // ── A4: Airspace Layer Visualization ──
 // Draw Class B/C airspace cylinders around airports based on tier
 let _airspaceGroup = null;

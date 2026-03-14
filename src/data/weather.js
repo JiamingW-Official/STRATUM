@@ -116,6 +116,75 @@ export function computeDensityAltitude(pressureHPa, tempC, elevFt = 0) {
   return Math.round(pa + 120 * (tempC - isaTemp));
 }
 
+// ── W2: Destination Weather Cache ──
+// Separate cache for destination airport weather (to not clobber user-location weather)
+const _destWeatherCache = new Map(); // "lat,lon" → { data, fetchedAt }
+let _destFetching = null;
+
+export async function fetchDestinationWeather(lat, lon) {
+  const key = `${lat.toFixed(1)},${lon.toFixed(1)}`;
+  const cached = _destWeatherCache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < 900000) return cached.data; // 15 min cache
+  if (_destFetching === key) return cached?.data || null;
+  _destFetching = key;
+
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`
+      + `&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m,visibility,cloud_cover,weather_code`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const c = data.current;
+    const result = {
+      windSpeed: c.wind_speed_10m,
+      windGusts: c.wind_gusts_10m,
+      windDir: c.wind_direction_10m,
+      visibility: c.visibility,
+      cloudCover: c.cloud_cover,
+      weatherCode: c.weather_code,
+    };
+    _destWeatherCache.set(key, { data: result, fetchedAt: Date.now() });
+    return result;
+  } catch {
+    return null;
+  } finally {
+    _destFetching = null;
+  }
+}
+
+// ── W3: Turbulence Indicator ──
+// Composite assessment from gust factor, WMO convective codes, and proximity to heavy traffic
+export function estimateTurbulence(weather, nearbyHeavy = 0) {
+  if (!weather) return null;
+  let score = 0;
+
+  // Gust factor: gusts / sustained wind ratio
+  if (weather.windGusts != null && weather.windSpeed != null && weather.windSpeed > 5) {
+    const gustFactor = weather.windGusts / weather.windSpeed;
+    if (gustFactor > 2.0) score += 3;
+    else if (gustFactor > 1.5) score += 2;
+    else if (gustFactor > 1.2) score += 1;
+  }
+
+  // High wind speed alone
+  if (weather.windSpeed > 50) score += 2;
+  else if (weather.windSpeed > 30) score += 1;
+
+  // WMO convective codes (thunderstorms)
+  const wc = weather.weatherCode;
+  if (wc >= 95) score += 3; // thunderstorm
+  else if (wc >= 80) score += 1; // showers
+
+  // Wake turbulence from nearby heavy aircraft
+  if (nearbyHeavy >= 3) score += 2;
+  else if (nearbyHeavy >= 1) score += 1;
+
+  if (score >= 5) return { label: 'SEVERE', color: '#ff4444' };
+  if (score >= 3) return { label: 'MODERATE', color: '#ee8833' };
+  if (score >= 1) return { label: 'LIGHT', color: '#e8c36a' };
+  return { label: 'SMOOTH', color: '#44dd88' };
+}
+
 export function flightCategory(visibility, cloudCover) {
   const visKm = visibility / 1000;
   if (visKm >= 8 && cloudCover < 50) return { label: 'VFR', color: '#44dd88' };
