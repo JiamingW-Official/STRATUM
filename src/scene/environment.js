@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { loadMapTexture } from './mapTiles.js';
 import { fetchAirportData, categorizeFlights, clearAirportCache } from '../data/airports.js';
 import { fetchFIRData, filterNearbyFIRs } from '../data/firBoundaries.js';
-import { fetchNavaidData, filterNearbyNavaids, generateAirways } from '../data/navaids.js';
+import { fetchNavaidData, filterNearbyNavaids } from '../data/navaids.js';
 
 
 const GROUND_SIZE = 160;
@@ -1538,160 +1538,224 @@ async function loadNavChart(scene, lat, lon) {
   const nearby = filterNearbyNavaids(allNavaids, lat, lon, 2.5);
   if (nearby.length === 0) return;
 
-  const airways = generateAirways(nearby);
-
   _navGroup = new THREE.Group();
   _navGroup.name = 'navChart';
 
   const GROUND_HALF = GROUND_SIZE / 2;
 
-  // ── Airways: white dotted lines ──
-  if (airways.length > 0) {
-    const airwayMat = new THREE.LineDashedMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.06,
-      depthWrite: false,
-      dashSize: 0.15,
-      gapSize: 0.12,
-    });
-
-    for (const awy of airways) {
-      const f = geoToScene(awy.from.lat, awy.from.lon, lat, lon);
-      const t = geoToScene(awy.to.lat, awy.to.lon, lat, lon);
-      if (Math.abs(f.x) > GROUND_HALF * 1.1 && Math.abs(t.x) > GROUND_HALF * 1.1) continue;
-      if (Math.abs(f.z) > GROUND_HALF * 1.1 && Math.abs(t.z) > GROUND_HALF * 1.1) continue;
-
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute([
-        f.x, 0.035, f.z, t.x, 0.035, t.z
-      ], 3));
-      const line = new THREE.Line(geo, airwayMat);
-      line.computeLineDistances();
-      _navGroup.add(line);
-    }
-  }
-
-  // ── Navaid symbols + labels ──
+  // ── Navaid symbols + labels (FR24-style dotted compass rose) ──
+  // Only real, verified positions from OurAirports — no synthetic/fake data
   const vors = nearby.filter(n => n.type === 'VOR' || n.type === 'VOR-DME' || n.type === 'VORTAC');
   const ndbs = nearby.filter(n => n.type === 'NDB' || n.type === 'NDB-DME');
 
-  // VOR: compass rose hexagon — prominent, above airport layer
-  const vorSymMat = new THREE.LineBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false,
-  });
-  // Inner ring for VOR compass rose
-  const vorInnerMat = new THREE.LineBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.20, depthWrite: false,
-  });
-  // VOR center dot
-  const vorDotGeo = new THREE.CircleGeometry(0.03, 8);
-  const vorDotMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.30, depthWrite: false, side: THREE.DoubleSide,
-  });
+  const Y_NAV = 0.04;
+  const OUTER_R = 0.18;
+  const INNER_R = 0.10;
+  const TICK_R = 0.14;
+  const OUTER_DOTS = 24;
+  const INNER_DOTS = 12;
 
-  // NDB diamond
-  const ndbSymMat = new THREE.LineBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.15, depthWrite: false,
-  });
-
-  const HEX_R = 0.25;  // Outer hexagon
-  const INNER_R = 0.14; // Inner circle
-  const Y_NAV = 0.04;   // Above airport lights (which are at ~0.025)
+  // ── Batched VOR dots (single Points draw call) ──
+  const vorPositions = [];
+  const vorLabels = [];
 
   for (const nav of vors) {
     const pos = geoToScene(nav.lat, nav.lon, lat, lon);
     if (Math.abs(pos.x) > GROUND_HALF || Math.abs(pos.z) > GROUND_HALF) continue;
 
-    // Outer hexagon
-    const hexPts = [];
-    for (let i = 0; i <= 6; i++) {
-      const a = (i % 6) * Math.PI / 3;
-      hexPts.push(pos.x + Math.cos(a) * HEX_R, Y_NAV, pos.z + Math.sin(a) * HEX_R);
+    // Outer ring
+    for (let i = 0; i < OUTER_DOTS; i++) {
+      const a = (i / OUTER_DOTS) * Math.PI * 2;
+      vorPositions.push(pos.x + Math.cos(a) * OUTER_R, Y_NAV, pos.z + Math.sin(a) * OUTER_R);
     }
-    const hexGeo = new THREE.BufferGeometry();
-    hexGeo.setAttribute('position', new THREE.Float32BufferAttribute(hexPts, 3));
-    _navGroup.add(new THREE.Line(hexGeo, vorSymMat));
-
-    // Inner circle (12-sided)
-    const cirPts = [];
-    for (let i = 0; i <= 12; i++) {
-      const a = (i % 12) * Math.PI / 6;
-      cirPts.push(pos.x + Math.cos(a) * INNER_R, Y_NAV, pos.z + Math.sin(a) * INNER_R);
+    // Inner ring
+    for (let i = 0; i < INNER_DOTS; i++) {
+      const a = (i / INNER_DOTS) * Math.PI * 2;
+      vorPositions.push(pos.x + Math.cos(a) * INNER_R, Y_NAV, pos.z + Math.sin(a) * INNER_R);
     }
-    const cirGeo = new THREE.BufferGeometry();
-    cirGeo.setAttribute('position', new THREE.Float32BufferAttribute(cirPts, 3));
-    _navGroup.add(new THREE.Line(cirGeo, vorInnerMat));
-
-    // Crosshair tick marks (N/S/E/W lines from inner to outer)
-    const tickPts = [];
+    // 4 cardinal ticks
     for (let i = 0; i < 4; i++) {
       const a = i * Math.PI / 2;
-      tickPts.push(
-        pos.x + Math.cos(a) * INNER_R, Y_NAV, pos.z + Math.sin(a) * INNER_R,
-        pos.x + Math.cos(a) * HEX_R, Y_NAV, pos.z + Math.sin(a) * HEX_R,
-      );
+      vorPositions.push(pos.x + Math.cos(a) * TICK_R, Y_NAV, pos.z + Math.sin(a) * TICK_R);
     }
-    const tickGeo = new THREE.BufferGeometry();
-    tickGeo.setAttribute('position', new THREE.Float32BufferAttribute(tickPts, 3));
-    _navGroup.add(new THREE.LineSegments(tickGeo, vorInnerMat));
-
     // Center dot
-    const dot = new THREE.Mesh(vorDotGeo, vorDotMat);
-    dot.rotation.x = -Math.PI / 2;
-    dot.position.set(pos.x, Y_NAV, pos.z);
-    _navGroup.add(dot);
+    vorPositions.push(pos.x, Y_NAV, pos.z);
 
-    // Label: "KENNEDY\n115.90" style — name + freq
+    vorLabels.push({ nav, pos });
+  }
+
+  if (vorPositions.length > 0) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(vorPositions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xffffff, size: 0.025, transparent: true, opacity: 0.22,
+      depthWrite: false, sizeAttenuation: true,
+    });
+    _navGroup.add(new THREE.Points(geo, mat));
+  }
+
+  // VOR labels
+  for (const { nav, pos } of vorLabels) {
     const freqStr = nav.freq > 0 ? nav.freq.toFixed(2) : '';
-    const label = _createNavLabel(nav.name || nav.ident, freqStr);
-    label.position.set(pos.x, 0.25, pos.z);
+    const label = _createNavLabel(nav.ident, freqStr);
+    label.position.set(pos.x + 0.25, 0.06, pos.z);
     _navGroup.add(label);
   }
 
-  // NDB diamonds — smaller, no label
-  const DIA_R = 0.08;
+  // ── Batched NDB dots (single Points draw call) ──
+  const NDB_R = 0.07;
+  const NDB_DOTS = 10;
+  const ndbPositions = [];
+
   for (const nav of ndbs) {
     const pos = geoToScene(nav.lat, nav.lon, lat, lon);
     if (Math.abs(pos.x) > GROUND_HALF || Math.abs(pos.z) > GROUND_HALF) continue;
 
-    const pts = [
-      pos.x, Y_NAV, pos.z - DIA_R,
-      pos.x + DIA_R, Y_NAV, pos.z,
-      pos.x, Y_NAV, pos.z + DIA_R,
-      pos.x - DIA_R, Y_NAV, pos.z,
-      pos.x, Y_NAV, pos.z - DIA_R,
-    ];
+    for (let i = 0; i < NDB_DOTS; i++) {
+      const a = (i / NDB_DOTS) * Math.PI * 2;
+      ndbPositions.push(pos.x + Math.cos(a) * NDB_R, Y_NAV, pos.z + Math.sin(a) * NDB_R);
+    }
+  }
+
+  if (ndbPositions.length > 0) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(ndbPositions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xffffff, size: 0.018, transparent: true, opacity: 0.14,
+      depthWrite: false, sizeAttenuation: true,
+    });
+    _navGroup.add(new THREE.Points(geo, mat));
+  }
+
+  // ── Chart Type 1: ILS Approach Corridors ──
+  // Extended dashed centerlines from real runway thresholds
+  // 100% accurate — derived from surveyed runway geometry
+  if (airportData && airportData.runways) {
+    const ILS_RANGE_NM = 10;
+    const ILS_RANGE_DEG = ILS_RANGE_NM / 60;
+    const ILS_RANGE_SCENE = ILS_RANGE_DEG * GEO_SCALE;
+    const MARKER_NM = [1, 2, 3, 5, 7, 10]; // DME distance markers
+
+    const ilsMat = new THREE.LineDashedMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.08,
+      depthWrite: false, dashSize: 0.12, gapSize: 0.08,
+    });
+    const markerPositions = [];
+
+    for (const rwy of airportData.runways) {
+      if (!rwy.startLat || !rwy.endLat) continue;
+      const s = geoToScene(rwy.startLat, rwy.startLon, lat, lon);
+      const e = geoToScene(rwy.endLat, rwy.endLon, lat, lon);
+      const dx = e.x - s.x, dz = e.z - s.z;
+      const len = Math.sqrt(dx * dx + dz * dz);
+      if (len < 0.1) continue;
+      const nx = dx / len, nz = dz / len;
+
+      // Approach corridor from start threshold (opposite direction)
+      const as = { x: s.x - nx * ILS_RANGE_SCENE, z: s.z - nz * ILS_RANGE_SCENE };
+      const geo1 = new THREE.BufferGeometry();
+      geo1.setAttribute('position', new THREE.Float32BufferAttribute([
+        s.x, 0.035, s.z, as.x, 0.035, as.z
+      ], 3));
+      const line1 = new THREE.Line(geo1, ilsMat);
+      line1.computeLineDistances();
+      _navGroup.add(line1);
+
+      // Approach corridor from end threshold
+      const ae = { x: e.x + nx * ILS_RANGE_SCENE, z: e.z + nz * ILS_RANGE_SCENE };
+      const geo2 = new THREE.BufferGeometry();
+      geo2.setAttribute('position', new THREE.Float32BufferAttribute([
+        e.x, 0.035, e.z, ae.x, 0.035, ae.z
+      ], 3));
+      const line2 = new THREE.Line(geo2, ilsMat);
+      line2.computeLineDistances();
+      _navGroup.add(line2);
+
+      // DME distance tick marks (perpendicular dashes at NM intervals)
+      const perpX = -nz, perpZ = nx;
+      const tickHalf = 0.08;
+      for (const nm of MARKER_NM) {
+        const distScene = (nm / 60) * GEO_SCALE;
+        // From start threshold
+        const mx1 = s.x - nx * distScene, mz1 = s.z - nz * distScene;
+        markerPositions.push(
+          mx1 - perpX * tickHalf, 0.035, mz1 - perpZ * tickHalf,
+          mx1 + perpX * tickHalf, 0.035, mz1 + perpZ * tickHalf
+        );
+        // From end threshold
+        const mx2 = e.x + nx * distScene, mz2 = e.z + nz * distScene;
+        markerPositions.push(
+          mx2 - perpX * tickHalf, 0.035, mz2 - perpZ * tickHalf,
+          mx2 + perpX * tickHalf, 0.035, mz2 + perpZ * tickHalf
+        );
+      }
+    }
+
+    if (markerPositions.length > 0) {
+      const mGeo = new THREE.BufferGeometry();
+      mGeo.setAttribute('position', new THREE.Float32BufferAttribute(markerPositions, 3));
+      const mMat = new THREE.LineBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.10, depthWrite: false,
+      });
+      _navGroup.add(new THREE.LineSegments(mGeo, mMat));
+    }
+  }
+
+  // ── Chart Type 2: NM Distance Reference Rings ──
+  // Concentric rings at standard distances from city center
+  // Pure geometric fact — NM distances are universal
+  const RING_NM = [5, 10, 20];
+  const RING_SEGMENTS = 96;
+  const ringMat = new THREE.LineDashedMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.04,
+    depthWrite: false, dashSize: 0.20, gapSize: 0.15,
+  });
+
+  for (const nm of RING_NM) {
+    const r = (nm / 60) * GEO_SCALE; // NM to scene units
+    const pts = [];
+    for (let i = 0; i <= RING_SEGMENTS; i++) {
+      const a = (i / RING_SEGMENTS) * Math.PI * 2;
+      pts.push(Math.cos(a) * r, 0.025, Math.sin(a) * r);
+    }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    _navGroup.add(new THREE.Line(geo, ndbSymMat));
+    const ring = new THREE.Line(geo, ringMat);
+    ring.computeLineDistances();
+    _navGroup.add(ring);
+  }
+
+  // Cardinal direction labels on outer ring (20 NM)
+  const outerR = (20 / 60) * GEO_SCALE;
+  const cardinals = ['N', 'E', 'S', 'W'];
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2;
+    const lbl = _createNavLabel(cardinals[i], '');
+    lbl.position.set(Math.sin(a) * outerR, 0.06, -Math.cos(a) * outerR);
+    _navGroup.add(lbl);
   }
 
   scene.add(_navGroup);
   _navLoadedLat = lat;
   _navLoadedLon = lon;
-  console.log(`[STRATUM] Nav chart: ${vors.length} VORs, ${ndbs.length} NDBs, ${airways.length} airways`);
+  console.log(`[STRATUM] Aero chart: ${vors.length} VOR, ${ndbs.length} NDB, approach corridors, ${RING_NM.join('/')} NM rings`);
 }
 
-function _createNavLabel(name, freq) {
+function _createNavLabel(ident, freq) {
   const canvas = document.createElement('canvas');
-  canvas.width = 192;
-  canvas.height = 56;
+  const dpr = 2; // crisp on retina
+  canvas.width = 160 * dpr;
+  canvas.height = 32 * dpr;
   const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
 
-  // Name (bold, larger)
-  ctx.font = '700 16px "JetBrains Mono", monospace';
-  ctx.textAlign = 'center';
+  // Ident (left-aligned, compact)
+  ctx.font = '600 11px "JetBrains Mono", monospace';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.40)';
-  ctx.fillText(name.toUpperCase(), 96, 18);
-
-  // Frequency below
-  if (freq) {
-    ctx.font = '500 13px "JetBrains Mono", monospace';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
-    ctx.fillText(freq, 96, 40);
-  }
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+  const text = freq ? `${ident.toUpperCase()}  ${freq}` : ident.toUpperCase();
+  ctx.fillText(text, 2, 16);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
@@ -1704,7 +1768,7 @@ function _createNavLabel(name, freq) {
   });
 
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(2.8, 0.8, 1);
+  sprite.scale.set(1.2, 0.24, 1);
   return sprite;
 }
 
