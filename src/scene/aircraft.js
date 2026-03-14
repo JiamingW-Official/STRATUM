@@ -1743,6 +1743,8 @@ class AircraftObject {
       age,
       typeDesc: this.data.typeDesc || (meta && meta.typeName) || null,
       _rawAlt: this.data.baroAltitude,
+      _rawGeoAlt: this.data.geoAltitude,
+      _bestAltFt: geoAltFt != null ? geoAltFt : altFt,
       _rawSpd: this.data.velocity,
       // New detailed fields
       geoAltFt,

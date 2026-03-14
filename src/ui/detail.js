@@ -163,9 +163,9 @@ const elCopy = document.getElementById('detail-copy');
 
 let selectedAircraft = null;
 
-// ── T3-03: Altitude profile chart ──
-const altHistory = []; // {time, alt, speed} entries
-const ALT_HISTORY_MAX = 360; // 30 min at 5s intervals
+// ── T3-03: Altitude profile chart (FR24-accurate) ──
+const altHistory = []; // {time, alt, speed, vs} entries — alt in feet
+const ALT_HISTORY_MAX = 900; // 30 min at 2s intervals
 let _altHistoryTimer = null;
 
 // ── T1-04: Copy flight info ──
@@ -176,7 +176,8 @@ if (elCopy) {
     const cs = d.callsign || d.icao24;
     const type = d.aircraftType || '';
     const route = (d.origin && d.destination) ? `${d.origin}→${d.destination}` : '';
-    const alt = d._rawAlt != null ? `FL${Math.round(d._rawAlt * 3.28084 / 100)}` : '';
+    const altVal = d._bestAltFt != null ? d._bestAltFt : (d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null);
+    const alt = altVal != null ? `FL${Math.round(altVal / 100)}` : '';
     const gs = d.gsKts != null ? `GS${d.gsKts}` : '';
     const text = [cs, type, route, alt, gs].filter(Boolean).join(' ');
     navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard'));
@@ -239,19 +240,19 @@ function formatETA(distKm, speedMs) {
   return `${h}h${m > 0 ? ` ${m}m` : ''}`;
 }
 
-// ── T3-03: Render altitude profile chart ──
+// ── T3-03: Render altitude profile chart (FR24-accurate) ──
+// Shows altitude in feet with grid lines, current value, and time axis.
+// Data is already stored in feet (converted at sample time).
 function renderAltChart() {
   let canvas = document.getElementById('detail-alt-chart');
   if (!canvas) {
     canvas = document.createElement('canvas');
     canvas.id = 'detail-alt-chart';
-    canvas.style.cssText = 'display:none;width:100%;height:60px;margin:4px 0 2px;';
-    // Insert after the progress section
+    canvas.style.cssText = 'display:none;width:100%;height:90px;margin:4px 0 2px;border-radius:6px;background:rgba(0,0,0,0.25);';
     const progressEl = document.getElementById('detail-progress');
     if (progressEl && progressEl.parentNode) {
       progressEl.parentNode.insertBefore(canvas, progressEl.nextSibling);
     } else {
-      // Fallback: append inside detail panel content area
       const panelContent = panel.querySelector('.detail-body') || panel;
       panelContent.appendChild(canvas);
     }
@@ -265,7 +266,7 @@ function renderAltChart() {
   canvas.style.display = 'block';
   const rect = canvas.getBoundingClientRect();
   const w = Math.round(rect.width) || 260;
-  const h = 60;
+  const h = 90;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr;
   canvas.height = h * dpr;
@@ -274,68 +275,158 @@ function renderAltChart() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
-  // Compute Y range
+  const PAD_L = 42; // left padding for Y-axis labels
+  const PAD_R = 6;
+  const PAD_T = 10;
+  const PAD_B = 16; // bottom padding for time axis
+  const plotW = w - PAD_L - PAD_R;
+  const plotH = h - PAD_T - PAD_B;
+
+  // Compute altitude range (values already in feet)
   let minAlt = Infinity, maxAlt = -Infinity;
-  for (let i = 0; i < altHistory.length; i++) {
-    const a = altHistory[i].alt;
+  for (const entry of altHistory) {
+    const a = entry.alt;
     if (a != null && isFinite(a)) {
       if (a < minAlt) minAlt = a;
       if (a > maxAlt) maxAlt = a;
     }
   }
-  if (!isFinite(minAlt)) return; // no valid altitude data
+  if (!isFinite(minAlt)) return;
 
-  const padding = (maxAlt - minAlt) * 0.1 || 100;
-  const yMin = Math.max(0, minAlt - padding);
-  const yMax = maxAlt + padding;
+  // Snap to nice altitude steps (500ft steps below FL180, 1000ft above)
+  const altRange = maxAlt - minAlt;
+  const step = altRange > 10000 ? 5000 : altRange > 3000 ? 2000 : altRange > 1000 ? 1000 : 500;
+  const yMin = Math.max(0, Math.floor((minAlt - step * 0.3) / step) * step);
+  const yMax = Math.ceil((maxAlt + step * 0.3) / step) * step;
   const yRange = yMax - yMin || 1;
 
   const tMin = altHistory[0].time;
   const tMax = altHistory[altHistory.length - 1].time;
   const tRange = tMax - tMin || 1;
 
-  function xOf(t) { return ((t - tMin) / tRange) * (w - 1); }
-  function yOf(a) { return h - 1 - ((a - yMin) / yRange) * (h - 6); }
+  function xOf(t) { return PAD_L + ((t - tMin) / tRange) * plotW; }
+  function yOf(a) { return PAD_T + plotH - ((a - yMin) / yRange) * plotH; }
 
-  // Speed color function
-  function speedColor(speed) {
-    if (speed == null) return '#4a7fff';
-    if (speed < 100) return '#4a7fff';  // approach: blue
-    if (speed <= 200) return '#44ddbb'; // climb: teal
-    return '#eedd55';                   // cruise: gold
+  // ── Grid lines ──
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 0.5;
+  ctx.font = '9px JetBrains Mono, monospace';
+  ctx.fillStyle = 'rgba(180,210,255,0.4)';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+
+  for (let alt = yMin; alt <= yMax; alt += step) {
+    const y = yOf(alt);
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, y);
+    ctx.lineTo(w - PAD_R, y);
+    ctx.stroke();
+    const label = alt >= 18000 ? `FL${Math.round(alt / 100)}` : `${(alt / 1000).toFixed(alt % 1000 === 0 ? 0 : 1)}k`;
+    ctx.fillText(label, PAD_L - 4, y);
   }
 
-  // Draw altitude line with speed-colored segments
-  ctx.lineWidth = 1;
+  // ── Time axis labels ──
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(180,210,255,0.35)';
+  const tRangeMin = tRange / 60000;
+  const tStep = tRangeMin > 20 ? 600000 : tRangeMin > 8 ? 300000 : tRangeMin > 3 ? 120000 : 60000; // ms
+  const tStart = Math.ceil(tMin / tStep) * tStep;
+  for (let t = tStart; t <= tMax; t += tStep) {
+    const x = xOf(t);
+    if (x < PAD_L + 20 || x > w - PAD_R - 20) continue;
+    // vertical tick
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.beginPath();
+    ctx.moveTo(x, PAD_T);
+    ctx.lineTo(x, PAD_T + plotH);
+    ctx.stroke();
+    // time label (minutes ago)
+    const minsAgo = Math.round((tMax - t) / 60000);
+    ctx.fillText(minsAgo === 0 ? 'now' : `-${minsAgo}m`, x, PAD_T + plotH + 2);
+  }
+
+  // ── Altitude fill gradient ──
+  const grad = ctx.createLinearGradient(0, PAD_T, 0, PAD_T + plotH);
+  grad.addColorStop(0, 'rgba(74,127,255,0.15)');
+  grad.addColorStop(1, 'rgba(74,127,255,0.02)');
+  ctx.beginPath();
+  let hasFirst = false;
+  for (const entry of altHistory) {
+    if (entry.alt == null || !isFinite(entry.alt)) continue;
+    const x = xOf(entry.time), y = yOf(entry.alt);
+    if (!hasFirst) { ctx.moveTo(x, y); hasFirst = true; } else ctx.lineTo(x, y);
+  }
+  if (hasFirst) {
+    ctx.lineTo(xOf(altHistory[altHistory.length - 1].time), PAD_T + plotH);
+    ctx.lineTo(xOf(altHistory[0].time), PAD_T + plotH);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // ── Altitude line — colored by vertical rate ──
+  ctx.lineWidth = 1.5;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
   for (let i = 1; i < altHistory.length; i++) {
     const prev = altHistory[i - 1];
     const cur = altHistory[i];
-    const a0 = prev.alt != null && isFinite(prev.alt) ? prev.alt : null;
-    const a1 = cur.alt != null && isFinite(cur.alt) ? cur.alt : null;
-    if (a0 == null || a1 == null) continue;
+    if (prev.alt == null || cur.alt == null || !isFinite(prev.alt) || !isFinite(cur.alt)) continue;
+
+    // Color by vertical rate: climb=orange, descent=blue, level=white
+    const vs = cur.vs;
+    if (vs != null && vs > 300) ctx.strokeStyle = '#ff9d4d';
+    else if (vs != null && vs < -300) ctx.strokeStyle = '#4db8ff';
+    else ctx.strokeStyle = 'rgba(255,255,255,0.85)';
 
     ctx.beginPath();
-    ctx.strokeStyle = speedColor(cur.speed);
-    ctx.moveTo(xOf(prev.time), yOf(a0));
-    ctx.lineTo(xOf(cur.time), yOf(a1));
+    ctx.moveTo(xOf(prev.time), yOf(prev.alt));
+    ctx.lineTo(xOf(cur.time), yOf(cur.alt));
     ctx.stroke();
   }
 
-  // Min/max altitude labels
-  const minAltFt = Math.round(minAlt * 3.28084);
-  const maxAltFt = Math.round(maxAlt * 3.28084);
-  const minLabel = minAltFt >= 18000 ? `FL${Math.round(minAltFt / 100)}` : `${minAltFt.toLocaleString()} ft`;
-  const maxLabel = maxAltFt >= 18000 ? `FL${Math.round(maxAltFt / 100)}` : `${maxAltFt.toLocaleString()} ft`;
+  // ── Current altitude marker (right edge) ──
+  const last = altHistory[altHistory.length - 1];
+  if (last.alt != null && isFinite(last.alt)) {
+    const cx = xOf(last.time);
+    const cy = yOf(last.alt);
 
-  ctx.font = '7px sans-serif';
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-3').trim() || 'rgba(255,255,255,0.35)';
-  ctx.textBaseline = 'top';
-  ctx.fillText(maxLabel, 2, 1);
-  ctx.textBaseline = 'bottom';
-  ctx.fillText(minLabel, 2, h - 1);
+    // Dot
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+
+    // Current altitude value label
+    const curAltStr = last.alt >= 18000
+      ? `FL${Math.round(last.alt / 100)}`
+      : `${Math.round(last.alt).toLocaleString()} ft`;
+    ctx.font = 'bold 10px JetBrains Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(curAltStr, cx - 6, cy - 4);
+
+    // Show recent change (delta from 30s ago)
+    const t30sAgo = last.time - 30000;
+    let refEntry = null;
+    for (let i = altHistory.length - 1; i >= 0; i--) {
+      if (altHistory[i].time <= t30sAgo && altHistory[i].alt != null) { refEntry = altHistory[i]; break; }
+    }
+    if (refEntry) {
+      const delta = Math.round(last.alt - refEntry.alt);
+      if (Math.abs(delta) >= 10) {
+        const sign = delta > 0 ? '+' : '';
+        const color = delta > 0 ? '#ff9d4d' : '#4db8ff';
+        ctx.font = '9px JetBrains Mono, monospace';
+        ctx.fillStyle = color;
+        ctx.textBaseline = 'top';
+        ctx.fillText(`${sign}${delta} ft/30s`, cx - 6, cy + 4);
+      }
+    }
+  }
 }
 
 export function showDetail(aircraftObj, userLat, userLon) {
@@ -345,18 +436,22 @@ export function showDetail(aircraftObj, userLat, userLon) {
   // ── T2-01: Start live tracked timer ──
   startTrackedTimer();
 
-  // ── T3-03: Altitude history sampling ──
+  // ── T3-03: Altitude history sampling (2s, feet, geo-preferred) ──
   if (!_altHistoryTimer) {
     altHistory.length = 0;
     const pushSample = () => {
       if (!selectedAircraft) return;
       const sd = selectedAircraft.data || {};
-      altHistory.push({ time: Date.now(), alt: sd.baroAltitude, speed: sd.velocity });
+      // Prefer geometric (GPS) altitude, fallback to barometric — convert to feet
+      const altM = sd.geoAltitude != null ? sd.geoAltitude : sd.baroAltitude;
+      const altFt = altM != null ? Math.round(altM * 3.28084) : null;
+      const vsFtMin = sd.verticalRate != null ? Math.round(sd.verticalRate * 3.28084 * 60) : null;
+      altHistory.push({ time: Date.now(), alt: altFt, speed: sd.velocity, vs: vsFtMin });
       if (altHistory.length > ALT_HISTORY_MAX) altHistory.shift();
       renderAltChart();
     };
     pushSample();
-    _altHistoryTimer = setInterval(pushSample, 5000);
+    _altHistoryTimer = setInterval(pushSample, 2000);
   }
 
   // ── HEADER ──
@@ -482,12 +577,12 @@ export function showDetail(aircraftObj, userLat, userLon) {
     }
   }
 
-  // ── FLIGHT DATA ──
-  if (d._rawAlt != null) {
-    const altFt = Math.round(d._rawAlt * 3.28084);
-    const altStr = altFt >= 18000 ? `FL${Math.round(altFt / 100)}` : `${altFt.toLocaleString()} ft`;
+  // ── FLIGHT DATA — altitude uses best available (geo > baro) ──
+  const bestAltFt = d._bestAltFt != null ? d._bestAltFt : (d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null);
+  if (bestAltFt != null) {
+    const altStr = bestAltFt >= 18000 ? `FL${Math.round(bestAltFt / 100)}` : `${bestAltFt.toLocaleString()} ft`;
     // T1-02: Altitude trend arrow
-    const vs = d._rawAlt != null && d.verticalSpeed ? d.verticalSpeed : '';
+    const vs = d.verticalSpeed || '';
     let arrow = '';
     if (vs && vs.includes('+') && parseInt(vs) > 300) arrow = ' ▲';
     else if (vs && vs.includes('-') && parseInt(vs) < -300) arrow = ' ▼';
