@@ -1767,6 +1767,45 @@ class AircraftObject {
       routeAirline,
     };
   }
+
+  /**
+   * Return altitude history from track waypoints + live data.
+   * Each entry: { time (ms), alt (feet), vs (ft/min or null) }
+   */
+  getAltitudeHistory() {
+    const track = getTrack(this.data.icao24);
+    const entries = [];
+
+    if (track && track.length > 0) {
+      for (let i = 0; i < track.length; i++) {
+        const wp = track[i];
+        const altM = wp.geoAltitude != null ? wp.geoAltitude : wp.baroAltitude;
+        if (altM == null) continue;
+        const altFt = Math.round(altM * METERS_TO_FEET);
+        // Compute vertical rate from consecutive waypoints
+        let vs = null;
+        if (i > 0) {
+          const prev = track[i - 1];
+          const prevAltM = prev.geoAltitude != null ? prev.geoAltitude : prev.baroAltitude;
+          const dt = wp.time - prev.time;
+          if (prevAltM != null && dt > 0) {
+            vs = Math.round((altM - prevAltM) * METERS_TO_FEET / dt * 60);
+          }
+        }
+        entries.push({ time: wp.time * 1000, alt: altFt, vs });
+      }
+    }
+
+    // Add current live position
+    const altM = bestAlt(this.data);
+    if (altM) {
+      const vsFtMin = this.data.verticalRate != null
+        ? Math.round(this.data.verticalRate * METERS_TO_FEET * 60) : null;
+      entries.push({ time: Date.now(), alt: Math.round(altM * METERS_TO_FEET), vs: vsFtMin });
+    }
+
+    return entries;
+  }
 }
 
 function headingToCardinal(deg) {

@@ -165,8 +165,9 @@ let selectedAircraft = null;
 
 // ── T3-03: Altitude profile chart (FR24-accurate) ──
 const altHistory = []; // {time, alt, speed, vs} entries — alt in feet
-const ALT_HISTORY_MAX = 900; // 30 min at 2s intervals
+const ALT_HISTORY_MAX = 2400; // 30 min track + 1s live samples
 let _altHistoryTimer = null;
+let _altHistorySeeded = false; // track data has been loaded into chart
 
 // ── T1-04: Copy flight info ──
 if (elCopy) {
@@ -436,22 +437,44 @@ export function showDetail(aircraftObj, userLat, userLon) {
   // ── T2-01: Start live tracked timer ──
   startTrackedTimer();
 
-  // ── T3-03: Altitude history sampling (2s, feet, geo-preferred) ──
+  // ── T3-03: Altitude history — seed from track + live 1s sampling ──
   if (!_altHistoryTimer) {
     altHistory.length = 0;
+
+    _altHistorySeeded = false;
+
+    // Try to seed with historical track data (up to 30 min of waypoints)
+    function seedFromTrack() {
+      if (_altHistorySeeded || !selectedAircraft || !selectedAircraft.getAltitudeHistory) return;
+      const hist = selectedAircraft.getAltitudeHistory();
+      if (hist.length > 2) {
+        // Remove any live samples older than track coverage
+        const liveOnly = altHistory.filter(e => e._live);
+        altHistory.length = 0;
+        for (const entry of hist) altHistory.push(entry);
+        for (const entry of liveOnly) altHistory.push(entry);
+        _altHistorySeeded = true;
+      }
+    }
+    seedFromTrack();
+
     const pushSample = () => {
       if (!selectedAircraft) return;
+
+      // Re-try seeding if track data arrived async
+      if (!_altHistorySeeded) seedFromTrack();
+
       const sd = selectedAircraft.data || {};
-      // Prefer geometric (GPS) altitude, fallback to barometric — convert to feet
       const altM = sd.geoAltitude != null ? sd.geoAltitude : sd.baroAltitude;
       const altFt = altM != null ? Math.round(altM * 3.28084) : null;
       const vsFtMin = sd.verticalRate != null ? Math.round(sd.verticalRate * 3.28084 * 60) : null;
-      altHistory.push({ time: Date.now(), alt: altFt, speed: sd.velocity, vs: vsFtMin });
+      // Always push live sample (1s resolution)
+      altHistory.push({ time: Date.now(), alt: altFt, speed: sd.velocity, vs: vsFtMin, _live: true });
       if (altHistory.length > ALT_HISTORY_MAX) altHistory.shift();
       renderAltChart();
     };
     pushSample();
-    _altHistoryTimer = setInterval(pushSample, 2000);
+    _altHistoryTimer = setInterval(pushSample, 1000); // 1s updates
   }
 
   // ── HEADER ──
