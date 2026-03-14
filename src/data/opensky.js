@@ -557,6 +557,93 @@ export function getHexDetail(icao24) {
   return d;
 }
 
+// --- Worker-powered parallel enrichment ---
+// Single round-trip: trace + route + hex detail all at once via /api/enrich
+export async function enrichAircraft(icao24, callsign) {
+  if (!icao24) return;
+
+  // Skip if all data is already fresh
+  const hasTrack = trackCache.has(icao24) && Date.now() - trackCache.get(icao24).fetchedAt < TRACK_CACHE_TTL;
+  const hasRoute = callsign && routeCache.has(callsign) && Date.now() - routeCache.get(callsign).fetchedAt < ROUTE_CACHE_TTL;
+  const hasHex = hexDetailCache.has(icao24) && Date.now() - hexDetailCache.get(icao24).fetchedAt < HEX_DETAIL_TTL;
+  if (hasTrack && hasRoute && hasHex) return;
+
+  try {
+    const cs = callsign || '';
+    const res = await fetch(`/api/enrich?hex=${encodeURIComponent(icao24)}&cs=${encodeURIComponent(cs)}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { trace, route, hexDetail } = await res.json();
+
+    // Process trace
+    if (trace && trace.trace && Array.isArray(trace.trace)) {
+      const baseTime = trace.timestamp || 0;
+      const now = Date.now() / 1000;
+      const cutoff = now - 1800;
+      const waypoints = [];
+      for (const pt of trace.trace) {
+        const time = baseTime + pt[0];
+        if (time < cutoff) continue;
+        const lat = pt[1], lon = pt[2], alt = pt[3];
+        if (lat == null || lon == null || alt == null || alt === 'ground') continue;
+        waypoints.push({ latitude: lat, longitude: lon, baroAltitude: alt * 0.3048, time });
+      }
+      if (waypoints.length >= 1) {
+        trackCache.set(icao24, { path: waypoints, fetchedAt: Date.now() });
+        inferFeedTrace(icao24, waypoints, null);
+      }
+    }
+
+    // Process route (adsbdb response)
+    if (route && cs) {
+      const resp = route.response;
+      if (resp && resp.flightroute) {
+        const fr = resp.flightroute;
+        const origin = fr.origin?.iata_code || null;
+        const dest = fr.destination?.iata_code || null;
+        routeCache.set(cs, {
+          origin, destination: dest,
+          originCity: fr.origin?.municipality || getAirportCity(origin),
+          destCity: fr.destination?.municipality || getAirportCity(dest),
+          fetchedAt: Date.now(),
+        });
+      }
+    }
+
+    // Process hex detail
+    if (hexDetail) {
+      const ac = (hexDetail.ac || [])[0];
+      if (ac) {
+        hexDetailCache.set(icao24, {
+          ias: ac.ias ?? null, tas: ac.tas ?? null, mach: ac.mach ?? null,
+          operator: ac.ownOp || null,
+          origin: ac.oa || null, destination: ac.da || null,
+          squawk: ac.squawk || null, rssi: ac.rssi ?? null,
+          navAltitude: ac.nav_altitude ?? null, navHeading: ac.nav_heading ?? null,
+          emergency: ac.emergency || null, fetchedAt: Date.now(),
+        });
+        // Populate route from hex data if missing
+        if (cs && (ac.oa || ac.da) && !routeCache.has(cs)) {
+          routeCache.set(cs, {
+            origin: ac.oa || null, destination: ac.da || null,
+            originCity: getAirportCity(ac.oa), destCity: getAirportCity(ac.da),
+            fetchedAt: Date.now(),
+          });
+        }
+      }
+    }
+
+    console.log(`[STRATUM] Enriched ${icao24} via Worker (trace+route+hex)`);
+  } catch (err) {
+    // Fallback to individual fetches
+    console.warn('[STRATUM] /api/enrich failed, using fallback:', err.message);
+    priorityTraceFetch(icao24);
+    if (callsign) fetchRouteNow(callsign, icao24);
+    fetchHexEnrich(icao24, callsign);
+  }
+}
+
 // --- Track data ---
 
 export function getTrack(icao24) {

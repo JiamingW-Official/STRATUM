@@ -7,7 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
-import { setUserLocation, getUserLocation, startPolling, priorityTraceFetch, fetchRouteNow } from './data/opensky.js';
+import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft, showDetailLoading } from './ui/detail.js';
@@ -540,13 +540,10 @@ function handleAircraftSelect(ac) {
   aircraftManager.selectAircraft(ac);
   flyToThenFollow(ac);
   nekoTrackAircraft(ac.getDisplayData());
-  priorityTraceFetch(ac.data.icao24);
-  // Fetch route from adsbdb (no rate limits, no 429s)
-  // IAS/TAS/Mach are computed from ground speed + altitude — no hex API needed
-  // T3-01: Remove previous route arc, create new one after route loads
+  // Worker-powered parallel enrichment: trace + route + hex detail in ONE round-trip
   removeRouteArc(scene);
   showDetailLoading(true);
-  fetchRouteNow(ac.data.callsign, ac.data.icao24).then(() => {
+  enrichAircraft(ac.data.icao24, ac.data.callsign).then(() => {
     showDetailLoading(false);
     refreshDetail(aircraftManager, lat, lon);
     // T3-01: Draw great circle route arc

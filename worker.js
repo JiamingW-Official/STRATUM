@@ -234,6 +234,118 @@ async function handleProxy(request, prefix, target, url) {
   return corsResponse(upstream);
 }
 
+// ── /api/enrich — Parallel aircraft detail aggregation ──
+// Fetches trace + route + hex detail in ONE round-trip from the edge
+async function handleEnrich(url) {
+  const hex = url.searchParams.get('hex');
+  const callsign = (url.searchParams.get('cs') || '').trim();
+  if (!hex) return new Response('Missing hex', { status: 400 });
+
+  const cacheKey = new Request(`https://cache.internal/enrich/${hex}/${callsign}`);
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    const r = corsResponse(cached);
+    r.headers.set('X-Cache', 'HIT');
+    return r;
+  }
+
+  const last2 = hex.slice(-2);
+  const promises = [];
+
+  // 1. Trace data (globe.airplanes.live)
+  promises.push(
+    fetch(`https://globe.airplanes.live/data/traces/${last2}/trace_full_${hex}.json`, {
+      headers: { 'User-Agent': 'STRATUM/1.0' },
+      signal: AbortSignal.timeout(8000),
+    }).then(r => r.ok ? r.json() : null).catch(() => null)
+  );
+
+  // 2. Route data (adsbdb — only if valid callsign)
+  const csValid = /^[A-Z]{2,3}\d{1,4}[A-Z]?$/.test(callsign);
+  if (csValid) {
+    promises.push(
+      fetch(`https://api.adsbdb.com/v0/callsign/${callsign}`, {
+        headers: { 'User-Agent': 'STRATUM/1.0' },
+        signal: AbortSignal.timeout(6000),
+      }).then(r => r.ok ? r.json() : null).catch(() => null)
+    );
+  } else {
+    promises.push(Promise.resolve(null));
+  }
+
+  // 3. Hex detail (adsb.fi — aircraft type, registration, etc.)
+  promises.push(
+    fetch(`https://opendata.adsb.fi/api/v2/hex/${hex}`, {
+      headers: { 'User-Agent': 'STRATUM/1.0' },
+      signal: AbortSignal.timeout(6000),
+    }).then(r => r.ok ? r.json() : null).catch(() => null)
+  );
+
+  const [trace, route, hexDetail] = await Promise.all(promises);
+
+  const result = { trace, route, hexDetail };
+  const body = JSON.stringify(result);
+  const response = new Response(body, {
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'MISS' },
+  });
+
+  // Cache 2 min (trace updates frequently, but saves burst on rapid re-clicks)
+  const toCache = new Response(body, {
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
+  cachePut(cacheKey, toCache, 120);
+
+  return response;
+}
+
+// ── /api/weather — Edge-cached Open-Meteo proxy ──
+async function handleWeather(url) {
+  const lat = parseFloat(url.searchParams.get('lat'));
+  const lon = parseFloat(url.searchParams.get('lon'));
+  if (isNaN(lat) || isNaN(lon)) {
+    return new Response('Missing lat/lon', { status: 400 });
+  }
+
+  // Round to 0.1° for cache stability (same city = same weather)
+  const rlat = lat.toFixed(1), rlon = lon.toFixed(1);
+  const cacheKey = new Request(`https://cache.internal/weather/${rlat}/${rlon}`);
+
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    const r = corsResponse(cached);
+    r.headers.set('X-Cache', 'HIT');
+    return r;
+  }
+
+  const meteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${rlat}&longitude=${rlon}`
+    + '&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility,weather_code'
+    + '&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m'
+    + '&forecast_hours=8&timezone=auto';
+
+  try {
+    const upstream = await fetch(meteoUrl, {
+      headers: { 'User-Agent': 'STRATUM/1.0' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!upstream.ok) return corsResponse(upstream);
+
+    const body = await upstream.text();
+    const response = new Response(body, {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'MISS' },
+    });
+
+    // Cache 15 min — weather doesn't change faster than that
+    const toCache = new Response(body, {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
+    cachePut(cacheKey, toCache, 900);
+
+    return response;
+  } catch {
+    return new Response('Weather fetch failed', { status: 502, headers: corsHeaders() });
+  }
+}
+
 // ── Main handler ──
 export default {
   async fetch(request, env) {
@@ -244,10 +356,10 @@ export default {
       return new Response(null, { headers: corsHeaders() });
     }
 
-    // Smart Overpass endpoint — single GET, edge-cached 24h
-    if (url.pathname === '/api/airports') {
-      return handleAirports(url);
-    }
+    // Smart endpoints
+    if (url.pathname === '/api/airports') return handleAirports(url);
+    if (url.pathname === '/api/enrich')  return handleEnrich(url);
+    if (url.pathname === '/api/weather') return handleWeather(url);
 
     // Proxy routes
     for (const [prefix, target] of Object.entries(PROXY_ROUTES)) {

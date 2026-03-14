@@ -278,15 +278,16 @@ export function prefetchAirportData(cities) {
   if (uncached.length === 0) return;
   console.log(`[STRATUM] Prefetching airport data for ${uncached.length} cities`);
   let i = 0;
-  let backoff = 800; // Worker handles caching — can be faster
-  const next = () => {
+  const BATCH = 4; // 4 parallel fetches — Worker edge cache prevents 429s
+  const DELAY = 600;
+  const nextBatch = () => {
     if (i >= uncached.length) return;
-    const c = uncached[i++];
-    _prefetchSingle(c.lat, c.lon)
-      .then(() => { backoff = 800; setTimeout(next, backoff); })
-      .catch(() => { backoff = Math.min(backoff * 2, 10000); setTimeout(next, backoff); });
+    const batch = uncached.slice(i, i + BATCH);
+    i += BATCH;
+    Promise.allSettled(batch.map(c => _prefetchSingle(c.lat, c.lon)))
+      .then(() => setTimeout(nextBatch, DELAY));
   };
-  next();
+  nextBatch();
 }
 
 // Prefetch uses Worker smart endpoint — edge-cached, no 429 risk
