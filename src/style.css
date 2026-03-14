@@ -2495,10 +2495,13 @@ html, body {
   margin-bottom: 4px; text-transform: uppercase;
 }
 
-/* TCAS widget — bottom right, above compass */
+/* TCAS widget — left center */
 .tcas-widget {
-  bottom: 84px; right: var(--edge);
-  max-height: 200px; overflow: hidden;
+  left: var(--edge); top: 50%;
+  transform: translateY(-50%);
+  right: auto; bottom: auto;
+  max-height: 280px; overflow: hidden;
+  pointer-events: auto;
 }
 
 /* Compare widget — bottom center */
@@ -2893,5 +2896,10 @@ html, body {
 
   .search-bar { width: calc(100vw - 24px); max-width: 440px; }
   .search-bar:focus-within { width: calc(100vw - 24px); }
+
+  .tcas-widget {
+    top: auto; bottom: 70px;
+    transform: none;
+  }
 
 }
