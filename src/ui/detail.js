@@ -465,8 +465,8 @@ export function showDetail(aircraftObj, userLat, userLon) {
       if (!_altHistorySeeded) seedFromTrack();
 
       const sd = selectedAircraft.data || {};
-      const altM = sd.geoAltitude != null ? sd.geoAltitude : sd.baroAltitude;
-      const altFt = altM != null ? Math.round(altM * 3.28084) : null;
+      // Use barometric altitude consistently (matches track history source)
+      const altFt = sd.baroAltitude != null ? Math.round(sd.baroAltitude * 3.28084) : null;
       const vsFtMin = sd.verticalRate != null ? Math.round(sd.verticalRate * 3.28084 * 60) : null;
       // Always push live sample (1s resolution)
       altHistory.push({ time: Date.now(), alt: altFt, speed: sd.velocity, vs: vsFtMin, _live: true });

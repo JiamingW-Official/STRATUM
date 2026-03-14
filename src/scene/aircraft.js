@@ -358,8 +358,7 @@ function waypointToScenePos(wp, userLat, userLon) {
   const cosLat = Math.cos(userLat * DEG_TO_RAD);
   const x = (wp.longitude - userLon) * GEO_SCALE * cosLat;
   const z = -(wp.latitude - userLat) * GEO_SCALE;
-  const alt = (wp.geoAltitude != null ? wp.geoAltitude : wp.baroAltitude) || 0;
-  const y = (alt * METERS_TO_FEET) / 1000 * ALT_SCALE;
+  const y = wp.baroAltitude != null ? (wp.baroAltitude * METERS_TO_FEET) / 1000 * ALT_SCALE : 0;
   return _tmpWaypointPos.set(x, y, z);
 }
 
@@ -1769,7 +1768,8 @@ class AircraftObject {
   }
 
   /**
-   * Return altitude history from track waypoints + live data.
+   * Return altitude history from track waypoints.
+   * Uses barometric altitude consistently (traces only have reliable baro).
    * Each entry: { time (ms), alt (feet), vs (ft/min or null) }
    */
   getAltitudeHistory() {
@@ -1779,29 +1779,19 @@ class AircraftObject {
     if (track && track.length > 0) {
       for (let i = 0; i < track.length; i++) {
         const wp = track[i];
-        const altM = wp.geoAltitude != null ? wp.geoAltitude : wp.baroAltitude;
-        if (altM == null) continue;
-        const altFt = Math.round(altM * METERS_TO_FEET);
+        if (wp.baroAltitude == null) continue;
+        const altFt = Math.round(wp.baroAltitude * METERS_TO_FEET);
         // Compute vertical rate from consecutive waypoints
         let vs = null;
         if (i > 0) {
           const prev = track[i - 1];
-          const prevAltM = prev.geoAltitude != null ? prev.geoAltitude : prev.baroAltitude;
           const dt = wp.time - prev.time;
-          if (prevAltM != null && dt > 0) {
-            vs = Math.round((altM - prevAltM) * METERS_TO_FEET / dt * 60);
+          if (prev.baroAltitude != null && dt > 0) {
+            vs = Math.round((wp.baroAltitude - prev.baroAltitude) * METERS_TO_FEET / dt * 60);
           }
         }
         entries.push({ time: wp.time * 1000, alt: altFt, vs });
       }
-    }
-
-    // Add current live position
-    const altM = bestAlt(this.data);
-    if (altM) {
-      const vsFtMin = this.data.verticalRate != null
-        ? Math.round(this.data.verticalRate * METERS_TO_FEET * 60) : null;
-      entries.push({ time: Date.now(), alt: Math.round(altM * METERS_TO_FEET), vs: vsFtMin });
     }
 
     return entries;
