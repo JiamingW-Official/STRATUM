@@ -173,7 +173,7 @@ async function fetchTraceAsync(icao24) {
 
     const waypoints = [];
     for (const pt of data.trace) {
-      // trace format: [offset_seconds, lat, lon, alt_baro, ...]
+      // trace format: [offset_seconds, lat, lon, alt_baro, alt_geom, ...]
       const time = baseTime + pt[0];
       if (time < cutoff) continue;
 
@@ -182,12 +182,14 @@ async function fetchTraceAsync(icao24) {
       const alt = pt[3];
       if (lat == null || lon == null || alt == null || alt === 'ground') continue;
 
-      waypoints.push({
+      const wp = {
         latitude: lat,
         longitude: lon,
         baroAltitude: alt * 0.3048, // feet → meters
         time: time,
-      });
+      };
+      if (pt[4] != null && pt[4] !== 'ground') wp.geoAltitude = pt[4] * 0.3048;
+      waypoints.push(wp);
     }
 
     if (waypoints.length >= 1) {
@@ -612,7 +614,9 @@ export async function enrichAircraft(icao24, callsign) {
         if (time < cutoff) continue;
         const lat = pt[1], lon = pt[2], alt = pt[3];
         if (lat == null || lon == null || alt == null || alt === 'ground') continue;
-        waypoints.push({ latitude: lat, longitude: lon, baroAltitude: alt * 0.3048, time });
+        const wp = { latitude: lat, longitude: lon, baroAltitude: alt * 0.3048, time };
+        if (pt[4] != null && pt[4] !== 'ground') wp.geoAltitude = pt[4] * 0.3048;
+        waypoints.push(wp);
       }
       if (waypoints.length >= 1) {
         trackCache.set(icao24, { path: waypoints, fetchedAt: Date.now() });

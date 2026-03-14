@@ -338,11 +338,18 @@ function extrapolatePosition(pos, velocity, heading, verticalRate, dt, out) {
 }
 
 const _tmpScenePos = new THREE.Vector3();
+// Prefer geometric (GPS) altitude for 3D positioning — it's the true position.
+// Barometric altitude drifts with pressure; geometric is WGS84-referenced.
+// Fallback to barometric when geometric unavailable (older transponders).
+function bestAlt(data) {
+  return (data.geoAltitude != null ? data.geoAltitude : data.baroAltitude) || 0;
+}
+
 export function dataToScenePos(data, userLat, userLon) {
   const cosLat = Math.cos(userLat * DEG_TO_RAD);
   const x = (data.longitude - userLon) * GEO_SCALE * cosLat;
   const z = -(data.latitude - userLat) * GEO_SCALE;
-  const y = (data.baroAltitude * METERS_TO_FEET) / 1000 * ALT_SCALE;
+  const y = (bestAlt(data) * METERS_TO_FEET) / 1000 * ALT_SCALE;
   return _tmpScenePos.set(x, y, z);
 }
 
@@ -351,7 +358,8 @@ function waypointToScenePos(wp, userLat, userLon) {
   const cosLat = Math.cos(userLat * DEG_TO_RAD);
   const x = (wp.longitude - userLon) * GEO_SCALE * cosLat;
   const z = -(wp.latitude - userLat) * GEO_SCALE;
-  const y = wp.baroAltitude != null ? (wp.baroAltitude * METERS_TO_FEET) / 1000 * ALT_SCALE : 0;
+  const alt = (wp.geoAltitude != null ? wp.geoAltitude : wp.baroAltitude) || 0;
+  const y = (alt * METERS_TO_FEET) / 1000 * ALT_SCALE;
   return _tmpWaypointPos.set(x, y, z);
 }
 
@@ -1009,7 +1017,8 @@ class AircraftObject {
     const h = this._labelCanvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const altFt = data.baroAltitude != null ? Math.round(data.baroAltitude * METERS_TO_FEET) : null;
+    const altM = bestAlt(data);
+    const altFt = altM ? Math.round(altM * METERS_TO_FEET) : null;
     const speedKts = data.velocity != null ? Math.round(data.velocity * 1.94384) : null;
     const hdg = data.trueTrack != null ? Math.round(data.trueTrack) : null;
     const vsFtMin = data.verticalRate != null ? Math.round(data.verticalRate * METERS_TO_FEET * 60) : null;
@@ -1084,6 +1093,16 @@ class AircraftObject {
   }
 
   setTarget(pos, data) {
+    // EMA altitude smoothing — reduces jitter from ADS-B altitude quantization
+    // (barometric reports in 25ft steps, geometric in ~10ft steps).
+    // α=0.35 balances responsiveness with smoothness (like FR24).
+    if (this._smoothY == null) {
+      this._smoothY = pos.y; // first update: no smoothing
+    } else {
+      this._smoothY += 0.35 * (pos.y - this._smoothY);
+    }
+    pos.y = this._smoothY;
+
     this.lastApiPos.copy(pos);
     this.lastApiTime = performance.now() / 1000;
     this.data = data;

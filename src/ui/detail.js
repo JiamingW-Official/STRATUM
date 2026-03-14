@@ -526,7 +526,15 @@ export function showDetail(aircraftObj, userLat, userLon) {
     flashUpdate(elMach, d.mach != null ? `M${d.mach}` : '--');
     if (d.geoAltFt != null) {
       const geoStr = d.geoAltFt >= 18000 ? `FL${Math.round(d.geoAltFt / 100)}` : `${d.geoAltFt.toLocaleString()} ft`;
-      flashUpdate(elGeoAlt, geoStr);
+      // Show altitude delta (geo - baro) — indicates pressure deviation
+      const altFtBaro = d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null;
+      if (altFtBaro != null) {
+        const delta = d.geoAltFt - altFtBaro;
+        const sign = delta >= 0 ? '+' : '';
+        flashUpdate(elGeoAlt, `${geoStr} (${sign}${delta} ft)`);
+      } else {
+        flashUpdate(elGeoAlt, geoStr);
+      }
     } else {
       flashUpdate(elGeoAlt, '--');
     }
