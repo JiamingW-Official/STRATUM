@@ -328,7 +328,7 @@ async function handleWeather(url) {
   }
 
   const meteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${rlat}&longitude=${rlon}`
-    + '&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility,weather_code'
+    + '&current=temperature_2m,relative_humidity_2m,apparent_temperature,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility,weather_code'
     + '&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m'
     + '&forecast_hours=8&timezone=auto';
 
@@ -353,6 +353,38 @@ async function handleWeather(url) {
     return addPerfHeaders(response);
   } catch {
     return new Response('Weather fetch failed', { status: 502, headers: corsHeaders() });
+  }
+}
+
+// ── /api/atlas — Edge-cached world land outline (TopoJSON) ──
+// Proxy cdn.jsdelivr.net to eliminate extra DNS+TLS handshake, cache 30 days
+async function handleAtlas() {
+  const cacheKey = new Request('https://cache.internal/atlas/land-110m');
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    const r = corsResponse(cached);
+    r.headers.set('X-Cache', 'HIT');
+    return r;
+  }
+
+  try {
+    const upstream = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json', {
+      headers: { 'User-Agent': 'STRATUM/1.0' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!upstream.ok) return corsResponse(upstream);
+
+    const body = await upstream.text();
+    const response = new Response(body, {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'MISS' },
+    });
+    const toCache = new Response(body, {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
+    cachePut(cacheKey, toCache, 2592000); // 30 days — static data
+    return addPerfHeaders(response);
+  } catch {
+    return new Response('Atlas fetch failed', { status: 502, headers: corsHeaders() });
   }
 }
 
@@ -543,6 +575,7 @@ export default {
     if (url.pathname === '/api/airports')  return handleAirports(url);
     if (url.pathname === '/api/enrich')    return handleEnrich(url);
     if (url.pathname === '/api/weather')   return handleWeather(url);
+    if (url.pathname === '/api/atlas')     return handleAtlas();
 
     // Font proxy — self-host Google Fonts (eliminates 2 DNS + 2 TLS handshakes)
     if (url.pathname.startsWith('/fonts/css')) {

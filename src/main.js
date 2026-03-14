@@ -3405,7 +3405,13 @@ class GlobeView {
 
   async _fetchLand() {
     try {
-      const res = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json');
+      let res;
+      try {
+        res = await fetch('/api/atlas', { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) throw new Error('Worker atlas failed');
+      } catch {
+        res = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json');
+      }
       const topo = await res.json();
       this._landRings = this._decodeTopo(topo);
       // Precompute bounding boxes for ring-skip optimization

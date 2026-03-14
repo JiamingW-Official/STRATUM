@@ -129,9 +129,17 @@ export async function fetchDestinationWeather(lat, lon) {
   _destFetching = key;
 
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`
+    // Use Worker edge-cached endpoint (15 min cache) with direct API fallback
+    const workerUrl = `/api/weather?lat=${lat}&lon=${lon}`;
+    const directUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`
       + `&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m,visibility,cloud_cover,weather_code`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    let res;
+    try {
+      res = await fetch(workerUrl, { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) throw new Error('Worker weather failed');
+    } catch {
+      res = await fetch(directUrl, { signal: AbortSignal.timeout(8000) });
+    }
     if (!res.ok) return null;
     const data = await res.json();
     const c = data.current;
