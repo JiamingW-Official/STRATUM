@@ -1,5 +1,6 @@
 import { haversineDistance } from '../scene/aircraft.js';
 import { getAirlineName } from '../data/airlineDb.js';
+import { computeDensityAltitude } from '../data/weather.js';
 
 // ── T2-02: Aircraft type silhouette SVG paths ──
 const SILHOUETTES = {
@@ -513,6 +514,23 @@ export function showDetail(aircraftObj, userLat, userLon) {
     }
   }
 
+  // S1: Unusual Attitude Alert
+  let uaAlert = document.getElementById('detail-ua-alert');
+  if (!uaAlert) {
+    uaAlert = document.createElement('div');
+    uaAlert.id = 'detail-ua-alert';
+    uaAlert.style.cssText = 'display:none;background:rgba(232,68,68,0.15);border:1px solid rgba(232,68,68,0.4);border-radius:6px;padding:4px 8px;margin:4px 0;color:#e84444;font-size:11px;font-weight:700;text-align:center;animation:pulse 1s infinite';
+    if (elStatusBadge && elStatusBadge.parentNode) {
+      elStatusBadge.parentNode.insertBefore(uaAlert, elStatusBadge.nextSibling);
+    }
+  }
+  if (d.unusualAttitude) {
+    uaAlert.style.display = 'block';
+    uaAlert.textContent = `⚠ ${d.unusualAttitude}`;
+  } else {
+    uaAlert.style.display = 'none';
+  }
+
   // ── AIRLINE ──
   const cs = d.callsign || '';
   const airlineMatch = cs.match(/^([A-Z]{2,3})\d/);
@@ -658,6 +676,34 @@ export function showDetail(aircraftObj, userLat, userLon) {
     }
   } else if (elExtGrid) {
     elExtGrid.classList.add('hidden');
+  }
+
+  // W1: Density Altitude — shown during takeoff/approach/landing
+  let daRow = document.getElementById('detail-da-row');
+  if (!daRow) {
+    daRow = document.createElement('div');
+    daRow.id = 'detail-da-row';
+    daRow.className = 'detail-meta-row hidden';
+    daRow.innerHTML = '<span class="detail-meta-label">DA</span><span id="detail-da" class="detail-meta-value">--</span>';
+    if (elExtGrid && elExtGrid.parentNode) {
+      elExtGrid.parentNode.insertBefore(daRow, elExtGrid.nextSibling);
+    }
+  }
+  const lowPhase = d.flightPhase === 'TAKEOFF' || d.flightPhase === 'INITIAL CLIMB' ||
+                   d.flightPhase === 'APPROACH' || d.flightPhase === 'LANDING' || d.flightPhase === 'ON GROUND';
+  if (lowPhase && typeof window._cachedWeather !== 'undefined' && window._cachedWeather) {
+    const w = window._cachedWeather;
+    const da = computeDensityAltitude(w.pressure, w.temp, 0);
+    if (da != null) {
+      daRow.classList.remove('hidden');
+      const daEl = document.getElementById('detail-da');
+      const color = da > 5000 ? '#e8836a' : da > 3000 ? '#e8c36a' : '#6ec87a';
+      daEl.innerHTML = `<span style="color:${color}">${da.toLocaleString()} ft</span>`;
+    } else {
+      daRow.classList.add('hidden');
+    }
+  } else {
+    daRow.classList.add('hidden');
   }
 
   // ── AIRCRAFT SECTION ──
@@ -814,9 +860,109 @@ export function showDetail(aircraftObj, userLat, userLon) {
     } else if (rwyRow) {
       rwyRow.classList.add('hidden');
     }
+    // ── P1: Wind Component ──
+    let windRow = document.getElementById('detail-wind-row');
+    if (!windRow) {
+      windRow = document.createElement('div');
+      windRow.id = 'detail-wind-row';
+      windRow.className = 'detail-meta-row hidden';
+      windRow.innerHTML = '<span class="detail-meta-label">WIND</span><span id="detail-wind" class="detail-meta-value">--</span>';
+      const navMeta = elXpdr.querySelector('.detail-meta');
+      if (navMeta) navMeta.appendChild(windRow);
+    }
+    if (d.headwind != null) {
+      windRow.classList.remove('hidden');
+      const hw = d.headwind;
+      const cw = d.crosswind || 0;
+      const hwLabel = hw >= 0 ? `H/W ${hw}` : `T/W ${Math.abs(hw)}`;
+      const cwLabel = Math.abs(cw) >= 3 ? ` · X/W ${Math.abs(cw)}` : '';
+      document.getElementById('detail-wind').textContent = `${hwLabel}${cwLabel} kts`;
+    } else {
+      windRow.classList.add('hidden');
+    }
+
+    // ── P3: Altitude Deviation (VNAV) ──
+    if (d.navAlt != null && d.altDeviation != null && elNavAltRow) {
+      const dev = d.altDeviation;
+      const absDev = Math.abs(dev);
+      const sign = dev >= 0 ? '+' : '';
+      let devColor = '';
+      if (absDev > 500) devColor = ' style="color:#e8836a"'; // red
+      else if (absDev > 200) devColor = ' style="color:#e8c36a"'; // yellow
+      const navStr = d.navAlt >= 18000 ? `FL${Math.round(d.navAlt / 100)}` : `${d.navAlt.toLocaleString()} ft`;
+      elNavAlt.innerHTML = absDev > 50 ? `${navStr} <span${devColor}>(${sign}${dev})</span>` : navStr;
+    }
+
+    // ── P4: RVSM Compliance ──
+    let rvsmRow = document.getElementById('detail-rvsm-row');
+    if (!rvsmRow) {
+      rvsmRow = document.createElement('div');
+      rvsmRow.id = 'detail-rvsm-row';
+      rvsmRow.className = 'detail-meta-row hidden';
+      rvsmRow.innerHTML = '<span class="detail-meta-label">RVSM</span><span id="detail-rvsm" class="detail-meta-value">--</span>';
+      const navMeta = elXpdr.querySelector('.detail-meta');
+      if (navMeta) navMeta.appendChild(rvsmRow);
+    }
+    if (d.rvsm) {
+      rvsmRow.classList.remove('hidden');
+      const rvsmEl = document.getElementById('detail-rvsm');
+      if (d.rvsm === 'OK') {
+        rvsmEl.innerHTML = '<span style="color:#6ec87a">COMPLIANT</span>';
+      } else {
+        rvsmEl.innerHTML = '<span style="color:#e8836a">NON-STANDARD</span>';
+      }
+    } else if (rvsmRow) {
+      rvsmRow.classList.add('hidden');
+    }
   } else if (elXpdr) {
     elXpdr.classList.add('hidden');
     elXpdrDivider.classList.add('hidden');
+  }
+
+  // ── P2: Top of Descent ──
+  let todRow = document.getElementById('detail-tod-row');
+  if (!todRow) {
+    todRow = document.createElement('div');
+    todRow.id = 'detail-tod-row';
+    todRow.className = 'detail-meta-row hidden';
+    todRow.innerHTML = '<span class="detail-meta-label">TOD</span><span id="detail-tod" class="detail-meta-value">--</span>';
+    // Add after distance to destination
+    if (elDtdRow && elDtdRow.parentNode) {
+      elDtdRow.parentNode.insertBefore(todRow, elDtdRow.nextSibling);
+    }
+  }
+  if (d.todNm != null) {
+    todRow.classList.remove('hidden');
+    const todEl = document.getElementById('detail-tod');
+    if (d.todNm === 0) {
+      todEl.innerHTML = '<span style="color:#e8c36a">PAST TOD</span>';
+    } else {
+      const minStr = d.todMin != null ? ` (${d.todMin} min)` : '';
+      todEl.textContent = `${d.todNm} nm${minStr}`;
+    }
+  } else if (todRow) {
+    todRow.classList.add('hidden');
+  }
+
+  // ── P5: Route Efficiency ──
+  let effRow = document.getElementById('detail-eff-row');
+  if (!effRow) {
+    effRow = document.createElement('div');
+    effRow.id = 'detail-eff-row';
+    effRow.className = 'detail-meta-row hidden';
+    effRow.innerHTML = '<span class="detail-meta-label">EFFICIENCY</span><span id="detail-eff" class="detail-meta-value">--</span>';
+    if (elDtdRow && elDtdRow.parentNode) {
+      elDtdRow.parentNode.appendChild(effRow);
+    }
+  }
+  if (d.routeEfficiency != null) {
+    effRow.classList.remove('hidden');
+    const effEl = document.getElementById('detail-eff');
+    const pct = d.routeEfficiency;
+    const color = pct >= 95 ? '#6ec87a' : pct >= 85 ? '#e8c36a' : '#e8836a';
+    effEl.innerHTML = `<span style="color:${color}">${pct}%</span>`;
+  } else if (effRow) {
+    effRow.classList.add('hidden');
   }
 
   // ── POSITION SECTION ──

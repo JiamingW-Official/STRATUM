@@ -103,6 +103,19 @@ export function weatherIcon(code) {
 }
 
 // Flight condition category based on visibility & cloud cover
+// W1: Density Altitude — the altitude the aircraft "feels" based on air density.
+// pressureHPa = surface pressure, tempC = temperature, elevFt = field elevation.
+// Returns density altitude in feet. Higher DA = worse performance.
+export function computeDensityAltitude(pressureHPa, tempC, elevFt = 0) {
+  if (pressureHPa == null || tempC == null) return null;
+  // Pressure altitude: PA = (1013.25 - QNH) × 30 + field elevation
+  const pa = (1013.25 - pressureHPa) * 30 + elevFt;
+  // ISA temp at this altitude: 15°C - 2°C per 1000ft
+  const isaTemp = 15 - 2 * (pa / 1000);
+  // Density altitude: PA + 120 × (OAT - ISA)
+  return Math.round(pa + 120 * (tempC - isaTemp));
+}
+
 export function flightCategory(visibility, cloudCover) {
   const visKm = visibility / 1000;
   if (visKm >= 8 && cloudCover < 50) return { label: 'VFR', color: '#44dd88' };

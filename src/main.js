@@ -1595,6 +1595,7 @@ async function updateWeatherWidget() {
   const data = await fetchWeather(lat, lon);
   if (!data) return;
   _weatherData = data;
+  window._cachedWeather = data; // expose for detail.js density altitude
   const el = document.getElementById('weather-widget');
   if (!el) return;
   el.classList.remove('hidden');

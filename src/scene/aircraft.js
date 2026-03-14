@@ -412,8 +412,21 @@ export class AircraftManager {
       currentIds.add(data.icao24);
       const targetPos = dataToScenePos(data, this.userLat, this.userLon);
 
+      // S1: Unusual attitude detection
+      const vsFpm = data.verticalRate != null ? Math.abs(data.verticalRate * METERS_TO_FEET * 60) : 0;
+      const gsKts = data.velocity != null ? data.velocity * 1.94384 : 999;
+      const altFt = data.baroAltitude != null ? data.baroAltitude * METERS_TO_FEET : 0;
+      data._unusualAttitude = null;
+      if (vsFpm > 6000) data._unusualAttitude = 'EMERGENCY DESCENT';
+      else if (altFt > 10000 && gsKts < 100 && gsKts > 0) data._unusualAttitude = 'LOW SPEED';
+      // Check rapid heading change (>90° in recent updates)
       if (this.aircraft.has(data.icao24)) {
         const ac = this.aircraft.get(data.icao24);
+        if (ac.data.trueTrack != null && data.trueTrack != null) {
+          let hdgDelta = Math.abs(data.trueTrack - ac.data.trueTrack);
+          if (hdgDelta > 180) hdgDelta = 360 - hdgDelta;
+          if (hdgDelta > 90) data._unusualAttitude = 'SHARP TURN';
+        }
         ac.setTarget(targetPos, data);
       } else {
         try {
@@ -1717,6 +1730,84 @@ class AircraftObject {
       }
     }
 
+    // ── P1: Wind Component Calculator ──
+    // Headwind = TAS - GS (positive = headwind, negative = tailwind)
+    // Crosswind = GS × sin(track - heading)
+    let headwind = null, crosswind = null;
+    if (tas != null && gsKts != null && heading != null && this.data.trueTrack != null) {
+      headwind = Math.round(tas - gsKts);
+      const drift = (this.data.trueTrack - heading) * DEG_TO_RAD;
+      crosswind = Math.round(gsKts * Math.sin(drift));
+    }
+
+    // ── P2: Top of Descent Calculator ──
+    // Standard 3:1 descent ratio → TOD distance (nm) = altToLose / 1000 * 3
+    let todNm = null, todMin = null;
+    if (flightPhase === 'CRUISE' && destination && altFt != null && altFt > 10000 && distToDest != null) {
+      const destApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(destination) : null;
+      const fieldElev = destApt?.elevation || 0; // feet
+      const altToLose = altFt - fieldElev;
+      if (altToLose > 0) {
+        todNm = Math.round(altToLose / 1000 * 3);
+        const distToDestNm = distToDest * 0.53996; // km → nm
+        const todRemaining = Math.max(0, distToDestNm - todNm);
+        if (gsKts > 50) todMin = Math.round(todRemaining / gsKts * 60);
+        if (todRemaining <= 0) todNm = 0; // past TOD
+      }
+    }
+
+    // ── P3: Altitude Deviation Monitor (VNAV) ──
+    // Compare actual altitude vs autopilot selected altitude (navAltitude)
+    let altDeviation = null;
+    if (altFt != null && navAlt != null) {
+      altDeviation = altFt - navAlt;
+    }
+
+    // ── P4: RVSM Compliance Check ──
+    // FL290-FL410: eastbound (0-179°) = odd thousands, westbound (180-359°) = even thousands
+    let rvsm = null;
+    if (altFt != null && altFt >= 29000 && altFt <= 41000 && heading != null) {
+      const fl = Math.round(altFt / 100);
+      const flThousand = Math.round(altFt / 1000);
+      const isEast = heading >= 0 && heading < 180;
+      const isOdd = flThousand % 2 === 1;
+      // Eastbound should be odd (FL290/310/330...), westbound even (FL300/320/340...)
+      const compliant = isEast ? isOdd : !isOdd;
+      // Allow ±200ft tolerance for transition
+      const nearLevel = Math.abs(altFt - flThousand * 1000) < 200;
+      rvsm = nearLevel ? (compliant ? 'OK' : 'NON-STD') : null;
+    }
+
+    // ── P5: Flight Efficiency Score ──
+    let routeEfficiency = null;
+    if (origin && destination && this.data.latitude != null) {
+      const origApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(origin) : null;
+      const destApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(destination) : null;
+      if (origApt && destApt) {
+        const gcDist = haversineDistance(origApt.lat, origApt.lon, destApt.lat, destApt.lon);
+        if (gcDist > 50) { // only meaningful for >50km routes
+          const track = getTrack(this.data.icao24);
+          if (track && track.length > 5) {
+            let actualDist = 0;
+            for (let i = 1; i < track.length; i++) {
+              actualDist += haversineDistance(
+                track[i-1].latitude, track[i-1].longitude,
+                track[i].latitude, track[i].longitude
+              );
+            }
+            // Add distance from last track point to current position
+            const lastWp = track[track.length - 1];
+            actualDist += haversineDistance(lastWp.latitude, lastWp.longitude, this.data.latitude, this.data.longitude);
+            // Add distance from origin to first track point
+            actualDist += haversineDistance(origApt.lat, origApt.lon, track[0].latitude, track[0].longitude);
+            if (actualDist > 0) {
+              routeEfficiency = Math.min(100, Math.round(gcDist / actualDist * 100));
+            }
+          }
+        }
+      }
+    }
+
     return {
       callsign: this.data.callsign || this.data.icao24,
       icao24: this.data.icao24,
@@ -1764,6 +1855,15 @@ class AircraftObject {
       category: this.data.category,
       routeEstimated,
       routeAirline,
+      // Professional aviation fields
+      headwind,
+      crosswind,
+      todNm,
+      todMin,
+      altDeviation,
+      rvsm,
+      routeEfficiency,
+      unusualAttitude: this.data._unusualAttitude || null,
     };
   }
 
