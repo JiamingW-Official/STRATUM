@@ -11,7 +11,6 @@ import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from '
 import { prefetchAirportData } from './data/airports.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft, showDetailLoading } from './ui/detail.js';
-import { initNeko, nekoTrackAircraft } from './ui/neko.js';
 import { getAirlineName as _getAirlineName } from './data/airlineDb.js';
 import { initRouteInfer, triggerInference } from './data/routeInfer.js';
 import { CITIES_EXTRA } from './data/citiesExtra.js';
@@ -548,7 +547,6 @@ function handleAircraftSelect(ac) {
   addToHistory(ac.getDisplayData());
   aircraftManager.selectAircraft(ac);
   flyToThenFollow(ac);
-  nekoTrackAircraft(ac.getDisplayData());
   // Worker-powered parallel enrichment: trace + route + hex detail in ONE round-trip
   removeRouteArc(scene);
   showDetailLoading(true);
@@ -984,10 +982,7 @@ function handleData(dataList) {
 
     // T3-09: Landing detection
     if (aptData && aptData.runways) {
-      const landings = checkLandings(dataList, aptData.runways, scene);
-      for (const evt of landings) {
-        nekoTrackAircraft({ callsign: evt.callsign, flightPhase: 'LANDING', icao24: evt.icao24 });
-      }
+      checkLandings(dataList, aptData.runways, scene);
     }
 
     // T3-06: Altitude filter — dim out-of-range aircraft
@@ -1425,25 +1420,6 @@ function trackFIRTransitions() {
     if (ac.fadingOut || ac.data.latitude == null) continue;
     const icao = ac.data.icao24;
     const currentFIR = getFIRForPosition(ac.data.latitude, ac.data.longitude);
-    const prevFIR = _aircraftFIR.get(icao);
-
-    if (currentFIR && prevFIR && currentFIR !== prevFIR) {
-      // FIR transition detected
-      const cs = ac.data.callsign || icao;
-      const altFt = ac.data.baroAltitude != null ? Math.round(ac.data.baroAltitude * 3.28084) : null;
-      const flStr = altFt != null ? `FL${Math.round(altFt / 100)}` : '';
-      const fromName = FIR_NAMES[prevFIR] || prevFIR;
-      const toName = FIR_NAMES[currentFIR] || currentFIR;
-      nekoTrackAircraft({
-        callsign: cs,
-        icao24: icao,
-        _firTransition: true,
-        _firFrom: fromName,
-        _firTo: toName,
-        _firFL: flStr,
-      });
-    }
-
     if (currentFIR) {
       _aircraftFIR.set(icao, currentFIR);
     }
@@ -1778,18 +1754,6 @@ function restoreViewFromURL() {
   return params.get('city') || null;
 }
 
-// ── T2-20: Ambient ATC chatter ──
-let _ambientATCTimer = null;
-function startAmbientATC() {
-  if (_ambientATCTimer) return;
-  _ambientATCTimer = setInterval(() => {
-    if (!aircraftManager) return;
-    const all = [...aircraftManager.aircraft.values()].filter(ac => !ac.fadingOut);
-    if (all.length === 0) return;
-    const ac = all[Math.floor(Math.random() * all.length)];
-    nekoTrackAircraft(ac.getDisplayData());
-  }, 15000 + Math.random() * 15000);
-}
 
 // ── T3-10: TCAS traffic display ──
 let _tcasEl = null;
@@ -4647,12 +4611,10 @@ async function init() {
   requestAnimationFrame(() => {
     initSearch();
     initCityPicker();
-    initNeko();
     initAltFilter();
     initMobileTouch();
     initWeatherPanel();
     updateWeatherWidget();
-    startAmbientATC();
 
     // Overlay close handlers
     document.querySelectorAll('.overlay-backdrop').forEach(el => {
