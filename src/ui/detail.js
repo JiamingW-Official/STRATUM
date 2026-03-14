@@ -431,6 +431,154 @@ function renderAltChart() {
   }
 }
 
+// ── P6: Speed Profile Chart ──
+function renderSpeedChart() {
+  let canvas = document.getElementById('detail-spd-chart');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'detail-spd-chart';
+    canvas.style.cssText = 'display:none;width:100%;height:72px;margin:2px 0 4px;border-radius:6px;background:rgba(0,0,0,0.25);';
+    const altCanvas = document.getElementById('detail-alt-chart');
+    if (altCanvas && altCanvas.parentNode) {
+      altCanvas.parentNode.insertBefore(canvas, altCanvas.nextSibling);
+    }
+  }
+
+  // Filter entries with speed data
+  const speedEntries = altHistory.filter(e => e.gsKts != null && isFinite(e.gsKts));
+  if (speedEntries.length < 2) {
+    canvas.style.display = 'none';
+    return;
+  }
+
+  canvas.style.display = 'block';
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.round(rect.width) || 260;
+  const h = 72;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const PAD_L = 42, PAD_R = 6, PAD_T = 8, PAD_B = 14;
+  const plotW = w - PAD_L - PAD_R;
+  const plotH = h - PAD_T - PAD_B;
+
+  // Compute speed range (knots)
+  let minSpd = Infinity, maxSpd = -Infinity;
+  for (const e of speedEntries) {
+    if (e.gsKts < minSpd) minSpd = e.gsKts;
+    if (e.gsKts > maxSpd) maxSpd = e.gsKts;
+  }
+  if (!isFinite(minSpd)) return;
+
+  const spdRange = maxSpd - minSpd;
+  const step = spdRange > 300 ? 100 : spdRange > 100 ? 50 : 25;
+  const yMin = Math.max(0, Math.floor((minSpd - step * 0.5) / step) * step);
+  const yMax = Math.ceil((maxSpd + step * 0.5) / step) * step;
+  const yRange = yMax - yMin || 1;
+
+  const tMin = speedEntries[0].time;
+  const tMax = speedEntries[speedEntries.length - 1].time;
+  const tRange = tMax - tMin || 1;
+
+  function xOf(t) { return PAD_L + ((t - tMin) / tRange) * plotW; }
+  function yOf(s) { return PAD_T + plotH - ((s - yMin) / yRange) * plotH; }
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 0.5;
+  ctx.font = '9px JetBrains Mono, monospace';
+  ctx.fillStyle = 'rgba(180,210,255,0.4)';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+
+  for (let spd = yMin; spd <= yMax; spd += step) {
+    const y = yOf(spd);
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, y);
+    ctx.lineTo(w - PAD_R, y);
+    ctx.stroke();
+    ctx.fillText(`${spd}`, PAD_L - 4, y);
+  }
+
+  // 250kt speed limit line (below FL180 / 10000ft)
+  const lastEntry = altHistory[altHistory.length - 1];
+  const lastAlt = lastEntry?.alt;
+  if (lastAlt != null && lastAlt < 18000 && yMin <= 250 && yMax >= 250) {
+    const y250 = yOf(250);
+    ctx.strokeStyle = 'rgba(232,68,68,0.5)';
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, y250);
+    ctx.lineTo(w - PAD_R, y250);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '8px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(232,68,68,0.6)';
+    ctx.textAlign = 'left';
+    ctx.fillText('250kt limit', PAD_L + 2, y250 - 4);
+  }
+
+  // Speed fill gradient
+  const grad = ctx.createLinearGradient(0, PAD_T, 0, PAD_T + plotH);
+  grad.addColorStop(0, 'rgba(238,136,51,0.12)');
+  grad.addColorStop(1, 'rgba(238,136,51,0.02)');
+  ctx.beginPath();
+  let hasFirst = false;
+  for (const e of speedEntries) {
+    const x = xOf(e.time), y = yOf(e.gsKts);
+    if (!hasFirst) { ctx.moveTo(x, y); hasFirst = true; } else ctx.lineTo(x, y);
+  }
+  if (hasFirst) {
+    ctx.lineTo(xOf(speedEntries[speedEntries.length - 1].time), PAD_T + plotH);
+    ctx.lineTo(xOf(speedEntries[0].time), PAD_T + plotH);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // Speed line — colored by acceleration
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  for (let i = 1; i < speedEntries.length; i++) {
+    const prev = speedEntries[i - 1], cur = speedEntries[i];
+    const accel = cur.gsKts - prev.gsKts;
+    if (accel > 5) ctx.strokeStyle = '#ff9d4d'; // accelerating
+    else if (accel < -5) ctx.strokeStyle = '#4db8ff'; // decelerating
+    else ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.beginPath();
+    ctx.moveTo(xOf(prev.time), yOf(prev.gsKts));
+    ctx.lineTo(xOf(cur.time), yOf(cur.gsKts));
+    ctx.stroke();
+  }
+
+  // Current speed marker
+  const last = speedEntries[speedEntries.length - 1];
+  const cx = xOf(last.time), cy = yOf(last.gsKts);
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = '#ee8833';
+  ctx.fill();
+  ctx.font = 'bold 10px JetBrains Mono, monospace';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.fillStyle = '#ee8833';
+  ctx.fillText(`${last.gsKts} kts`, cx - 6, cy - 3);
+
+  // Label
+  ctx.font = '8px JetBrains Mono, monospace';
+  ctx.fillStyle = 'rgba(180,210,255,0.35)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('GS (kts)', PAD_L + 2, PAD_T + 1);
+}
+
 export function showDetail(aircraftObj, userLat, userLon) {
   selectedAircraft = aircraftObj;
   const d = aircraftObj.getDisplayData();
@@ -469,10 +617,13 @@ export function showDetail(aircraftObj, userLat, userLon) {
       // Use barometric altitude consistently (matches track history source)
       const altFt = sd.baroAltitude != null ? Math.round(sd.baroAltitude * 3.28084) : null;
       const vsFtMin = sd.verticalRate != null ? Math.round(sd.verticalRate * 3.28084 * 60) : null;
+      // Ground speed in knots for P6 speed chart
+      const liveGsKts = sd.groundSpeed != null ? Math.round(sd.groundSpeed) : (sd.velocity != null ? Math.round(sd.velocity * 1.94384) : null);
       // Always push live sample (1s resolution)
-      altHistory.push({ time: Date.now(), alt: altFt, speed: sd.velocity, vs: vsFtMin, _live: true });
+      altHistory.push({ time: Date.now(), alt: altFt, speed: sd.velocity, vs: vsFtMin, gsKts: liveGsKts, _live: true });
       if (altHistory.length > ALT_HISTORY_MAX) altHistory.shift();
       renderAltChart();
+      renderSpeedChart();
     };
     pushSample();
     _altHistoryTimer = setInterval(pushSample, 1000); // 1s updates
@@ -530,6 +681,19 @@ export function showDetail(aircraftObj, userLat, userLon) {
   } else {
     uaAlert.style.display = 'none';
   }
+
+  // A2: Holding Pattern badge
+  let holdBadge = document.getElementById('detail-hold-badge');
+  if (!holdBadge) {
+    holdBadge = document.createElement('div');
+    holdBadge.id = 'detail-hold-badge';
+    holdBadge.style.cssText = 'display:none;background:rgba(232,195,106,0.15);border:1px solid rgba(232,195,106,0.4);border-radius:6px;padding:3px 8px;margin:4px 0;color:#e8c36a;font-size:11px;font-weight:700;text-align:center';
+    if (uaAlert && uaAlert.parentNode) {
+      uaAlert.parentNode.insertBefore(holdBadge, uaAlert.nextSibling);
+    }
+  }
+  holdBadge.style.display = d.isHolding ? 'block' : 'none';
+  if (d.isHolding) holdBadge.textContent = 'HOLDING PATTERN';
 
   // ── AIRLINE ──
   const cs = d.callsign || '';
@@ -1051,6 +1215,8 @@ export function closeDetail() {
   altHistory.length = 0;
   const altCanvas = document.getElementById('detail-alt-chart');
   if (altCanvas) altCanvas.style.display = 'none';
+  const spdCanvas = document.getElementById('detail-spd-chart');
+  if (spdCanvas) spdCanvas.style.display = 'none';
 }
 
 export function showDetailLoading(loading) {

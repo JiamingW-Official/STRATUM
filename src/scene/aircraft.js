@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { getTrack, getTrackVersion, getRoute, getHexDetail } from '../data/opensky.js';
 import { getAircraftSpecs } from '../data/aircraftDb.js';
 import { getAircraftMeta, queueHexLookup } from '../data/hexdb.js';
-import { triggerInference, getInferredRoute } from '../data/routeInfer.js';
+import { triggerInference, getInferredRoute, detectHoldingPattern } from '../data/routeInfer.js';
 
 const METERS_TO_FEET = 3.28084;
 const MS_TO_KMH = 3.6;
@@ -1864,6 +1864,7 @@ class AircraftObject {
       rvsm,
       routeEfficiency,
       unusualAttitude: this.data._unusualAttitude || null,
+      isHolding: detectHoldingPattern(getTrack(this.data.icao24)),
     };
   }
 
@@ -1881,16 +1882,22 @@ class AircraftObject {
         const wp = track[i];
         if (wp.baroAltitude == null) continue;
         const altFt = Math.round(wp.baroAltitude * METERS_TO_FEET);
-        // Compute vertical rate from consecutive waypoints
+        // Compute vertical rate and ground speed from consecutive waypoints
         let vs = null;
+        let gsKts = null;
         if (i > 0) {
           const prev = track[i - 1];
           const dt = wp.time - prev.time;
           if (prev.baroAltitude != null && dt > 0) {
             vs = Math.round((wp.baroAltitude - prev.baroAltitude) * METERS_TO_FEET / dt * 60);
           }
+          // Compute ground speed from distance between waypoints
+          if (dt > 0 && prev.latitude != null && prev.longitude != null && wp.latitude != null && wp.longitude != null) {
+            const distKm = haversineDistance(prev.latitude, prev.longitude, wp.latitude, wp.longitude);
+            gsKts = Math.round(distKm / dt * 3600 * 0.539957); // km/s → kts
+          }
         }
-        entries.push({ time: wp.time * 1000, alt: altFt, vs });
+        entries.push({ time: wp.time * 1000, alt: altFt, vs, gsKts });
       }
     }
 
@@ -1983,13 +1990,26 @@ export function getTCASTraffic(followAc, allAircraft, maxRange = 15) {
     if (Math.abs(altDiff) < 300 && dist < 3) threat = 'red';
     else if (Math.abs(altDiff) < 1000 && dist < 8) threat = 'yellow';
 
+    // A1: Separation status per ICAO standards
+    const distNm = dist * 0.53996; // km → nm
+    const myAltFt = myAlt * METERS_TO_FEET;
+    // Radar separation: 3nm lateral + 1000ft vertical
+    // En-route (above FL290): 5nm lateral + 1000ft vertical (RVSM)
+    const reqLateral = myAltFt > 29000 ? 5 : 3;
+    const reqVertical = 1000;
+    let separation = 'STANDARD';
+    if (distNm < reqLateral && Math.abs(altDiff) < reqVertical) separation = 'VIOLATION';
+    else if (distNm < reqLateral * 1.5 && Math.abs(altDiff) < reqVertical * 1.5) separation = 'REDUCED';
+
     result.push({
       icao24: ac.data.icao24,
       callsign: ac.data.callsign,
       dist: Math.round(dist * 10) / 10,
+      distNm: Math.round(distNm * 10) / 10,
       altDiff: Math.round(altDiff),
       bearing: relBearing,
       threat,
+      separation,
     });
   }
 

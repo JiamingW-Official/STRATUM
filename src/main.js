@@ -861,6 +861,141 @@ function updateHUDBreakdown(bd) {
   el.textContent = parts.join(' \u00b7 ');
 }
 
+// ── I1: Fleet Mix Statistics Panel ──
+let _fleetEl = null;
+let _fleetExpanded = false;
+let _lastFleetHash = '';
+
+function updateFleetStats(dataList) {
+  if (!_fleetEl) {
+    _fleetEl = document.createElement('div');
+    _fleetEl.id = 'fleet-stats';
+    _fleetEl.className = 'stratum-widget fleet-widget';
+    _fleetEl.style.cssText = 'bottom:12px;left:var(--edge);pointer-events:auto;cursor:pointer;max-width:220px;';
+    _fleetEl.addEventListener('click', () => {
+      _fleetExpanded = !_fleetExpanded;
+      renderFleetContent(dataList);
+    });
+    document.body.appendChild(_fleetEl);
+  }
+  renderFleetContent(dataList);
+}
+
+function renderFleetContent(dataList) {
+  // Type distribution
+  const types = { NB: 0, WB: 0, RJ: 0, BJ: 0 };
+  // Airline counts
+  const airlines = {};
+  // Phase distribution
+  const phases = { GND: 0, CLB: 0, CRZ: 0, DES: 0 };
+  // Altitude histogram (5000ft buckets)
+  const altBuckets = {};
+
+  for (const ac of dataList) {
+    // Type
+    const cat = classifyAircraftType(ac.aircraftType);
+    if (cat === 'narrow') types.NB++;
+    else if (cat === 'wideTwin' || cat === 'wideQuad') types.WB++;
+    else if (cat === 'regional') types.RJ++;
+    else if (cat === 'bizjet') types.BJ++;
+
+    // Airline
+    if (ac.callsign) {
+      const m = ac.callsign.match(/^([A-Z]{2,3})\d/);
+      if (m) airlines[m[1]] = (airlines[m[1]] || 0) + 1;
+    }
+
+    // Phase
+    const altFt = ac.baroAltitude != null ? ac.baroAltitude * 3.28084 : null;
+    const vs = ac.verticalRate;
+    if (ac.onGround) phases.GND++;
+    else if (vs != null && vs > 1.5) phases.CLB++;
+    else if (vs != null && vs < -1.5) phases.DES++;
+    else phases.CRZ++;
+
+    // Altitude bucket
+    if (altFt != null && !ac.onGround) {
+      const bucket = Math.floor(altFt / 5000) * 5;
+      altBuckets[bucket] = (altBuckets[bucket] || 0) + 1;
+    }
+  }
+
+  // Quick hash check to avoid DOM churn
+  const hash = `${_fleetExpanded}${types.NB}${types.WB}${types.RJ}${types.BJ}${Object.keys(airlines).length}`;
+  if (hash === _lastFleetHash) return;
+  _lastFleetHash = hash;
+
+  const total = dataList.length || 1;
+  const typeBar = (label, count, color) => {
+    const pct = Math.round(count / total * 100);
+    return `<div style="display:flex;align-items:center;gap:4px;margin:1px 0">
+      <span style="width:16px;text-align:right;color:${color}">${count}</span>
+      <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div>
+      </div>
+      <span style="width:18px;font-size:7px;color:rgba(255,255,255,0.4)">${label}</span>
+    </div>`;
+  };
+
+  let html = `<div class="widget-label" style="display:flex;justify-content:space-between;align-items:center">
+    FLEET MIX <span style="font-size:7px;letter-spacing:0;color:rgba(196,160,88,0.4)">${_fleetExpanded ? '▴' : '▾'}</span>
+  </div>`;
+
+  // Compact: always show type bars
+  html += typeBar('NB', types.NB, '#5aacff');
+  html += typeBar('WB', types.WB, '#ee8833');
+  html += typeBar('RJ', types.RJ, '#44dd88');
+  html += typeBar('BJ', types.BJ, '#cc88ff');
+
+  if (_fleetExpanded) {
+    // Top 5 airlines
+    const sortedAirlines = Object.entries(airlines).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    if (sortedAirlines.length > 0) {
+      html += `<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.06);padding-top:4px">
+        <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:2px">TOP AIRLINES</div>`;
+      for (const [code, cnt] of sortedAirlines) {
+        const name = _getAirlineName(code);
+        html += `<div style="display:flex;justify-content:space-between;font-size:8px;color:rgba(255,255,255,0.6);margin:1px 0">
+          <span>${name || code}</span><span style="color:rgba(196,160,88,0.7)">${cnt}</span>
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    // Phase distribution
+    html += `<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.06);padding-top:4px">
+      <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:2px">FLIGHT PHASE</div>
+      <div style="display:flex;gap:6px;font-size:8px">
+        <span style="color:#6ec87a">CLB ${phases.CLB}</span>
+        <span style="color:rgba(196,160,88,0.8)">CRZ ${phases.CRZ}</span>
+        <span style="color:#e8836a">DES ${phases.DES}</span>
+        <span style="color:rgba(255,255,255,0.4)">GND ${phases.GND}</span>
+      </div>
+    </div>`;
+
+    // Altitude histogram
+    const bucketKeys = Object.keys(altBuckets).map(Number).sort((a, b) => a - b);
+    if (bucketKeys.length > 0) {
+      const maxBucket = Math.max(...Object.values(altBuckets));
+      html += `<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.06);padding-top:4px">
+        <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:2px">ALTITUDE DIST (×1000ft)</div>
+        <div style="display:flex;align-items:flex-end;gap:1px;height:24px">`;
+      for (const k of bucketKeys) {
+        const pct = Math.round(altBuckets[k] / maxBucket * 100);
+        const color = k >= 30 ? '#5aacff' : k >= 15 ? '#44dd88' : '#ee8833';
+        html += `<div title="FL${k}0-${k + 5}0: ${altBuckets[k]}" style="flex:1;min-width:6px;height:${pct}%;background:${color};border-radius:1px 1px 0 0;opacity:0.7"></div>`;
+      }
+      html += `</div>
+        <div style="display:flex;justify-content:space-between;font-size:6px;color:rgba(255,255,255,0.25);margin-top:1px">
+          <span>${bucketKeys[0]}k</span><span>${bucketKeys[bucketKeys.length - 1] + 5}k</span>
+        </div>
+      </div>`;
+    }
+  }
+
+  _fleetEl.innerHTML = html;
+}
+
 // --- Data handling ---
 let lastRawData = [];
 
@@ -940,6 +1075,9 @@ function handleData(dataList) {
       else typeBreakdown.other++;
     }
     updateHUDBreakdown(typeBreakdown);
+
+    // I1: Fleet mix statistics panel
+    updateFleetStats(dataList);
   }
 }
 
@@ -1561,14 +1699,21 @@ function updateTCASDisplay(followAc, allAircraft, elapsed) {
   _tcasEl.style.display = '';
   const top5 = threats.slice(0, 5);
   // Skip innerHTML rebuild if data unchanged
-  const hash = top5.map(t => `${t.icao24}${t.dist}${t.altDiff}${t.threat}`).join('|');
+  const hash = top5.map(t => `${t.icao24}${t.dist}${t.altDiff}${t.threat}${t.separation}`).join('|');
   if (hash === _lastTCASHash) return;
   _lastTCASHash = hash;
-  _tcasEl.innerHTML = '<div class="widget-label">TCAS TRAFFIC</div>' +
+  // A1: Count separation violations/reduced
+  const violations = threats.filter(t => t.separation === 'VIOLATION').length;
+  const reduced = threats.filter(t => t.separation === 'REDUCED').length;
+  let sepLabel = '<span style="color:#44dd88">SEP OK</span>';
+  if (violations > 0) sepLabel = `<span style="color:#ff4444">SEP LOSS ×${violations}</span>`;
+  else if (reduced > 0) sepLabel = `<span style="color:#ffcc00">SEP REDUCED ×${reduced}</span>`;
+  _tcasEl.innerHTML = `<div class="widget-label">TCAS TRAFFIC · ${sepLabel}</div>` +
     top5.map(t => {
       const color = t.threat === 'red' ? '#ff4444' : t.threat === 'yellow' ? '#ffcc00' : '#44dd88';
       const arrow = t.altDiff > 100 ? '▲' : t.altDiff < -100 ? '▼' : '—';
-      return `<div style="color:${color};margin:2px 0">◆ ${(t.callsign || t.icao24).padEnd(8)} ${t.dist}nm ${arrow}${Math.abs(t.altDiff)}ft</div>`;
+      const sepIcon = t.separation === 'VIOLATION' ? ' ⚠' : t.separation === 'REDUCED' ? ' !' : '';
+      return `<div style="color:${color};margin:2px 0">◆ ${(t.callsign || t.icao24).padEnd(8)} ${t.distNm}nm ${arrow}${Math.abs(t.altDiff)}ft${sepIcon}</div>`;
     }).join('');
 }
 function hideTCASDisplay() {

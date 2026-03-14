@@ -853,6 +853,49 @@ export function cleanupStale(activeIcaoSet) {
 /**
  * 获取推断系统统计信息（调试用）
  */
+// A2: Holding Pattern Detector
+// Analyzes trace waypoints for cumulative heading change > 360° within bounded area (<15nm).
+export function detectHoldingPattern(waypoints) {
+  if (!waypoints || waypoints.length < 10) return false;
+  // Use last 5 minutes of waypoints
+  const now = Date.now() / 1000;
+  const cutoff = now - 300;
+  const recent = waypoints.filter(wp => wp.time >= cutoff);
+  if (recent.length < 6) return false;
+
+  // Check geographic spread (must be <15nm ≈ 28km)
+  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+  for (const wp of recent) {
+    if (wp.latitude < minLat) minLat = wp.latitude;
+    if (wp.latitude > maxLat) maxLat = wp.latitude;
+    if (wp.longitude < minLon) minLon = wp.longitude;
+    if (wp.longitude > maxLon) maxLon = wp.longitude;
+  }
+  const latSpan = (maxLat - minLat) * 111; // ~km per degree
+  const lonSpan = (maxLon - minLon) * 111 * Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+  if (latSpan > 28 || lonSpan > 28) return false;
+
+  // Compute cumulative heading change
+  let totalTurn = 0;
+  for (let i = 1; i < recent.length; i++) {
+    const dlat = recent[i].latitude - recent[i - 1].latitude;
+    const dlon = recent[i].longitude - recent[i - 1].longitude;
+    if (Math.abs(dlat) < 0.00001 && Math.abs(dlon) < 0.00001) continue;
+    const hdg = Math.atan2(dlon, dlat) * 180 / Math.PI;
+    if (i >= 2) {
+      const prevDlat = recent[i - 1].latitude - recent[i - 2].latitude;
+      const prevDlon = recent[i - 1].longitude - recent[i - 2].longitude;
+      if (Math.abs(prevDlat) < 0.00001 && Math.abs(prevDlon) < 0.00001) continue;
+      const prevHdg = Math.atan2(prevDlon, prevDlat) * 180 / Math.PI;
+      let delta = hdg - prevHdg;
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      totalTurn += Math.abs(delta);
+    }
+  }
+  return totalTurn >= 360;
+}
+
 export function getStats() {
   let originCount = 0, destCount = 0, bothCount = 0;
   for (const [, val] of _inferCache) {
