@@ -14,8 +14,10 @@ export async function fetchWeather(lat, lon) {
     // Use Worker edge-cached endpoint (15 min cache) with direct API fallback
     const workerUrl = `/api/weather?lat=${lat}&lon=${lon}`;
     const directUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`
-      + `&current=temperature_2m,relative_humidity_2m,apparent_temperature,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m,cloud_cover,visibility,weather_code`
-      + `&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&forecast_hours=8&timezone=auto`;
+      + `&current=temperature_2m,relative_humidity_2m,apparent_temperature,dewpoint_2m,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m,cloud_cover,visibility,weather_code,is_day`
+      + `&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,precipitation,precipitation_probability&forecast_hours=24`
+      + `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset&forecast_days=7`
+      + `&timezone=auto`;
     let res;
     try {
       res = await fetch(workerUrl, { signal: AbortSignal.timeout(6000) });
@@ -28,19 +30,38 @@ export async function fetchWeather(lat, lon) {
     const c = data.current;
     const hourly = [];
     if (data.hourly && data.hourly.time) {
-      for (let i = 0; i < Math.min(data.hourly.time.length, 8); i++) {
+      for (let i = 0; i < Math.min(data.hourly.time.length, 24); i++) {
         const t = new Date(data.hourly.time[i]);
         hourly.push({
           hour: t.getHours(),
           temp: Math.round(data.hourly.temperature_2m[i]),
           code: data.hourly.weather_code[i],
           wind: Math.round(data.hourly.wind_speed_10m[i]),
+          precip: data.hourly.precipitation?.[i] || 0,
+          precipProb: data.hourly.precipitation_probability?.[i] || 0,
+        });
+      }
+    }
+    const daily = [];
+    if (data.daily && data.daily.time) {
+      for (let i = 0; i < data.daily.time.length; i++) {
+        daily.push({
+          date: data.daily.time[i],
+          tempMax: Math.round(data.daily.temperature_2m_max[i]),
+          tempMin: Math.round(data.daily.temperature_2m_min[i]),
+          code: data.daily.weather_code[i],
+          precip: data.daily.precipitation_sum?.[i] || 0,
+          precipProb: data.daily.precipitation_probability_max?.[i] || 0,
+          windMax: Math.round(data.daily.wind_speed_10m_max?.[i] || 0),
+          sunrise: data.daily.sunrise?.[i] || null,
+          sunset: data.daily.sunset?.[i] || null,
         });
       }
     }
     cachedWeather = {
       temp: c.temperature_2m,
       feelsLike: c.apparent_temperature,
+      dewpoint: c.dewpoint_2m,
       humidity: c.relative_humidity_2m,
       pressure: c.surface_pressure,
       windSpeed: c.wind_speed_10m,
@@ -49,7 +70,9 @@ export async function fetchWeather(lat, lon) {
       cloudCover: c.cloud_cover,
       visibility: c.visibility,
       weatherCode: c.weather_code,
+      isDay: c.is_day,
       hourly,
+      daily,
       _lat: lat.toFixed(1),
       _lon: lon.toFixed(1),
     };

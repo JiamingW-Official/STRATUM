@@ -21,7 +21,7 @@
     </div>
   </div>
 
-  <!-- HUD — top left, floats over scene -->
+  <!-- HUD — top left, compact glass panel -->
   <div id="hud" class="glass-panel">
     <div class="hud-title">
       <span class="hud-brand">STRATUM</span>
@@ -43,6 +43,38 @@
       <div class="hud-stat hud-stat-clock">
         <span class="hud-stat-value" id="hud-zulu">--:--Z</span>
         <span class="hud-stat-label">UTC</span>
+      </div>
+    </div>
+    <!-- Weather — always visible, single compact line -->
+    <div id="hud-weather" class="hud-weather">
+      <div class="hud-wx-line" id="hud-wx-toggle">
+        <span class="hud-wx-icon" id="hud-wx-icon">--</span>
+        <span class="hud-wx-temp" id="hud-wx-temp">--°</span>
+        <span class="hud-wx-desc" id="hud-wx-desc"></span>
+        <span class="hud-wx-wind" id="hud-wx-wind"></span>
+        <span class="hud-wx-cat" id="hud-wx-cat"></span>
+      </div>
+      <!-- Expandable forecast detail -->
+      <div id="hud-wx-detail" class="hud-wx-detail">
+        <div class="hud-wx-grid">
+          <span class="hud-wx-cell"><span class="hud-wx-k">FEELS</span><span id="hud-wx-feels" class="hud-wx-v">--</span></span>
+          <span class="hud-wx-cell"><span class="hud-wx-k">DEW PT</span><span id="hud-wx-dew" class="hud-wx-v">--</span></span>
+          <span class="hud-wx-cell"><span class="hud-wx-k">HUM</span><span id="hud-wx-humidity" class="hud-wx-v">--</span></span>
+          <span class="hud-wx-cell"><span class="hud-wx-k">QNH</span><span id="hud-wx-pressure" class="hud-wx-v">--</span></span>
+          <span class="hud-wx-cell"><span class="hud-wx-k">VIS</span><span id="hud-wx-vis" class="hud-wx-v">--</span></span>
+          <span class="hud-wx-cell"><span class="hud-wx-k">CLOUD</span><span id="hud-wx-cloud" class="hud-wx-v">--</span></span>
+          <span class="hud-wx-cell"><span class="hud-wx-k">GUSTS</span><span id="hud-wx-gusts" class="hud-wx-v">--</span></span>
+          <span class="hud-wx-cell"><span class="hud-wx-k">D-ALT</span><span id="hud-wx-dalt" class="hud-wx-v">--</span></span>
+          <span class="hud-wx-cell"><span class="hud-wx-k">TURB</span><span id="hud-wx-turb" class="hud-wx-v">--</span></span>
+        </div>
+        <div class="hud-wx-sun-row">
+          <span class="hud-wx-sun" id="hud-wx-sunrise">--:--</span>
+          <span class="hud-wx-sun" id="hud-wx-sunset">--:--</span>
+        </div>
+        <div class="hud-wx-section-label">24H TREND</div>
+        <canvas id="hud-wx-hourly-chart" class="hud-wx-chart"></canvas>
+        <div class="hud-wx-section-label">7-DAY</div>
+        <div id="hud-wx-daily" class="hud-wx-daily"></div>
       </div>
     </div>
     <div class="hud-divider"></div>
@@ -576,57 +608,6 @@
   <!-- Aircraft hover tooltip -->
   <div id="aircraft-tooltip" class="aircraft-tooltip hidden" aria-hidden="true"></div>
 
-  <!-- Weather panel — bottom left, expandable -->
-  <div id="weather-widget" class="weather-panel hidden">
-    <div class="weather-compact" id="weather-toggle">
-      <div class="weather-main-row">
-        <span class="weather-condition-icon" id="weather-icon-main">☀</span>
-        <span class="weather-temp" id="weather-temp">--°</span>
-        <span class="weather-condition" id="weather-desc">--</span>
-      </div>
-      <div class="weather-sub-row">
-        <span id="weather-wind" class="weather-tag">--</span>
-        <span id="weather-vis" class="weather-tag">--</span>
-        <span id="weather-cat" class="weather-cat">VFR</span>
-      </div>
-      <div class="weather-expand-hint" id="weather-expand-arrow">▾ details</div>
-    </div>
-    <div class="weather-expanded" id="weather-expanded">
-      <div class="weather-detail-section">
-        <div class="weather-section-label">CONDITIONS</div>
-        <div class="weather-detail-grid">
-          <div class="weather-detail-cell">
-            <span class="weather-detail-label">FEELS LIKE</span>
-            <span class="weather-detail-value" id="weather-feels">--</span>
-          </div>
-          <div class="weather-detail-cell">
-            <span class="weather-detail-label">HUMIDITY</span>
-            <span class="weather-detail-value" id="weather-humidity">--</span>
-          </div>
-          <div class="weather-detail-cell">
-            <span class="weather-detail-label">PRESSURE</span>
-            <span class="weather-detail-value" id="weather-pressure">--</span>
-          </div>
-          <div class="weather-detail-cell">
-            <span class="weather-detail-label">CLOUD</span>
-            <span class="weather-detail-value" id="weather-cloud">--</span>
-          </div>
-          <div class="weather-detail-cell">
-            <span class="weather-detail-label">WIND</span>
-            <span class="weather-detail-value" id="weather-wind-detail">--</span>
-          </div>
-          <div class="weather-detail-cell">
-            <span class="weather-detail-label">GUSTS</span>
-            <span class="weather-detail-value" id="weather-gusts">--</span>
-          </div>
-        </div>
-      </div>
-      <div class="weather-detail-section">
-        <div class="weather-section-label">8H FORECAST</div>
-        <div class="weather-forecast" id="weather-forecast"></div>
-      </div>
-    </div>
-  </div>
 
   <!-- Toast notification -->
   <div id="toast" class="toast hidden" aria-live="polite"></div>

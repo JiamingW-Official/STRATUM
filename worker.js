@@ -328,9 +328,10 @@ async function handleWeather(url) {
   }
 
   const meteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${rlat}&longitude=${rlon}`
-    + '&current=temperature_2m,relative_humidity_2m,apparent_temperature,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility,weather_code'
-    + '&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m'
-    + '&forecast_hours=8&timezone=auto';
+    + '&current=temperature_2m,relative_humidity_2m,apparent_temperature,dewpoint_2m,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility,weather_code,is_day'
+    + '&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,precipitation,precipitation_probability&forecast_hours=24'
+    + '&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset&forecast_days=7'
+    + '&timezone=auto';
 
   try {
     const upstream = await fetch(meteoUrl, {

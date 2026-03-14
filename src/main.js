@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderAirspaceOverlay, clearAirspaceOverlay, renderVisibilityRing, clearVisibilityRing, renderFuelRangeRing, clearFuelRangeRing } from './scene/environment.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderVisibilityRing, clearVisibilityRing, renderFuelRangeRing, clearFuelRangeRing } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
@@ -16,7 +16,7 @@ import { getAirlineName as _getAirlineName } from './data/airlineDb.js';
 import { initRouteInfer, triggerInference } from './data/routeInfer.js';
 import { CITIES_EXTRA } from './data/citiesExtra.js';
 import { initAirportCities } from './data/airportCities.js';
-import { fetchWeather, weatherDescription, windDirToCardinal, formatVisibility, weatherIcon, flightCategory } from './data/weather.js';
+import { fetchWeather, weatherDescription, windDirToCardinal, formatVisibility, weatherIcon, flightCategory, computeDensityAltitude, estimateTurbulence } from './data/weather.js';
 
 // --- Cinematic post-processing shader ---
 const CinematicShader = {
@@ -893,81 +893,27 @@ function initLocation() {
   });
 }
 
-// --- T2-05: HUD type breakdown ---
-function updateHUDBreakdown(bd) {
-  let el = document.getElementById('hud-breakdown');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'hud-breakdown';
-    el.style.cssText = 'font-family:var(--font-sans);font-size:7px;color:var(--text-3);letter-spacing:0.5px;padding:2px 0;text-shadow:0 1px 12px rgba(0,0,0,0.9)';
-    const hudStats = document.querySelector('.hud-stats');
-    if (hudStats) hudStats.parentNode.insertBefore(el, hudStats.nextSibling);
-  }
-  const parts = [];
-  if (bd.narrow) parts.push(`NB:${bd.narrow}`);
-  if (bd.wide) parts.push(`WB:${bd.wide}`);
-  if (bd.regional) parts.push(`RJ:${bd.regional}`);
-  if (bd.bizjet) parts.push(`BJ:${bd.bizjet}`);
-  el.textContent = parts.join(' \u00b7 ');
-}
-
-// ── I1: Fleet Mix Statistics Panel ──
-let _fleetEl = null;
-let _fleetExpanded = false;
-let _lastFleetHash = '';
+// ── I1: Fleet Mix Statistics (data only — rendered inside Spotter Collection) ──
+let _lastAirlineStats = {};
+let _lastFleetMix = { NB: 0, WB: 0, RJ: 0, BJ: 0, total: 0, phases: {}, altBuckets: {} };
 
 function updateFleetStats(dataList) {
-  if (!_fleetEl) {
-    _fleetEl = document.createElement('div');
-    _fleetEl.id = 'fleet-stats';
-    _fleetEl.className = 'stratum-widget fleet-widget';
-    _fleetEl.addEventListener('click', () => {
-      _fleetExpanded = !_fleetExpanded;
-      renderFleetContent(dataList);
-    });
-    document.body.appendChild(_fleetEl);
-    // Position above weather panel dynamically
-    _positionFleetWidget();
-  }
-  renderFleetContent(dataList);
-}
-
-function _positionFleetWidget() {
-  if (!_fleetEl) return;
-  const wp = document.getElementById('weather-widget');
-  if (wp && !wp.classList.contains('hidden')) {
-    const wpRect = wp.getBoundingClientRect();
-    _fleetEl.style.bottom = `${window.innerHeight - wpRect.top + 8}px`;
-  } else {
-    _fleetEl.style.bottom = `${parseInt(getComputedStyle(document.documentElement).getPropertyValue('--edge')) || 20}px`;
-  }
-}
-
-function renderFleetContent(dataList) {
-  // Type distribution
-  const types = { NB: 0, WB: 0, RJ: 0, BJ: 0 };
-  // Airline counts
   const airlines = {};
-  // Phase distribution
+  const types = { NB: 0, WB: 0, RJ: 0, BJ: 0 };
   const phases = { GND: 0, CLB: 0, CRZ: 0, DES: 0 };
-  // Altitude histogram (5000ft buckets)
   const altBuckets = {};
 
   for (const ac of dataList) {
-    // Type
+    if (ac.callsign) {
+      const m = ac.callsign.match(/^([A-Z]{2,3})\d/);
+      if (m) airlines[m[1]] = (airlines[m[1]] || 0) + 1;
+    }
     const cat = classifyAircraftType(ac.aircraftType);
     if (cat === 'narrow') types.NB++;
     else if (cat === 'wideTwin' || cat === 'wideQuad') types.WB++;
     else if (cat === 'regional') types.RJ++;
     else if (cat === 'bizjet') types.BJ++;
 
-    // Airline
-    if (ac.callsign) {
-      const m = ac.callsign.match(/^([A-Z]{2,3})\d/);
-      if (m) airlines[m[1]] = (airlines[m[1]] || 0) + 1;
-    }
-
-    // Phase
     const altFt = ac.baroAltitude != null ? ac.baroAltitude * 3.28084 : null;
     const vs = ac.verticalRate;
     if (ac.onGround) phases.GND++;
@@ -975,75 +921,13 @@ function renderFleetContent(dataList) {
     else if (vs != null && vs < -1.5) phases.DES++;
     else phases.CRZ++;
 
-    // Altitude bucket
     if (altFt != null && !ac.onGround) {
       const bucket = Math.floor(altFt / 5000) * 5;
       altBuckets[bucket] = (altBuckets[bucket] || 0) + 1;
     }
   }
-
-  // Quick hash check to avoid DOM churn
-  const hash = `${_fleetExpanded}${types.NB}${types.WB}${types.RJ}${types.BJ}${Object.keys(airlines).length}`;
-  if (hash === _lastFleetHash) return;
-  _lastFleetHash = hash;
-
-  const total = dataList.length || 1;
-  const typeBar = (label, count, color) => {
-    const pct = Math.round(count / total * 100);
-    return `<div class="fleet-bar-row">
-      <span class="fleet-bar-count" style="color:${color}">${count}</span>
-      <div class="fleet-bar-track"><div class="fleet-bar-fill" style="width:${pct}%;background:${color}"></div></div>
-      <span class="fleet-bar-label">${label}</span>
-    </div>`;
-  };
-
-  let html = `<div class="widget-label" style="display:flex;justify-content:space-between;align-items:center">
-    FLEET MIX <span style="font-size:7px;letter-spacing:0;color:rgba(196,160,88,0.4)">${_fleetExpanded ? '▴' : '▾'}</span>
-  </div>`;
-
-  html += typeBar('NB', types.NB, '#5aacff');
-  html += typeBar('WB', types.WB, '#ee8833');
-  html += typeBar('RJ', types.RJ, '#44dd88');
-  html += typeBar('BJ', types.BJ, '#cc88ff');
-
-  if (_fleetExpanded) {
-    const sortedAirlines = Object.entries(airlines).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    if (sortedAirlines.length > 0) {
-      html += `<div class="fleet-section"><div class="fleet-section-title">TOP AIRLINES</div>`;
-      for (const [code, cnt] of sortedAirlines) {
-        const name = _getAirlineName(code);
-        html += `<div class="fleet-airline-row"><span>${name || code}</span><span class="fleet-airline-count">${cnt}</span></div>`;
-      }
-      html += '</div>';
-    }
-
-    html += `<div class="fleet-section"><div class="fleet-section-title">FLIGHT PHASE</div>
-      <div class="fleet-phase-row">
-        <span style="color:#6ec87a">CLB ${phases.CLB}</span>
-        <span style="color:rgba(196,160,88,0.8)">CRZ ${phases.CRZ}</span>
-        <span style="color:#e8836a">DES ${phases.DES}</span>
-        <span style="color:rgba(255,255,255,0.4)">GND ${phases.GND}</span>
-      </div>
-    </div>`;
-
-    const bucketKeys = Object.keys(altBuckets).map(Number).sort((a, b) => a - b);
-    if (bucketKeys.length > 0) {
-      const maxBucket = Math.max(...Object.values(altBuckets));
-      html += `<div class="fleet-section"><div class="fleet-section-title">ALTITUDE DIST (×1000ft)</div>
-        <div class="fleet-alt-bars">`;
-      for (const k of bucketKeys) {
-        const pct = Math.round(altBuckets[k] / maxBucket * 100);
-        const color = k >= 30 ? '#5aacff' : k >= 15 ? '#44dd88' : '#ee8833';
-        html += `<div class="fleet-alt-bar" title="FL${k}0-${k + 5}0: ${altBuckets[k]}" style="height:${pct}%;background:${color}"></div>`;
-      }
-      html += `</div>
-        <div class="fleet-alt-labels"><span>${bucketKeys[0]}k</span><span>${bucketKeys[bucketKeys.length - 1] + 5}k</span></div>
-      </div>`;
-    }
-  }
-
-  _fleetEl.innerHTML = html;
-  _positionFleetWidget();
+  _lastAirlineStats = airlines;
+  _lastFleetMix = { ...types, total: dataList.length, phases, altBuckets };
 }
 
 // --- Data handling ---
@@ -1117,20 +1001,7 @@ function handleData(dataList) {
       }
     }
 
-    // T2-05: Type breakdown
-    const typeBreakdown = { narrow: 0, wide: 0, regional: 0, bizjet: 0, other: 0 };
-    for (const ac of dataList) {
-      if (!ac.aircraftType) { typeBreakdown.other++; continue; }
-      const cat = classifyAircraftType(ac.aircraftType);
-      if (cat === 'narrow') typeBreakdown.narrow++;
-      else if (cat === 'wideTwin' || cat === 'wideQuad') typeBreakdown.wide++;
-      else if (cat === 'regional') typeBreakdown.regional++;
-      else if (cat === 'bizjet') typeBreakdown.bizjet++;
-      else typeBreakdown.other++;
-    }
-    updateHUDBreakdown(typeBreakdown);
-
-    // I1: Fleet mix statistics panel
+    // I1: Fleet mix statistics (data for spotter overlay)
     updateFleetStats(dataList);
   }
 }
@@ -1804,6 +1675,8 @@ function toggleSpotterBook() {
       <button type="button" class="detail-close overlay-close-btn" aria-label="Close">&times;</button>
     </div>
     <div id="spotter-summary" class="spotter-summary"></div>
+    <div id="spotter-fleet" class="spotter-fleet-section"></div>
+    <div id="spotter-airlines" class="spotter-airline-section"></div>
     <div id="spotter-grid" class="spotter-grid"></div>
     <div class="overlay-footer"><span class="overlay-hint">K to toggle · click outside to close</span></div>
   </div>`;
@@ -1816,9 +1689,52 @@ function toggleSpotterBook() {
 function renderSpotterGrid() {
   const grid = document.getElementById('spotter-grid');
   const summary = document.getElementById('spotter-summary');
+  const airlinesEl = document.getElementById('spotter-airlines');
   if (!grid) return;
   const spotted = SPOTTER_TYPES.filter(t => spotterBook[t.code]);
   if (summary) summary.textContent = `${spotted.length} / ${SPOTTER_TYPES.length} types spotted`;
+
+  // FLEET MIX section
+  const fleetEl = document.getElementById('spotter-fleet');
+  if (fleetEl && _lastFleetMix.total > 0) {
+    const fm = _lastFleetMix;
+    const bar = (label, count, color) => {
+      const pct = Math.round(count / (fm.total || 1) * 100);
+      return `<div class="fleet-bar-row"><span class="fleet-bar-count" style="color:${color}">${count}</span><div class="fleet-bar-track"><div class="fleet-bar-fill" style="width:${pct}%;background:${color}"></div></div><span class="fleet-bar-label">${label}</span></div>`;
+    };
+    const p = fm.phases;
+    const bucketKeys = Object.keys(fm.altBuckets).map(Number).sort((a, b) => a - b);
+    const maxB = Math.max(...Object.values(fm.altBuckets), 1);
+    const altHtml = bucketKeys.length > 0 ? `<div class="fleet-alt-section"><div class="fleet-alt-bars">${bucketKeys.map(k => {
+      const pct = Math.round(fm.altBuckets[k] / maxB * 100);
+      const color = k >= 30 ? '#5aacff' : k >= 15 ? '#44dd88' : '#ee8833';
+      return `<div class="fleet-alt-bar" title="FL${k}0-${k+5}0: ${fm.altBuckets[k]}" style="height:${pct}%;background:${color}"></div>`;
+    }).join('')}</div><div class="fleet-alt-labels"><span>${bucketKeys[0]}k</span><span>${bucketKeys[bucketKeys.length-1]+5}k</span></div></div>` : '';
+
+    fleetEl.innerHTML = `<div class="spotter-airline-title">FLEET MIX · ${fm.total} AIRCRAFT</div>
+      <div class="fleet-bars">${bar('NARROW', fm.NB, '#5aacff')}${bar('WIDE', fm.WB, '#ee8833')}${bar('REGIONAL', fm.RJ, '#44dd88')}${bar('BIZJET', fm.BJ, '#cc88ff')}</div>
+      <div class="fleet-phase-row"><span style="color:#6ec87a">CLB ${p.CLB}</span><span style="color:rgba(196,160,88,0.8)">CRZ ${p.CRZ}</span><span style="color:#e8836a">DES ${p.DES}</span><span style="color:rgba(255,255,255,0.4)">GND ${p.GND}</span></div>
+      ${altHtml}`;
+    fleetEl.style.display = '';
+  } else if (fleetEl) {
+    fleetEl.style.display = 'none';
+  }
+
+  // TOP AIRLINES section — separate from grid
+  if (airlinesEl) {
+    const sortedAirlines = Object.entries(_lastAirlineStats).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    if (sortedAirlines.length > 0) {
+      airlinesEl.innerHTML = `<div class="spotter-airline-title">TOP AIRLINES</div>
+        <div class="spotter-airline-grid">${sortedAirlines.map(([code, cnt]) => {
+          const name = _getAirlineName(code);
+          return `<div class="spotter-airline-item"><span class="spotter-airline-name">${name || code}</span><span class="spotter-airline-cnt">${cnt}</span></div>`;
+        }).join('')}</div>`;
+      airlinesEl.style.display = '';
+    } else {
+      airlinesEl.style.display = 'none';
+    }
+  }
+
   grid.innerHTML = SPOTTER_TYPES.map(t => {
     const count = spotterBook[t.code] || 0;
     const cls = count > 0 ? 'spotted' : 'unspotted';
@@ -1918,70 +1834,196 @@ function hideTCASDisplay() {
   if (_tcasEl) _tcasEl.style.display = 'none';
 }
 
-// ── T3-02: Weather panel ──
-let _weatherData = null;
-let _weatherExpanded = false;
+// ── T3-02: Weather panel (integrated into HUD) ──
+let _wxExpanded = false;
+
 function initWeatherPanel() {
-  const toggle = document.getElementById('weather-toggle');
+  const toggle = document.getElementById('hud-wx-toggle');
   if (toggle) {
     toggle.addEventListener('click', () => {
-      _weatherExpanded = !_weatherExpanded;
-      const exp = document.getElementById('weather-expanded');
-      const arrow = document.getElementById('weather-expand-arrow');
-      if (exp) exp.classList.toggle('open', _weatherExpanded);
-      if (arrow) arrow.textContent = _weatherExpanded ? '▴ collapse' : '▾ details';
+      _wxExpanded = !_wxExpanded;
+      const detail = document.getElementById('hud-wx-detail');
+      if (detail) detail.classList.toggle('open', _wxExpanded);
     });
   }
 }
+
 async function updateWeatherWidget() {
   const { lat, lon } = getUserLocation();
   const data = await fetchWeather(lat, lon);
   if (!data) return;
-  _weatherData = data;
-  window._cachedWeather = data; // expose for detail.js density altitude
+  window._cachedWeather = data;
+
   // W4: Visibility ring on ground
   renderVisibilityRing(scene, data.visibility, data.cloudCover);
-  const el = document.getElementById('weather-widget');
-  if (!el) return;
-  el.classList.remove('hidden');
 
   const desc = weatherDescription(data.weatherCode);
   const windDir = windDirToCardinal(data.windDir);
   const vis = formatVisibility(data.visibility);
   const cat = flightCategory(data.visibility, data.cloudCover);
 
-  // Compact row
-  const iconEl = document.getElementById('weather-icon-main');
-  if (iconEl) iconEl.textContent = weatherIcon(data.weatherCode);
-  const tempEl = document.getElementById('weather-temp');
-  if (tempEl) tempEl.textContent = `${Math.round(data.temp)}°`;
-  const descEl = document.getElementById('weather-desc');
-  if (descEl) descEl.textContent = desc;
-  const windEl = document.getElementById('weather-wind');
-  if (windEl) windEl.textContent = `${windDir} ${Math.round(data.windSpeed)}km/h`;
-  const visEl = document.getElementById('weather-vis');
-  if (visEl) visEl.textContent = `Vis ${vis}`;
-  const catEl = document.getElementById('weather-cat');
+  // Current conditions — main line
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  set('hud-wx-icon', weatherIcon(data.weatherCode));
+  set('hud-wx-temp', `${Math.round(data.temp)}°`);
+  set('hud-wx-desc', desc);
+  set('hud-wx-wind', `${windDir} ${Math.round(data.windSpeed)}kt`);
+  const catEl = document.getElementById('hud-wx-cat');
   if (catEl) { catEl.textContent = cat.label; catEl.style.color = cat.color; }
 
-  // Expanded details
-  const setVal = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
-  setVal('weather-feels', `${Math.round(data.feelsLike)}°C`);
-  setVal('weather-humidity', `${data.humidity}%`);
-  setVal('weather-pressure', `${Math.round(data.pressure)} hPa`);
-  setVal('weather-cloud', `${data.cloudCover}%`);
-  setVal('weather-wind-detail', `${windDir} ${Math.round(data.windSpeed)} km/h`);
-  setVal('weather-gusts', data.windGusts != null ? `${Math.round(data.windGusts)} km/h` : '--');
+  // Detail grid values
+  set('hud-wx-feels', `${Math.round(data.feelsLike)}°`);
+  set('hud-wx-dew', data.dewpoint != null ? `${Math.round(data.dewpoint)}°` : '--');
+  set('hud-wx-humidity', `${data.humidity}%`);
+  set('hud-wx-pressure', `${Math.round(data.pressure)} hPa`);
+  set('hud-wx-vis', vis);
+  set('hud-wx-cloud', `${data.cloudCover}%`);
+  set('hud-wx-gusts', data.windGusts != null ? `${Math.round(data.windGusts)} kt` : '--');
 
-  // 8-hour forecast bar
-  const fcEl = document.getElementById('weather-forecast');
-  if (fcEl && data.hourly && data.hourly.length > 0) {
-    fcEl.innerHTML = data.hourly.map(h => {
-      const icon = weatherIcon(h.code);
-      const hr = String(h.hour).padStart(2, '0');
-      return `<div class="weather-fc-item"><span class="weather-fc-hour">${hr}:00</span><span class="weather-fc-icon">${icon}</span><span class="weather-fc-temp">${h.temp}°</span></div>`;
-    }).join('');
+  // Density altitude
+  const dalt = computeDensityAltitude(data.pressure, data.temp);
+  set('hud-wx-dalt', dalt != null ? `${dalt} ft` : '--');
+
+  // Turbulence estimate
+  const turb = estimateTurbulence(data);
+  const turbEl = document.getElementById('hud-wx-turb');
+  if (turbEl && turb) { turbEl.textContent = turb.label; turbEl.style.color = turb.color; }
+
+  // Sunrise / sunset from today's daily data
+  if (data.daily && data.daily.length > 0 && data.daily[0].sunrise) {
+    const fmtTime = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+    const srEl = document.getElementById('hud-wx-sunrise');
+    const ssEl = document.getElementById('hud-wx-sunset');
+    if (srEl) srEl.innerHTML = `<span class="hud-wx-sun-icon">&#9788;</span> ${fmtTime(data.daily[0].sunrise)}`;
+    if (ssEl) ssEl.innerHTML = `<span class="hud-wx-sun-icon">&#9790;</span> ${fmtTime(data.daily[0].sunset)}`;
   }
+
+  // 24h hourly trend canvas
+  if (data.hourly && data.hourly.length > 0) {
+    _drawHourlyChart(data.hourly);
+  }
+
+  // 7-day daily forecast
+  if (data.daily && data.daily.length > 0) {
+    _renderDailyForecast(data.daily);
+  }
+}
+
+function _drawHourlyChart(hourly) {
+  const canvas = document.getElementById('hud-wx-hourly-chart');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || 280;
+  const h = canvas.clientHeight || 64;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const temps = hourly.map(h => h.temp);
+  const precips = hourly.map(h => h.precip || 0);
+  const tMin = Math.min(...temps) - 2;
+  const tMax = Math.max(...temps) + 2;
+  const tRange = tMax - tMin || 1;
+  const pMax = Math.max(...precips, 1);
+
+  const padTop = 14, padBot = 14, padL = 2, padR = 2;
+  const plotW = w - padL - padR;
+  const plotH = h - padTop - padBot;
+
+  // Precipitation bars (background)
+  ctx.fillStyle = 'rgba(90,172,255,0.15)';
+  for (let i = 0; i < hourly.length; i++) {
+    if (precips[i] <= 0) continue;
+    const x = padL + (i / (hourly.length - 1)) * plotW;
+    const barH = (precips[i] / pMax) * plotH * 0.6;
+    const barW = Math.max(plotW / hourly.length - 1, 2);
+    ctx.fillRect(x - barW / 2, padTop + plotH - barH, barW, barH);
+  }
+
+  // Temperature line
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(232,195,106,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  for (let i = 0; i < hourly.length; i++) {
+    const x = padL + (i / (hourly.length - 1)) * plotW;
+    const y = padTop + plotH - ((temps[i] - tMin) / tRange) * plotH;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Temperature gradient fill
+  const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+  grad.addColorStop(0, 'rgba(232,195,106,0.12)');
+  grad.addColorStop(1, 'rgba(232,195,106,0)');
+  ctx.lineTo(padL + plotW, padTop + plotH);
+  ctx.lineTo(padL, padTop + plotH);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Dots + temp labels at key points (every 4h)
+  ctx.font = `${Math.round(7 * dpr) / dpr}px monospace`;
+  ctx.textAlign = 'center';
+  for (let i = 0; i < hourly.length; i++) {
+    const x = padL + (i / (hourly.length - 1)) * plotW;
+    const y = padTop + plotH - ((temps[i] - tMin) / tRange) * plotH;
+
+    if (i % 4 === 0 || i === hourly.length - 1) {
+      // Temp value above curve
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillText(`${temps[i]}°`, x, y - 4);
+
+      // Hour label below
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillText(`${String(hourly[i].hour).padStart(2, '0')}`, x, h - 2);
+
+      // Dot
+      ctx.beginPath();
+      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(232,195,106,0.8)';
+      ctx.fill();
+    }
+
+    // Rain amount label if significant
+    if (precips[i] >= 0.5 && i % 3 === 0) {
+      ctx.fillStyle = 'rgba(90,172,255,0.6)';
+      const barTop = padTop + plotH - (precips[i] / pMax) * plotH * 0.6;
+      ctx.fillText(`${precips[i].toFixed(1)}`, x, barTop - 2);
+    }
+  }
+}
+
+function _renderDailyForecast(daily) {
+  const el = document.getElementById('hud-wx-daily');
+  if (!el) return;
+
+  const allMin = Math.min(...daily.map(d => d.tempMin));
+  const allMax = Math.max(...daily.map(d => d.tempMax));
+  const range = allMax - allMin || 1;
+  const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+  el.innerHTML = daily.map((d, i) => {
+    const dt = new Date(d.date + 'T00:00:00');
+    const name = i === 0 ? 'NOW' : dayNames[dt.getDay()];
+    const icon = weatherIcon(d.code);
+    const left = ((d.tempMin - allMin) / range) * 100;
+    const width = ((d.tempMax - d.tempMin) / range) * 100;
+    const precipTxt = d.precip > 0 ? `${d.precip.toFixed(1)}mm` : '';
+    const precipProbTxt = d.precipProb > 0 && d.precip <= 0 ? `${d.precipProb}%` : '';
+
+    return `<div class="hud-wx-day">
+      <span class="hud-wx-day-name">${name}</span>
+      <span class="hud-wx-day-icon">${icon}</span>
+      <span class="hud-wx-day-lo">${d.tempMin}°</span>
+      <div class="hud-wx-day-bar-track">
+        <div class="hud-wx-day-bar-fill" style="left:${left}%;width:${Math.max(width, 4)}%"></div>
+      </div>
+      <span class="hud-wx-day-hi">${d.tempMax}°</span>
+      <span class="hud-wx-day-precip">${precipTxt || precipProbTxt}</span>
+    </div>`;
+  }).join('');
 }
 
 // ── T3-06: Altitude filter slider wiring ──
@@ -2983,7 +3025,6 @@ async function switchCity(city) {
   clearGroundMap(scene);
   clearAirports(scene);
   clearFIRBoundaries(scene);
-  clearAirspaceOverlay(scene);
   clearNavChart(scene);
 
   setUserLocation(city.lat, city.lon);
@@ -3003,8 +3044,6 @@ async function switchCity(city) {
   const aptP = loadAirports(scene, city.lat, city.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
-    // A4: Render airspace class B/C overlays
-    renderAirspaceOverlay(scene, window._CITIES, city.lat, city.lon);
   });
   reloadFIRForLocation(scene, city.lat, city.lon);
   // Nav chart needs airportData for ILS corridors — wait for airports
@@ -4584,8 +4623,6 @@ async function init() {
   const aptP = loadAirports(scene, defaultCity.lat, defaultCity.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
-    // A4: Render airspace class B/C overlays
-    renderAirspaceOverlay(scene, window._CITIES, defaultCity.lat, defaultCity.lon);
   });
 
   // ── 4. Start live data polling immediately (doesn't block rendering) ──
