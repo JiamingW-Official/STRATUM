@@ -10,7 +10,7 @@ import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, 
 import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
-import { showDetail, closeDetail, refreshDetail, getSelectedAircraft, showDetailLoading } from './ui/detail.js';
+import { showDetail, closeDetail, refreshDetail, getSelectedAircraft, showDetailLoading, reseedChartData } from './ui/detail.js';
 import { getAirlineName as _getAirlineName } from './data/airlineDb.js';
 import { initRouteInfer, triggerInference } from './data/routeInfer.js';
 import { CITIES_EXTRA } from './data/citiesExtra.js';
@@ -552,6 +552,7 @@ function handleAircraftSelect(ac) {
   showDetailLoading(true);
   enrichAircraft(ac.data.icao24, ac.data.callsign).then(() => {
     showDetailLoading(false);
+    reseedChartData(); // Immediately load trace data into speed/alt charts
     refreshDetail(aircraftManager, lat, lon);
     // T3-01: Draw great circle route arc
     const d = ac.getDisplayData();

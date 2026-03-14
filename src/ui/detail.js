@@ -169,6 +169,7 @@ const altHistory = []; // {time, alt, speed, vs} entries — alt in feet
 const ALT_HISTORY_MAX = 2400; // 30 min track + 1s live samples
 let _altHistoryTimer = null;
 let _altHistorySeeded = false; // track data has been loaded into chart
+let _seedFromTrack = null; // closure reference for external re-seed
 
 // ── T1-04: Copy flight info ──
 if (elCopy) {
@@ -437,24 +438,27 @@ function renderSpeedChart() {
   if (!canvas) {
     canvas = document.createElement('canvas');
     canvas.id = 'detail-spd-chart';
-    canvas.className = 'detail-speed-chart';
+    canvas.style.cssText = 'display:none;width:100%;height:90px;margin:4px 0 2px;border-radius:6px;background:rgba(0,0,0,0.25);';
     const altCanvas = document.getElementById('detail-alt-chart');
     if (altCanvas && altCanvas.parentNode) {
       altCanvas.parentNode.insertBefore(canvas, altCanvas.nextSibling);
+    } else {
+      const panelContent = panel.querySelector('.detail-body') || panel;
+      panelContent.appendChild(canvas);
     }
   }
 
   // Filter entries with speed data
   const speedEntries = altHistory.filter(e => e.gsKts != null && isFinite(e.gsKts));
   if (speedEntries.length < 2) {
-    canvas.classList.remove('active');
+    canvas.style.display = 'none';
     return;
   }
 
-  canvas.classList.add('active');
+  canvas.style.display = 'block';
   const rect = canvas.getBoundingClientRect();
   const w = Math.round(rect.width) || 260;
-  const h = 72;
+  const h = 90;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr;
   canvas.height = h * dpr;
@@ -463,7 +467,7 @@ function renderSpeedChart() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
-  const PAD_L = 42, PAD_R = 6, PAD_T = 8, PAD_B = 14;
+  const PAD_L = 42, PAD_R = 6, PAD_T = 10, PAD_B = 16;
   const plotW = w - PAD_L - PAD_R;
   const plotH = h - PAD_T - PAD_B;
 
@@ -503,6 +507,25 @@ function renderSpeedChart() {
     ctx.lineTo(w - PAD_R, y);
     ctx.stroke();
     ctx.fillText(`${spd}`, PAD_L - 4, y);
+  }
+
+  // Time axis labels (matching altitude chart)
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(180,210,255,0.35)';
+  const tRangeMin = tRange / 60000;
+  const tStep = tRangeMin > 20 ? 600000 : tRangeMin > 8 ? 300000 : tRangeMin > 3 ? 120000 : 60000;
+  const tStart = Math.ceil(tMin / tStep) * tStep;
+  for (let t = tStart; t <= tMax; t += tStep) {
+    const x = xOf(t);
+    if (x < PAD_L + 20 || x > w - PAD_R - 20) continue;
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.beginPath();
+    ctx.moveTo(x, PAD_T);
+    ctx.lineTo(x, PAD_T + plotH);
+    ctx.stroke();
+    const minsAgo = Math.round((tMax - t) / 60000);
+    ctx.fillText(minsAgo === 0 ? 'now' : `-${minsAgo}m`, x, PAD_T + plotH + 2);
   }
 
   // 250kt speed limit line (below FL180 / 10000ft)
@@ -558,25 +581,42 @@ function renderSpeedChart() {
     ctx.stroke();
   }
 
-  // Current speed marker
+  // Current speed marker (right edge)
   const last = speedEntries[speedEntries.length - 1];
-  const cx = xOf(last.time), cy = yOf(last.gsKts);
-  ctx.beginPath();
-  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-  ctx.fillStyle = '#ee8833';
-  ctx.fill();
-  ctx.font = 'bold 10px JetBrains Mono, monospace';
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'bottom';
-  ctx.fillStyle = '#ee8833';
-  ctx.fillText(`${last.gsKts} kts`, cx - 6, cy - 3);
+  if (last.gsKts != null && isFinite(last.gsKts)) {
+    const cx = xOf(last.time), cy = yOf(last.gsKts);
 
-  // Label
-  ctx.font = '8px JetBrains Mono, monospace';
-  ctx.fillStyle = 'rgba(180,210,255,0.35)';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText('GS (kts)', PAD_L + 2, PAD_T + 1);
+    // Dot
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#ee8833';
+    ctx.fill();
+
+    // Current speed value label
+    ctx.font = 'bold 10px JetBrains Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#ee8833';
+    ctx.fillText(`${last.gsKts} kts`, cx - 6, cy - 4);
+
+    // Show recent change (delta from 30s ago)
+    const t30sAgo = last.time - 30000;
+    let refEntry = null;
+    for (let i = speedEntries.length - 1; i >= 0; i--) {
+      if (speedEntries[i].time <= t30sAgo && speedEntries[i].gsKts != null) { refEntry = speedEntries[i]; break; }
+    }
+    if (refEntry) {
+      const delta = Math.round(last.gsKts - refEntry.gsKts);
+      if (Math.abs(delta) >= 2) {
+        const sign = delta > 0 ? '+' : '';
+        const color = delta > 0 ? '#ff9d4d' : '#4db8ff';
+        ctx.font = '9px JetBrains Mono, monospace';
+        ctx.fillStyle = color;
+        ctx.textBaseline = 'top';
+        ctx.fillText(`${sign}${delta} kts/30s`, cx - 6, cy + 4);
+      }
+    }
+  }
 }
 
 export function showDetail(aircraftObj, userLat, userLon) {
@@ -587,24 +627,25 @@ export function showDetail(aircraftObj, userLat, userLon) {
   startTrackedTimer();
 
   // ── T3-03: Altitude history — seed from track + live 1s sampling ──
+  // Seed function — try to load historical track data into chart
+  function seedFromTrack() {
+    if (_altHistorySeeded || !selectedAircraft || !selectedAircraft.getAltitudeHistory) return;
+    const hist = selectedAircraft.getAltitudeHistory();
+    if (hist.length > 2) {
+      const liveOnly = altHistory.filter(e => e._live);
+      altHistory.length = 0;
+      for (const entry of hist) altHistory.push(entry);
+      for (const entry of liveOnly) altHistory.push(entry);
+      _altHistorySeeded = true;
+      renderAltChart();
+      renderSpeedChart();
+    }
+  }
+  _seedFromTrack = seedFromTrack;
+
   if (!_altHistoryTimer) {
     altHistory.length = 0;
-
     _altHistorySeeded = false;
-
-    // Try to seed with historical track data (up to 30 min of waypoints)
-    function seedFromTrack() {
-      if (_altHistorySeeded || !selectedAircraft || !selectedAircraft.getAltitudeHistory) return;
-      const hist = selectedAircraft.getAltitudeHistory();
-      if (hist.length > 2) {
-        // Remove any live samples older than track coverage
-        const liveOnly = altHistory.filter(e => e._live);
-        altHistory.length = 0;
-        for (const entry of hist) altHistory.push(entry);
-        for (const entry of liveOnly) altHistory.push(entry);
-        _altHistorySeeded = true;
-      }
-    }
     seedFromTrack();
 
     const pushSample = () => {
@@ -617,8 +658,11 @@ export function showDetail(aircraftObj, userLat, userLon) {
       // Use barometric altitude consistently (matches track history source)
       const altFt = sd.baroAltitude != null ? Math.round(sd.baroAltitude * 3.28084) : null;
       const vsFtMin = sd.verticalRate != null ? Math.round(sd.verticalRate * 3.28084 * 60) : null;
-      // Ground speed in knots for P6 speed chart
-      const liveGsKts = sd.groundSpeed != null ? Math.round(sd.groundSpeed) : (sd.velocity != null ? Math.round(sd.velocity * 1.94384) : null);
+      // Ground speed in knots — use getDisplayData() for best fallback chain
+      const dd = selectedAircraft.getDisplayData ? selectedAircraft.getDisplayData() : {};
+      const liveGsKts = dd.gsKts != null ? dd.gsKts
+        : (sd.groundSpeed != null ? Math.round(sd.groundSpeed)
+        : (sd.velocity != null ? Math.round(sd.velocity * 1.94384) : null));
       // Always push live sample (1s resolution)
       altHistory.push({ time: Date.now(), alt: altFt, speed: sd.velocity, vs: vsFtMin, gsKts: liveGsKts, _live: true });
       if (altHistory.length > ALT_HISTORY_MAX) altHistory.shift();
@@ -627,6 +671,10 @@ export function showDetail(aircraftObj, userLat, userLon) {
     };
     pushSample();
     _altHistoryTimer = setInterval(pushSample, 1000); // 1s updates
+  } else {
+    // Timer already running — re-seed immediately (trace data may have arrived)
+    _altHistorySeeded = false;
+    seedFromTrack();
   }
 
   // ── HEADER ──
@@ -1314,7 +1362,7 @@ export function closeDetail() {
   const altCanvas = document.getElementById('detail-alt-chart');
   if (altCanvas) altCanvas.style.display = 'none';
   const spdCanvas = document.getElementById('detail-spd-chart');
-  if (spdCanvas) spdCanvas.classList.remove('active');
+  if (spdCanvas) spdCanvas.style.display = 'none';
   // Hide dynamic sections
   const condSec = document.getElementById('detail-conditions');
   if (condSec) condSec.classList.add('hidden');
@@ -1333,6 +1381,14 @@ export function showDetailLoading(loading) {
 
 export function getSelectedAircraft() {
   return selectedAircraft;
+}
+
+// Re-seed chart data after enrichment fetches trace
+export function reseedChartData() {
+  if (_seedFromTrack) {
+    _altHistorySeeded = false;
+    _seedFromTrack();
+  }
 }
 
 export function refreshDetail(aircraftManager, userLat, userLon) {
