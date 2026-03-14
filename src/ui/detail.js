@@ -170,6 +170,23 @@ const ALT_HISTORY_MAX = 2400; // 30 min track + 1s live samples
 let _altHistoryTimer = null;
 let _altHistorySeeded = false; // track data has been loaded into chart
 let _seedFromTrack = null; // closure reference for external re-seed
+let _altHoverX = null; // crosshair hover pixel X (null = no hover)
+let _spdHoverX = null;
+
+// Utility: draw a rounded rectangle path
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
 
 // ── T1-04: Copy flight info ──
 if (elCopy) {
@@ -243,81 +260,110 @@ function formatETA(distKm, speedMs) {
   return `${h}h${m > 0 ? ` ${m}m` : ''}`;
 }
 
-// ── T3-03: Render altitude profile chart (FR24-accurate) ──
-// Shows altitude in feet with grid lines, current value, and time axis.
-// Data is already stored in feet (converted at sample time).
+// ── T3-03: Render altitude profile chart (professional aviation grade) ──
 function renderAltChart() {
   let canvas = document.getElementById('detail-alt-chart');
   if (!canvas) {
     canvas = document.createElement('canvas');
     canvas.id = 'detail-alt-chart';
-    canvas.style.cssText = 'display:none;width:100%;height:90px;margin:4px 0 2px;border-radius:6px;background:rgba(0,0,0,0.25);';
+    canvas.style.cssText = 'display:none;width:100%;height:130px;margin:4px 0 0;border-radius:8px;background:rgba(0,0,0,0.3);cursor:crosshair;';
     const progressEl = document.getElementById('detail-progress');
     if (progressEl && progressEl.parentNode) {
       progressEl.parentNode.insertBefore(canvas, progressEl.nextSibling);
     } else {
-      const panelContent = panel.querySelector('.detail-body') || panel;
-      panelContent.appendChild(canvas);
+      (panel.querySelector('.detail-body') || panel).appendChild(canvas);
     }
   }
-
-  if (altHistory.length < 2) {
-    canvas.style.display = 'none';
-    return;
+  // Interactive crosshair event listeners (once)
+  if (!canvas._ev) {
+    canvas._ev = true;
+    const setH = x => { _altHoverX = x; renderAltChart(); };
+    canvas.addEventListener('mousemove', e => setH(e.clientX - canvas.getBoundingClientRect().left));
+    canvas.addEventListener('mouseleave', () => setH(null));
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); setH(e.touches[0].clientX - canvas.getBoundingClientRect().left); }, { passive: false });
+    canvas.addEventListener('touchend', () => setH(null));
   }
+
+  if (altHistory.length < 2) { canvas.style.display = 'none'; return; }
 
   canvas.style.display = 'block';
   const rect = canvas.getBoundingClientRect();
   const w = Math.round(rect.width) || 260;
-  const h = 90;
+  const H = 130;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr;
-  canvas.height = h * dpr;
-
+  canvas.height = H * dpr;
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
+  ctx.clearRect(0, 0, w, H);
 
-  const PAD_L = 42; // left padding for Y-axis labels
-  const PAD_R = 6;
-  const PAD_T = 10;
-  const PAD_B = 16; // bottom padding for time axis
+  const PAD_L = 44, PAD_R = 8, PAD_T = 20, PAD_B = 16;
+  const VS_STRIP = 10;
   const plotW = w - PAD_L - PAD_R;
-  const plotH = h - PAD_T - PAD_B;
+  const plotH = H - PAD_T - PAD_B - VS_STRIP;
 
-  // Compute altitude range (values already in feet)
-  let minAlt = Infinity, maxAlt = -Infinity;
-  for (const entry of altHistory) {
-    const a = entry.alt;
-    if (a != null && isFinite(a)) {
-      if (a < minAlt) minAlt = a;
-      if (a > maxAlt) maxAlt = a;
+  // ─── Compute ranges ───
+  let minA = Infinity, maxA = -Infinity;
+  for (const e of altHistory) {
+    if (e.alt != null && isFinite(e.alt)) {
+      if (e.alt < minA) minA = e.alt;
+      if (e.alt > maxA) maxA = e.alt;
     }
   }
-  if (!isFinite(minAlt)) return;
+  if (!isFinite(minA)) return;
 
-  // Snap to nice altitude steps (500ft steps below FL180, 1000ft above)
-  const altRange = maxAlt - minAlt;
-  const step = altRange > 10000 ? 5000 : altRange > 3000 ? 2000 : altRange > 1000 ? 1000 : 500;
-  const yMin = Math.max(0, Math.floor((minAlt - step * 0.3) / step) * step);
-  const yMax = Math.ceil((maxAlt + step * 0.3) / step) * step;
+  const last = altHistory[altHistory.length - 1];
+  const navAlt = last?.navAlt;
+  if (navAlt != null && isFinite(navAlt)) {
+    if (navAlt < minA) minA = navAlt;
+    if (navAlt > maxA) maxA = navAlt;
+  }
+
+  const aRange = maxA - minA;
+  const step = aRange > 10000 ? 5000 : aRange > 3000 ? 2000 : aRange > 1000 ? 1000 : 500;
+  const yMin = Math.max(0, Math.floor((minA - step * 0.3) / step) * step);
+  const yMax = Math.ceil((maxA + step * 0.3) / step) * step;
   const yRange = yMax - yMin || 1;
 
   const tMin = altHistory[0].time;
   const tMax = altHistory[altHistory.length - 1].time;
   const tRange = tMax - tMin || 1;
 
-  function xOf(t) { return PAD_L + ((t - tMin) / tRange) * plotW; }
-  function yOf(a) { return PAD_T + plotH - ((a - yMin) / yRange) * plotH; }
+  const xOf = t => PAD_L + ((t - tMin) / tRange) * plotW;
+  const yOf = a => PAD_T + plotH - ((a - yMin) / yRange) * plotH;
 
-  // ── Grid lines ──
+  // ─── Header: title + live stats ───
+  ctx.font = 'bold 9px JetBrains Mono, monospace';
+  ctx.fillStyle = 'rgba(180,210,255,0.5)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('ALTITUDE', PAD_L, 4);
+
+  if (last && last.alt != null) {
+    ctx.textAlign = 'right';
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(220,230,255,0.6)';
+    const curA = last.alt >= 18000 ? `FL${Math.round(last.alt / 100)}` : `${Math.round(last.alt).toLocaleString()}ft`;
+    let stats = curA;
+    if (last.vs != null) {
+      const arrow = last.vs > 200 ? '▲' : last.vs < -200 ? '▼' : '—';
+      const vsAbs = Math.abs(last.vs);
+      stats += `  ${arrow}${vsAbs >= 1000 ? (last.vs / 1000).toFixed(1) + 'k' : last.vs}`;
+    }
+    if (navAlt != null) {
+      const navStr = navAlt >= 18000 ? `FL${Math.round(navAlt / 100)}` : `${Math.round(navAlt).toLocaleString()}`;
+      stats += `  SEL ${navStr}`;
+    }
+    ctx.fillText(stats, w - PAD_R, 4);
+  }
+
+  // ─── Grid lines ───
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.lineWidth = 0.5;
   ctx.font = '9px JetBrains Mono, monospace';
   ctx.fillStyle = 'rgba(180,210,255,0.4)';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-
   for (let alt = yMin; alt <= yMax; alt += step) {
     const y = yOf(alt);
     ctx.beginPath();
@@ -328,188 +374,7 @@ function renderAltChart() {
     ctx.fillText(label, PAD_L - 4, y);
   }
 
-  // ── Time axis labels ──
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = 'rgba(180,210,255,0.35)';
-  const tRangeMin = tRange / 60000;
-  const tStep = tRangeMin > 20 ? 600000 : tRangeMin > 8 ? 300000 : tRangeMin > 3 ? 120000 : 60000; // ms
-  const tStart = Math.ceil(tMin / tStep) * tStep;
-  for (let t = tStart; t <= tMax; t += tStep) {
-    const x = xOf(t);
-    if (x < PAD_L + 20 || x > w - PAD_R - 20) continue;
-    // vertical tick
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.beginPath();
-    ctx.moveTo(x, PAD_T);
-    ctx.lineTo(x, PAD_T + plotH);
-    ctx.stroke();
-    // time label (minutes ago)
-    const minsAgo = Math.round((tMax - t) / 60000);
-    ctx.fillText(minsAgo === 0 ? 'now' : `-${minsAgo}m`, x, PAD_T + plotH + 2);
-  }
-
-  // ── Altitude fill gradient ──
-  const grad = ctx.createLinearGradient(0, PAD_T, 0, PAD_T + plotH);
-  grad.addColorStop(0, 'rgba(74,127,255,0.15)');
-  grad.addColorStop(1, 'rgba(74,127,255,0.02)');
-  ctx.beginPath();
-  let hasFirst = false;
-  for (const entry of altHistory) {
-    if (entry.alt == null || !isFinite(entry.alt)) continue;
-    const x = xOf(entry.time), y = yOf(entry.alt);
-    if (!hasFirst) { ctx.moveTo(x, y); hasFirst = true; } else ctx.lineTo(x, y);
-  }
-  if (hasFirst) {
-    ctx.lineTo(xOf(altHistory[altHistory.length - 1].time), PAD_T + plotH);
-    ctx.lineTo(xOf(altHistory[0].time), PAD_T + plotH);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
-  }
-
-  // ── Altitude line — colored by vertical rate ──
-  ctx.lineWidth = 1.5;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-
-  for (let i = 1; i < altHistory.length; i++) {
-    const prev = altHistory[i - 1];
-    const cur = altHistory[i];
-    if (prev.alt == null || cur.alt == null || !isFinite(prev.alt) || !isFinite(cur.alt)) continue;
-
-    // Color by vertical rate: climb=orange, descent=blue, level=white
-    const vs = cur.vs;
-    if (vs != null && vs > 300) ctx.strokeStyle = '#ff9d4d';
-    else if (vs != null && vs < -300) ctx.strokeStyle = '#4db8ff';
-    else ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-
-    ctx.beginPath();
-    ctx.moveTo(xOf(prev.time), yOf(prev.alt));
-    ctx.lineTo(xOf(cur.time), yOf(cur.alt));
-    ctx.stroke();
-  }
-
-  // ── Current altitude marker (right edge) ──
-  const last = altHistory[altHistory.length - 1];
-  if (last.alt != null && isFinite(last.alt)) {
-    const cx = xOf(last.time);
-    const cy = yOf(last.alt);
-
-    // Dot
-    ctx.beginPath();
-    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
-
-    // Current altitude value label
-    const curAltStr = last.alt >= 18000
-      ? `FL${Math.round(last.alt / 100)}`
-      : `${Math.round(last.alt).toLocaleString()} ft`;
-    ctx.font = 'bold 10px JetBrains Mono, monospace';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = '#fff';
-    ctx.fillText(curAltStr, cx - 6, cy - 4);
-
-    // Show recent change (delta from 30s ago)
-    const t30sAgo = last.time - 30000;
-    let refEntry = null;
-    for (let i = altHistory.length - 1; i >= 0; i--) {
-      if (altHistory[i].time <= t30sAgo && altHistory[i].alt != null) { refEntry = altHistory[i]; break; }
-    }
-    if (refEntry) {
-      const delta = Math.round(last.alt - refEntry.alt);
-      if (Math.abs(delta) >= 10) {
-        const sign = delta > 0 ? '+' : '';
-        const color = delta > 0 ? '#ff9d4d' : '#4db8ff';
-        ctx.font = '9px JetBrains Mono, monospace';
-        ctx.fillStyle = color;
-        ctx.textBaseline = 'top';
-        ctx.fillText(`${sign}${delta} ft/30s`, cx - 6, cy + 4);
-      }
-    }
-  }
-}
-
-// ── P6: Speed Profile Chart ──
-function renderSpeedChart() {
-  let canvas = document.getElementById('detail-spd-chart');
-  if (!canvas) {
-    canvas = document.createElement('canvas');
-    canvas.id = 'detail-spd-chart';
-    canvas.style.cssText = 'display:none;width:100%;height:90px;margin:4px 0 2px;border-radius:6px;background:rgba(0,0,0,0.25);';
-    const altCanvas = document.getElementById('detail-alt-chart');
-    if (altCanvas && altCanvas.parentNode) {
-      altCanvas.parentNode.insertBefore(canvas, altCanvas.nextSibling);
-    } else {
-      const panelContent = panel.querySelector('.detail-body') || panel;
-      panelContent.appendChild(canvas);
-    }
-  }
-
-  // Filter entries with speed data
-  const speedEntries = altHistory.filter(e => e.gsKts != null && isFinite(e.gsKts));
-  if (speedEntries.length < 2) {
-    canvas.style.display = 'none';
-    return;
-  }
-
-  canvas.style.display = 'block';
-  const rect = canvas.getBoundingClientRect();
-  const w = Math.round(rect.width) || 260;
-  const h = 90;
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
-
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
-
-  const PAD_L = 42, PAD_R = 6, PAD_T = 10, PAD_B = 16;
-  const plotW = w - PAD_L - PAD_R;
-  const plotH = h - PAD_T - PAD_B;
-
-  // Compute speed range (knots)
-  let minSpd = Infinity, maxSpd = -Infinity;
-  for (const e of speedEntries) {
-    if (e.gsKts < minSpd) minSpd = e.gsKts;
-    if (e.gsKts > maxSpd) maxSpd = e.gsKts;
-  }
-  if (!isFinite(minSpd)) return;
-
-  const spdRange = maxSpd - minSpd;
-  const step = spdRange > 300 ? 100 : spdRange > 100 ? 50 : 25;
-  const yMin = Math.max(0, Math.floor((minSpd - step * 0.5) / step) * step);
-  const yMax = Math.ceil((maxSpd + step * 0.5) / step) * step;
-  const yRange = yMax - yMin || 1;
-
-  const tMin = speedEntries[0].time;
-  const tMax = speedEntries[speedEntries.length - 1].time;
-  const tRange = tMax - tMin || 1;
-
-  function xOf(t) { return PAD_L + ((t - tMin) / tRange) * plotW; }
-  function yOf(s) { return PAD_T + plotH - ((s - yMin) / yRange) * plotH; }
-
-  // Grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.lineWidth = 0.5;
-  ctx.font = '9px JetBrains Mono, monospace';
-  ctx.fillStyle = 'rgba(180,210,255,0.4)';
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-
-  for (let spd = yMin; spd <= yMax; spd += step) {
-    const y = yOf(spd);
-    ctx.beginPath();
-    ctx.moveTo(PAD_L, y);
-    ctx.lineTo(w - PAD_R, y);
-    ctx.stroke();
-    ctx.fillText(`${spd}`, PAD_L - 4, y);
-  }
-
-  // Time axis labels (matching altitude chart)
+  // ─── Time axis ───
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillStyle = 'rgba(180,210,255,0.35)';
@@ -520,6 +385,319 @@ function renderSpeedChart() {
     const x = xOf(t);
     if (x < PAD_L + 20 || x > w - PAD_R - 20) continue;
     ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, PAD_T);
+    ctx.lineTo(x, PAD_T + plotH + VS_STRIP);
+    ctx.stroke();
+    const minsAgo = Math.round((tMax - t) / 60000);
+    ctx.fillText(minsAgo === 0 ? 'now' : `-${minsAgo}m`, x, PAD_T + plotH + VS_STRIP + 2);
+  }
+
+  // ─── Nav altitude reference line (SEL ALT) ───
+  if (navAlt != null && navAlt >= yMin && navAlt <= yMax) {
+    const yNav = yOf(navAlt);
+    ctx.strokeStyle = 'rgba(238,180,68,0.5)';
+    ctx.setLineDash([6, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, yNav);
+    ctx.lineTo(w - PAD_R, yNav);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '8px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(238,180,68,0.6)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('SEL', PAD_L + 2, yNav - 2);
+  }
+
+  // ─── Altitude fill gradient ───
+  const grad = ctx.createLinearGradient(0, PAD_T, 0, PAD_T + plotH);
+  grad.addColorStop(0, 'rgba(74,127,255,0.18)');
+  grad.addColorStop(1, 'rgba(74,127,255,0.02)');
+  ctx.beginPath();
+  let hasFirst = false;
+  for (const e of altHistory) {
+    if (e.alt == null || !isFinite(e.alt)) continue;
+    const x = xOf(e.time), y = yOf(e.alt);
+    if (!hasFirst) { ctx.moveTo(x, y); hasFirst = true; } else ctx.lineTo(x, y);
+  }
+  if (hasFirst) {
+    ctx.lineTo(xOf(tMax), PAD_T + plotH);
+    ctx.lineTo(xOf(tMin), PAD_T + plotH);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // ─── Altitude line colored by vertical rate ───
+  ctx.lineWidth = 1.8;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  for (let i = 1; i < altHistory.length; i++) {
+    const prev = altHistory[i - 1], cur = altHistory[i];
+    if (prev.alt == null || cur.alt == null || !isFinite(prev.alt) || !isFinite(cur.alt)) continue;
+    const vs = cur.vs;
+    if (vs != null && vs > 300) ctx.strokeStyle = '#ff9d4d';
+    else if (vs != null && vs < -300) ctx.strokeStyle = '#4db8ff';
+    else ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath();
+    ctx.moveTo(xOf(prev.time), yOf(prev.alt));
+    ctx.lineTo(xOf(cur.time), yOf(cur.alt));
+    ctx.stroke();
+  }
+
+  // ─── VS mini-bar strip ───
+  const vsTop = PAD_T + plotH;
+  let maxVS = 0;
+  for (const e of altHistory) {
+    if (e.vs != null) maxVS = Math.max(maxVS, Math.abs(e.vs));
+  }
+  if (maxVS > 0) {
+    const barW = Math.max(1, plotW / altHistory.length);
+    for (let i = 0; i < altHistory.length; i++) {
+      const e = altHistory[i];
+      if (e.vs == null || Math.abs(e.vs) < 100) continue;
+      const x = xOf(e.time);
+      const ratio = Math.min(1, Math.abs(e.vs) / maxVS);
+      const barH = ratio * VS_STRIP;
+      if (e.vs > 100) {
+        ctx.fillStyle = `rgba(255,157,77,${0.25 + ratio * 0.5})`;
+        ctx.fillRect(x - barW / 2, vsTop + VS_STRIP - barH, barW, barH);
+      } else {
+        ctx.fillStyle = `rgba(77,184,255,${0.25 + ratio * 0.5})`;
+        ctx.fillRect(x - barW / 2, vsTop, barW, barH);
+      }
+    }
+    ctx.font = '7px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(180,210,255,0.25)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('VS', PAD_L - 14, vsTop + VS_STRIP / 2);
+  }
+
+  // ─── Current altitude marker ───
+  if (last && last.alt != null && isFinite(last.alt)) {
+    const cx = xOf(last.time), cy = yOf(last.alt);
+    // Glow
+    ctx.beginPath();
+    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fill();
+    // Dot
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    // Value label
+    const curStr = last.alt >= 18000 ? `FL${Math.round(last.alt / 100)}` : `${Math.round(last.alt).toLocaleString()} ft`;
+    ctx.font = 'bold 10px JetBrains Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(curStr, cx - 6, cy - 5);
+    // 30s delta
+    const t30 = last.time - 30000;
+    let ref = null;
+    for (let i = altHistory.length - 1; i >= 0; i--) {
+      if (altHistory[i].time <= t30 && altHistory[i].alt != null) { ref = altHistory[i]; break; }
+    }
+    if (ref) {
+      const delta = Math.round(last.alt - ref.alt);
+      if (Math.abs(delta) >= 10) {
+        const sign = delta > 0 ? '+' : '';
+        ctx.font = '9px JetBrains Mono, monospace';
+        ctx.fillStyle = delta > 0 ? '#ff9d4d' : '#4db8ff';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`${sign}${delta} ft`, cx - 6, cy + 5);
+      }
+    }
+  }
+
+  // ─── Interactive crosshair ───
+  if (_altHoverX != null) {
+    let bestIdx = -1, bestDist = Infinity;
+    for (let i = 0; i < altHistory.length; i++) {
+      if (altHistory[i].alt == null) continue;
+      const d = Math.abs(xOf(altHistory[i].time) - _altHoverX);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    if (bestIdx >= 0 && bestDist < 40) {
+      const e = altHistory[bestIdx];
+      const hx = xOf(e.time), hy = yOf(e.alt);
+      // Vertical crosshair line
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(hx, PAD_T);
+      ctx.lineTo(hx, PAD_T + plotH + VS_STRIP);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Horizontal crosshair line
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.beginPath();
+      ctx.moveTo(PAD_L, hy);
+      ctx.lineTo(w - PAD_R, hy);
+      ctx.stroke();
+      // Highlight dot
+      ctx.beginPath();
+      ctx.arc(hx, hy, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fill();
+
+      // Tooltip
+      const minsAgo = Math.round((tMax - e.time) / 60000);
+      const timeStr = minsAgo === 0 ? 'now' : `-${minsAgo}m`;
+      const altStr = e.alt >= 18000 ? `FL${Math.round(e.alt / 100)}` : `${Math.round(e.alt).toLocaleString()} ft`;
+      const lines = [altStr + '  ' + timeStr];
+      if (e.vs != null) {
+        const arrow = e.vs > 200 ? '▲' : e.vs < -200 ? '▼' : '—';
+        lines.push(`VS ${e.vs > 0 ? '+' : ''}${e.vs} ft/m  ${arrow}`);
+      }
+      if (e.gsKts != null) lines.push(`GS ${e.gsKts} kts`);
+      if (e.mach != null) lines.push(`Mach ${e.mach.toFixed(3)}`);
+
+      ctx.font = '9px JetBrains Mono, monospace';
+      const lineH = 14;
+      const maxTW = Math.max(...lines.map(l => ctx.measureText(l).width));
+      const ttW = maxTW + 14;
+      const ttH = lines.length * lineH + 10;
+      let ttX = hx + 12;
+      if (ttX + ttW > w - 4) ttX = hx - ttW - 12;
+      let ttY = hy - ttH / 2;
+      ttY = Math.max(2, Math.min(ttY, H - ttH - 2));
+
+      roundRect(ctx, ttX, ttY, ttW, ttH, 5);
+      ctx.fillStyle = 'rgba(8,12,28,0.92)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(90,130,220,0.35)';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(220,235,255,0.9)';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], ttX + 7, ttY + 5 + i * lineH);
+      }
+    }
+  }
+}
+
+// ── P6: Speed Profile Chart (professional aviation grade) ──
+function renderSpeedChart() {
+  let canvas = document.getElementById('detail-spd-chart');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'detail-spd-chart';
+    canvas.style.cssText = 'display:none;width:100%;height:130px;margin:2px 0 4px;border-radius:8px;background:rgba(0,0,0,0.3);cursor:crosshair;';
+    const altCanvas = document.getElementById('detail-alt-chart');
+    if (altCanvas && altCanvas.parentNode) {
+      altCanvas.parentNode.insertBefore(canvas, altCanvas.nextSibling);
+    } else {
+      (panel.querySelector('.detail-body') || panel).appendChild(canvas);
+    }
+  }
+  if (!canvas._ev) {
+    canvas._ev = true;
+    const setH = x => { _spdHoverX = x; renderSpeedChart(); };
+    canvas.addEventListener('mousemove', e => setH(e.clientX - canvas.getBoundingClientRect().left));
+    canvas.addEventListener('mouseleave', () => setH(null));
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); setH(e.touches[0].clientX - canvas.getBoundingClientRect().left); }, { passive: false });
+    canvas.addEventListener('touchend', () => setH(null));
+  }
+
+  const speedEntries = altHistory.filter(e => e.gsKts != null && isFinite(e.gsKts));
+  if (speedEntries.length < 2) { canvas.style.display = 'none'; return; }
+
+  canvas.style.display = 'block';
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.round(rect.width) || 260;
+  const H = 130;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, H);
+
+  const PAD_L = 44, PAD_R = 8, PAD_T = 20, PAD_B = 16;
+  const plotW = w - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+
+  // ─── Speed range (include IAS) ───
+  let minS = Infinity, maxS = -Infinity;
+  for (const e of speedEntries) {
+    if (e.gsKts < minS) minS = e.gsKts;
+    if (e.gsKts > maxS) maxS = e.gsKts;
+    if (e.ias != null && isFinite(e.ias)) {
+      if (e.ias < minS) minS = e.ias;
+      if (e.ias > maxS) maxS = e.ias;
+    }
+  }
+  if (!isFinite(minS)) return;
+
+  const sRange = maxS - minS;
+  const step = sRange > 300 ? 100 : sRange > 100 ? 50 : 25;
+  const yMin = Math.max(0, Math.floor((minS - step * 0.5) / step) * step);
+  const yMax = Math.ceil((maxS + step * 0.5) / step) * step;
+  const yRange = yMax - yMin || 1;
+
+  const tMin = speedEntries[0].time;
+  const tMax = speedEntries[speedEntries.length - 1].time;
+  const tRange = tMax - tMin || 1;
+
+  const xOf = t => PAD_L + ((t - tMin) / tRange) * plotW;
+  const yOf = s => PAD_T + plotH - ((s - yMin) / yRange) * plotH;
+
+  // ─── Header: title + live multi-speed stats ───
+  ctx.font = 'bold 9px JetBrains Mono, monospace';
+  ctx.fillStyle = 'rgba(180,210,255,0.5)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('SPEED', PAD_L, 4);
+
+  const lastE = speedEntries[speedEntries.length - 1];
+  if (lastE) {
+    ctx.textAlign = 'right';
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(220,230,255,0.6)';
+    let stats = `GS ${lastE.gsKts}`;
+    if (lastE.ias != null) stats += `  IAS ${lastE.ias}`;
+    if (lastE.mach != null && lastE.mach >= 0.3) stats += `  M${lastE.mach.toFixed(2)}`;
+    ctx.fillText(stats, w - PAD_R, 4);
+  }
+
+  // ─── Grid lines ───
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 0.5;
+  ctx.font = '9px JetBrains Mono, monospace';
+  ctx.fillStyle = 'rgba(180,210,255,0.4)';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let s = yMin; s <= yMax; s += step) {
+    const y = yOf(s);
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, y);
+    ctx.lineTo(w - PAD_R, y);
+    ctx.stroke();
+    ctx.fillText(`${s}`, PAD_L - 4, y);
+  }
+
+  // ─── Time axis ───
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(180,210,255,0.35)';
+  const tRangeMin = tRange / 60000;
+  const tStep = tRangeMin > 20 ? 600000 : tRangeMin > 8 ? 300000 : tRangeMin > 3 ? 120000 : 60000;
+  const tStart = Math.ceil(tMin / tStep) * tStep;
+  for (let t = tStart; t <= tMax; t += tStep) {
+    const x = xOf(t);
+    if (x < PAD_L + 20 || x > w - PAD_R - 20) continue;
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 0.5;
     ctx.beginPath();
     ctx.moveTo(x, PAD_T);
     ctx.lineTo(x, PAD_T + plotH);
@@ -528,13 +706,14 @@ function renderSpeedChart() {
     ctx.fillText(minsAgo === 0 ? 'now' : `-${minsAgo}m`, x, PAD_T + plotH + 2);
   }
 
-  // 250kt speed limit line (below FL180 / 10000ft)
-  const lastEntry = altHistory[altHistory.length - 1];
-  const lastAlt = lastEntry?.alt;
-  if (lastAlt != null && lastAlt < 18000 && yMin <= 250 && yMax >= 250) {
+  // ─── 250kt restriction zone (shaded + dashed line) ───
+  const lastAlt = altHistory[altHistory.length - 1]?.alt;
+  if (lastAlt != null && lastAlt < 18000 && yMin < 250 && yMax > 250) {
     const y250 = yOf(250);
-    ctx.strokeStyle = 'rgba(232,68,68,0.5)';
-    ctx.setLineDash([4, 3]);
+    ctx.fillStyle = 'rgba(232,68,68,0.06)';
+    ctx.fillRect(PAD_L, PAD_T, plotW, y250 - PAD_T);
+    ctx.strokeStyle = 'rgba(232,68,68,0.45)';
+    ctx.setLineDash([5, 3]);
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(PAD_L, y250);
@@ -542,14 +721,41 @@ function renderSpeedChart() {
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.font = '8px JetBrains Mono, monospace';
-    ctx.fillStyle = 'rgba(232,68,68,0.6)';
+    ctx.fillStyle = 'rgba(232,68,68,0.55)';
     ctx.textAlign = 'left';
-    ctx.fillText('250kt limit', PAD_L + 2, y250 - 4);
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('250 KT LIMIT', PAD_L + 3, y250 - 2);
   }
 
-  // Speed fill gradient
+  // ─── IAS line (thin dashed, green) ───
+  const iasEntries = speedEntries.filter(e => e.ias != null && isFinite(e.ias));
+  if (iasEntries.length > 1) {
+    ctx.strokeStyle = 'rgba(120,220,160,0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    let firstIAS = true;
+    for (const e of iasEntries) {
+      const x = xOf(e.time), y = yOf(e.ias);
+      if (firstIAS) { ctx.moveTo(x, y); firstIAS = false; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const liAS = iasEntries[iasEntries.length - 1];
+    const iasLabelX = xOf(liAS.time) + 4;
+    if (iasLabelX < w - 30) {
+      ctx.font = '8px JetBrains Mono, monospace';
+      ctx.fillStyle = 'rgba(120,220,160,0.5)';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('IAS', iasLabelX, yOf(liAS.ias));
+    }
+  }
+
+  // ─── GS fill gradient ───
   const grad = ctx.createLinearGradient(0, PAD_T, 0, PAD_T + plotH);
-  grad.addColorStop(0, 'rgba(238,136,51,0.12)');
+  grad.addColorStop(0, 'rgba(238,136,51,0.14)');
   grad.addColorStop(1, 'rgba(238,136,51,0.02)');
   ctx.beginPath();
   let hasFirst = false;
@@ -558,22 +764,22 @@ function renderSpeedChart() {
     if (!hasFirst) { ctx.moveTo(x, y); hasFirst = true; } else ctx.lineTo(x, y);
   }
   if (hasFirst) {
-    ctx.lineTo(xOf(speedEntries[speedEntries.length - 1].time), PAD_T + plotH);
-    ctx.lineTo(xOf(speedEntries[0].time), PAD_T + plotH);
+    ctx.lineTo(xOf(tMax), PAD_T + plotH);
+    ctx.lineTo(xOf(tMin), PAD_T + plotH);
     ctx.closePath();
     ctx.fillStyle = grad;
     ctx.fill();
   }
 
-  // Speed line — colored by acceleration
-  ctx.lineWidth = 1.5;
+  // ─── GS line colored by acceleration ───
+  ctx.lineWidth = 1.8;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   for (let i = 1; i < speedEntries.length; i++) {
     const prev = speedEntries[i - 1], cur = speedEntries[i];
     const accel = cur.gsKts - prev.gsKts;
-    if (accel > 5) ctx.strokeStyle = '#ff9d4d'; // accelerating
-    else if (accel < -5) ctx.strokeStyle = '#4db8ff'; // decelerating
+    if (accel > 5) ctx.strokeStyle = '#ff9d4d';
+    else if (accel < -5) ctx.strokeStyle = '#4db8ff';
     else ctx.strokeStyle = 'rgba(255,255,255,0.75)';
     ctx.beginPath();
     ctx.moveTo(xOf(prev.time), yOf(prev.gsKts));
@@ -581,39 +787,109 @@ function renderSpeedChart() {
     ctx.stroke();
   }
 
-  // Current speed marker (right edge)
-  const last = speedEntries[speedEntries.length - 1];
-  if (last.gsKts != null && isFinite(last.gsKts)) {
-    const cx = xOf(last.time), cy = yOf(last.gsKts);
-
-    // Dot
+  // ─── Current speed marker ───
+  if (lastE && lastE.gsKts != null && isFinite(lastE.gsKts)) {
+    const cx = xOf(lastE.time), cy = yOf(lastE.gsKts);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(238,136,51,0.15)';
+    ctx.fill();
     ctx.beginPath();
     ctx.arc(cx, cy, 3, 0, Math.PI * 2);
     ctx.fillStyle = '#ee8833';
     ctx.fill();
-
-    // Current speed value label
     ctx.font = 'bold 10px JetBrains Mono, monospace';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'bottom';
     ctx.fillStyle = '#ee8833';
-    ctx.fillText(`${last.gsKts} kts`, cx - 6, cy - 4);
-
-    // Show recent change (delta from 30s ago)
-    const t30sAgo = last.time - 30000;
-    let refEntry = null;
+    ctx.fillText(`${lastE.gsKts} kts`, cx - 6, cy - 5);
+    // 30s delta
+    const t30 = lastE.time - 30000;
+    let ref = null;
     for (let i = speedEntries.length - 1; i >= 0; i--) {
-      if (speedEntries[i].time <= t30sAgo && speedEntries[i].gsKts != null) { refEntry = speedEntries[i]; break; }
+      if (speedEntries[i].time <= t30 && speedEntries[i].gsKts != null) { ref = speedEntries[i]; break; }
     }
-    if (refEntry) {
-      const delta = Math.round(last.gsKts - refEntry.gsKts);
+    if (ref) {
+      const delta = Math.round(lastE.gsKts - ref.gsKts);
       if (Math.abs(delta) >= 2) {
         const sign = delta > 0 ? '+' : '';
-        const color = delta > 0 ? '#ff9d4d' : '#4db8ff';
         ctx.font = '9px JetBrains Mono, monospace';
-        ctx.fillStyle = color;
+        ctx.fillStyle = delta > 0 ? '#ff9d4d' : '#4db8ff';
         ctx.textBaseline = 'top';
-        ctx.fillText(`${sign}${delta} kts/30s`, cx - 6, cy + 4);
+        ctx.fillText(`${sign}${delta} kts`, cx - 6, cy + 5);
+      }
+    }
+  }
+
+  // ─── Interactive crosshair ───
+  if (_spdHoverX != null) {
+    let bestIdx = -1, bestDist = Infinity;
+    for (let i = 0; i < speedEntries.length; i++) {
+      const d = Math.abs(xOf(speedEntries[i].time) - _spdHoverX);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    if (bestIdx >= 0 && bestDist < 40) {
+      const e = speedEntries[bestIdx];
+      const hx = xOf(e.time), hy = yOf(e.gsKts);
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(hx, PAD_T);
+      ctx.lineTo(hx, PAD_T + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.beginPath();
+      ctx.moveTo(PAD_L, hy);
+      ctx.lineTo(w - PAD_R, hy);
+      ctx.stroke();
+      // GS dot
+      ctx.beginPath();
+      ctx.arc(hx, hy, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(238,136,51,0.8)';
+      ctx.fill();
+      // IAS dot
+      if (e.ias != null && isFinite(e.ias)) {
+        ctx.beginPath();
+        ctx.arc(hx, yOf(e.ias), 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(120,220,160,0.7)';
+        ctx.fill();
+      }
+
+      // Tooltip
+      const minsAgo = Math.round((tMax - e.time) / 60000);
+      const timeStr = minsAgo === 0 ? 'now' : `-${minsAgo}m`;
+      const lines = [`GS ${e.gsKts} kts  ${timeStr}`];
+      if (e.ias != null) lines.push(`IAS ${e.ias} kts`);
+      if (e.mach != null && e.mach >= 0.3) lines.push(`Mach ${e.mach.toFixed(3)}`);
+      if (e.alt != null) {
+        const aStr = e.alt >= 18000 ? `FL${Math.round(e.alt / 100)}` : `${Math.round(e.alt).toLocaleString()} ft`;
+        lines.push(aStr);
+      }
+
+      ctx.font = '9px JetBrains Mono, monospace';
+      const lineH = 14;
+      const maxTW = Math.max(...lines.map(l => ctx.measureText(l).width));
+      const ttW = maxTW + 14;
+      const ttH = lines.length * lineH + 10;
+      let ttX = hx + 12;
+      if (ttX + ttW > w - 4) ttX = hx - ttW - 12;
+      let ttY = hy - ttH / 2;
+      ttY = Math.max(2, Math.min(ttY, H - ttH - 2));
+
+      roundRect(ctx, ttX, ttY, ttW, ttH, 5);
+      ctx.fillStyle = 'rgba(8,12,28,0.92)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(90,130,220,0.35)';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(220,235,255,0.9)';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], ttX + 7, ttY + 5 + i * lineH);
       }
     }
   }
@@ -663,8 +939,14 @@ export function showDetail(aircraftObj, userLat, userLon) {
       const liveGsKts = dd.gsKts != null ? dd.gsKts
         : (sd.groundSpeed != null ? Math.round(sd.groundSpeed)
         : (sd.velocity != null ? Math.round(sd.velocity * 1.94384) : null));
-      // Always push live sample (1s resolution)
-      altHistory.push({ time: Date.now(), alt: altFt, speed: sd.velocity, vs: vsFtMin, gsKts: liveGsKts, _live: true });
+      // Always push live sample (1s resolution) with full aviation data
+      altHistory.push({
+        time: Date.now(), alt: altFt, vs: vsFtMin, gsKts: liveGsKts,
+        ias: dd.ias || null, tas: dd.tas || null,
+        mach: dd.mach ? parseFloat(dd.mach) : null,
+        navAlt: dd.navAlt || null,
+        _live: true,
+      });
       if (altHistory.length > ALT_HISTORY_MAX) altHistory.shift();
       renderAltChart();
       renderSpeedChart();

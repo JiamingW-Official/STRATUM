@@ -1897,7 +1897,18 @@ class AircraftObject {
             gsKts = Math.round(distKm / dt * 3600 * 0.539957); // km/s → kts
           }
         }
-        entries.push({ time: wp.time * 1000, alt: altFt, vs, gsKts });
+        // Compute IAS/Mach from GS + altitude (same formulas as getDisplayData)
+        let ias = null, mach = null;
+        if (gsKts != null && gsKts > 50 && altFt > 1000) {
+          const tempK = altFt < 36089 ? 288.15 - 0.00198 * altFt : 216.65;
+          const sos = 661.5 * Math.sqrt(tempK / 288.15);
+          mach = parseFloat((gsKts / sos).toFixed(3));
+          const sigma = altFt < 36089
+            ? Math.pow(1 - altFt / 145442, 4.256)
+            : 0.2971 * Math.exp(-(altFt - 36089) / 20806);
+          ias = Math.round(gsKts * Math.sqrt(sigma));
+        }
+        entries.push({ time: wp.time * 1000, alt: altFt, vs, gsKts, ias, mach });
       }
     }
 
