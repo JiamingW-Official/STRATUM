@@ -223,6 +223,16 @@ if (elSpdLabel) {
 
 elClose.addEventListener('click', () => closeDetail());
 
+// Click-to-copy on any flight data cell value
+panel.addEventListener('click', (e) => {
+  const cell = e.target.closest('.detail-cell');
+  if (!cell) return;
+  const val = cell.querySelector('.detail-value');
+  if (val && val.textContent && val.textContent !== '--') {
+    navigator.clipboard.writeText(val.textContent).then(() => showToast('Copied: ' + val.textContent));
+  }
+});
+
 // Flash animation when a numeric value changes
 function flashUpdate(el, newText) {
   if (!el) return;
@@ -1117,13 +1127,18 @@ export function showDetail(aircraftObj, userLat, userLon) {
   const bestAltFt = d._bestAltFt != null ? d._bestAltFt : (d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null);
   if (bestAltFt != null) {
     const altStr = bestAltFt >= 18000 ? `FL${Math.round(bestAltFt / 100)}` : `${bestAltFt.toLocaleString()} ft`;
-    // T1-02: Altitude trend arrow
-    const vs = d.verticalSpeed || '';
-    let arrow = '';
-    if (vs && vs.includes('+') && parseInt(vs) > 300) arrow = ' ▲';
-    else if (vs && vs.includes('-') && parseInt(vs) < -300) arrow = ' ▼';
-    else if (vs && vs !== '--') arrow = ' —';
-    flashUpdate(elAlt, altStr + arrow);
+    flashUpdate(elAlt, altStr);
+    // Micro-tooltip: baro vs geo comparison
+    const altCell = elAlt.closest('.detail-cell');
+    if (altCell) {
+      const geoFt = d.geoAltFt;
+      if (geoFt != null && bestAltFt != null) {
+        const delta = geoFt - bestAltFt;
+        altCell.setAttribute('data-tip', `Baro ${bestAltFt.toLocaleString()}ft · Geo ${geoFt.toLocaleString()}ft (${delta >= 0 ? '+' : ''}${delta}ft)`);
+      } else {
+        altCell.setAttribute('data-tip', `${bestAltFt.toLocaleString()} ft barometric`);
+      }
+    }
   } else {
     flashUpdate(elAlt, '--');
   }
@@ -1132,37 +1147,66 @@ export function showDetail(aircraftObj, userLat, userLon) {
   if (d._rawSpd != null) {
     const kts = d.gsKts != null ? d.gsKts : Math.round(d._rawSpd * 1.94384);
     flashUpdate(elSpd, convertSpeed(kts, SPEED_UNITS[speedUnitIdx]));
+    // Micro-tooltip: multi-speed comparison
+    const spdCell = elSpd.closest('.detail-cell');
+    if (spdCell) {
+      let tip = `GS ${kts} kts`;
+      if (d.ias != null) tip += ` · IAS ${d.ias}`;
+      if (d.tas != null) tip += ` · TAS ${d.tas}`;
+      if (d.mach != null) tip += ` · M${d.mach}`;
+      spdCell.setAttribute('data-tip', tip);
+    }
   } else {
     flashUpdate(elSpd, '--');
   }
 
   flashUpdate(elHdg, d.heading);
+  // HDG tooltip
+  const hdgCell = elHdg.closest('.detail-cell');
+  if (hdgCell && d.heading && d.heading !== '--') {
+    const hdgDeg = parseInt(d.heading);
+    if (!isNaN(hdgDeg)) {
+      const card = headingToCardinal(hdgDeg);
+      hdgCell.setAttribute('data-tip', `${hdgDeg}° ${card} true`);
+    }
+  }
 
+  // V/S with climb/descent color class
   const vsText = d.verticalSpeed;
   flashUpdate(elVs, vsText);
+  elVs.classList.remove('vs-climb', 'vs-descent');
+  elVs.style.color = '';
   if (d.status === 'CLIMBING') {
-    elVs.style.color = 'var(--climb)';
+    elVs.classList.add('vs-climb');
   } else if (d.status === 'DESCENDING') {
-    elVs.style.color = 'var(--descend)';
-  } else {
-    elVs.style.color = '';
+    elVs.classList.add('vs-descent');
+  }
+  // VS tooltip
+  const vsCell = elVs.closest('.detail-cell');
+  if (vsCell && vsText && vsText !== '--') {
+    const vsFpm = parseInt(vsText.replace(/[+,]/g, ''));
+    if (!isNaN(vsFpm)) {
+      const msVal = Math.round(vsFpm * 0.00508 * 100) / 100;
+      vsCell.setAttribute('data-tip', `${vsFpm > 0 ? '+' : ''}${vsFpm} ft/min · ${msVal.toFixed(1)} m/s`);
+    }
   }
 
   // Extended flight data (IAS, TAS, Mach, Geometric Alt)
   const hasExtData = d.ias != null || d.tas != null || d.mach != null || d.geoAltFt != null;
   if (hasExtData && elExtGrid) {
     elExtGrid.classList.remove('hidden');
-    flashUpdate(elIas, d.ias != null ? `${d.ias} kts` : '--');
-    flashUpdate(elTas, d.tas != null ? `${d.tas} kts` : '--');
-    flashUpdate(elMach, d.mach != null ? `M${d.mach}` : '--');
+    flashUpdate(elIas, d.ias != null ? `${d.ias}` : '--');
+    flashUpdate(elTas, d.tas != null ? `${d.tas}` : '--');
+    flashUpdate(elMach, d.mach != null ? `${d.mach}` : '--');
     if (d.geoAltFt != null) {
-      const geoStr = d.geoAltFt >= 18000 ? `FL${Math.round(d.geoAltFt / 100)}` : `${d.geoAltFt.toLocaleString()} ft`;
-      // Show altitude delta (geo - baro) — indicates pressure deviation
+      const geoStr = d.geoAltFt >= 18000 ? `FL${Math.round(d.geoAltFt / 100)}` : `${d.geoAltFt.toLocaleString()}`;
       const altFtBaro = d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null;
       if (altFtBaro != null) {
         const delta = d.geoAltFt - altFtBaro;
         const sign = delta >= 0 ? '+' : '';
-        flashUpdate(elGeoAlt, `${geoStr} (${sign}${delta} ft)`);
+        flashUpdate(elGeoAlt, `${geoStr}`);
+        const geoCell = elGeoAlt.closest('.detail-cell');
+        if (geoCell) geoCell.setAttribute('data-tip', `Geo ${d.geoAltFt.toLocaleString()}ft · Baro delta ${sign}${delta}ft`);
       } else {
         flashUpdate(elGeoAlt, geoStr);
       }
