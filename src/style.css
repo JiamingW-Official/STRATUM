@@ -2497,7 +2497,7 @@ html, body {
 
 /* TCAS widget — left center */
 .tcas-widget {
-  left: var(--edge); top: 50%;
+  left: var(--edge); top: 58%;
   transform: translateY(-50%);
   right: auto; bottom: auto;
   max-height: 280px; overflow: hidden;
