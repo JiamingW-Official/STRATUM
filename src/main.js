@@ -1145,15 +1145,6 @@ const BLOOM_LABELS = ['SUBTLE', 'NORMAL', 'CINEMATIC'];
 let distanceRingsVisible = false;
 let distanceRingsGroup = null;
 
-// ── Flight Corridor Heatmap ──
-const HEATMAP_GRID = 160;
-let _heatmapOn = false;
-let _heatmapGrid = null;    // Float32Array HEATMAP_GRID×HEATMAP_GRID
-let _heatmapMax = 1;
-let _heatmapMesh = null;
-let _heatmapCanvas = null;
-let _heatmapTex = null;
-let _heatmapLastDraw = 0;
 // ── Unified filter state ──
 const filterState = {
   altPreset: 'ALL',       // GND | TERMINAL | TRANS | HIGH | ALL
@@ -1315,14 +1306,6 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'g') {
     distanceRingsVisible = !distanceRingsVisible;
     toggleDistanceRings();
-    return;
-  }
-
-  // Flight corridor heatmap
-  else if (k === 'm') {
-    _heatmapOn = !_heatmapOn;
-    if (_heatmapOn) { _clearHeatmap(); _initHeatmap(); }
-    else _clearHeatmap();
     return;
   }
 
@@ -1794,80 +1777,6 @@ function toggleDistanceRings() {
   scene.add(distanceRingsGroup);
 }
 
-// ── Flight Corridor Heatmap ──
-function _initHeatmap() {
-  _heatmapGrid = new Float32Array(HEATMAP_GRID * HEATMAP_GRID);
-  _heatmapMax = 1;
-  _heatmapCanvas = document.createElement('canvas');
-  _heatmapCanvas.width = HEATMAP_GRID;
-  _heatmapCanvas.height = HEATMAP_GRID;
-  _heatmapTex = new THREE.CanvasTexture(_heatmapCanvas);
-  _heatmapTex.minFilter = THREE.LinearFilter;
-  _heatmapTex.magFilter = THREE.LinearFilter;
-  // Ground plane covering ~50nm radius (scene coords)
-  const size = (50 * 1.852 / 111) * 40 * 2; // 50nm each side
-  const geo = new THREE.PlaneGeometry(size, size);
-  const mat = new THREE.MeshBasicMaterial({
-    map: _heatmapTex, transparent: true, opacity: 0.75,
-    depthWrite: false, side: THREE.DoubleSide,
-  });
-  _heatmapMesh = new THREE.Mesh(geo, mat);
-  _heatmapMesh.rotation.x = -Math.PI / 2;
-  _heatmapMesh.position.y = 0.003;
-  scene.add(_heatmapMesh);
-}
-
-function _clearHeatmap() {
-  if (_heatmapMesh) {
-    scene.remove(_heatmapMesh);
-    _heatmapMesh.geometry.dispose();
-    _heatmapMesh.material.dispose();
-    _heatmapMesh = null;
-  }
-  if (_heatmapTex) { _heatmapTex.dispose(); _heatmapTex = null; }
-  _heatmapGrid = null;
-  _heatmapCanvas = null;
-}
-
-function _accumulateHeatmap(elapsed) {
-  if (!_heatmapOn || !_heatmapGrid || !aircraftManager) return;
-  const halfSize = (50 * 1.852 / 111) * 40; // scene units for 50nm
-  // Accumulate aircraft positions into grid
-  for (const ac of aircraftManager.aircraft.values()) {
-    if (ac.fadingOut || ac.masterOpacity < 0.3) continue;
-    const pos = ac.group.position;
-    const gx = Math.floor(((pos.x + halfSize) / (halfSize * 2)) * HEATMAP_GRID);
-    const gz = Math.floor(((-pos.z + halfSize) / (halfSize * 2)) * HEATMAP_GRID);
-    if (gx < 0 || gx >= HEATMAP_GRID || gz < 0 || gz >= HEATMAP_GRID) continue;
-    const idx = gz * HEATMAP_GRID + gx;
-    _heatmapGrid[idx] += 1;
-    if (_heatmapGrid[idx] > _heatmapMax) _heatmapMax = _heatmapGrid[idx];
-  }
-  // Redraw texture every 2 seconds
-  if (elapsed - _heatmapLastDraw < 2.0) return;
-  _heatmapLastDraw = elapsed;
-  const ctx = _heatmapCanvas.getContext('2d');
-  const img = ctx.createImageData(HEATMAP_GRID, HEATMAP_GRID);
-  const logMax = Math.log1p(_heatmapMax);
-  const inv = logMax > 0 ? 1 / logMax : 1;
-  for (let i = 0; i < HEATMAP_GRID * HEATMAP_GRID; i++) {
-    const raw = _heatmapGrid[i];
-    const i4 = i * 4;
-    if (raw < 0.5) { img.data[i4] = 0; img.data[i4+1] = 0; img.data[i4+2] = 0; img.data[i4+3] = 0; continue; }
-    // Log scale — makes low-density areas visible much sooner
-    const v = Math.min(Math.log1p(raw) * inv, 1);
-    // Color ramp: deep blue → cyan → yellow → red
-    let r, g, b;
-    if (v < 0.25) { const t = v / 0.25; r = 0; g = t * 140; b = 100 + t * 120; }
-    else if (v < 0.5) { const t = (v - 0.25) / 0.25; r = t * 60; g = 140 + t * 115; b = 220 - t * 100; }
-    else if (v < 0.75) { const t = (v - 0.5) / 0.25; r = 60 + t * 195; g = 255 - t * 55; b = 120 - t * 120; }
-    else { const t = (v - 0.75) / 0.25; r = 255; g = 200 - t * 200; b = 0; }
-    img.data[i4] = r; img.data[i4+1] = g; img.data[i4+2] = b;
-    img.data[i4+3] = Math.min(v * 2.5, 1) * 220; // stronger alpha
-  }
-  ctx.putImageData(img, 0, 0);
-  _heatmapTex.needsUpdate = true;
-}
 
 // ── T3-13: Flight history log ──
 function addToHistory(d) {
@@ -2547,7 +2456,7 @@ function _recordSessionSnapshot(elapsed) {
 
 function _toggleSessionReplay() {
   if (_sessionReplayOn) { _stopSessionReplay(); return; }
-  if (_sessionSnapshots.length < 3) return; // need some data
+  if (_sessionSnapshots.length < 24) return; // need ~2 min of data (24 × 5s)
   _sessionReplayOn = true;
   _sessionReplayIdx = 0;
 
@@ -2728,7 +2637,6 @@ function animate() {
   if (aircraftManager) {
     aircraftManager.animate(delta, elapsed, camera);
     aircraftManager.animateSelection(elapsed);
-    _accumulateHeatmap(elapsed);
     _recordSessionSnapshot(elapsed);
   }
 
