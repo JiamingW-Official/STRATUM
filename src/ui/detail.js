@@ -297,8 +297,8 @@ function renderAltChart() {
   if (altHistory.length < 2) { canvas.style.display = 'none'; return; }
 
   canvas.style.display = 'block';
-  const rect = canvas.getBoundingClientRect();
-  const w = Math.round(rect.width) || 260;
+  let w = Math.round(canvas.getBoundingClientRect().width);
+  if (!w) { void canvas.offsetWidth; w = Math.round(canvas.getBoundingClientRect().width) || 260; }
   const H = 130;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr;
@@ -603,9 +603,12 @@ function renderSpeedChart() {
     canvas = document.createElement('canvas');
     canvas.id = 'detail-spd-chart';
     canvas.style.cssText = 'display:none;width:100%;height:130px;margin:2px 0 4px;border-radius:8px;background:rgba(0,0,0,0.3);cursor:crosshair;';
+    // Insert after alt chart if it exists, otherwise after progress bar, otherwise append to body
     const altCanvas = document.getElementById('detail-alt-chart');
-    if (altCanvas && altCanvas.parentNode) {
-      altCanvas.parentNode.insertBefore(canvas, altCanvas.nextSibling);
+    const progressEl = document.getElementById('detail-progress');
+    const insertAfter = altCanvas || progressEl;
+    if (insertAfter && insertAfter.parentNode) {
+      insertAfter.parentNode.insertBefore(canvas, insertAfter.nextSibling);
     } else {
       (panel.querySelector('.detail-body') || panel).appendChild(canvas);
     }
@@ -623,8 +626,8 @@ function renderSpeedChart() {
   if (speedEntries.length < 2) { canvas.style.display = 'none'; return; }
 
   canvas.style.display = 'block';
-  const rect = canvas.getBoundingClientRect();
-  const w = Math.round(rect.width) || 260;
+  let w = Math.round(canvas.getBoundingClientRect().width);
+  if (!w) { void canvas.offsetWidth; w = Math.round(canvas.getBoundingClientRect().width) || 260; }
   const H = 130;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr;
@@ -964,7 +967,8 @@ export function showDetail(aircraftObj, userLat, userLon) {
     pushSample();
     _altHistoryTimer = setInterval(pushSample, 1000); // 1s updates
   } else {
-    // Timer already running — re-seed immediately (trace data may have arrived)
+    // Timer already running but aircraft changed — clear old data and re-seed
+    altHistory.length = 0;
     _altHistorySeeded = false;
     seedFromTrack();
   }
@@ -1685,6 +1689,8 @@ export function closeDetail() {
   // T3-03: Stop altitude history sampling
   if (_altHistoryTimer) { clearInterval(_altHistoryTimer); _altHistoryTimer = null; }
   altHistory.length = 0;
+  _altHistorySeeded = false;
+  _seedFromTrack = null;
   const altCanvas = document.getElementById('detail-alt-chart');
   if (altCanvas) altCanvas.style.display = 'none';
   const spdCanvas = document.getElementById('detail-spd-chart');

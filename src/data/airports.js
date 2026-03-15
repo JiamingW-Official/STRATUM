@@ -136,6 +136,11 @@ function parseOverpassData(data) {
   const taxiways = [];
   const terminals = [];
 
+  if (!data || !Array.isArray(data.elements)) {
+    console.warn('[STRATUM] Overpass response missing elements array');
+    return { airports: [], runways: [], taxiways: [], terminals: [] };
+  }
+
   for (const el of data.elements) {
     // Aerodrome nodes/ways/relations
     if (el.tags?.aeroway === 'aerodrome') {
