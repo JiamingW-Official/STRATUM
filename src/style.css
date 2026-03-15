@@ -910,7 +910,9 @@ html, body {
 .aw-ad-col {
   flex: 1; display: flex; flex-direction: column; align-items: center;
   padding: 6px 4px; border-radius: var(--r-sm);
+  transition: background 0.2s ease;
 }
+.aw-ad-col:hover { background: rgba(255,255,255,0.025); }
 .aw-ad-label {
   font-family: var(--font-mono); font-size: 7px; letter-spacing: 1.8px;
   text-transform: uppercase; margin-bottom: 3px;

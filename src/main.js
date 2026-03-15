@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderFuelRangeRing, clearFuelRangeRing, getRunwayThresholdTargets } from './scene/environment.js';
-import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
+import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic, setSunState } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
@@ -847,24 +847,56 @@ function showAirportWidget(airport, arrivals, departures) {
     hourData[r.hour].dep = Math.max(hourData[r.hour].dep, r.dep);
     hourData[r.hour].count++;
   }
-  const hours = Object.keys(hourData).map(Number).sort((a, b) => a - b);
-  if (hours.length > 0) {
-    const maxTraffic = Math.max(...hours.map(h => hourData[h].arr + hourData[h].dep), 1);
-    let html = '<div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:3px">SESSION ACTIVITY</div>';
-    html += '<div style="display:flex;align-items:flex-end;gap:2px;height:24px">';
-    for (const h of hours) {
-      const total = hourData[h].arr + hourData[h].dep;
-      const pct = Math.round(total / maxTraffic * 100);
-      const arrPct = total > 0 ? Math.round(hourData[h].arr / total * 100) : 50;
-      html += `<div title="${String(h).padStart(2,'0')}:00 — ${hourData[h].arr} arr / ${hourData[h].dep} dep" style="flex:1;height:${Math.max(pct, 8)}%;min-width:8px;border-radius:2px 2px 0 0;background:linear-gradient(to top, #ee8833 ${100 - arrPct}%, #5aacff ${100 - arrPct}%);opacity:0.6"></div>`;
+  // Render pulse clock — 24h SVG ring
+  const maxTraffic = Math.max(...Object.values(hourData).map(h => h.arr + h.dep), 1);
+  const cx = 50, cy = 50, r = 38, rInner = 26;
+  let arcs = '';
+  for (let h = 0; h < 24; h++) {
+    const d = hourData[h];
+    if (!d) continue;
+    const total = d.arr + d.dep;
+    if (total === 0) continue;
+    const startAngle = (h / 24) * Math.PI * 2 - Math.PI / 2;
+    const endAngle = ((h + 1) / 24) * Math.PI * 2 - Math.PI / 2;
+    const gap = 0.02;
+    const sa = startAngle + gap, ea = endAngle - gap;
+    // Arrival arc (outer)
+    const arrH = d.arr / maxTraffic;
+    const arrR = rInner + (r - rInner) * arrH;
+    arcs += `<path d="${_svgArc(cx, cy, rInner, arrR, sa, ea)}" fill="rgba(90,172,255,${0.3 + arrH * 0.5})" />`;
+    // Departure arc (outer, stacked)
+    if (d.dep > 0) {
+      const depH = d.dep / maxTraffic;
+      const depR = rInner + (r - rInner) * depH;
+      arcs += `<path d="${_svgArc(cx, cy, rInner, depR, sa, ea)}" fill="rgba(232,131,51,${0.2 + depH * 0.4})" />`;
     }
-    html += '</div>';
-    html += `<div style="display:flex;justify-content:space-between;font-size:6px;color:rgba(255,255,255,0.25);margin-top:1px">
-      <span>${String(hours[0]).padStart(2,'0')}:00</span><span>${String(hours[hours.length-1]).padStart(2,'0')}:00</span>
-    </div>`;
-    html += '<div style="display:flex;gap:8px;font-size:7px;margin-top:2px"><span style="color:#5aacff">ARR</span><span style="color:#ee8833">DEP</span></div>';
-    activityEl.innerHTML = html;
   }
+  // Current time pointer
+  const now = new Date();
+  const nowFrac = (now.getHours() + now.getMinutes() / 60) / 24;
+  const pAngle = nowFrac * Math.PI * 2 - Math.PI / 2;
+  const px1 = cx + Math.cos(pAngle) * (rInner - 2), py1 = cy + Math.sin(pAngle) * (rInner - 2);
+  const px2 = cx + Math.cos(pAngle) * (r + 3), py2 = cy + Math.sin(pAngle) * (r + 3);
+  // Hour ticks
+  let ticks = '';
+  for (let h = 0; h < 24; h += 6) {
+    const a = (h / 24) * Math.PI * 2 - Math.PI / 2;
+    const tx1 = cx + Math.cos(a) * (r + 1), ty1 = cy + Math.sin(a) * (r + 1);
+    const tx2 = cx + Math.cos(a) * (r + 4), ty2 = cy + Math.sin(a) * (r + 4);
+    ticks += `<line x1="${tx1}" y1="${ty1}" x2="${tx2}" y2="${ty2}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>`;
+    const lx = cx + Math.cos(a) * (r + 8), ly = cy + Math.sin(a) * (r + 8);
+    ticks += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="central" fill="rgba(255,255,255,0.2)" font-size="5" font-family="var(--font-mono)">${String(h).padStart(2,'0')}</text>`;
+  }
+  activityEl.innerHTML = `
+    <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:2px;text-align:center">PULSE</div>
+    <svg viewBox="0 0 100 100" style="width:80px;height:80px;display:block;margin:0 auto">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="${r - rInner}"/>
+      ${arcs}${ticks}
+      <line x1="${px1}" y1="${py1}" x2="${px2}" y2="${py2}" stroke="rgba(196,160,88,0.6)" stroke-width="0.8" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="1.5" fill="rgba(196,160,88,0.4)"/>
+    </svg>
+    <div style="display:flex;justify-content:center;gap:8px;font-size:7px;margin-top:2px"><span style="color:rgba(90,172,255,0.7)">ARR</span><span style="color:rgba(232,131,51,0.7)">DEP</span></div>
+  `;
 
   // Radio button — show only if feeds available for this airport
   const radioBtn = document.getElementById('aw-radio-btn');
@@ -884,6 +916,16 @@ function showAirportWidget(airport, arrivals, departures) {
 
 // I2: Airport activity session store
 const _airportActivity = {};
+
+// SVG arc path helper for pulse clock
+function _svgArc(cx, cy, rInner, rOuter, startAngle, endAngle) {
+  const x1o = cx + Math.cos(startAngle) * rOuter, y1o = cy + Math.sin(startAngle) * rOuter;
+  const x2o = cx + Math.cos(endAngle) * rOuter, y2o = cy + Math.sin(endAngle) * rOuter;
+  const x1i = cx + Math.cos(endAngle) * rInner, y1i = cy + Math.sin(endAngle) * rInner;
+  const x2i = cx + Math.cos(startAngle) * rInner, y2i = cy + Math.sin(startAngle) * rInner;
+  const large = endAngle - startAngle > Math.PI ? 1 : 0;
+  return `M${x1o},${y1o} A${rOuter},${rOuter} 0 ${large} 1 ${x2o},${y2o} L${x1i},${y1i} A${rInner},${rInner} 0 ${large} 0 ${x2i},${y2i} Z`;
+}
 
 function hideAirportWidget() {
   const w = document.getElementById('airport-widget');
@@ -1102,6 +1144,16 @@ const BLOOM_PRESETS = [0.35, 0.65, 1.2];
 const BLOOM_LABELS = ['SUBTLE', 'NORMAL', 'CINEMATIC'];
 let distanceRingsVisible = false;
 let distanceRingsGroup = null;
+
+// ── Flight Corridor Heatmap ──
+const HEATMAP_GRID = 160;
+let _heatmapOn = false;
+let _heatmapGrid = null;    // Float32Array HEATMAP_GRID×HEATMAP_GRID
+let _heatmapMax = 1;
+let _heatmapMesh = null;
+let _heatmapCanvas = null;
+let _heatmapTex = null;
+let _heatmapLastDraw = 0;
 // ── Unified filter state ──
 const filterState = {
   altPreset: 'ALL',       // GND | TERMINAL | TRANS | HIGH | ALL
@@ -1266,6 +1318,14 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  // Flight corridor heatmap
+  else if (k === 'm') {
+    _heatmapOn = !_heatmapOn;
+    if (_heatmapOn) { _clearHeatmap(); _initHeatmap(); }
+    else _clearHeatmap();
+    return;
+  }
+
   // T3-13: Flight history log
   else if (k === 'h') {
     toggleHistoryOverlay();
@@ -1280,6 +1340,12 @@ document.addEventListener('keydown', (e) => {
     } else if (activeCity) {
       showAirportNotes(activeCity.code);
     }
+    return;
+  }
+
+  // Session replay (V key)
+  else if (k === 'v') {
+    _toggleSessionReplay();
     return;
   }
 
@@ -1726,6 +1792,78 @@ function toggleDistanceRings() {
     distanceRingsGroup.add(ring);
   }
   scene.add(distanceRingsGroup);
+}
+
+// ── Flight Corridor Heatmap ──
+function _initHeatmap() {
+  _heatmapGrid = new Float32Array(HEATMAP_GRID * HEATMAP_GRID);
+  _heatmapMax = 1;
+  _heatmapCanvas = document.createElement('canvas');
+  _heatmapCanvas.width = HEATMAP_GRID;
+  _heatmapCanvas.height = HEATMAP_GRID;
+  _heatmapTex = new THREE.CanvasTexture(_heatmapCanvas);
+  _heatmapTex.minFilter = THREE.LinearFilter;
+  _heatmapTex.magFilter = THREE.LinearFilter;
+  // Ground plane covering ~50nm radius (scene coords)
+  const size = (50 * 1.852 / 111) * 40 * 2; // 50nm each side
+  const geo = new THREE.PlaneGeometry(size, size);
+  const mat = new THREE.MeshBasicMaterial({
+    map: _heatmapTex, transparent: true, opacity: 0.6,
+    depthWrite: false, side: THREE.DoubleSide,
+  });
+  _heatmapMesh = new THREE.Mesh(geo, mat);
+  _heatmapMesh.rotation.x = -Math.PI / 2;
+  _heatmapMesh.position.y = 0.003;
+  scene.add(_heatmapMesh);
+}
+
+function _clearHeatmap() {
+  if (_heatmapMesh) {
+    scene.remove(_heatmapMesh);
+    _heatmapMesh.geometry.dispose();
+    _heatmapMesh.material.dispose();
+    _heatmapMesh = null;
+  }
+  if (_heatmapTex) { _heatmapTex.dispose(); _heatmapTex = null; }
+  _heatmapGrid = null;
+  _heatmapCanvas = null;
+}
+
+function _accumulateHeatmap(elapsed) {
+  if (!_heatmapOn || !_heatmapGrid || !aircraftManager) return;
+  const halfSize = (50 * 1.852 / 111) * 40; // scene units for 50nm
+  // Accumulate aircraft positions into grid
+  for (const ac of aircraftManager.aircraft.values()) {
+    if (ac.fadingOut || ac.masterOpacity < 0.3) continue;
+    const pos = ac.group.position;
+    const gx = Math.floor(((pos.x + halfSize) / (halfSize * 2)) * HEATMAP_GRID);
+    const gz = Math.floor(((-pos.z + halfSize) / (halfSize * 2)) * HEATMAP_GRID);
+    if (gx < 0 || gx >= HEATMAP_GRID || gz < 0 || gz >= HEATMAP_GRID) continue;
+    const idx = gz * HEATMAP_GRID + gx;
+    _heatmapGrid[idx] += 1;
+    if (_heatmapGrid[idx] > _heatmapMax) _heatmapMax = _heatmapGrid[idx];
+  }
+  // Redraw texture every 2 seconds
+  if (elapsed - _heatmapLastDraw < 2.0) return;
+  _heatmapLastDraw = elapsed;
+  const ctx = _heatmapCanvas.getContext('2d');
+  const img = ctx.createImageData(HEATMAP_GRID, HEATMAP_GRID);
+  const inv = 1 / Math.max(_heatmapMax, 1);
+  for (let i = 0; i < HEATMAP_GRID * HEATMAP_GRID; i++) {
+    const v = Math.min(_heatmapGrid[i] * inv, 1);
+    const i4 = i * 4;
+    if (v < 0.001) { img.data[i4] = 0; img.data[i4+1] = 0; img.data[i4+2] = 0; img.data[i4+3] = 0; continue; }
+    // Color ramp: deep blue → cyan → yellow → red
+    let r, g, b;
+    if (v < 0.25) { const t = v / 0.25; r = 0; g = t * 100; b = 80 + t * 100; }
+    else if (v < 0.5) { const t = (v - 0.25) / 0.25; r = t * 50; g = 100 + t * 155; b = 180 - t * 80; }
+    else if (v < 0.75) { const t = (v - 0.5) / 0.25; r = 50 + t * 205; g = 255 - t * 55; b = 100 - t * 100; }
+    else { const t = (v - 0.75) / 0.25; r = 255; g = 200 - t * 200; b = 0; }
+    img.data[i4] = r; img.data[i4+1] = g; img.data[i4+2] = b;
+    img.data[i4+3] = Math.min(v * 3, 1) * 180; // alpha ramps up
+  }
+  ctx.putImageData(img, 0, 0);
+  _heatmapTex.needsUpdate = true;
 }
 
 // ── T3-13: Flight history log ──
@@ -2373,6 +2511,125 @@ function stopTrailReplay() {
   if (_replayGhost) { scene.remove(_replayGhost); _replayGhost.geometry.dispose(); _replayGhost.material.dispose(); _replayGhost = null; }
 }
 
+// ── Session Replay ──
+// Records all aircraft positions every 5s, replays at high speed with ghost dots
+const _sessionSnapshots = [];  // [{time, positions:[{x,y,z},...]}]
+let _sessionReplayOn = false;
+let _sessionReplayIdx = 0;
+let _sessionReplayMesh = null;
+let _sessionReplayTimer = null;
+let _replaySliderHandler = null;
+let _replayCloseHandler = null;
+const SESSION_SNAPSHOT_INTERVAL = 5.0;
+const SESSION_MAX_GHOSTS = 400;
+const SESSION_MAX_SNAPSHOTS = 720; // ~1 hour at 5s intervals
+let _lastSnapshotTime = 0;
+
+function _recordSessionSnapshot(elapsed) {
+  if (elapsed - _lastSnapshotTime < SESSION_SNAPSHOT_INTERVAL) return;
+  _lastSnapshotTime = elapsed;
+  if (!aircraftManager || aircraftManager.aircraft.size === 0) return;
+  const positions = [];
+  for (const ac of aircraftManager.aircraft.values()) {
+    if (ac.fadingOut || ac.masterOpacity < 0.3) continue;
+    const p = ac.group.position;
+    positions.push(p.x, p.y, p.z);
+  }
+  if (positions.length > 0) {
+    _sessionSnapshots.push({ time: Date.now(), positions: new Float32Array(positions) });
+    // Cap at max to prevent unbounded memory growth
+    if (_sessionSnapshots.length > SESSION_MAX_SNAPSHOTS) _sessionSnapshots.shift();
+  }
+}
+
+function _toggleSessionReplay() {
+  if (_sessionReplayOn) { _stopSessionReplay(); return; }
+  if (_sessionSnapshots.length < 3) return; // need some data
+  _sessionReplayOn = true;
+  _sessionReplayIdx = 0;
+
+  // Create ghost point mesh
+  const geo = new THREE.BufferGeometry();
+  const posAttr = new Float32Array(SESSION_MAX_GHOSTS * 3);
+  geo.setAttribute('position', new THREE.BufferAttribute(posAttr, 3));
+  geo.setDrawRange(0, 0);
+  _sessionReplayMesh = new THREE.Points(geo, new THREE.PointsMaterial({
+    color: 0xc4a058, size: 0.04, transparent: true, opacity: 0.6,
+    sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  _sessionReplayMesh.renderOrder = 1001;
+  scene.add(_sessionReplayMesh);
+
+  // Show replay UI
+  let bar = document.getElementById('session-replay-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'session-replay-bar';
+    bar.style.cssText = 'position:fixed;bottom:40px;left:50%;transform:translateX(-50%);z-index:2000;display:flex;align-items:center;gap:10px;padding:8px 16px;background:rgba(10,12,18,0.85);border:1px solid rgba(196,160,88,0.15);border-radius:8px;font-family:var(--font-mono);font-size:11px;color:rgba(238,233,220,0.7);backdrop-filter:blur(8px)';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = `<span style="color:rgba(196,160,88,0.5);letter-spacing:1px;font-size:8px">REPLAY</span>
+    <input type="range" id="session-replay-slider" min="0" max="${_sessionSnapshots.length - 1}" value="0" style="width:200px;accent-color:#c4a058">
+    <span id="session-replay-time" style="min-width:40px">--</span>
+    <button id="session-replay-close" style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:14px">&times;</button>`;
+  bar.classList.remove('hidden');
+  const closeBtn = document.getElementById('session-replay-close');
+  const slider = document.getElementById('session-replay-slider');
+  _replayCloseHandler = _stopSessionReplay;
+  _replaySliderHandler = () => { _sessionReplayIdx = parseInt(slider.value); _renderReplayFrame(); };
+  closeBtn.addEventListener('click', _replayCloseHandler);
+  slider.addEventListener('input', _replaySliderHandler);
+
+  // Auto-play at ~20x speed
+  _sessionReplayTimer = setInterval(() => {
+    if (_sessionReplayIdx >= _sessionSnapshots.length - 1) {
+      _sessionReplayIdx = 0;
+    } else {
+      _sessionReplayIdx++;
+    }
+    slider.value = _sessionReplayIdx;
+    _renderReplayFrame();
+  }, 100);
+}
+
+function _renderReplayFrame() {
+  if (!_sessionReplayMesh || !_sessionSnapshots[_sessionReplayIdx]) return;
+  const snap = _sessionSnapshots[_sessionReplayIdx];
+  const posAttr = _sessionReplayMesh.geometry.getAttribute('position');
+  const count = Math.min(snap.positions.length / 3, SESSION_MAX_GHOSTS);
+  posAttr.array.set(snap.positions.subarray(0, count * 3));
+  posAttr.needsUpdate = true;
+  _sessionReplayMesh.geometry.setDrawRange(0, count);
+  // Update time label
+  const timeEl = document.getElementById('session-replay-time');
+  if (timeEl) {
+    const d = new Date(snap.time);
+    timeEl.textContent = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+}
+
+function _stopSessionReplay() {
+  _sessionReplayOn = false;
+  if (_sessionReplayTimer) { clearInterval(_sessionReplayTimer); _sessionReplayTimer = null; }
+  if (_sessionReplayMesh) {
+    scene.remove(_sessionReplayMesh);
+    _sessionReplayMesh.geometry.dispose();
+    _sessionReplayMesh.material.dispose();
+    _sessionReplayMesh = null;
+  }
+  // Remove listeners and DOM element
+  const bar = document.getElementById('session-replay-bar');
+  if (bar) {
+    const slider = document.getElementById('session-replay-slider');
+    const closeBtn = document.getElementById('session-replay-close');
+    if (slider && _replaySliderHandler) slider.removeEventListener('input', _replaySliderHandler);
+    if (closeBtn && _replayCloseHandler) closeBtn.removeEventListener('click', _replayCloseHandler);
+    bar.remove();
+  }
+  _replaySliderHandler = null;
+  _replayCloseHandler = null;
+}
+
 // --- Animation loop ---
 const clock = new THREE.Clock();
 let _lastDayNightTime = 0;
@@ -2418,6 +2675,18 @@ function animate() {
     const now = new Date();
     const utcH = now.getUTCHours() + now.getUTCMinutes() / 60;
     updateDayNight(scene, lat, lon, utcH);
+    // Compute sun position for aircraft shadow projection
+    const latRad = lat * Math.PI / 180;
+    const solarNoon = 12 - lon / 15;
+    const hourAngle = (utcH - solarNoon) * 15 * Math.PI / 180;
+    const sinAlt = Math.cos(latRad) * Math.cos(hourAngle);
+    const sunElev = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
+    // Sun azimuth (simplified: hour angle maps to azimuth)
+    const cosAlt = Math.cos(sunElev) || 0.001;
+    const sinAz = Math.sin(hourAngle) / cosAlt;
+    const sunAz = Math.atan2(sinAz, Math.cos(hourAngle) * Math.sin(latRad) / cosAlt);
+    const dayF = Math.max(0, Math.min(1, (sinAlt + 0.1) / 0.2));
+    setSunState(sunAz, sunElev, dayF);
   }
 
   // Animate particles — position updates every frame, opacity throttled to ~4 Hz
@@ -2448,6 +2717,8 @@ function animate() {
   if (aircraftManager) {
     aircraftManager.animate(delta, elapsed, camera);
     aircraftManager.animateSelection(elapsed);
+    _accumulateHeatmap(elapsed);
+    _recordSessionSnapshot(elapsed);
   }
 
   // T3-09: Animate touchdown effects (dust puffs, runway flashes)

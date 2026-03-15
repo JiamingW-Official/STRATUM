@@ -57,6 +57,46 @@ const CONTRAIL_ALT_THRESHOLD = 9144; // FL300 in meters
 const CONTRAIL_MAX_PARTICLES = 50;
 const CONTRAIL_LIFETIME = 8.0; // seconds
 
+// Aircraft shadow projection — sun-aware ground shadows
+let _sunAzimuth = 0;   // radians, 0 = north, clockwise
+let _sunElevation = 0;  // radians, 0 = horizon, π/2 = zenith
+let _sunDayFactor = 0;  // 0 = night, 1 = full day
+let _shadowTex = null;
+let _shadowMat = null;
+let _shadowGeo = null;
+
+export function setSunState(azimuth, elevation, dayFactor) {
+  _sunAzimuth = azimuth;
+  _sunElevation = elevation;
+  _sunDayFactor = dayFactor;
+}
+
+function _getSharedShadowGeo() {
+  if (!_shadowGeo) _shadowGeo = new THREE.PlaneGeometry(1, 1);
+  return _shadowGeo;
+}
+
+function _getSharedShadowMat() {
+  if (_shadowMat) return _shadowMat;
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const r = size / 2;
+  const grad = ctx.createRadialGradient(r, r, 0, r, r, r);
+  grad.addColorStop(0, 'rgba(0,0,0,0.35)');
+  grad.addColorStop(0.6, 'rgba(0,0,0,0.15)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  _shadowTex = new THREE.CanvasTexture(canvas);
+  _shadowMat = new THREE.MeshBasicMaterial({
+    map: _shadowTex, transparent: true, opacity: 0,
+    depthWrite: false, side: THREE.DoubleSide,
+  });
+  return _shadowMat;
+}
+
 // --- Cached geometry / textures ---
 
 const geoCache = {};
@@ -882,6 +922,14 @@ class AircraftObject {
     this._contrailParticles = []; // { age, worldPos }
     this._contrailActive = false;
 
+    // Aircraft shadow on ground — shared geometry, cloned material for per-instance opacity
+    this._shadowMat = _getSharedShadowMat().clone();
+    this._shadow = new THREE.Mesh(_getSharedShadowGeo(), this._shadowMat);
+    this._shadow.rotation.x = -Math.PI / 2;
+    this._shadow.renderOrder = 5;
+    this._shadow.visible = false;
+    scene.add(this._shadow);
+
     // Queue hexdb metadata lookup for operator/type info
     queueHexLookup(data.icao24);
   }
@@ -1435,6 +1483,37 @@ class AircraftObject {
     this._contrailMat.opacity = this.masterOpacity * 0.6;
   }
 
+  _updateShadow() {
+    if (!this._shadow) return;
+    const pos = this.group.position;
+    const altY = pos.y;
+
+    // No shadow if night, very low altitude, or faded out
+    if (_sunDayFactor < 0.05 || altY < 0.02 || this.masterOpacity < 0.1) {
+      this._shadow.visible = false;
+      return;
+    }
+
+    this._shadow.visible = true;
+
+    // Shadow offset: higher sun = closer; lower = further (capped)
+    const tanElev = Math.tan(Math.max(_sunElevation, 0.05));
+    const cappedDist = Math.min(altY / tanElev, 2.0);
+    this._shadow.position.set(
+      pos.x + Math.sin(_sunAzimuth) * cappedDist,
+      0.005,
+      pos.z + Math.cos(_sunAzimuth) * cappedDist
+    );
+
+    // Scale: bigger for higher aircraft
+    const size = Math.min(0.06 + altY * 0.05, 0.4) * (this._useGLB ? 1.0 : 0.7);
+    this._shadow.scale.set(size, size, 1);
+
+    // Opacity: stronger at midday, weaker near horizon
+    const elevFactor = Math.min(_sunElevation / 0.5, 1.0);
+    this._shadowMat.opacity = _sunDayFactor * elevFactor * this.masterOpacity * 0.5;
+  }
+
   _disposeContrail() {
     if (this._contrailPoints) {
       this.scene.remove(this._contrailPoints);
@@ -1545,6 +1624,9 @@ class AircraftObject {
 
     // T2-19: Contrail particles
     this._updateContrail(delta);
+
+    // Shadow projection on ground
+    this._updateShadow();
   }
 
   dispose(scene) {
@@ -1583,6 +1665,12 @@ class AircraftObject {
     if (this._bodyGlowMat) this._bodyGlowMat.dispose();
     // T2-19: Clean up contrail particles
     this._disposeContrail();
+    // Shadow cleanup — geometry is shared, only dispose cloned material
+    if (this._shadow) {
+      scene.remove(this._shadow);
+      this._shadowMat.dispose();
+      this._shadow = null;
+    }
   }
 
   getDisplayData() {
