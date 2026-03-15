@@ -192,7 +192,7 @@ let _approachLightMeshes = [];
 let _runwayEdgeLightMesh = null;
 let _taxiwayLightMesh = null;
 let _pulseRingRef = null;
-let _papiMesh = null;
+
 let _thresholdBarMesh = null;
 let _runwayThresholdTargets = [];
 
@@ -288,7 +288,7 @@ export async function loadAirports(scene, userLat, userLon) {
 
   // Batched lighting (all runways)
   renderRunwayEdgeLights(airportData.runways, userLat, userLon);
-  renderPAPILights(airportData.runways);
+
   renderThresholdAndEndLights(airportData.runways);
   renderRunwayThresholdTargets(airportData.runways);
 
@@ -683,67 +683,6 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
   airportGroup.add(_runwayEdgeLightMesh);
 }
 
-// ---- PAPI Lights (Precision Approach Path Indicator) ----
-// 4-light bar on each side of runway, perpendicular to centerline
-
-function renderPAPILights(runways) {
-  const positions = [];
-  const colors = [];
-
-  for (const rwy of runways) {
-    if (!rwy._sx) continue;
-    const sx = rwy._sx, sz = rwy._sz, ex = rwy._ex, ez = rwy._ez;
-    const dx = ex - sx, dz = ez - sz;
-    const len = Math.sqrt(dx * dx + dz * dz);
-    if (len < 0.1) continue;
-    const nx = dx / len, nz = dz / len;
-    const perpX = -nz, perpZ = nx;
-    const halfW = rwy._rWid * 0.5;
-
-    const papiDist = 300 / METERS_PER_UNIT; // 300m from threshold
-    const papiLateralOff = halfW + 0.06;    // just outside runway edge
-    const papiSpacing = 0.018;              // spacing between 4 lights in bar
-
-    // Both thresholds
-    for (let end = 0; end < 2; end++) {
-      const bx = end === 0 ? sx : ex;
-      const bz = end === 0 ? sz : ez;
-      const inX = end === 0 ? nx : -nx;
-      const inZ = end === 0 ? nz : -nz;
-
-      // Left side and right side PAPI bars
-      for (let side = -1; side <= 1; side += 2) {
-        const baseX = bx + inX * papiDist + perpX * papiLateralOff * side;
-        const baseZ = bz + inZ * papiDist + perpZ * papiLateralOff * side;
-
-        // 4 lights perpendicular to runway
-        for (let p = 0; p < 4; p++) {
-          const lightX = baseX + perpX * side * p * papiSpacing;
-          const lightZ = baseZ + perpZ * side * p * papiSpacing;
-          positions.push(lightX, 0.04, lightZ);
-          if (p < 2) {
-            colors.push(1.0, 0.1, 0.08); // red (near runway)
-          } else {
-            colors.push(1.0, 1.0, 0.95); // white (far from runway)
-          }
-        }
-      }
-    }
-  }
-
-  if (positions.length === 0) return;
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-  _papiMesh = new THREE.Points(geo, new THREE.PointsMaterial({
-    size: 0.018, transparent: true, opacity: 0.75,
-    vertexColors: true, sizeAttenuation: true,
-    depthWrite: false, blending: THREE.AdditiveBlending,
-  }));
-  _papiMesh.name = 'papiLights';
-  airportGroup.add(_papiMesh);
-}
 
 // ---- Threshold Bar Lights (green) + Runway End Lights (red) ----
 
@@ -1193,10 +1132,6 @@ export function updatePulse(scene, time) {
     _taxiwayLightMesh.material.opacity = 0.25 + 0.1 * Math.sin(time * 1.2 + 1);
   }
 
-  // PAPI lights — steady glow with subtle warmth shift
-  if (_papiMesh) {
-    _papiMesh.material.opacity = 0.65 + 0.1 * Math.sin(time * 0.8 + 2);
-  }
 
   // Threshold bar lights — steady green glow
   if (_thresholdBarMesh) {
@@ -1249,7 +1184,7 @@ export function clearAirports(scene) {
   _approachLightMeshes.length = 0;
   _runwayEdgeLightMesh = null;
   _taxiwayLightMesh = null;
-  _papiMesh = null;
+
   _thresholdBarMesh = null;
   _runwayThresholdTargets.length = 0;
 }
