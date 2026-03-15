@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderFuelRangeRing, clearFuelRangeRing, getRunwayThresholdTargets } from './scene/environment.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderFuelRangeRing, clearFuelRangeRing, getRunwayThresholdTargets, renderApproachChart, clearApproachChart } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic, setSunState } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
@@ -13,6 +13,7 @@ import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignal
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft, showDetailLoading, reseedChartData } from './ui/detail.js';
 import { getAirlineName as _getAirlineName } from './data/airlineDb.js';
 import { initRouteInfer, triggerInference } from './data/routeInfer.js';
+import { generateApproaches, detectApproach } from './data/approachProc.js';
 import { CITIES_EXTRA } from './data/citiesExtra.js';
 import { initAirportCities } from './data/airportCities.js';
 import { fetchWeather, weatherDescription, windDirToCardinal, formatVisibility, weatherIcon, flightCategory, computeDensityAltitude, estimateTurbulence } from './data/weather.js';
@@ -911,7 +912,108 @@ function showAirportWidget(airport, arrivals, departures) {
     }
   }
 
+  // Approach procedure selector
+  _buildApproachSelector(airport);
+
   w.classList.remove('hidden');
+}
+
+// ── Approach Procedure Chart state ──
+let _approachCache = [];      // generated approaches for current airport
+let _activeApproaches = [];   // names of currently displayed approaches
+let _detectedApproach = null; // auto-detected approach name for arrivals
+
+function _buildApproachSelector(airport) {
+  const data = getAirportData();
+  if (!data || !data.runways || data.runways.length === 0) return;
+
+  const meta = typeof AIRPORT_DATA !== 'undefined' ? AIRPORT_DATA[airport.iata || airport.icao] : null;
+  const elev = meta?.elev || 0;
+  _approachCache = generateApproaches(data.runways, elev);
+  _activeApproaches = [];
+  _detectedApproach = null;
+
+  let container = document.getElementById('aw-approaches');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'aw-approaches';
+    container.className = 'aw-approaches';
+    const w = document.getElementById('airport-widget');
+    // Insert before flight list
+    const flightList = document.getElementById('aw-flight-list');
+    if (flightList) w.insertBefore(container, flightList);
+    else w.appendChild(container);
+  }
+
+  if (_approachCache.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  // Group approaches by runway
+  const byRunway = {};
+  for (const app of _approachCache) {
+    if (!byRunway[app.runway]) byRunway[app.runway] = [];
+    byRunway[app.runway].push(app);
+  }
+
+  let html = '<div class="aw-app-header">APPROACHES</div><div class="aw-app-chips">';
+  for (const [rwy, apps] of Object.entries(byRunway)) {
+    for (const app of apps) {
+      const typeClass = app.type.toLowerCase();
+      html += `<button class="aw-app-chip aw-app-${typeClass}" data-app="${app.name}" title="${app.name}">${app.type} ${rwy}</button>`;
+    }
+  }
+  html += '<button class="aw-app-chip aw-app-all" data-app="__ALL__" title="Show all approaches">ALL</button>';
+  html += '</div>';
+  container.innerHTML = html;
+
+  // Click handlers
+  container.querySelectorAll('.aw-app-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.app;
+      if (name === '__ALL__') {
+        // Toggle all
+        if (_activeApproaches.length === _approachCache.length) {
+          _activeApproaches = [];
+          container.querySelectorAll('.aw-app-chip').forEach(b => b.classList.remove('active'));
+          clearApproachChart(scene);
+        } else {
+          _activeApproaches = _approachCache.map(a => a.name);
+          container.querySelectorAll('.aw-app-chip').forEach(b => b.classList.add('active'));
+          _renderActiveApproaches();
+        }
+      } else {
+        const idx = _activeApproaches.indexOf(name);
+        if (idx >= 0) {
+          _activeApproaches.splice(idx, 1);
+          btn.classList.remove('active');
+        } else {
+          _activeApproaches.push(name);
+          btn.classList.add('active');
+        }
+        if (_activeApproaches.length === 0) {
+          clearApproachChart(scene);
+        } else {
+          _renderActiveApproaches();
+        }
+      }
+    });
+  });
+}
+
+function _renderActiveApproaches() {
+  if (_activeApproaches.length === 0) { clearApproachChart(scene); return; }
+  const { lat, lon } = getUserLocation();
+  const filtered = _approachCache.filter(a => _activeApproaches.includes(a.name));
+  renderApproachChart(scene, filtered, lat, lon, _detectedApproach);
+}
+
+function _clearApproachState() {
+  _approachCache = [];
+  _activeApproaches = [];
+  _detectedApproach = null;
+  clearApproachChart(scene);
 }
 
 // I2: Airport activity session store
@@ -930,6 +1032,7 @@ function _svgArc(cx, cy, rInner, rOuter, startAngle, endAngle) {
 function hideAirportWidget() {
   const w = document.getElementById('airport-widget');
   if (w) w.classList.add('hidden');
+  _clearApproachState();
 }
 
 document.getElementById('aw-close')?.addEventListener('click', () => {
@@ -1094,6 +1197,24 @@ function handleData(dataList) {
     // T3-09: Landing detection
     if (aptData && aptData.runways) {
       checkLandings(dataList, aptData.runways, scene);
+    }
+
+    // Approach detection — highlight detected approach for arrivals
+    if (selectedAirportState && _approachCache.length > 0 && _activeApproaches.length > 0) {
+      const { arrivals } = categorizeFlights(dataList, selectedAirportState, aptData?.runways);
+      let detected = null;
+      for (const ac of arrivals) {
+        const result = detectApproach(ac, _approachCache);
+        if (result) { detected = result.approach.name; break; }
+      }
+      if (detected !== _detectedApproach) {
+        _detectedApproach = detected;
+        _renderActiveApproaches(); // re-render with highlight
+        // Update chip highlight
+        document.querySelectorAll('.aw-app-chip').forEach(btn => {
+          btn.classList.toggle('detected', btn.dataset.app === detected);
+        });
+      }
     }
 
     // Unified filter — build filterSet for smooth opacity dimming
@@ -1329,6 +1450,26 @@ document.addEventListener('keydown', (e) => {
   // Session replay (V key)
   else if (k === 'v') {
     _toggleSessionReplay();
+    return;
+  }
+
+  // Approach chart toggle (A key)
+  else if (k === 'a') {
+    if (selectedAirportState && _approachCache.length > 0) {
+      if (_activeApproaches.length > 0) {
+        _activeApproaches = [];
+        clearApproachChart(scene);
+      } else {
+        _activeApproaches = _approachCache.map(a => a.name);
+        _renderActiveApproaches();
+      }
+      // Sync chip UI
+      const chips = document.querySelectorAll('.aw-app-chip');
+      chips.forEach(b => {
+        if (_activeApproaches.length > 0) b.classList.add('active');
+        else b.classList.remove('active');
+      });
+    }
     return;
   }
 

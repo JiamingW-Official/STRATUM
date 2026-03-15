@@ -996,6 +996,49 @@ html, body {
 }
 .aw-desc.hidden { display: none; }
 
+/* ── Approach Procedure Selector ── */
+.aw-approaches {
+  padding: 6px 14px 8px;
+  border-top: 1px solid rgba(255,255,255,0.03);
+}
+.aw-app-header {
+  font-family: var(--font-mono); font-size: 7px; letter-spacing: 1.8px;
+  color: rgba(196,160,88,0.35); text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.aw-app-chips {
+  display: flex; flex-wrap: wrap; gap: 3px;
+}
+.aw-app-chip {
+  font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.3px;
+  padding: 3px 6px; border-radius: 3px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  color: rgba(238,233,220,0.4);
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+.aw-app-chip:hover {
+  background: rgba(255,255,255,0.05);
+  color: rgba(238,233,220,0.6);
+}
+.aw-app-chip.active {
+  border-color: rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(238,233,220,0.7);
+}
+.aw-app-chip.detected {
+  border-color: rgba(196,160,88,0.3);
+  background: rgba(196,160,88,0.08);
+  color: rgba(196,160,88,0.85);
+}
+/* Type-specific colors on active */
+.aw-app-ils.active { border-color: rgba(106,191,255,0.2); color: rgba(106,191,255,0.75); }
+.aw-app-rnav.active { border-color: rgba(106,232,160,0.2); color: rgba(106,232,160,0.75); }
+.aw-app-loc.active { border-color: rgba(240,200,96,0.2); color: rgba(240,200,96,0.75); }
+.aw-app-vor.active { border-color: rgba(232,160,106,0.2); color: rgba(232,160,106,0.75); }
+.aw-app-all.active { border-color: rgba(196,160,88,0.2); color: rgba(196,160,88,0.75); }
+
 /* ── Aircraft Hover Tooltip ── */
 .aircraft-tooltip {
   position: fixed; top: 0; left: 0;

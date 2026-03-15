@@ -3,6 +3,7 @@ import { loadMapTexture } from './mapTiles.js';
 import { fetchAirportData, categorizeFlights, clearAirportCache } from '../data/airports.js';
 import { fetchFIRData, filterNearbyFIRs } from '../data/firBoundaries.js';
 import { fetchNavaidData, filterNearbyNavaids } from '../data/navaids.js';
+import { holdingPatternPoints } from '../data/approachProc.js';
 
 
 const GROUND_SIZE = 160;
@@ -2162,6 +2163,237 @@ export function clearNavChart(scene) {
 export async function reloadNavChart(scene, lat, lon) {
   _clearNavChart(scene);
   await loadNavChart(scene, lat, lon);
+}
+
+
+// ── Approach Procedure Chart ──
+let _approachGroup = null;
+
+const _APPROACH_COLORS = {
+  ILS:  0x6abfff, // blue — precision
+  RNAV: 0x6ae8a0, // green — RNAV
+  LOC:  0xf0c860, // amber — localizer only
+  VOR:  0xe8a06a, // orange — VOR
+};
+
+export function renderApproachChart(scene, approaches, userLat, userLon, highlightName = null) {
+  clearApproachChart(scene);
+  if (!approaches || approaches.length === 0) return;
+
+  _approachGroup = new THREE.Group();
+  _approachGroup.name = 'approachChart';
+
+  const Y_APP = 0.035;
+
+  for (const app of approaches) {
+    const isHighlight = highlightName && app.name === highlightName;
+    const baseOpacity = isHighlight ? 0.25 : 0.10;
+    const labelOpacity = isHighlight ? 0.55 : 0.25;
+    const color = _APPROACH_COLORS[app.type] || 0xffffff;
+
+    const wps = app.waypoints;
+    if (!wps || wps.length < 2) continue;
+
+    // ── Main approach path lines ──
+    const linePositions = [];
+
+    if (app.tBar) {
+      // T-bar RNAV: draw left IAF → IF, right IAF → IF, then IF → FAF → MAP
+      // wps: [leftIAF, rightIAF, straightIAF, IF, FAF, MAP]
+      const straightIAF = _gs(wps[2], userLat, userLon);
+      const ifPos = _gs(wps[3], userLat, userLon);
+      const leftIAF = _gs(wps[0], userLat, userLon);
+      const rightIAF = _gs(wps[1], userLat, userLon);
+
+      // T-bar arms
+      linePositions.push(leftIAF.x, Y_APP, leftIAF.z, ifPos.x, Y_APP, ifPos.z);
+      linePositions.push(rightIAF.x, Y_APP, rightIAF.z, ifPos.x, Y_APP, ifPos.z);
+      linePositions.push(straightIAF.x, Y_APP, straightIAF.z, ifPos.x, Y_APP, ifPos.z);
+
+      // IF → FAF → MAP
+      for (let i = 3; i < wps.length - 1; i++) {
+        const a = _gs(wps[i], userLat, userLon);
+        const b = _gs(wps[i + 1], userLat, userLon);
+        linePositions.push(a.x, Y_APP, a.z, b.x, Y_APP, b.z);
+      }
+    } else {
+      // Sequential: IAF → IF → FAF → MAP
+      for (let i = 0; i < wps.length - 1; i++) {
+        const a = _gs(wps[i], userLat, userLon);
+        const b = _gs(wps[i + 1], userLat, userLon);
+        linePositions.push(a.x, Y_APP, a.z, b.x, Y_APP, b.z);
+      }
+    }
+
+    if (linePositions.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+      const line = new THREE.LineSegments(geo, new THREE.LineDashedMaterial({
+        color, transparent: true, opacity: baseOpacity,
+        depthWrite: false, dashSize: 0.12, gapSize: 0.06,
+      }));
+      line.computeLineDistances();
+      _approachGroup.add(line);
+    }
+
+    // ── Missed approach path (different style) ──
+    if (app.missed && app.missed.length >= 2) {
+      const missedPositions = [];
+      // MAP → first missed wp
+      const mapPos = _gs(wps[wps.length - 1], userLat, userLon);
+      const ma0 = _gs(app.missed[0], userLat, userLon);
+      missedPositions.push(mapPos.x, Y_APP, mapPos.z, ma0.x, Y_APP, ma0.z);
+      for (let i = 0; i < app.missed.length - 1; i++) {
+        const a = _gs(app.missed[i], userLat, userLon);
+        const b = _gs(app.missed[i + 1], userLat, userLon);
+        missedPositions.push(a.x, Y_APP, a.z, b.x, Y_APP, b.z);
+      }
+      const mGeo = new THREE.BufferGeometry();
+      mGeo.setAttribute('position', new THREE.Float32BufferAttribute(missedPositions, 3));
+      const mLine = new THREE.LineSegments(mGeo, new THREE.LineDashedMaterial({
+        color: 0xe06050, transparent: true, opacity: baseOpacity * 0.7,
+        depthWrite: false, dashSize: 0.06, gapSize: 0.08,
+      }));
+      mLine.computeLineDistances();
+      _approachGroup.add(mLine);
+    }
+
+    // ── Holding pattern at IAF ──
+    if (app.holdFix != null && app.holdInbound != null) {
+      const holdWp = wps[app.holdFix];
+      const holdPts = holdingPatternPoints(holdWp.lat, holdWp.lon, app.holdInbound, app.holdTurn || 'R', 2.5, 1.2);
+      const holdPositions = [];
+      for (let i = 0; i < holdPts.length - 1; i++) {
+        const a = _gs(holdPts[i], userLat, userLon);
+        const b = _gs(holdPts[i + 1], userLat, userLon);
+        holdPositions.push(a.x, Y_APP, a.z, b.x, Y_APP, b.z);
+      }
+      if (holdPositions.length > 0) {
+        const hGeo = new THREE.BufferGeometry();
+        hGeo.setAttribute('position', new THREE.Float32BufferAttribute(holdPositions, 3));
+        const hLine = new THREE.LineSegments(hGeo, new THREE.LineDashedMaterial({
+          color, transparent: true, opacity: baseOpacity * 0.6,
+          depthWrite: false, dashSize: 0.05, gapSize: 0.05,
+        }));
+        hLine.computeLineDistances();
+        _approachGroup.add(hLine);
+      }
+    }
+
+    // ── Waypoint dots ──
+    const dotPositions = [];
+    for (const wp of wps) {
+      const p = _gs(wp, userLat, userLon);
+      dotPositions.push(p.x, Y_APP + 0.002, p.z);
+    }
+    if (dotPositions.length > 0) {
+      const dGeo = new THREE.BufferGeometry();
+      dGeo.setAttribute('position', new THREE.Float32BufferAttribute(dotPositions, 3));
+      _approachGroup.add(new THREE.Points(dGeo, new THREE.PointsMaterial({
+        color, size: isHighlight ? 0.012 : 0.008, transparent: true, opacity: baseOpacity * 1.8,
+        depthWrite: false, sizeAttenuation: true,
+      })));
+    }
+
+    // ── Waypoint labels (name + altitude) ──
+    for (const wp of wps) {
+      const p = _gs(wp, userLat, userLon);
+      const altStr = wp.alt > 0 ? Math.round(wp.alt).toLocaleString() : '';
+      const label = _createApproachLabel(wp.name, altStr, wp.fixType, color, labelOpacity);
+      label.position.set(p.x + 0.025, Y_APP + 0.012, p.z);
+      _approachGroup.add(label);
+    }
+
+    // ── Approach name label near FAF ──
+    const fafIdx = wps.findIndex(w => w.fixType === 'FAF');
+    if (fafIdx >= 0) {
+      const fafPos = _gs(wps[fafIdx], userLat, userLon);
+      const nameLabel = _createApproachLabel(app.name, '', null, color, labelOpacity * 1.2);
+      nameLabel.scale.set(0.18, 0.025, 1);
+      nameLabel.position.set(fafPos.x - 0.06, Y_APP + 0.022, fafPos.z + 0.04);
+      _approachGroup.add(nameLabel);
+    }
+  }
+
+  scene.add(_approachGroup);
+}
+
+export function clearApproachChart(scene) {
+  if (_approachGroup) {
+    scene.remove(_approachGroup);
+    _approachGroup.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (obj.material.map) obj.material.map.dispose();
+        obj.material.dispose();
+      }
+    });
+    _approachGroup = null;
+  }
+}
+
+// Shorthand for geoToScene
+function _gs(wp, uLat, uLon) {
+  return geoToScene(wp.lat, wp.lon, uLat, uLon);
+}
+
+function _createApproachLabel(name, altStr, fixType, color, opacity) {
+  const canvas = document.createElement('canvas');
+  const dpr = 4;
+  const logW = 140, logH = 22;
+  canvas.width = logW * dpr;
+  canvas.height = logH * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Fix type prefix
+  const prefix = fixType === 'IAF' ? 'IAF ' :
+                 fixType === 'IF' ? 'IF ' :
+                 fixType === 'FAF' ? 'FAF ' :
+                 fixType === 'MAP' ? 'MAP ' :
+                 fixType === 'STEPDOWN' ? 'SD ' :
+                 fixType === 'MA' ? 'MA ' : '';
+
+  const hexColor = '#' + new THREE.Color(color).getHexString();
+  const r = parseInt(hexColor.slice(1, 3), 16);
+  const g = parseInt(hexColor.slice(3, 5), 16);
+  const b = parseInt(hexColor.slice(5, 7), 16);
+
+  ctx.font = '600 7px "JetBrains Mono", monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+
+  // Fix type in dim
+  if (prefix) {
+    ctx.fillStyle = `rgba(${r},${g},${b},0.4)`;
+    ctx.fillText(prefix, 1, logH / 2 - 4);
+  }
+
+  // Name
+  ctx.fillStyle = `rgba(${r},${g},${b},0.7)`;
+  ctx.font = '500 7px "JetBrains Mono", monospace';
+  ctx.fillText(name, prefix ? ctx.measureText(prefix).width + 2 : 1, logH / 2 - 4);
+
+  // Altitude
+  if (altStr) {
+    ctx.fillStyle = `rgba(255,255,255,0.35)`;
+    ctx.font = '400 6px "JetBrains Mono", monospace';
+    ctx.fillText(`${altStr}'`, 1, logH / 2 + 5);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = 4;
+
+  const mat = new THREE.SpriteMaterial({
+    map: texture, transparent: true, opacity,
+    depthWrite: false, sizeAttenuation: true,
+  });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(0.14, 0.024, 1);
+  return sprite;
 }
 
 
