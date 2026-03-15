@@ -1808,7 +1808,7 @@ function _initHeatmap() {
   const size = (50 * 1.852 / 111) * 40 * 2; // 50nm each side
   const geo = new THREE.PlaneGeometry(size, size);
   const mat = new THREE.MeshBasicMaterial({
-    map: _heatmapTex, transparent: true, opacity: 0.6,
+    map: _heatmapTex, transparent: true, opacity: 0.75,
     depthWrite: false, side: THREE.DoubleSide,
   });
   _heatmapMesh = new THREE.Mesh(geo, mat);
@@ -1848,19 +1848,22 @@ function _accumulateHeatmap(elapsed) {
   _heatmapLastDraw = elapsed;
   const ctx = _heatmapCanvas.getContext('2d');
   const img = ctx.createImageData(HEATMAP_GRID, HEATMAP_GRID);
-  const inv = 1 / Math.max(_heatmapMax, 1);
+  const logMax = Math.log1p(_heatmapMax);
+  const inv = logMax > 0 ? 1 / logMax : 1;
   for (let i = 0; i < HEATMAP_GRID * HEATMAP_GRID; i++) {
-    const v = Math.min(_heatmapGrid[i] * inv, 1);
+    const raw = _heatmapGrid[i];
     const i4 = i * 4;
-    if (v < 0.001) { img.data[i4] = 0; img.data[i4+1] = 0; img.data[i4+2] = 0; img.data[i4+3] = 0; continue; }
+    if (raw < 0.5) { img.data[i4] = 0; img.data[i4+1] = 0; img.data[i4+2] = 0; img.data[i4+3] = 0; continue; }
+    // Log scale — makes low-density areas visible much sooner
+    const v = Math.min(Math.log1p(raw) * inv, 1);
     // Color ramp: deep blue → cyan → yellow → red
     let r, g, b;
-    if (v < 0.25) { const t = v / 0.25; r = 0; g = t * 100; b = 80 + t * 100; }
-    else if (v < 0.5) { const t = (v - 0.25) / 0.25; r = t * 50; g = 100 + t * 155; b = 180 - t * 80; }
-    else if (v < 0.75) { const t = (v - 0.5) / 0.25; r = 50 + t * 205; g = 255 - t * 55; b = 100 - t * 100; }
+    if (v < 0.25) { const t = v / 0.25; r = 0; g = t * 140; b = 100 + t * 120; }
+    else if (v < 0.5) { const t = (v - 0.25) / 0.25; r = t * 60; g = 140 + t * 115; b = 220 - t * 100; }
+    else if (v < 0.75) { const t = (v - 0.5) / 0.25; r = 60 + t * 195; g = 255 - t * 55; b = 120 - t * 120; }
     else { const t = (v - 0.75) / 0.25; r = 255; g = 200 - t * 200; b = 0; }
     img.data[i4] = r; img.data[i4+1] = g; img.data[i4+2] = b;
-    img.data[i4+3] = Math.min(v * 3, 1) * 180; // alpha ramps up
+    img.data[i4+3] = Math.min(v * 2.5, 1) * 220; // stronger alpha
   }
   ctx.putImageData(img, 0, 0);
   _heatmapTex.needsUpdate = true;
@@ -2568,9 +2571,13 @@ function _toggleSessionReplay() {
     bar.style.cssText = 'position:fixed;bottom:40px;left:50%;transform:translateX(-50%);z-index:2000;display:flex;align-items:center;gap:10px;padding:8px 16px;background:rgba(10,12,18,0.85);border:1px solid rgba(196,160,88,0.15);border-radius:8px;font-family:var(--font-mono);font-size:11px;color:rgba(238,233,220,0.7);backdrop-filter:blur(8px)';
     document.body.appendChild(bar);
   }
+  const totalDur = Math.round((_sessionSnapshots[_sessionSnapshots.length - 1].time - _sessionSnapshots[0].time) / 1000);
+  const durMin = Math.floor(totalDur / 60);
+  const durSec = totalDur % 60;
+  const durStr = durMin > 0 ? `${durMin}m${String(durSec).padStart(2,'0')}s` : `${durSec}s`;
   bar.innerHTML = `<span style="color:rgba(196,160,88,0.5);letter-spacing:1px;font-size:8px">REPLAY</span>
-    <input type="range" id="session-replay-slider" min="0" max="${_sessionSnapshots.length - 1}" value="0" style="width:200px;accent-color:#c4a058">
-    <span id="session-replay-time" style="min-width:40px">--</span>
+    <input type="range" id="session-replay-slider" min="0" max="${_sessionSnapshots.length - 1}" value="0" style="width:min(400px,50vw);accent-color:#c4a058">
+    <span id="session-replay-time" style="min-width:80px">-- / ${durStr}</span>
     <button id="session-replay-close" style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:14px">&times;</button>`;
   bar.classList.remove('hidden');
   const closeBtn = document.getElementById('session-replay-close');
@@ -2580,7 +2587,7 @@ function _toggleSessionReplay() {
   closeBtn.addEventListener('click', _replayCloseHandler);
   slider.addEventListener('input', _replaySliderHandler);
 
-  // Auto-play at ~20x speed
+  // Auto-play at ~25x speed (200ms per 5s snapshot)
   _sessionReplayTimer = setInterval(() => {
     if (_sessionReplayIdx >= _sessionSnapshots.length - 1) {
       _sessionReplayIdx = 0;
@@ -2589,7 +2596,7 @@ function _toggleSessionReplay() {
     }
     slider.value = _sessionReplayIdx;
     _renderReplayFrame();
-  }, 100);
+  }, 200);
 }
 
 function _renderReplayFrame() {
@@ -2600,11 +2607,15 @@ function _renderReplayFrame() {
   posAttr.array.set(snap.positions.subarray(0, count * 3));
   posAttr.needsUpdate = true;
   _sessionReplayMesh.geometry.setDrawRange(0, count);
-  // Update time label
+  // Update time label — show clock time + elapsed
   const timeEl = document.getElementById('session-replay-time');
-  if (timeEl) {
+  if (timeEl && _sessionSnapshots.length > 0) {
     const d = new Date(snap.time);
-    timeEl.textContent = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const clock = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    const elapsedSec = Math.round((snap.time - _sessionSnapshots[0].time) / 1000);
+    const eM = Math.floor(elapsedSec / 60);
+    const eS = elapsedSec % 60;
+    timeEl.textContent = `${clock} (${eM}:${String(eS).padStart(2,'0')})`;
   }
 }
 
