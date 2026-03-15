@@ -238,51 +238,62 @@ export async function loadAirports(scene, userLat, userLon) {
   // Show loading placeholder
   _showLoadingPlaceholder(scene);
 
-  try {
-    airportData = await fetchAirportData(userLat, userLon, 1.2);
-    // If clearAirports() was called while we were fetching, discard stale result
-    if (_loadEpoch !== myEpoch) return;
-
-    // Remove placeholder now that data has arrived
-    _removeLoadingPlaceholder(scene);
-
-    airportGroup = new THREE.Group();
-    airportGroup.name = 'airports';
-    airportGroup.renderOrder = 50;
-
-    // Terminals first (lowest layer)
-    if (airportData.terminals) {
-      for (const term of airportData.terminals) {
-        renderTerminal(term, userLat, userLon);
+  // Retry once on failure (Overpass can be temporarily unreachable)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      airportData = await fetchAirportData(userLat, userLon, 1.2);
+      if (_loadEpoch !== myEpoch) return;
+      break; // success
+    } catch (err) {
+      if (attempt === 0 && _loadEpoch === myEpoch) {
+        console.warn('[STRATUM] Airport fetch attempt 1 failed, retrying...', err.message);
+        clearAirportCache(); // clear stale fetchPromise so retry re-fetches
+        await new Promise(r => setTimeout(r, 2000));
+        if (_loadEpoch !== myEpoch) return;
+        continue;
       }
+      _removeLoadingPlaceholder(scene);
+      console.warn('[STRATUM] Airport data fetch failed:', err.message);
+      return;
     }
-
-    // Taxiways
-    if (airportData.taxiways) {
-      renderTaxiwaysBatched(airportData.taxiways, userLat, userLon);
-    }
-
-    // Runways + approach lights
-    for (const rwy of airportData.runways) {
-      renderRunway(rwy, userLat, userLon);
-      renderApproachLights(rwy, userLat, userLon);
-    }
-
-    // Runway edge lights (batched for all runways)
-    renderRunwayEdgeLights(airportData.runways, userLat, userLon);
-
-    for (const apt of airportData.airports) {
-      renderAirportLabel(apt, userLat, userLon);
-    }
-
-    scene.add(airportGroup);
-    const txCount = airportData.taxiways?.length || 0;
-    const tmCount = airportData.terminals?.length || 0;
-    console.log(`[STRATUM] Loaded ${airportData.airports.length} airports, ${airportData.runways.length} runways, ${txCount} taxiways, ${tmCount} terminals`);
-  } catch (err) {
-    _removeLoadingPlaceholder(scene);
-    console.warn('[STRATUM] Airport data fetch failed:', err.message);
   }
+
+  // Remove placeholder now that data has arrived
+  _removeLoadingPlaceholder(scene);
+
+  airportGroup = new THREE.Group();
+  airportGroup.name = 'airports';
+  airportGroup.renderOrder = 50;
+
+  // Terminals first (lowest layer)
+  if (airportData.terminals) {
+    for (const term of airportData.terminals) {
+      renderTerminal(term, userLat, userLon);
+    }
+  }
+
+  // Taxiways
+  if (airportData.taxiways) {
+    renderTaxiwaysBatched(airportData.taxiways, userLat, userLon);
+  }
+
+  // Runways + approach lights
+  for (const rwy of airportData.runways) {
+    renderRunway(rwy, userLat, userLon);
+    renderApproachLights(rwy, userLat, userLon);
+  }
+
+  // Runway edge lights (batched for all runways)
+  renderRunwayEdgeLights(airportData.runways, userLat, userLon);
+
+  for (const apt of airportData.airports) {
+    renderAirportLabel(apt, userLat, userLon);
+  }
+
+  scene.add(airportGroup);
+  const txCount = airportData.taxiways?.length || 0;
+  const tmCount = airportData.terminals?.length || 0;
+  console.log(`[STRATUM] Loaded ${airportData.airports.length} airports, ${airportData.runways.length} runways, ${txCount} taxiways, ${tmCount} terminals`);
 }
 
 // ---- Geo helpers ----
@@ -1985,89 +1996,6 @@ export function clearFuelRangeRing(scene) {
     if (_fuelRangeRing.geometry) _fuelRangeRing.geometry.dispose();
     if (_fuelRangeRing.material) _fuelRangeRing.material.dispose();
     _fuelRangeRing = null;
-  }
-}
-
-// ── A4: Airspace Layer Visualization ──
-// Draw Class B/C airspace cylinders around airports based on tier
-let _airspaceGroup = null;
-
-export function renderAirspaceOverlay(scene, airports, userLat, userLon) {
-  clearAirspaceOverlay(scene);
-  if (!airports || airports.length === 0) return;
-
-  _airspaceGroup = new THREE.Group();
-  _airspaceGroup.name = 'airspaceOverlay';
-  const cosLat = Math.cos(userLat * Math.PI / 180);
-
-  for (const apt of airports) {
-    const dist = Math.sqrt(
-      Math.pow((apt.lon - userLon) * 111.32 * cosLat, 2) +
-      Math.pow((apt.lat - userLat) * 111.32, 2)
-    );
-    if (dist > 150) continue; // Only render within 150km
-
-    // Determine airspace class from airport size
-    // tier 1 / major international = Class B (blue), others = Class C (magenta)
-    const pax = apt.pax || 0;
-    const isClassB = pax >= 10000000 || apt.tier === 1; // 10M+ pax or tier 1
-    const color = isClassB ? 0x4488ff : 0xcc44cc;
-    const radiusNm = isClassB ? 15 : 8; // Class B ~15nm, Class C ~8nm
-    const ceilingFt = isClassB ? 10000 : 5000;
-
-    const cx = (apt.lon - userLon) * GEO_SCALE * cosLat;
-    const cz = -(apt.lat - userLat) * GEO_SCALE;
-
-    // Convert radius to scene units: 1nm = 1.852km, 1 deg lat ≈ 111km, scene = deg * GEO_SCALE
-    const radiusScene = (radiusNm * 1.852 / 111) * GEO_SCALE;
-    // Ceiling height in scene units
-    const ALT_SCALE = 0.06;
-    const ceilingScene = ceilingFt * 0.3048 * ALT_SCALE / (111000 / GEO_SCALE);
-
-    // Outer cylinder (wireframe ring at top and bottom)
-    const ringGeo = new THREE.RingGeometry(radiusScene - 0.01, radiusScene + 0.01, 48);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color, transparent: true, opacity: 0.06, side: THREE.DoubleSide,
-    });
-
-    // Bottom ring
-    const bottomRing = new THREE.Mesh(ringGeo, ringMat);
-    bottomRing.rotation.x = -Math.PI / 2;
-    bottomRing.position.set(cx, 0.005, cz);
-    _airspaceGroup.add(bottomRing);
-
-    // Top ring
-    const topRing = new THREE.Mesh(ringGeo.clone(), ringMat.clone());
-    topRing.material.opacity = 0.03;
-    topRing.rotation.x = -Math.PI / 2;
-    topRing.position.set(cx, ceilingScene, cz);
-    _airspaceGroup.add(topRing);
-
-    // Vertical line segments (4 cardinal points)
-    const vLineMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.04 });
-    for (let a = 0; a < 4; a++) {
-      const angle = (a / 4) * Math.PI * 2;
-      const lx = cx + Math.cos(angle) * radiusScene;
-      const lz = cz + Math.sin(angle) * radiusScene;
-      const geo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(lx, 0.005, lz),
-        new THREE.Vector3(lx, ceilingScene, lz),
-      ]);
-      _airspaceGroup.add(new THREE.Line(geo, vLineMat));
-    }
-  }
-
-  scene.add(_airspaceGroup);
-}
-
-export function clearAirspaceOverlay(scene) {
-  if (_airspaceGroup) {
-    scene.remove(_airspaceGroup);
-    _airspaceGroup.traverse(c => {
-      if (c.geometry) c.geometry.dispose();
-      if (c.material) c.material.dispose();
-    });
-    _airspaceGroup = null;
   }
 }
 

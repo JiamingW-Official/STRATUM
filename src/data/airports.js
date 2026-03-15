@@ -81,6 +81,14 @@ async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
   }
 
   // 3. Fallback: race Overpass endpoints directly (dev mode / Worker unavailable)
+  const data = await _raceOverpass(centerLat, centerLon, radiusDeg);
+  const result = parseOverpassData(data);
+  _saveToCache(centerLat, centerLon, result);
+  return result;
+}
+
+/** Race all Overpass mirrors with POST; returns raw JSON or throws */
+async function _raceOverpass(centerLat, centerLon, radiusDeg) {
   const south = (centerLat - radiusDeg).toFixed(4);
   const north = (centerLat + radiusDeg).toFixed(4);
   const west = (centerLon - radiusDeg).toFixed(4);
@@ -102,7 +110,7 @@ out body geom;
   const body = `data=${encodeURIComponent(query)}`;
   const racePromises = OVERPASS_ENDPOINTS.map(endpoint => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
+    const timer = setTimeout(() => controller.abort(), 12000);
     return fetch(endpoint, {
       method: 'POST',
       body,
@@ -121,10 +129,7 @@ out body geom;
   });
 
   try {
-    const data = await Promise.any(racePromises);
-    const result = parseOverpassData(data);
-    _saveToCache(centerLat, centerLon, result);
-    return result;
+    return await Promise.any(racePromises);
   } catch {
     throw new Error('All Overpass endpoints failed');
   }
@@ -283,8 +288,8 @@ export function prefetchAirportData(cities) {
   if (uncached.length === 0) return;
   console.log(`[STRATUM] Prefetching airport data for ${uncached.length} cities`);
   let i = 0;
-  const BATCH = 4; // 4 parallel fetches — Worker edge cache prevents 429s
-  const DELAY = 600;
+  const BATCH = 2; // conservative — direct Overpass fallback can trigger 429s
+  const DELAY = 1200;
   const nextBatch = () => {
     if (i >= uncached.length) return;
     const batch = uncached.slice(i, i + BATCH);
@@ -295,21 +300,27 @@ export function prefetchAirportData(cities) {
   nextBatch();
 }
 
-// Prefetch uses Worker smart endpoint — edge-cached, no 429 risk
+// Prefetch: try Worker first, fall back to Overpass directly
 async function _prefetchSingle(lat, lon) {
   const cached = _loadFromCache(lat, lon);
   if (cached) return cached;
 
+  // Try Worker endpoint first (edge-cached)
   try {
     const res = await fetch(`/api/airports?lat=${lat}&lon=${lon}&r=1.2`, {
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(12000),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const result = parseOverpassData(data);
-    _saveToCache(lat, lon, result);
-    return result;
-  } catch (err) {
-    throw err;
-  }
+    if (res.ok) {
+      const data = await res.json();
+      const result = parseOverpassData(data);
+      _saveToCache(lat, lon, result);
+      return result;
+    }
+  } catch { /* Worker unavailable — fall through */ }
+
+  // Fallback: direct Overpass
+  const data = await _raceOverpass(lat, lon, 1.2);
+  const result = parseOverpassData(data);
+  _saveToCache(lat, lon, result);
+  return result;
 }
