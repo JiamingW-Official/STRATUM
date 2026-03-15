@@ -1197,13 +1197,9 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // T2-14: Session statistics (I = info)
+  // I = unified Info panel (session + spotter)
   else if (k === 'i') {
-    const overlay = document.getElementById('stats-overlay');
-    if (overlay) {
-      overlay.classList.toggle('hidden');
-      if (!overlay.classList.contains('hidden')) updateStatsOverlay();
-    }
+    toggleInfoPanel();
     return;
   }
 
@@ -1217,12 +1213,6 @@ document.addEventListener('keydown', (e) => {
   // T3-13: Flight history log
   else if (k === 'h') {
     toggleHistoryOverlay();
-    return;
-  }
-
-  // T3-07: Spotter collection book
-  else if (k === 'k') {
-    toggleSpotterBook();
     return;
   }
 
@@ -1380,20 +1370,118 @@ function updateFollowWASD(delta) {
   }
 }
 
-// ── T2-14: Session statistics ──
-function updateStatsOverlay() {
+// ── Unified Info panel (Spotter + Session) ──
+function toggleInfoPanel() {
+  let overlay = document.getElementById('info-overlay');
+  if (overlay) {
+    overlay.classList.toggle('hidden');
+    if (!overlay.classList.contains('hidden')) renderInfoPanel();
+    return;
+  }
+  overlay = document.createElement('div');
+  overlay.id = 'info-overlay';
+  overlay.className = 'overlay-backdrop';
+  overlay.innerHTML = `<div class="overlay-panel overlay-panel-lg">
+    <div class="overlay-header">
+      <span class="overlay-title">SPOTTER COLLECTION</span>
+      <button type="button" class="detail-close overlay-close-btn" aria-label="Close">&times;</button>
+    </div>
+    <div id="info-summary" class="spotter-summary"></div>
+    <div id="info-fleet" class="spotter-fleet-section"></div>
+    <div id="info-airlines" class="spotter-airline-section"></div>
+    <div id="info-spotter-grid" class="spotter-grid"></div>
+    <div class="info-session-section">
+      <div class="overlay-section-header">SESSION</div>
+      <div class="stats-grid info-session-grid">
+        <div class="stats-cell"><div class="stats-label">TIME</div><div class="stats-value" id="info-time">--</div></div>
+        <div class="stats-cell"><div class="stats-label">SEEN</div><div class="stats-value" id="info-seen">0</div></div>
+        <div class="stats-cell"><div class="stats-label">TYPES</div><div class="stats-value" id="info-types">0</div></div>
+        <div class="stats-cell"><div class="stats-label">AIRLINES</div><div class="stats-value" id="info-airlines">0</div></div>
+        <div class="stats-cell"><div class="stats-label">PEAK</div><div class="stats-value" id="info-peak">0</div></div>
+        <div class="stats-cell"><div class="stats-label">AIRPORTS</div><div class="stats-value" id="info-cities">0</div></div>
+      </div>
+    </div>
+    <div class="overlay-footer"><span class="overlay-hint">I to toggle · click outside to close</span></div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
+  overlay.querySelector('.overlay-close-btn')?.addEventListener('click', () => overlay.classList.add('hidden'));
+  renderInfoPanel();
+}
+
+function renderInfoPanel() {
+  // Session stats
   const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
   const h = Math.floor(elapsed / 3600);
   const m = Math.floor((elapsed % 3600) / 60);
   const s = elapsed % 60;
   const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
   const el = (id) => document.getElementById(id);
-  if (el('stats-time')) el('stats-time').textContent = timeStr;
-  if (el('stats-seen')) el('stats-seen').textContent = sessionStats.seen.size;
-  if (el('stats-types')) el('stats-types').textContent = sessionStats.types.size;
-  if (el('stats-airlines')) el('stats-airlines').textContent = sessionStats.airlines.size;
-  if (el('stats-peak')) el('stats-peak').textContent = sessionStats.peak;
-  if (el('stats-cities')) el('stats-cities').textContent = sessionStats.cities.size;
+  if (el('info-time')) el('info-time').textContent = timeStr;
+  if (el('info-seen')) el('info-seen').textContent = sessionStats.seen.size;
+  if (el('info-types')) el('info-types').textContent = sessionStats.types.size;
+  if (el('info-airlines')) el('info-airlines').textContent = sessionStats.airlines.size;
+  if (el('info-peak')) el('info-peak').textContent = sessionStats.peak;
+  if (el('info-cities')) el('info-cities').textContent = sessionStats.cities.size;
+
+  // Spotter grid
+  const grid = document.getElementById('info-spotter-grid');
+  const summary = document.getElementById('info-summary');
+  const airlinesEl = document.getElementById('info-airlines');
+  if (!grid) return;
+  const spotted = SPOTTER_TYPES.filter(t => spotterBook[t.code]);
+  if (summary) summary.textContent = `${spotted.length} / ${SPOTTER_TYPES.length} types spotted`;
+
+  // Fleet mix
+  const fleetEl = document.getElementById('info-fleet');
+  if (fleetEl && _lastFleetMix.total > 0) {
+    const fm = _lastFleetMix;
+    const bar = (label, count, color) => {
+      const pct = Math.round(count / (fm.total || 1) * 100);
+      return `<div class="fleet-bar-row"><span class="fleet-bar-count" style="color:${color}">${count}</span><div class="fleet-bar-track"><div class="fleet-bar-fill" style="width:${pct}%;background:${color}"></div></div><span class="fleet-bar-label">${label}</span></div>`;
+    };
+    const p = fm.phases;
+    const bucketKeys = Object.keys(fm.altBuckets).map(Number).sort((a, b) => a - b);
+    const maxB = Math.max(...Object.values(fm.altBuckets), 1);
+    const altHtml = bucketKeys.length > 0 ? `<div class="fleet-alt-section"><div class="fleet-alt-bars">${bucketKeys.map(k => {
+      const pct = Math.round(fm.altBuckets[k] / maxB * 100);
+      const color = k >= 30 ? '#5aacff' : k >= 15 ? '#44dd88' : '#ee8833';
+      return `<div class="fleet-alt-bar" title="FL${k}0-${k+5}0: ${fm.altBuckets[k]}" style="height:${pct}%;background:${color}"></div>`;
+    }).join('')}</div><div class="fleet-alt-labels"><span>${bucketKeys[0]}k</span><span>${bucketKeys[bucketKeys.length-1]+5}k</span></div></div>` : '';
+
+    fleetEl.innerHTML = `<div class="spotter-airline-title">FLEET MIX · ${fm.total} AIRCRAFT</div>
+      <div class="fleet-bars">${bar('NARROW', fm.NB, '#5aacff')}${bar('WIDE', fm.WB, '#ee8833')}${bar('REGIONAL', fm.RJ, '#44dd88')}${bar('BIZJET', fm.BJ, '#cc88ff')}</div>
+      <div class="fleet-phase-row"><span style="color:#6ec87a">CLB ${p.CLB}</span><span style="color:rgba(196,160,88,0.8)">CRZ ${p.CRZ}</span><span style="color:#e8836a">DES ${p.DES}</span><span style="color:rgba(255,255,255,0.4)">GND ${p.GND}</span></div>
+      ${altHtml}`;
+    fleetEl.style.display = '';
+  } else if (fleetEl) {
+    fleetEl.style.display = 'none';
+  }
+
+  // Airlines
+  if (airlinesEl) {
+    const sortedAirlines = Object.entries(_lastAirlineStats).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    if (sortedAirlines.length > 0) {
+      airlinesEl.innerHTML = `<div class="spotter-airline-title">TOP AIRLINES</div>
+        <div class="spotter-airline-grid">${sortedAirlines.map(([code, cnt]) => {
+          const name = _getAirlineName(code);
+          return `<div class="spotter-airline-item"><span class="spotter-airline-name">${name || code}</span><span class="spotter-airline-cnt">${cnt}</span></div>`;
+        }).join('')}</div>`;
+      airlinesEl.style.display = '';
+    } else {
+      airlinesEl.style.display = 'none';
+    }
+  }
+
+  grid.innerHTML = SPOTTER_TYPES.map(t => {
+    const count = spotterBook[t.code] || 0;
+    const cls = count > 0 ? 'spotted' : 'unspotted';
+    return `<div class="spotter-card ${cls}">
+      <span class="spotter-card-type">${t.code}</span>
+      <span class="spotter-card-name">${t.name}</span>
+      ${count > 0 ? `<span class="spotter-card-count">×${count}</span>` : ''}
+    </div>`;
+  }).join('');
 }
 
 // ── T2-15: Emergency alert banner ──
@@ -1654,89 +1742,7 @@ const SPOTTER_TYPES = [
   { code: 'GLF6', name: 'Gulfstream G650' }, { code: 'C68A', name: 'Citation Latitude' },
 ];
 
-function toggleSpotterBook() {
-  let overlay = document.getElementById('spotter-overlay');
-  if (overlay) { overlay.classList.toggle('hidden'); return; }
-
-  overlay = document.createElement('div');
-  overlay.id = 'spotter-overlay';
-  overlay.className = 'overlay-backdrop';
-  overlay.innerHTML = `<div class="overlay-panel overlay-panel-lg">
-    <div class="overlay-header">
-      <span class="overlay-title">SPOTTER COLLECTION</span>
-      <button type="button" class="detail-close overlay-close-btn" aria-label="Close">&times;</button>
-    </div>
-    <div id="spotter-summary" class="spotter-summary"></div>
-    <div id="spotter-fleet" class="spotter-fleet-section"></div>
-    <div id="spotter-airlines" class="spotter-airline-section"></div>
-    <div id="spotter-grid" class="spotter-grid"></div>
-    <div class="overlay-footer"><span class="overlay-hint">K to toggle · click outside to close</span></div>
-  </div>`;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
-  overlay.querySelector('.overlay-close-btn')?.addEventListener('click', () => overlay.classList.add('hidden'));
-  renderSpotterGrid();
-}
-
-function renderSpotterGrid() {
-  const grid = document.getElementById('spotter-grid');
-  const summary = document.getElementById('spotter-summary');
-  const airlinesEl = document.getElementById('spotter-airlines');
-  if (!grid) return;
-  const spotted = SPOTTER_TYPES.filter(t => spotterBook[t.code]);
-  if (summary) summary.textContent = `${spotted.length} / ${SPOTTER_TYPES.length} types spotted`;
-
-  // FLEET MIX section
-  const fleetEl = document.getElementById('spotter-fleet');
-  if (fleetEl && _lastFleetMix.total > 0) {
-    const fm = _lastFleetMix;
-    const bar = (label, count, color) => {
-      const pct = Math.round(count / (fm.total || 1) * 100);
-      return `<div class="fleet-bar-row"><span class="fleet-bar-count" style="color:${color}">${count}</span><div class="fleet-bar-track"><div class="fleet-bar-fill" style="width:${pct}%;background:${color}"></div></div><span class="fleet-bar-label">${label}</span></div>`;
-    };
-    const p = fm.phases;
-    const bucketKeys = Object.keys(fm.altBuckets).map(Number).sort((a, b) => a - b);
-    const maxB = Math.max(...Object.values(fm.altBuckets), 1);
-    const altHtml = bucketKeys.length > 0 ? `<div class="fleet-alt-section"><div class="fleet-alt-bars">${bucketKeys.map(k => {
-      const pct = Math.round(fm.altBuckets[k] / maxB * 100);
-      const color = k >= 30 ? '#5aacff' : k >= 15 ? '#44dd88' : '#ee8833';
-      return `<div class="fleet-alt-bar" title="FL${k}0-${k+5}0: ${fm.altBuckets[k]}" style="height:${pct}%;background:${color}"></div>`;
-    }).join('')}</div><div class="fleet-alt-labels"><span>${bucketKeys[0]}k</span><span>${bucketKeys[bucketKeys.length-1]+5}k</span></div></div>` : '';
-
-    fleetEl.innerHTML = `<div class="spotter-airline-title">FLEET MIX · ${fm.total} AIRCRAFT</div>
-      <div class="fleet-bars">${bar('NARROW', fm.NB, '#5aacff')}${bar('WIDE', fm.WB, '#ee8833')}${bar('REGIONAL', fm.RJ, '#44dd88')}${bar('BIZJET', fm.BJ, '#cc88ff')}</div>
-      <div class="fleet-phase-row"><span style="color:#6ec87a">CLB ${p.CLB}</span><span style="color:rgba(196,160,88,0.8)">CRZ ${p.CRZ}</span><span style="color:#e8836a">DES ${p.DES}</span><span style="color:rgba(255,255,255,0.4)">GND ${p.GND}</span></div>
-      ${altHtml}`;
-    fleetEl.style.display = '';
-  } else if (fleetEl) {
-    fleetEl.style.display = 'none';
-  }
-
-  // TOP AIRLINES section — separate from grid
-  if (airlinesEl) {
-    const sortedAirlines = Object.entries(_lastAirlineStats).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    if (sortedAirlines.length > 0) {
-      airlinesEl.innerHTML = `<div class="spotter-airline-title">TOP AIRLINES</div>
-        <div class="spotter-airline-grid">${sortedAirlines.map(([code, cnt]) => {
-          const name = _getAirlineName(code);
-          return `<div class="spotter-airline-item"><span class="spotter-airline-name">${name || code}</span><span class="spotter-airline-cnt">${cnt}</span></div>`;
-        }).join('')}</div>`;
-      airlinesEl.style.display = '';
-    } else {
-      airlinesEl.style.display = 'none';
-    }
-  }
-
-  grid.innerHTML = SPOTTER_TYPES.map(t => {
-    const count = spotterBook[t.code] || 0;
-    const cls = count > 0 ? 'spotted' : 'unspotted';
-    return `<div class="spotter-card ${cls}">
-      <span class="spotter-card-type">${t.code}</span>
-      <span class="spotter-card-name">${t.name}</span>
-      ${count > 0 ? `<span class="spotter-card-count">×${count}</span>` : ''}
-    </div>`;
-  }).join('');
-}
+// (toggleSpotterBook / renderSpotterGrid merged into toggleInfoPanel above)
 
 // ── T3-15: Shareable view links ──
 function shareViewLink() {

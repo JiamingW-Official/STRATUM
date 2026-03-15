@@ -485,9 +485,8 @@
 
     <div class="help-section-header">DATA</div>
     <div class="help-grid">
-      <div class="help-row"><kbd>I</kbd><span>Session statistics</span></div>
+      <div class="help-row"><kbd>I</kbd><span>Info panel</span></div>
       <div class="help-row"><kbd>H</kbd><span>Flight history</span></div>
-      <div class="help-row"><kbd>K</kbd><span>Spotter book</span></div>
       <div class="help-row"><kbd>N</kbd><span>Airport notes</span></div>
       <div class="help-row"><kbd>L</kbd><span>Share view link</span></div>
     </div>
@@ -571,45 +570,7 @@
   <!-- Screenshot mode indicator -->
   <div id="screenshot-hint" class="screenshot-hint hidden">P to restore UI</div>
 
-  <!-- Session statistics overlay -->
-  <div id="stats-overlay" class="overlay-backdrop hidden" role="dialog" aria-label="Session Statistics">
-    <div class="overlay-panel">
-      <div class="overlay-header">
-        <span class="overlay-title">SESSION</span>
-        <button type="button" class="detail-close overlay-close-btn" aria-label="Close">&times;</button>
-      </div>
-      <div class="overlay-section-header">PERFORMANCE</div>
-      <div class="stats-grid">
-        <div class="stats-cell">
-          <div class="stats-label">TIME</div>
-          <div class="stats-value" id="stats-time">--</div>
-        </div>
-        <div class="stats-cell">
-          <div class="stats-label">SEEN</div>
-          <div class="stats-value" id="stats-seen">0</div>
-        </div>
-        <div class="stats-cell">
-          <div class="stats-label">TYPES</div>
-          <div class="stats-value" id="stats-types">0</div>
-        </div>
-        <div class="stats-cell">
-          <div class="stats-label">AIRLINES</div>
-          <div class="stats-value" id="stats-airlines">0</div>
-        </div>
-        <div class="stats-cell">
-          <div class="stats-label">PEAK</div>
-          <div class="stats-value" id="stats-peak">0</div>
-        </div>
-        <div class="stats-cell">
-          <div class="stats-label">AIRPORTS</div>
-          <div class="stats-value" id="stats-cities">0</div>
-        </div>
-      </div>
-      <div class="overlay-footer">
-        <span class="overlay-hint">I to toggle · click outside to close</span>
-      </div>
-    </div>
-  </div>
+  <!-- Session+Spotter overlay is now created dynamically by toggleInfoPanel() -->
 
   <!-- Emergency alert banner -->
   <div id="emergency-banner" class="emergency-banner hidden" role="alert">
