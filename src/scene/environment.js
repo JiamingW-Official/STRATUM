@@ -436,19 +436,19 @@ function createRunwayTexture(ref, lengthMeters, widthMeters) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Left threshold: tops point left (toward approaching pilot)
+  // Left threshold: tops point into runway (so pilots read it on approach)
   if (parts[0]) {
     ctx.save();
     ctx.translate(numX, H / 2);
-    ctx.rotate(-Math.PI / 2);
+    ctx.rotate(Math.PI / 2);
     ctx.fillText(parts[0], 0, 0);
     ctx.restore();
   }
-  // Right threshold: tops point right (toward approaching pilot)
+  // Right threshold: tops point into runway (so pilots read it on approach)
   if (parts[1]) {
     ctx.save();
     ctx.translate(W - numX, H / 2);
-    ctx.rotate(Math.PI / 2);
+    ctx.rotate(-Math.PI / 2);
     ctx.fillText(parts[1], 0, 0);
     ctx.restore();
   }
@@ -715,10 +715,10 @@ function renderPAPILights(runways) {
       const baseX = bx + inX * papiDist + perpX * papiLateralOff;
       const baseZ = bz + inZ * papiDist + perpZ * papiLateralOff;
 
-      // 4 PAPI units along perpendicular — alternating red/white (on-glideslope view)
+      // 4 PAPI units perpendicular to runway — alternating red/white (on-glideslope view)
       for (let p = 0; p < 4; p++) {
-        const lightX = baseX + inX * p * papiSpacing;
-        const lightZ = baseZ + inZ * p * papiSpacing;
+        const lightX = baseX + perpX * p * papiSpacing;
+        const lightZ = baseZ + perpZ * p * papiSpacing;
         positions.push(lightX, 0.04, lightZ);
         // On-glideslope: 2 red (near), 2 white (far)
         if (p < 2) {
