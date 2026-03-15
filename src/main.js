@@ -16,6 +16,7 @@ import { initRouteInfer, triggerInference } from './data/routeInfer.js';
 import { CITIES_EXTRA } from './data/citiesExtra.js';
 import { initAirportCities } from './data/airportCities.js';
 import { fetchWeather, weatherDescription, windDirToCardinal, formatVisibility, weatherIcon, flightCategory, computeDensityAltitude, estimateTurbulence } from './data/weather.js';
+import { isRadioAvailable, toggleRadio } from './ui/radio.js';
 
 // --- Cinematic post-processing shader ---
 const CinematicShader = {
@@ -823,6 +824,19 @@ function showAirportWidget(airport, arrivals, departures) {
     activityEl.innerHTML = html;
   }
 
+  // Radio button — show only if feeds available for this airport
+  const radioBtn = document.getElementById('aw-radio-btn');
+  if (radioBtn) {
+    const iata = airport.iata || airport.icao;
+    if (isRadioAvailable(iata)) {
+      radioBtn.classList.remove('hidden');
+      radioBtn.onclick = () => toggleRadio(iata, airport.name || iata);
+    } else {
+      radioBtn.classList.add('hidden');
+      radioBtn.onclick = null;
+    }
+  }
+
   w.classList.remove('hidden');
 }
 
@@ -1223,6 +1237,17 @@ document.addEventListener('keydown', (e) => {
       if (code) showAirportNotes(code);
     } else if (activeCity) {
       showAirportNotes(activeCity.code);
+    }
+    return;
+  }
+
+  // ATC Radio (R key)
+  else if (k === 'r') {
+    if (selectedAirportState) {
+      const iata = selectedAirportState.iata || selectedAirportState.icao;
+      toggleRadio(iata, selectedAirportState.name || iata);
+    } else if (activeCity) {
+      toggleRadio(activeCity.code, activeCity.name || activeCity.code);
     }
     return;
   }

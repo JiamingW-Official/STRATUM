@@ -546,6 +546,43 @@ const WARM_CITIES = [
   { lat: -23.43, lon: -46.47 }, // GRU
 ];
 
+// ── /api/liveatc — LiveATC Icecast stream proxy ──
+// Proxies LiveATC audio streams with CORS headers for HTML5 Audio playback
+const LIVEATC_SERVERS = [
+  'https://s1-bos.liveatc.net/',
+  'https://s1-fmt2.liveatc.net/',
+  'https://s1-ams.liveatc.net/',
+];
+
+async function handleLiveATC(url) {
+  const feed = (url.searchParams.get('feed') || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (!feed) return new Response('Missing feed', { status: 400, headers: corsHeaders() });
+
+  // Try each server until one responds
+  for (const server of LIVEATC_SERVERS) {
+    try {
+      const upstream = await fetch(server + feed, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; STRATUM/1.0)',
+          'Referer': 'https://www.liveatc.net/',
+        },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (upstream.ok || upstream.status === 200) {
+        const response = new Response(upstream.body, {
+          headers: {
+            'Content-Type': upstream.headers.get('Content-Type') || 'audio/mpeg',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'no-cache',
+          },
+        });
+        return response;
+      }
+    } catch { /* try next server */ }
+  }
+  return new Response('Feed unavailable', { status: 404, headers: corsHeaders() });
+}
+
 // ── Main handler ──
 export default {
   // Cron trigger: pre-warm cache every 5 min (paid plan feature)
@@ -577,6 +614,9 @@ export default {
     if (url.pathname === '/api/enrich')    return handleEnrich(url);
     if (url.pathname === '/api/weather')   return handleWeather(url);
     if (url.pathname === '/api/atlas')     return handleAtlas();
+
+    // LiveATC audio stream proxy — /api/liveatc?feed=kjfk_twr
+    if (url.pathname === '/api/liveatc') return handleLiveATC(url);
 
     // Font proxy — self-host Google Fonts (eliminates 2 DNS + 2 TLS handshakes)
     if (url.pathname.startsWith('/fonts/css')) {
