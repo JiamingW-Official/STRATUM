@@ -283,17 +283,15 @@ function _playAudio(feed) {
   statusEl.className = 'radio-status connecting';
   playBtn.textContent = '⏸';
 
-  // Direct LiveATC Icecast servers (opaque <audio> = no CORS needed)
-  // Proxy fallback for when CF Worker is deployed
-  const directUrls = [
+  // Proxy first (Vercel Edge Function / CF Worker sets Referer header)
+  // Direct servers as fallback (may work for some browsers/networks)
+  const urls = [
+    `/api/liveatc?feed=${feed}`,
     `https://s1-bos.liveatc.net/${feed}`,
     `https://s1-fmt2.liveatc.net/${feed}`,
-    `https://s1-iad.liveatc.net/${feed}`,
-    `/api/liveatc?feed=${feed}`,
   ];
 
-  // Start with first direct server
-  _radioAudio.src = directUrls[0];
+  _radioAudio.src = urls[0];
 
   _radioAudio.addEventListener('playing', () => {
     _radioState.playing = true;
@@ -311,8 +309,8 @@ function _playAudio(feed) {
   _radioAudio.addEventListener('error', () => {
     // Cycle through fallback servers
     if (!_radioAudio._fallbackIdx) _radioAudio._fallbackIdx = 1; // 0 already tried
-    if (_radioAudio._fallbackIdx < directUrls.length) {
-      _radioAudio.src = directUrls[_radioAudio._fallbackIdx++];
+    if (_radioAudio._fallbackIdx < urls.length) {
+      _radioAudio.src = urls[_radioAudio._fallbackIdx++];
       _radioAudio.play().catch(() => {});
     } else {
       statusEl.textContent = 'NO SIGNAL';

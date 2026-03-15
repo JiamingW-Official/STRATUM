@@ -551,7 +551,6 @@ const WARM_CITIES = [
 const LIVEATC_SERVERS = [
   'https://s1-bos.liveatc.net/',
   'https://s1-fmt2.liveatc.net/',
-  'https://s1-ams.liveatc.net/',
 ];
 
 async function handleLiveATC(url) {
