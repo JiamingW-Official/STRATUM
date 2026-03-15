@@ -684,7 +684,7 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
 }
 
 // ---- PAPI Lights (Precision Approach Path Indicator) ----
-// 4 lights per threshold, to the left of runway when facing approach
+// 4-light bar on each side of runway, perpendicular to centerline
 
 function renderPAPILights(runways) {
   const positions = [];
@@ -700,10 +700,9 @@ function renderPAPILights(runways) {
     const perpX = -nz, perpZ = nx;
     const halfW = rwy._rWid * 0.5;
 
-    // PAPI is positioned ~300m from threshold, offset to one side
-    const papiDist = 300 / METERS_PER_UNIT;
-    const papiLateralOff = halfW + 0.06; // just outside runway edge
-    const papiSpacing = 0.018; // spacing between the 4 lights
+    const papiDist = 300 / METERS_PER_UNIT; // 300m from threshold
+    const papiLateralOff = halfW + 0.06;    // just outside runway edge
+    const papiSpacing = 0.018;              // spacing between 4 lights in bar
 
     // Both thresholds
     for (let end = 0; end < 2; end++) {
@@ -712,19 +711,21 @@ function renderPAPILights(runways) {
       const inX = end === 0 ? nx : -nx;
       const inZ = end === 0 ? nz : -nz;
 
-      const baseX = bx + inX * papiDist + perpX * papiLateralOff;
-      const baseZ = bz + inZ * papiDist + perpZ * papiLateralOff;
+      // Left side and right side PAPI bars
+      for (let side = -1; side <= 1; side += 2) {
+        const baseX = bx + inX * papiDist + perpX * papiLateralOff * side;
+        const baseZ = bz + inZ * papiDist + perpZ * papiLateralOff * side;
 
-      // 4 PAPI units perpendicular to runway — alternating red/white (on-glideslope view)
-      for (let p = 0; p < 4; p++) {
-        const lightX = baseX + perpX * p * papiSpacing;
-        const lightZ = baseZ + perpZ * p * papiSpacing;
-        positions.push(lightX, 0.04, lightZ);
-        // On-glideslope: 2 red (near), 2 white (far)
-        if (p < 2) {
-          colors.push(1.0, 0.1, 0.08); // red
-        } else {
-          colors.push(1.0, 1.0, 0.95); // white
+        // 4 lights perpendicular to runway
+        for (let p = 0; p < 4; p++) {
+          const lightX = baseX + perpX * side * p * papiSpacing;
+          const lightZ = baseZ + perpZ * side * p * papiSpacing;
+          positions.push(lightX, 0.04, lightZ);
+          if (p < 2) {
+            colors.push(1.0, 0.1, 0.08); // red (near runway)
+          } else {
+            colors.push(1.0, 1.0, 0.95); // white (far from runway)
+          }
         }
       }
     }
