@@ -1,8 +1,8 @@
 // ── Live ATC Radio Panel ──
-// Streams real ATC audio from LiveATC via Cloudflare Worker proxy
+// Premium frequency reference + LiveATC launcher
+// Opens LiveATC's own player (no proxy/CORS issues)
 
 // IATA → feed config: { icao, freqs: [{ type, mhz, feed }] }
-// feed = LiveATC Icecast mount name (lowercase icao + suffix)
 const RADIO_DB = {
   // ── North America ──
   ATL: { icao: 'KATL', freqs: [
@@ -180,8 +180,8 @@ const RADIO_DB = {
 };
 
 let _radioPanel = null;
-let _radioAudio = null;
-let _radioState = { iata: null, activeFreq: null, playing: false, volume: 0.7 };
+let _radioPopup = null;
+let _radioState = { iata: null, icao: null, activeFreq: null };
 
 export function isRadioAvailable(iata) {
   return !!RADIO_DB[iata];
@@ -192,8 +192,8 @@ export function openRadio(iata, airportName) {
   if (!db) return;
 
   _radioState.iata = iata;
+  _radioState.icao = db.icao;
   _radioState.activeFreq = null;
-  _radioState.playing = false;
 
   if (!_radioPanel) _createPanel();
 
@@ -201,43 +201,39 @@ export function openRadio(iata, airportName) {
   _radioPanel.querySelector('.radio-icao').textContent = db.icao;
   _radioPanel.querySelector('.radio-name').textContent = airportName || iata;
 
-  // Build frequency buttons
-  const btnRow = _radioPanel.querySelector('.radio-freq-row');
-  btnRow.innerHTML = db.freqs.map(f =>
-    `<button class="radio-freq-btn" data-feed="${f.feed}" data-mhz="${f.mhz}" data-type="${f.type}">${f.type}</button>`
+  // Build frequency cards
+  const freqList = _radioPanel.querySelector('.radio-freq-list');
+  freqList.innerHTML = db.freqs.map(f =>
+    `<div class="radio-freq-card" data-feed="${f.feed}">
+      <span class="radio-freq-type">${f.type}</span>
+      <span class="radio-freq-mhz">${f.mhz}</span>
+    </div>`
   ).join('');
 
-  // Reset display
-  _radioPanel.querySelector('.radio-mhz').textContent = '---.- MHz';
+  // Click on freq card → open that feed in LiveATC
+  freqList.querySelectorAll('.radio-freq-card').forEach(card => {
+    card.addEventListener('click', () => {
+      freqList.querySelectorAll('.radio-freq-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      _radioState.activeFreq = card.dataset.feed;
+      _openLiveATC(card.dataset.feed, db.icao);
+    });
+  });
+
   _radioPanel.querySelector('.radio-status').textContent = 'SELECT FREQUENCY';
   _radioPanel.querySelector('.radio-status').className = 'radio-status';
-  _radioPanel.querySelector('.radio-play-btn').textContent = '▶';
   _radioPanel.classList.remove('hidden');
   _radioPanel.classList.add('visible');
   _setVizActive(false);
-
-  // Stop any playing audio
-  _stopAudio();
-
-  // Bind frequency buttons
-  btnRow.querySelectorAll('.radio-freq-btn').forEach(btn => {
-    btn.addEventListener('click', () => _selectFreq(btn));
-  });
-
-  // Auto-select TWR if available
-  const twrBtn = btnRow.querySelector('[data-type="TWR"]');
-  if (twrBtn) _selectFreq(twrBtn);
 }
 
 export function closeRadio() {
-  _stopAudio();
   if (_radioPanel) {
     _radioPanel.classList.remove('visible');
     _radioPanel.classList.add('hidden');
   }
   _radioState.iata = null;
   _radioState.activeFreq = null;
-  _radioState.playing = false;
 }
 
 export function toggleRadio(iata, airportName) {
@@ -252,100 +248,40 @@ export function isRadioOpen() {
   return _radioPanel && !_radioPanel.classList.contains('hidden');
 }
 
-function _selectFreq(btn) {
-  const row = btn.parentElement;
-  row.querySelectorAll('.radio-freq-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-
-  const feed = btn.dataset.feed;
-  const mhz = btn.dataset.mhz;
-  _radioState.activeFreq = feed;
-
-  _radioPanel.querySelector('.radio-mhz').textContent = `${mhz} MHz`;
-  _radioPanel.querySelector('.radio-status').textContent = 'READY';
-  _radioPanel.querySelector('.radio-status').className = 'radio-status';
-
-  // Auto-play on frequency select
-  _playAudio(feed);
-}
-
-function _playAudio(feed) {
-  _stopAudio();
-
-  _radioAudio = new Audio();
-  // Do NOT set crossOrigin — opaque mode bypasses CORS for <audio>
-  _radioAudio.volume = _radioState.volume;
-
+function _openLiveATC(feed, icao) {
   const statusEl = _radioPanel.querySelector('.radio-status');
-  const playBtn = _radioPanel.querySelector('.radio-play-btn');
 
-  statusEl.textContent = 'CONNECTING';
-  statusEl.className = 'radio-status connecting';
-  playBtn.textContent = '⏸';
+  // Build LiveATC listen URL
+  const listenUrl = `https://www.liveatc.net/flisten.php?mount=${feed}&icao=${icao}`;
 
-  // Proxy first (Vercel Edge Function / CF Worker sets Referer header)
-  // Direct servers as fallback (may work for some browsers/networks)
-  const urls = [
-    `/api/liveatc?feed=${feed}`,
-    `https://s1-bos.liveatc.net/${feed}`,
-    `https://s1-fmt2.liveatc.net/${feed}`,
-  ];
+  // Open or reuse popup
+  const popupFeatures = 'width=400,height=500,left=100,top=100,scrollbars=no,resizable=yes';
+  _radioPopup = window.open(listenUrl, 'stratum_atc', popupFeatures);
 
-  _radioAudio.src = urls[0];
-
-  _radioAudio.addEventListener('playing', () => {
-    _radioState.playing = true;
+  if (_radioPopup) {
+    _radioPopup.focus();
     statusEl.textContent = 'LIVE';
     statusEl.className = 'radio-status live';
-    playBtn.textContent = '⏸';
     _setVizActive(true);
-  });
 
-  _radioAudio.addEventListener('waiting', () => {
-    statusEl.textContent = 'BUFFERING';
-    statusEl.className = 'radio-status connecting';
-  });
-
-  _radioAudio.addEventListener('error', () => {
-    // Cycle through fallback servers
-    if (!_radioAudio._fallbackIdx) _radioAudio._fallbackIdx = 1; // 0 already tried
-    if (_radioAudio._fallbackIdx < urls.length) {
-      _radioAudio.src = urls[_radioAudio._fallbackIdx++];
-      _radioAudio.play().catch(() => {});
-    } else {
-      statusEl.textContent = 'NO SIGNAL';
-      statusEl.className = 'radio-status no-signal';
-      playBtn.textContent = '▶';
-      _radioState.playing = false;
-      _setVizActive(false);
-    }
-  });
-
-  _radioAudio.addEventListener('ended', () => {
-    statusEl.textContent = 'ENDED';
-    statusEl.className = 'radio-status';
-    playBtn.textContent = '▶';
-    _radioState.playing = false;
-    _setVizActive(false);
-  });
-
-  _radioAudio.play().catch(() => {
-    // Autoplay blocked — user must click play
-    statusEl.textContent = 'PRESS PLAY';
-    statusEl.className = 'radio-status';
-    playBtn.textContent = '▶';
-  });
-}
-
-function _stopAudio() {
-  if (_radioAudio) {
-    _radioAudio.pause();
-    _radioAudio.src = '';
-    _radioAudio.load();
-    _radioAudio = null;
+    // Monitor popup close
+    const checkClosed = setInterval(() => {
+      if (!_radioPopup || _radioPopup.closed) {
+        clearInterval(checkClosed);
+        statusEl.textContent = 'STOPPED';
+        statusEl.className = 'radio-status';
+        _setVizActive(false);
+        _radioPopup = null;
+      }
+    }, 1000);
+  } else {
+    // Popup blocked — open in new tab instead
+    window.open(listenUrl, '_blank');
+    statusEl.textContent = 'OPENED IN TAB';
+    statusEl.className = 'radio-status live';
+    _setVizActive(true);
+    setTimeout(() => _setVizActive(false), 3000);
   }
-  _radioState.playing = false;
-  _setVizActive(false);
 }
 
 function _setVizActive(active) {
@@ -365,10 +301,10 @@ function _createPanel() {
         <span class="radio-icao">----</span>
         <span class="radio-status">STANDBY</span>
       </div>
-      <button class="radio-close" aria-label="Close">×</button>
+      <button class="radio-close" aria-label="Close">&times;</button>
     </div>
     <div class="radio-name">--</div>
-    <div class="radio-freq-row"></div>
+    <div class="radio-freq-list"></div>
     <div class="radio-viz">
       <div class="radio-bar"></div><div class="radio-bar"></div><div class="radio-bar"></div>
       <div class="radio-bar"></div><div class="radio-bar"></div><div class="radio-bar"></div>
@@ -377,44 +313,24 @@ function _createPanel() {
       <div class="radio-bar"></div><div class="radio-bar"></div><div class="radio-bar"></div>
       <div class="radio-bar"></div>
     </div>
-    <div class="radio-mhz">---.- MHz</div>
     <div class="radio-controls">
-      <button class="radio-play-btn">▶</button>
-      <input type="range" class="radio-volume" min="0" max="100" value="70" />
-      <span class="radio-vol-icon">🔊</span>
+      <button class="radio-listen-btn">LISTEN LIVE</button>
     </div>
-    <div class="radio-hint">R to close</div>
+    <div class="radio-hint">Click frequency to tune in</div>
   `;
   document.body.appendChild(_radioPanel);
 
   // Close button
   _radioPanel.querySelector('.radio-close').addEventListener('click', closeRadio);
 
-  // Play/pause toggle
-  _radioPanel.querySelector('.radio-play-btn').addEventListener('click', () => {
-    if (!_radioState.activeFreq) return;
-    if (_radioState.playing && _radioAudio) {
-      _radioAudio.pause();
-      _radioState.playing = false;
-      _radioPanel.querySelector('.radio-play-btn').textContent = '▶';
-      _radioPanel.querySelector('.radio-status').textContent = 'PAUSED';
-      _radioPanel.querySelector('.radio-status').className = 'radio-status';
-      _setVizActive(false);
-    } else if (_radioState.activeFreq) {
-      if (_radioAudio && _radioAudio.src) {
-        _radioAudio.play().catch(() => {});
-      } else {
-        _playAudio(_radioState.activeFreq);
-      }
+  // Listen button — opens LiveATC for the airport
+  _radioPanel.querySelector('.radio-listen-btn').addEventListener('click', () => {
+    if (_radioState.activeFreq) {
+      _openLiveATC(_radioState.activeFreq, _radioState.icao);
+    } else if (_radioState.icao) {
+      // No freq selected — open airport overview
+      const url = `https://www.liveatc.net/listen.php?ident=${_radioState.icao}`;
+      window.open(url, 'stratum_atc', 'width=400,height=500,left=100,top=100');
     }
-  });
-
-  // Volume slider
-  _radioPanel.querySelector('.radio-volume').addEventListener('input', (e) => {
-    const vol = parseInt(e.target.value) / 100;
-    _radioState.volume = vol;
-    if (_radioAudio) _radioAudio.volume = vol;
-    const icon = _radioPanel.querySelector('.radio-vol-icon');
-    icon.textContent = vol === 0 ? '🔇' : vol < 0.4 ? '🔈' : vol < 0.7 ? '🔉' : '🔊';
   });
 }
