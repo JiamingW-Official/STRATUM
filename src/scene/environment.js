@@ -337,8 +337,8 @@ function renderRunway(rwy, userLat, userLon) {
 
   const geo = new THREE.PlaneGeometry(rLen, rWid);
   const mat = new THREE.MeshBasicMaterial({
-    map: texture, transparent: true, opacity: 0.9,
-    side: THREE.DoubleSide, depthWrite: false,
+    map: texture, transparent: false,
+    side: THREE.DoubleSide,
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.x = -Math.PI / 2;
@@ -619,7 +619,7 @@ function _renderALSF2(threshX, threshZ, dirX, dirZ, rwyWid) {
 
   // Use custom sizes via PointsMaterial — approximate with average
   const mat = new THREE.PointsMaterial({
-    size: 0.013, transparent: true, opacity: 0.65,
+    size: 0.006, transparent: true, opacity: 0.65,
     vertexColors: true, sizeAttenuation: true,
     depthWrite: false, blending: THREE.AdditiveBlending,
   });
@@ -675,7 +675,7 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
   _runwayEdgeLightMesh = new THREE.Points(geo, new THREE.PointsMaterial({
-    size: 0.009, transparent: true, opacity: 0.55,
+    size: 0.004, transparent: true, opacity: 0.55,
     vertexColors: true, sizeAttenuation: true,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
@@ -736,7 +736,7 @@ function renderThresholdAndEndLights(runways) {
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
   _thresholdBarMesh = new THREE.Points(geo, new THREE.PointsMaterial({
-    size: 0.011, transparent: true, opacity: 0.7,
+    size: 0.005, transparent: true, opacity: 0.7,
     vertexColors: true, sizeAttenuation: true,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
@@ -891,7 +891,7 @@ function renderTaxiwayLights(taxiways, userLat, userLon) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(centerPositions, 3));
     _taxiwayLightMesh = new THREE.Points(geo, new THREE.PointsMaterial({
-      color: 0x22cc66, size: 0.006, transparent: true, opacity: 0.35,
+      color: 0x22cc66, size: 0.003, transparent: true, opacity: 0.35,
       sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     _taxiwayLightMesh.name = 'taxiwayLights';
@@ -904,7 +904,7 @@ function renderTaxiwayLights(taxiways, userLat, userLon) {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(edgeLightPositions, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(edgeLightColors, 3));
     const mesh = new THREE.Points(geo, new THREE.PointsMaterial({
-      size: 0.007, transparent: true, opacity: 0.4,
+      size: 0.003, transparent: true, opacity: 0.4,
       vertexColors: true, sizeAttenuation: true,
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
@@ -941,7 +941,7 @@ function renderTerminal(term, userLat, userLon) {
 
   // Extruded volume — subtle height
   const extGeo = new THREE.ExtrudeGeometry(shape, {
-    depth: 0.04, bevelEnabled: false,
+    depth: 0.015, bevelEnabled: false,
   });
   const extMat = new THREE.MeshBasicMaterial({
     color: 0x1e3050, transparent: true, opacity: 0.35,
@@ -957,7 +957,7 @@ function renderTerminal(term, userLat, userLon) {
   for (let i = 0; i < scenePoints.length; i++) {
     const p = scenePoints[i];
     const next = scenePoints[(i + 1) % scenePoints.length];
-    edgeVerts.push(p.x, 0.065, p.z, next.x, 0.065, next.z);
+    edgeVerts.push(p.x, 0.04, p.z, next.x, 0.04, next.z);
   }
   const edgeGeo = new THREE.BufferGeometry();
   edgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgeVerts, 3));
@@ -2164,44 +2164,6 @@ export async function reloadNavChart(scene, lat, lon) {
   await loadNavChart(scene, lat, lon);
 }
 
-// ── W4: Visibility Rings ──
-// Ground ring showing current visibility distance, colored by flight category
-let _visRing = null;
-
-export function renderVisibilityRing(scene, visibilityMeters, cloudCover) {
-  clearVisibilityRing(scene);
-  if (visibilityMeters == null || visibilityMeters <= 0) return;
-
-  const visKm = visibilityMeters / 1000;
-  // Color by flight category
-  let color;
-  if (visKm >= 8 && cloudCover < 50) color = 0x44dd88; // VFR green
-  else if (visKm >= 5 && cloudCover < 75) color = 0x5aacff; // MVFR blue
-  else if (visKm >= 1.6 && cloudCover < 90) color = 0xff4444; // IFR red
-  else color = 0xcc44cc; // LIFR purple
-
-  // Convert visibility to scene units
-  const radiusScene = (visKm / 111) * GEO_SCALE;
-  const thickness = 0.03;
-
-  const geo = new THREE.RingGeometry(radiusScene - thickness, radiusScene + thickness, 64);
-  const mat = new THREE.MeshBasicMaterial({
-    color, transparent: true, opacity: 0.08, side: THREE.DoubleSide,
-  });
-  _visRing = new THREE.Mesh(geo, mat);
-  _visRing.rotation.x = -Math.PI / 2;
-  _visRing.position.y = 0.008;
-  scene.add(_visRing);
-}
-
-export function clearVisibilityRing(scene) {
-  if (_visRing) {
-    scene.remove(_visRing);
-    if (_visRing.geometry) _visRing.geometry.dispose();
-    if (_visRing.material) _visRing.material.dispose();
-    _visRing = null;
-  }
-}
 
 // ── S4: Fuel Range Ring ──
 // Shows estimated remaining range as a ground circle around the selected aircraft

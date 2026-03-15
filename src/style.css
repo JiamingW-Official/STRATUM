@@ -903,9 +903,33 @@ html, body {
   margin: 0 14px;
 }
 
+.aw-arr-dep {
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 14px 6px; gap: 0;
+}
+.aw-ad-col {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: 6px 4px; border-radius: var(--r-sm);
+}
+.aw-ad-label {
+  font-family: var(--font-mono); font-size: 7px; letter-spacing: 1.8px;
+  text-transform: uppercase; margin-bottom: 3px;
+}
+.aw-ad-arr .aw-ad-label { color: rgba(106,200,122,0.5); }
+.aw-ad-dep .aw-ad-label { color: rgba(232,131,106,0.5); }
+.aw-ad-val {
+  font-family: var(--font-mono); font-size: 22px; font-weight: 400;
+  letter-spacing: -0.5px; line-height: 1;
+}
+.aw-ad-arr .aw-ad-val { color: rgba(106,200,122,0.85); }
+.aw-ad-dep .aw-ad-val { color: rgba(232,131,106,0.85); }
+.aw-ad-divider {
+  width: 1px; height: 28px; background: rgba(255,255,255,0.06);
+  margin: 0 8px;
+}
 .aw-stats {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  padding: 10px 14px; gap: 3px;
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  padding: 6px 14px 10px; gap: 3px;
 }
 .aw-stats-ext {
   grid-template-columns: repeat(2, 1fr);
