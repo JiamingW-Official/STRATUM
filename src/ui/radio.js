@@ -273,7 +273,7 @@ function _playAudio(feed) {
   _stopAudio();
 
   _radioAudio = new Audio();
-  _radioAudio.crossOrigin = 'anonymous';
+  // Do NOT set crossOrigin — opaque mode bypasses CORS for <audio>
   _radioAudio.volume = _radioState.volume;
 
   const statusEl = _radioPanel.querySelector('.radio-status');
@@ -283,16 +283,17 @@ function _playAudio(feed) {
   statusEl.className = 'radio-status connecting';
   playBtn.textContent = '⏸';
 
-  // Try direct LiveATC first, fall back to proxy
-  const proxyUrl = `/api/liveatc?feed=${feed}`;
+  // Direct LiveATC Icecast servers (opaque <audio> = no CORS needed)
+  // Proxy fallback for when CF Worker is deployed
   const directUrls = [
     `https://s1-bos.liveatc.net/${feed}`,
     `https://s1-fmt2.liveatc.net/${feed}`,
-    `https://s1-ams.liveatc.net/${feed}`,
+    `https://s1-iad.liveatc.net/${feed}`,
+    `/api/liveatc?feed=${feed}`,
   ];
 
-  // Use proxy URL (goes through CF Worker with CORS)
-  _radioAudio.src = proxyUrl;
+  // Start with first direct server
+  _radioAudio.src = directUrls[0];
 
   _radioAudio.addEventListener('playing', () => {
     _radioState.playing = true;
@@ -308,8 +309,8 @@ function _playAudio(feed) {
   });
 
   _radioAudio.addEventListener('error', () => {
-    // Try direct URLs as fallback (may work without CORS for <audio>)
-    if (!_radioAudio._fallbackIdx) _radioAudio._fallbackIdx = 0;
+    // Cycle through fallback servers
+    if (!_radioAudio._fallbackIdx) _radioAudio._fallbackIdx = 1; // 0 already tried
     if (_radioAudio._fallbackIdx < directUrls.length) {
       _radioAudio.src = directUrls[_radioAudio._fallbackIdx++];
       _radioAudio.play().catch(() => {});
