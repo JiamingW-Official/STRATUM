@@ -915,6 +915,13 @@ function showAirportWidget(airport, arrivals, departures) {
   // Approach procedure selector
   _buildApproachSelector(airport);
 
+  // Show floating approach button
+  const fab = document.getElementById('approach-fab');
+  if (fab && _approachCache.length > 0) {
+    fab.classList.remove('hidden');
+    fab.classList.toggle('active', _activeApproaches.length > 0);
+  }
+
   w.classList.remove('hidden');
 }
 
@@ -1009,11 +1016,32 @@ function _renderActiveApproaches() {
   renderApproachChart(scene, filtered, lat, lon, _detectedApproach);
 }
 
+function _toggleAllApproaches() {
+  if (!selectedAirportState || _approachCache.length === 0) return;
+  if (_activeApproaches.length > 0) {
+    _activeApproaches = [];
+    clearApproachChart(scene);
+  } else {
+    _activeApproaches = _approachCache.map(a => a.name);
+    _renderActiveApproaches();
+  }
+  // Sync chip UI
+  document.querySelectorAll('.aw-app-chip').forEach(b => {
+    if (_activeApproaches.length > 0) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+  // Sync floating button
+  const fab = document.getElementById('approach-fab');
+  if (fab) fab.classList.toggle('active', _activeApproaches.length > 0);
+}
+
 function _clearApproachState() {
   _approachCache = [];
   _activeApproaches = [];
   _detectedApproach = null;
   clearApproachChart(scene);
+  const fab = document.getElementById('approach-fab');
+  if (fab) fab.classList.add('hidden');
 }
 
 // I2: Airport activity session store
@@ -1043,6 +1071,9 @@ document.getElementById('aw-close')?.addEventListener('click', () => {
     selectedAirportState = null;
   }
 });
+
+// Floating approach button
+document.getElementById('approach-fab')?.addEventListener('click', _toggleAllApproaches);
 
 function handleAirportClick(airport) {
   const data = getAirportData();
@@ -1450,26 +1481,6 @@ document.addEventListener('keydown', (e) => {
   // Session replay (V key)
   else if (k === 'v') {
     _toggleSessionReplay();
-    return;
-  }
-
-  // Approach chart toggle (A key)
-  else if (k === 'a') {
-    if (selectedAirportState && _approachCache.length > 0) {
-      if (_activeApproaches.length > 0) {
-        _activeApproaches = [];
-        clearApproachChart(scene);
-      } else {
-        _activeApproaches = _approachCache.map(a => a.name);
-        _renderActiveApproaches();
-      }
-      // Sync chip UI
-      const chips = document.querySelectorAll('.aw-app-chip');
-      chips.forEach(b => {
-        if (_activeApproaches.length > 0) b.classList.add('active');
-        else b.classList.remove('active');
-      });
-    }
     return;
   }
 
