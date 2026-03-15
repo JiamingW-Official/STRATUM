@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderVisibilityRing, clearVisibilityRing, renderFuelRangeRing, clearFuelRangeRing } from './scene/environment.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderVisibilityRing, clearVisibilityRing, renderFuelRangeRing, clearFuelRangeRing, getRunwayThresholdTargets } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
@@ -403,13 +403,55 @@ canvas.addEventListener('pointermove', (e) => {
   } else if (aptHits.length > 0) {
     canvas.style.cursor = 'pointer';
     hideAircraftTooltip();
+    _hideRunwayTooltip();
   } else {
-    canvas.style.cursor = '';
-    hideAircraftTooltip();
-    // FIR hover: raycast to ground and look up FIR
-    _checkFIRHover();
+    // Check runway threshold targets
+    const rwyTargets = getRunwayThresholdTargets();
+    const rwyHits = rwyTargets.length > 0 ? raycaster.intersectObjects(rwyTargets, false) : [];
+    if (rwyHits.length > 0 && rwyHits[0].object.userData.runwayThreshold) {
+      canvas.style.cursor = 'pointer';
+      hideAircraftTooltip();
+      _showRunwayTooltip(rwyHits[0].object.userData.runwayThreshold, e.clientX, e.clientY);
+    } else {
+      canvas.style.cursor = '';
+      hideAircraftTooltip();
+      _hideRunwayTooltip();
+      // FIR hover: raycast to ground and look up FIR
+      _checkFIRHover();
+    }
   }
 });
+
+// ── Runway Threshold Tooltip ──
+const _rwyTooltip = document.getElementById('rwy-tooltip');
+let _rwyTooltipVisible = false;
+
+function _showRunwayTooltip(info, mx, my) {
+  if (!_rwyTooltip) return;
+  const lengthFt = Math.round(info.length * 3.28084);
+  const widthFt = Math.round(info.width * 3.28084);
+  const hdg = String(info.heading).padStart(3, '0') + '\u00B0';
+  const surfaceLabel = (info.surface || 'unknown').replace(/_/g, ' ');
+
+  _rwyTooltip.innerHTML = `
+    <div class="rwy-tooltip-desig">RWY ${info.designator}<small>${info.fullRef}</small></div>
+    <div class="rwy-tooltip-row"><span class="rwy-tooltip-label">Heading</span><span class="rwy-tooltip-val">${hdg}</span></div>
+    <div class="rwy-tooltip-row"><span class="rwy-tooltip-label">Length</span><span class="rwy-tooltip-val">${info.length.toLocaleString()}m / ${lengthFt.toLocaleString()}ft</span></div>
+    <div class="rwy-tooltip-row"><span class="rwy-tooltip-label">Width</span><span class="rwy-tooltip-val">${info.width}m / ${widthFt}ft</span></div>
+    <div class="rwy-tooltip-row"><span class="rwy-tooltip-label">Position</span><span class="rwy-tooltip-val">${info.lat.toFixed(4)}, ${info.lon.toFixed(4)}</span></div>
+    <span class="rwy-tooltip-surface">${surfaceLabel}</span>
+  `;
+  _rwyTooltip.style.left = (mx + 16) + 'px';
+  _rwyTooltip.style.top = (my - 10) + 'px';
+  _rwyTooltip.classList.remove('hidden');
+  _rwyTooltipVisible = true;
+}
+
+function _hideRunwayTooltip() {
+  if (!_rwyTooltipVisible || !_rwyTooltip) return;
+  _rwyTooltip.classList.add('hidden');
+  _rwyTooltipVisible = false;
+}
 
 // FIR hover widget — fixed position, shows code + full name
 const _firGroundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
