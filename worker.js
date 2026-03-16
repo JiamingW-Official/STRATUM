@@ -662,6 +662,17 @@ export default {
     // Static assets — immutable hashed files get long cache, HTML gets revalidation
     const response = await env.ASSETS.fetch(request);
     const path = url.pathname;
+
+    // Radio MP3 files — long cache + correct MIME + CORS + range support
+    if (path.startsWith('/radio/') && path.endsWith('.mp3')) {
+      const r = new Response(response.body, response);
+      r.headers.set('Content-Type', 'audio/mpeg');
+      r.headers.set('Accept-Ranges', 'bytes');
+      r.headers.set('Cache-Control', 'public, max-age=2592000, immutable'); // 30 days
+      r.headers.set('Access-Control-Allow-Origin', '*');
+      return addPerfHeaders(r);
+    }
+
     if (path.startsWith('/assets/') && /\.[a-zA-Z0-9]{8,}\.(js|css)$/.test(path)) {
       const cached = new Response(response.body, response);
       cached.headers.set('Cache-Control', 'public, max-age=31536000, immutable');

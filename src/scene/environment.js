@@ -1,9 +1,8 @@
 import * as THREE from 'three';
-import { loadMapTexture } from './mapTiles.js';
+import { loadMapTexture, abortMapLoads } from './mapTiles.js';
 import { fetchAirportData, categorizeFlights, clearAirportCache } from '../data/airports.js';
 import { fetchFIRData, filterNearbyFIRs } from '../data/firBoundaries.js';
 import { fetchNavaidData, filterNearbyNavaids } from '../data/navaids.js';
-import { holdingPatternPoints } from '../data/approachProc.js';
 
 
 const GROUND_SIZE = 160;
@@ -1039,7 +1038,7 @@ function renderAirportLabel(apt, userLat, userLon) {
   airportGroup.add(marker);
 
   // Hit target for raycasting — generous sphere covers airport area
-  const hitGeo = new THREE.SphereGeometry(3.0, 6, 6);
+  const hitGeo = new THREE.SphereGeometry(4.5, 6, 6);
   const hitMat = new THREE.MeshBasicMaterial({ visible: false });
   const hitMesh = new THREE.Mesh(hitGeo, hitMat);
   hitMesh.position.set(cx, 0.3, cz);
@@ -1154,6 +1153,7 @@ export function updatePulse(scene, time) {
 // ---- Exports ----
 
 export function clearGroundMap(scene) {
+  abortMapLoads(); // cancel in-flight tile fetches for previous city
   for (const overlay of hiResOverlays) {
     scene.remove(overlay);
     if (overlay.geometry) overlay.geometry.dispose();
@@ -1774,6 +1774,7 @@ export async function reloadFIRForLocation(scene, lat, lon) {
 let _navGroup = null;
 let _navLoadedLat = null;
 let _navLoadedLon = null;
+let _navHitTargets = [];
 
 async function loadNavChart(scene, lat, lon) {
   if (_navGroup && _navLoadedLat != null &&
@@ -1800,8 +1801,8 @@ async function loadNavChart(scene, lat, lon) {
   const ndbs = nearby.filter(n => n.type === 'NDB' || n.type === 'NDB-DME');
 
   const Y_NAV = 0.04;
-  const OUTER_R = 0.022;
-  const INNER_R = 0.012;
+  const OUTER_R = 0.10;
+  const INNER_R = 0.055;
   const OUTER_DOTS = 12;
   const INNER_DOTS = 6;
 
@@ -1830,7 +1831,7 @@ async function loadNavChart(scene, lat, lon) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(vorPositions, 3));
     _navGroup.add(new THREE.Points(geo, new THREE.PointsMaterial({
-      color: 0xffffff, size: 0.005, transparent: true, opacity: 0.18,
+      color: 0xffffff, size: 0.025, transparent: true, opacity: 0.75,
       depthWrite: false, sizeAttenuation: true,
     })));
   }
@@ -1839,14 +1840,16 @@ async function loadNavChart(scene, lat, lon) {
   for (const { nav, pos } of vorScenePos) {
     const freqStr = nav.freq > 0 ? nav.freq.toFixed(2) : '';
     const label = _createNavLabel(nav.ident, freqStr);
-    label.position.set(pos.x + 0.03, 0.045, pos.z);
+    label.scale.set(0.32, 0.055, 1);
+    label.position.set(pos.x + 0.13, 0.052, pos.z);
     _navGroup.add(label);
   }
 
   // ── Batched NDB dots ──
-  const NDB_R = 0.012;
+  const NDB_R = 0.06;
   const NDB_DOTS = 6;
   const ndbPositions = [];
+  const ndbScenePos = [];
 
   for (const nav of ndbs) {
     const pos = geoToScene(nav.lat, nav.lon, lat, lon);
@@ -1856,15 +1859,25 @@ async function loadNavChart(scene, lat, lon) {
       const a = (i / NDB_DOTS) * Math.PI * 2;
       ndbPositions.push(pos.x + Math.cos(a) * NDB_R, Y_NAV, pos.z + Math.sin(a) * NDB_R);
     }
+    ndbScenePos.push({ nav, pos });
   }
 
   if (ndbPositions.length > 0) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(ndbPositions, 3));
     _navGroup.add(new THREE.Points(geo, new THREE.PointsMaterial({
-      color: 0xffffff, size: 0.004, transparent: true, opacity: 0.12,
+      color: 0xffffff, size: 0.022, transparent: true, opacity: 0.7,
       depthWrite: false, sizeAttenuation: true,
     })));
+  }
+
+  // NDB labels
+  for (const { nav, pos } of ndbScenePos) {
+    const freqStr = nav.freq > 0 ? nav.freq.toFixed(0) : '';
+    const label = _createNavLabel(nav.ident, freqStr);
+    label.scale.set(0.28, 0.048, 1);
+    label.position.set(pos.x + 0.08, 0.052, pos.z);
+    _navGroup.add(label);
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -1876,7 +1889,7 @@ async function loadNavChart(scene, lat, lon) {
     const MARKER_NM = [1, 2, 3, 5, 7, 10];
 
     const ilsMat = new THREE.LineDashedMaterial({
-      color: 0xffffff, transparent: true, opacity: 0.06,
+      color: 0xffffff, transparent: true, opacity: 0.12,
       depthWrite: false, dashSize: 0.10, gapSize: 0.06,
     });
     const markerPositions = [];
@@ -1919,7 +1932,7 @@ async function loadNavChart(scene, lat, lon) {
       const mGeo = new THREE.BufferGeometry();
       mGeo.setAttribute('position', new THREE.Float32BufferAttribute(markerPositions, 3));
       _navGroup.add(new THREE.LineSegments(mGeo, new THREE.LineBasicMaterial({
-        color: 0xffffff, transparent: true, opacity: 0.07, depthWrite: false,
+        color: 0xffffff, transparent: true, opacity: 0.14, depthWrite: false,
       })));
     }
   }
@@ -1930,7 +1943,7 @@ async function loadNavChart(scene, lat, lon) {
   const RING_NM = [5, 10, 20];
   const RING_SEGMENTS = 96;
   const ringMat = new THREE.LineDashedMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.035,
+    color: 0xffffff, transparent: true, opacity: 0.07,
     depthWrite: false, dashSize: 0.18, gapSize: 0.12,
   });
 
@@ -2025,14 +2038,14 @@ async function loadNavChart(scene, lat, lon) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(patternPositions, 3));
       _navGroup.add(new THREE.LineSegments(geo, new THREE.LineDashedMaterial({
-        color: 0xc4a058, transparent: true, opacity: 0.06,
+        color: 0xc4a058, transparent: true, opacity: 0.12,
         depthWrite: false, dashSize: 0.06, gapSize: 0.04,
       })));
       // Waypoint diamonds
       const wGeo = new THREE.BufferGeometry();
       wGeo.setAttribute('position', new THREE.Float32BufferAttribute(waypointDots, 3));
       _navGroup.add(new THREE.Points(wGeo, new THREE.PointsMaterial({
-        color: 0xc4a058, size: 0.005, transparent: true, opacity: 0.15,
+        color: 0xc4a058, size: 0.007, transparent: true, opacity: 0.35,
         depthWrite: false, sizeAttenuation: true,
       })));
     }
@@ -2091,7 +2104,7 @@ async function loadNavChart(scene, lat, lon) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(airwayPositions, 3));
       const line = new THREE.LineSegments(geo, new THREE.LineDashedMaterial({
-        color: 0x7aadcc, transparent: true, opacity: 0.05,
+        color: 0x7aadcc, transparent: true, opacity: 0.25,
         depthWrite: false, dashSize: 0.08, gapSize: 0.06,
       }));
       line.computeLineDistances();
@@ -2099,11 +2112,591 @@ async function loadNavChart(scene, lat, lon) {
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 5: Named Fixes & RNAV Waypoints
+  //  Real CIFP waypoints (US airports) + procedurally generated
+  //  fixes along approach corridors (all airports).
+  //  Symbol: ▲ small triangle — ICAO standard for RNAV fix
+  // ══════════════════════════════════════════════════════════════════
+  const allFixes = new Map(); // name → { lat, lon, type }
+  const Y_FIX = 0.042;
+  const FIX_SIZE = 0.038; // triangle radius
+
+  // 5a: Load real CIFP waypoints via dynamic import (non-blocking, US only)
+  try {
+    const { CIFP_APPROACHES } = await import('../data/cifpApproaches.js');
+    for (const [icao, approaches] of Object.entries(CIFP_APPROACHES)) {
+      for (const app of approaches) {
+        const addWp = wp => {
+          if (!wp.n || wp.n.startsWith('RW')) return; // skip runway thresholds
+          if (Math.abs(wp.lat - lat) > 2.5 || Math.abs(wp.lon - lon) > 2.5) return;
+          if (!allFixes.has(wp.n)) allFixes.set(wp.n, { lat: wp.lat, lon: wp.lon, type: wp.t || 'WP', icao });
+        };
+        if (app.waypoints) app.waypoints.forEach(addWp);
+        if (app.missed) app.missed.forEach(addWp);
+        if (app.transitions) app.transitions.forEach(tr => tr.forEach(addWp));
+      }
+    }
+  } catch { /* CIFP not available — continue with procedural fixes */ }
+
+  // 5b: Generate procedural fixes along approach corridors for ALL airports
+  if (airportData && airportData.runways) {
+    const FIX_DISTANCES_NM = [3, 5, 7, 10, 14]; // NM from threshold
+    const FIX_LABELS = ['FF', 'AF', 'IF', 'IM', 'IA']; // FAF, approach fix, IF, intermediate, IAF
+    for (const rwy of airportData.runways) {
+      if (!rwy.startLat || !rwy.endLat) continue;
+      const dx = rwy.endLon - rwy.startLon;
+      const dy = rwy.endLat - rwy.startLat;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 0.001) continue;
+      const nx = dx / len, ny = dy / len;
+      const ref = (rwy.ref || '').replace(/\//g, '-').replace(/\s/g, '');
+
+      // Fixes extending from each threshold along the approach path
+      for (const [tLat, tLon, dir] of [[rwy.startLat, rwy.startLon, -1], [rwy.endLat, rwy.endLon, 1]]) {
+        for (let i = 0; i < FIX_DISTANCES_NM.length; i++) {
+          const dDeg = FIX_DISTANCES_NM[i] / 60; // NM to degrees
+          const fLat = tLat + dir * ny * dDeg;
+          const fLon = tLon + dir * nx * dDeg;
+          if (Math.abs(fLat - lat) > 2.5 || Math.abs(fLon - lon) > 2.5) continue;
+          // Generate unique fix name based on runway + distance
+          const fixName = `${ref.slice(0, 3)}${FIX_LABELS[i]}`;
+          if (!allFixes.has(fixName)) {
+            allFixes.set(fixName, { lat: fLat, lon: fLon, type: i === 0 ? 'FAF' : i === 4 ? 'IAF' : 'WP' });
+          }
+        }
+      }
+
+      // Lateral offset fixes for base-turn / downwind waypoints
+      const perpX = -ny, perpY = nx;
+      const OFFSET_NM = 2.0;
+      const offDeg = OFFSET_NM / 60;
+      for (const [tLat, tLon, dir] of [[rwy.startLat, rwy.startLon, -1], [rwy.endLat, rwy.endLon, 1]]) {
+        // Downwind abeam fix
+        const dwLat = tLat + perpY * offDeg;
+        const dwLon = tLon + perpX * offDeg;
+        if (Math.abs(dwLat - lat) < 2.5 && Math.abs(dwLon - lon) < 2.5) {
+          const dwName = `${ref.slice(0, 3)}DW`;
+          if (!allFixes.has(dwName)) allFixes.set(dwName, { lat: dwLat, lon: dwLon, type: 'WP' });
+        }
+        // Base turn fix
+        const btLat = tLat + dir * ny * (5 / 60) + perpY * offDeg;
+        const btLon = tLon + dir * nx * (5 / 60) + perpX * offDeg;
+        if (Math.abs(btLat - lat) < 2.5 && Math.abs(btLon - lon) < 2.5) {
+          const btName = `${ref.slice(0, 3)}BT`;
+          if (!allFixes.has(btName)) allFixes.set(btName, { lat: btLat, lon: btLon, type: 'WP' });
+        }
+      }
+    }
+  }
+
+  // 5c: Generate airway intersection fixes along VOR-VOR segments
+  if (vorScenePos.length >= 3) {
+    const seen = new Set();
+    for (let i = 0; i < vorScenePos.length; i++) {
+      for (let j = i + 1; j < vorScenePos.length; j++) {
+        const a = vorScenePos[i].nav, b = vorScenePos[j].nav;
+        const dLat = Math.abs(a.lat - b.lat), dLon = Math.abs(a.lon - b.lon);
+        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+        if (dist < 0.3 || dist > 2.0) continue;
+        const key = [a.ident, b.ident].sort().join('-');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        // Generate 1-2 intersection fixes along each airway
+        const nFixes = dist > 1.2 ? 2 : 1;
+        for (let k = 1; k <= nFixes; k++) {
+          const t = k / (nFixes + 1);
+          const iLat = a.lat + (b.lat - a.lat) * t;
+          const iLon = a.lon + (b.lon - a.lon) * t;
+          if (Math.abs(iLat - lat) > 2.5 || Math.abs(iLon - lon) > 2.5) continue;
+          const intName = `${a.ident.slice(0, 2)}${b.ident.slice(0, 3)}`;
+          if (!allFixes.has(intName)) {
+            allFixes.set(intName, { lat: iLat, lon: iLon, type: 'INT' });
+          }
+        }
+      }
+    }
+  }
+
+  // 5d: Render all fixes as ▲ triangles with labels
+  const fixTriPositions = [];
+  const fixDotPositions = [];
+  const fixScenePos = []; // for labels + future route building
+
+  for (const [name, fix] of allFixes) {
+    const pos = geoToScene(fix.lat, fix.lon, lat, lon);
+    if (Math.abs(pos.x) > GROUND_HALF || Math.abs(pos.z) > GROUND_HALF) continue;
+
+    const isCIFP = fix.icao != null; // real FAA fix vs procedural
+    const s = isCIFP ? FIX_SIZE : FIX_SIZE * 0.7;
+    const h = s * Math.sqrt(3) / 2;
+
+    // Triangle vertices (pointing up)
+    fixTriPositions.push(
+      pos.x, Y_FIX, pos.z - h * 0.67,   pos.x - s / 2, Y_FIX, pos.z + h * 0.33,
+      pos.x - s / 2, Y_FIX, pos.z + h * 0.33,   pos.x + s / 2, Y_FIX, pos.z + h * 0.33,
+      pos.x + s / 2, Y_FIX, pos.z + h * 0.33,   pos.x, Y_FIX, pos.z - h * 0.67,
+    );
+    // Center dot for visibility at distance
+    fixDotPositions.push(pos.x, Y_FIX + 0.001, pos.z);
+
+    fixScenePos.push({ name, fix, pos });
+  }
+
+  if (fixTriPositions.length > 0) {
+    // Triangle outlines — cyan for RNAV fixes
+    const triGeo = new THREE.BufferGeometry();
+    triGeo.setAttribute('position', new THREE.Float32BufferAttribute(fixTriPositions, 3));
+    _navGroup.add(new THREE.LineSegments(triGeo, new THREE.LineBasicMaterial({
+      color: 0x60d0d0, transparent: true, opacity: 0.6, depthWrite: false,
+    })));
+    // Center dots
+    const dotGeo = new THREE.BufferGeometry();
+    dotGeo.setAttribute('position', new THREE.Float32BufferAttribute(fixDotPositions, 3));
+    _navGroup.add(new THREE.Points(dotGeo, new THREE.PointsMaterial({
+      color: 0x60d0d0, size: 0.020, transparent: true, opacity: 0.75,
+      depthWrite: false, sizeAttenuation: true,
+    })));
+  }
+
+  // Fix labels — all fixes get labels now
+  for (const { name, fix, pos } of fixScenePos) {
+    const isCIFP = fix.icao != null;
+    const isKey = fix.type === 'IAF' || fix.type === 'FAF' || fix.type === 'IF';
+    const lbl = _createNavLabel(name, '');
+    lbl.scale.set(0.26, 0.045, 1);
+    lbl.position.set(pos.x + 0.055, Y_FIX + 0.012, pos.z);
+    lbl.material.opacity = isCIFP ? 0.8 : isKey ? 0.7 : 0.5;
+    _navGroup.add(lbl);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 6: Radar / TRACON Facility Symbols
+  //  Concentric circles with sweep indicator at airport locations
+  //  Represents ASR (Airport Surveillance Radar) coverage
+  // ══════════════════════════════════════════════════════════════════
+  if (airportData && airportData.runways && airportData.runways.length > 0) {
+    const radarY = 0.036;
+    // Find airport center from runway midpoints
+    let sumLat = 0, sumLon = 0, rwyCount = 0;
+    const seenRefs = new Set();
+    for (const rwy of airportData.runways) {
+      if (!rwy.startLat || seenRefs.has(rwy.ref)) continue;
+      seenRefs.add(rwy.ref);
+      sumLat += (rwy.startLat + rwy.endLat) / 2;
+      sumLon += (rwy.startLon + rwy.endLon) / 2;
+      rwyCount++;
+    }
+    if (rwyCount > 0) {
+      const cPos = geoToScene(sumLat / rwyCount, sumLon / rwyCount, lat, lon);
+
+      // Concentric radar rings (3 rings)
+      const RADAR_RINGS = [0.15, 0.30, 0.50]; // scene units
+      const radarPts = [];
+      for (const r of RADAR_RINGS) {
+        const segments = 48;
+        for (let i = 0; i < segments; i++) {
+          const a1 = (i / segments) * Math.PI * 2;
+          const a2 = ((i + 1) / segments) * Math.PI * 2;
+          radarPts.push(
+            cPos.x + Math.cos(a1) * r, radarY, cPos.z + Math.sin(a1) * r,
+            cPos.x + Math.cos(a2) * r, radarY, cPos.z + Math.sin(a2) * r
+          );
+        }
+      }
+      // Radar sweep line (static — points northeast)
+      const sweepAngle = Math.PI / 6;
+      const sweepR = RADAR_RINGS[RADAR_RINGS.length - 1];
+      radarPts.push(
+        cPos.x, radarY, cPos.z,
+        cPos.x + Math.cos(sweepAngle) * sweepR, radarY, cPos.z + Math.sin(sweepAngle) * sweepR
+      );
+      // Cross-hairs (N-S and E-W lines through center)
+      const chR = RADAR_RINGS[0] * 0.5;
+      radarPts.push(
+        cPos.x - chR, radarY, cPos.z, cPos.x + chR, radarY, cPos.z,
+        cPos.x, radarY, cPos.z - chR, cPos.x, radarY, cPos.z + chR
+      );
+
+      const radarGeo = new THREE.BufferGeometry();
+      radarGeo.setAttribute('position', new THREE.Float32BufferAttribute(radarPts, 3));
+      _navGroup.add(new THREE.LineSegments(radarGeo, new THREE.LineBasicMaterial({
+        color: 0x40c060, transparent: true, opacity: 0.30, depthWrite: false,
+      })));
+
+      // "ASR" label
+      const asrLabel = _createNavLabel('ASR', '');
+      asrLabel.scale.set(0.08, 0.016, 1);
+      asrLabel.position.set(cPos.x + RADAR_RINGS[0] + 0.02, radarY + 0.01, cPos.z);
+      asrLabel.material.color = new THREE.Color(0x40c060);
+      asrLabel.material.opacity = 0.5;
+      _navGroup.add(asrLabel);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 7: TACAN / DME Stations (distinct symbol)
+  //  Small square with 'T' marker — separate from VOR rendering
+  // ══════════════════════════════════════════════════════════════════
+  const tacans = nearby.filter(n => n.type === 'TACAN' || n.type === 'DME');
+  const tacanPositions = [];
+  const tacanScenePos = [];
+
+  for (const nav of tacans) {
+    const pos = geoToScene(nav.lat, nav.lon, lat, lon);
+    if (Math.abs(pos.x) > GROUND_HALF || Math.abs(pos.z) > GROUND_HALF) continue;
+    const s = 0.045; // half-width
+    // Square outline
+    tacanPositions.push(
+      pos.x - s, Y_NAV, pos.z - s,  pos.x + s, Y_NAV, pos.z - s,
+      pos.x + s, Y_NAV, pos.z - s,  pos.x + s, Y_NAV, pos.z + s,
+      pos.x + s, Y_NAV, pos.z + s,  pos.x - s, Y_NAV, pos.z + s,
+      pos.x - s, Y_NAV, pos.z + s,  pos.x - s, Y_NAV, pos.z - s,
+    );
+    tacanScenePos.push({ nav, pos });
+  }
+
+  if (tacanPositions.length > 0) {
+    const tGeo = new THREE.BufferGeometry();
+    tGeo.setAttribute('position', new THREE.Float32BufferAttribute(tacanPositions, 3));
+    _navGroup.add(new THREE.LineSegments(tGeo, new THREE.LineBasicMaterial({
+      color: 0xd0a040, transparent: true, opacity: 0.55, depthWrite: false,
+    })));
+    for (const { nav, pos } of tacanScenePos) {
+      const lbl = _createNavLabel(nav.ident, nav.freq > 0 ? nav.freq.toFixed(0) : '');
+      lbl.scale.set(0.26, 0.045, 1);
+      lbl.position.set(pos.x + 0.06, Y_NAV + 0.012, pos.z);
+      _navGroup.add(lbl);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 8: VOR Compass Roses
+  //  36 radial tick marks every 10° — ICAO standard VOR depiction
+  // ══════════════════════════════════════════════════════════════════
+  {
+    const rosePositions = [];
+    const TICK_INNER = 0.11;   // just outside outer dot ring
+    const TICK_OUTER_MAJ = 0.16; // major ticks (N/E/S/W + 30° marks)
+    const TICK_OUTER_MIN = 0.135; // minor ticks (10° marks)
+    const Y_R = 0.038;
+
+    for (const { pos } of vorScenePos) {
+      for (let d = 0; d < 360; d += 10) {
+        const a = (d * Math.PI) / 180;
+        const isMajor = d % 30 === 0;
+        const outer = isMajor ? TICK_OUTER_MAJ : TICK_OUTER_MIN;
+        rosePositions.push(
+          pos.x + Math.sin(a) * TICK_INNER, Y_R, pos.z - Math.cos(a) * TICK_INNER,
+          pos.x + Math.sin(a) * outer, Y_R, pos.z - Math.cos(a) * outer
+        );
+      }
+    }
+    if (rosePositions.length > 0) {
+      const rGeo = new THREE.BufferGeometry();
+      rGeo.setAttribute('position', new THREE.Float32BufferAttribute(rosePositions, 3));
+      _navGroup.add(new THREE.LineSegments(rGeo, new THREE.LineBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.25, depthWrite: false,
+      })));
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 9: Airway Designators (V/J routes)
+  //  Replace generic heading labels with realistic airway names + MEA
+  // ══════════════════════════════════════════════════════════════════
+  if (vorScenePos.length >= 2) {
+    const seen9 = new Set();
+    let awIdx = 1;
+    for (let i = 0; i < vorScenePos.length; i++) {
+      for (let j = i + 1; j < vorScenePos.length; j++) {
+        const a = vorScenePos[i], b = vorScenePos[j];
+        const dLat = Math.abs(a.nav.lat - b.nav.lat);
+        const dLon = Math.abs(a.nav.lon - b.nav.lon);
+        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+        if (dist < 0.15 || dist > 1.8) continue;
+        const key = [a.nav.ident, b.nav.ident].sort().join('-');
+        if (seen9.has(key)) continue;
+        seen9.add(key);
+        // Generate airway name: V-routes below ~18000ft, J-routes above
+        const avgLat = (a.nav.lat + b.nav.lat) / 2;
+        const isJet = Math.abs(avgLat) > 40; // heuristic: higher lat → jet routes more common
+        const awName = (isJet ? 'J' : 'V') + awIdx;
+        awIdx++;
+        // MEA: estimate based on distance + latitude (terrain proxy)
+        const distNM = Math.round(dist * 60);
+        const baseMEA = Math.abs(avgLat) > 35 ? 8000 : 5000;
+        const mea = Math.round((baseMEA + distNM * 40) / 100) * 100;
+        const meaStr = mea >= 10000 ? (mea / 1000).toFixed(0) + ',' + String(mea % 1000).padStart(3, '0')
+          : String(mea);
+
+        const mx = (a.pos.x + b.pos.x) / 2;
+        const mz = (a.pos.z + b.pos.z) / 2;
+        // Airway designator label
+        const awLbl = _createNavLabel(awName, '');
+        awLbl.scale.set(0.18, 0.032, 1);
+        awLbl.position.set(mx + 0.02, 0.048, mz - 0.02);
+        awLbl.material.color = new THREE.Color(0x7aadcc);
+        awLbl.material.opacity = 0.55;
+        _navGroup.add(awLbl);
+        // MEA label below
+        const meaLbl = _createNavLabel(meaStr + 'ft', '');
+        meaLbl.scale.set(0.14, 0.024, 1);
+        meaLbl.position.set(mx + 0.02, 0.042, mz + 0.02);
+        meaLbl.material.opacity = 0.35;
+        _navGroup.add(meaLbl);
+      }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // Chart Type 10: MSA Circle — removed (too large, simulated data)
+
+  // Find primary airport — closest to city center (used by Class B/C)
+  const _primaryApt = airportData?.airports?.length > 0
+    ? airportData.airports.reduce((best, apt) => {
+        const d = Math.hypot(apt.lat - lat, apt.lon - lon);
+        return (!best || d < best._d) ? { ...apt, _d: d } : best;
+      }, null)
+    : null;
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 11: Class B/C Airspace Depiction
+  //  Concentric altitude-labeled shelves around primary airport
+  // ══════════════════════════════════════════════════════════════════
+  if (_primaryApt && airportData.runways && airportData.runways.length >= 2) {
+    let cLat2 = 0, cLon2 = 0, rc2 = 0;
+    const seenR2 = new Set();
+    const _primaryRwys2 = airportData.runways.filter(r => {
+      const dLat = r.lat - _primaryApt.lat;
+      const dLon = (r.lon - _primaryApt.lon) * Math.cos(_primaryApt.lat * Math.PI / 180);
+      return Math.hypot(dLat, dLon) * 111320 < 5000;
+    });
+    for (const rwy of (_primaryRwys2.length > 0 ? _primaryRwys2 : airportData.runways)) {
+      if (!rwy.startLat || seenR2.has(rwy.ref)) continue;
+      seenR2.add(rwy.ref);
+      cLat2 += (rwy.startLat + rwy.endLat) / 2;
+      cLon2 += (rwy.startLon + rwy.endLon) / 2;
+      rc2++;
+    }
+    if (rc2 > 0) {
+      cLat2 /= rc2; cLon2 /= rc2;
+      const cp2 = geoToScene(cLat2, cLon2, lat, lon);
+      const isClassB = _primaryRwys2.length >= 3; // 3+ runways at primary → Class B
+      const shelves = isClassB
+        ? [{ r: 7, floor: 'SFC', ceil: '100' }, { r: 10, floor: '20', ceil: '100' },
+           { r: 15, floor: '30', ceil: '100' }, { r: 20, floor: '40', ceil: '100' }]
+        : [{ r: 5, floor: 'SFC', ceil: '42' }, { r: 10, floor: '13', ceil: '42' }];
+      const AS_Y = 0.018;
+      const asPts = [];
+      const classLabel = isClassB ? 'CLASS B' : 'CLASS C';
+
+      for (const sh of shelves) {
+        const r = sh.r * NM_TO_SCENE;
+        const segsA = 64;
+        for (let i = 0; i < segsA; i++) {
+          const a1 = (i / segsA) * Math.PI * 2;
+          const a2 = ((i + 1) / segsA) * Math.PI * 2;
+          asPts.push(
+            cp2.x + Math.cos(a1) * r, AS_Y, cp2.z + Math.sin(a1) * r,
+            cp2.x + Math.cos(a2) * r, AS_Y, cp2.z + Math.sin(a2) * r
+          );
+        }
+        // Altitude label at east side of each ring
+        const altText = `${sh.floor}/${sh.ceil}`;
+        const altLbl = _createNavLabel(altText, '');
+        altLbl.scale.set(0.18, 0.030, 1);
+        altLbl.position.set(cp2.x + r + 0.04, AS_Y + 0.01, cp2.z);
+        altLbl.material.opacity = 0.40;
+        altLbl.material.color = new THREE.Color(0x6090d0);
+        _navGroup.add(altLbl);
+      }
+
+      if (asPts.length > 0) {
+        const asGeo = new THREE.BufferGeometry();
+        asGeo.setAttribute('position', new THREE.Float32BufferAttribute(asPts, 3));
+        _navGroup.add(new THREE.LineSegments(asGeo, new THREE.LineDashedMaterial({
+          color: 0x6090d0, transparent: true, opacity: 0.18,
+          depthWrite: false, dashSize: 0.12, gapSize: 0.04,
+        })));
+      }
+
+      // Class label
+      const classLbl = _createNavLabel(classLabel, '');
+      classLbl.scale.set(0.22, 0.038, 1);
+      classLbl.position.set(cp2.x, AS_Y + 0.015, cp2.z - shelves[0].r * NM_TO_SCENE - 0.08);
+      classLbl.material.color = new THREE.Color(0x6090d0);
+      classLbl.material.opacity = 0.55;
+      _navGroup.add(classLbl);
+    }
+  }
+
+  // Chart Type 12: Holding Patterns — removed (too noisy at overview zoom)
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 13: Feeder Routes
+  //  Dashed lines connecting IAF fixes to nearby VOR stations
+  //  Standard chart element showing how to enter the approach
+  // ══════════════════════════════════════════════════════════════════
+  {
+    const feederPts = [];
+    const Y_FEED = 0.032;
+    for (const { fix, pos } of fixScenePos) {
+      if (fix.type !== 'IAF') continue;
+      // Connect to nearest VOR
+      let bestDist = Infinity, bestVor = null;
+      for (const v of vorScenePos) {
+        const dx = v.pos.x - pos.x, dz = v.pos.z - pos.z;
+        const d = Math.sqrt(dx * dx + dz * dz);
+        if (d < bestDist && d > 0.2 && d < 15 * NM_TO_SCENE) {
+          bestDist = d;
+          bestVor = v;
+        }
+      }
+      if (bestVor) {
+        feederPts.push(bestVor.pos.x, Y_FEED, bestVor.pos.z, pos.x, Y_FEED, pos.z);
+        // Course/distance label at midpoint
+        const mx = (bestVor.pos.x + pos.x) / 2;
+        const mz = (bestVor.pos.z + pos.z) / 2;
+        const dLon = (fix.lon - bestVor.nav.lon) * Math.cos(((fix.lat + bestVor.nav.lat) / 2) * Math.PI / 180);
+        const dLat = fix.lat - bestVor.nav.lat;
+        let hdg = Math.atan2(dLon, dLat) * 180 / Math.PI;
+        if (hdg < 0) hdg += 360;
+        const distNM = Math.round(Math.sqrt(dLat * dLat + dLon * dLon) * 60);
+        const fLbl = _createNavLabel(`${Math.round(hdg)}°/${distNM}`, '');
+        fLbl.scale.set(0.16, 0.028, 1);
+        fLbl.position.set(mx, Y_FEED + 0.01, mz);
+        fLbl.material.opacity = 0.35;
+        fLbl.material.color = new THREE.Color(0xa0a0ff);
+        _navGroup.add(fLbl);
+      }
+    }
+    if (feederPts.length > 0) {
+      const fGeo = new THREE.BufferGeometry();
+      fGeo.setAttribute('position', new THREE.Float32BufferAttribute(feederPts, 3));
+      const fLine = new THREE.LineSegments(fGeo, new THREE.LineDashedMaterial({
+        color: 0xa0a0ff, transparent: true, opacity: 0.20,
+        depthWrite: false, dashSize: 0.15, gapSize: 0.08,
+      }));
+      fLine.computeLineDistances();
+      _navGroup.add(fLine);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Chart Type 14: Magnetic Variation Annotation
+  //  Shows local magnetic declination — essential chart information
+  // ══════════════════════════════════════════════════════════════════
+  {
+    // Simplified WMM approximation for magnetic declination
+    // Good enough for chart annotation purposes
+    const magVar = _estimateMagVar(lat, lon);
+    const varDir = magVar >= 0 ? 'E' : 'W';
+    const varStr = `VAR ${Math.abs(magVar).toFixed(1)}° ${varDir}`;
+    const varLbl = _createNavLabel(varStr, '');
+    varLbl.scale.set(0.24, 0.040, 1);
+    varLbl.position.set(-GROUND_HALF + 1, 0.05, GROUND_HALF - 0.5);
+    varLbl.material.opacity = 0.30;
+    _navGroup.add(varLbl);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  Invisible hit meshes for hover tooltips
+  // ══════════════════════════════════════════════════════════════════
+  _navHitTargets.length = 0;
+  const hitGeo = new THREE.SphereGeometry(0.12, 6, 6);
+  const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+
+  // VOR hit targets
+  for (const { nav, pos } of vorScenePos) {
+    const m = new THREE.Mesh(hitGeo, hitMat);
+    m.position.set(pos.x, 0.05, pos.z);
+    const vorDesc = nav.type === 'VORTAC'
+      ? 'Combined VOR and TACAN station. Provides both civilian azimuth (VOR) and military distance/bearing (TACAN) from a single facility. Pilots tune one frequency to get bearing and DME distance simultaneously.'
+      : nav.type === 'VOR-DME'
+      ? 'VOR paired with Distance Measuring Equipment. Broadcasts a radial signal so pilots can determine their magnetic bearing FROM the station, while DME provides slant-range distance in nautical miles. The backbone of conventional airway navigation.'
+      : 'VHF Omnidirectional Range — a ground-based beacon that broadcasts 360 radials like spokes of a wheel. Pilots tune the frequency and select a radial to fly TO or FROM the station. VORs define most conventional airways on aeronautical charts.';
+    m.userData.navaid = {
+      ident: nav.ident, name: nav.name, type: nav.type,
+      freq: nav.freq > 0 ? nav.freq.toFixed(2) + ' MHz' : '',
+      lat: nav.lat, lon: nav.lon,
+      desc: vorDesc,
+    };
+    _navGroup.add(m);
+    _navHitTargets.push(m);
+  }
+
+  // NDB hit targets
+  for (const { nav, pos } of ndbScenePos) {
+    const m = new THREE.Mesh(hitGeo, hitMat);
+    m.position.set(pos.x, 0.05, pos.z);
+    const ndbDesc = nav.type === 'NDB-DME'
+      ? 'Non-directional Beacon with DME. An older low-frequency radio beacon — the aircraft\'s ADF (Automatic Direction Finder) points toward it. DME adds distance readout. Still used for some approaches and as compass locators near runways.'
+      : 'Non-directional Beacon — one of the oldest navigation aids still in service. Broadcasts on low/medium frequency; the aircraft\'s ADF needle simply points toward the station. Less precise than VOR but effective over water and at low altitude. Being phased out in favor of GPS.';
+    m.userData.navaid = {
+      ident: nav.ident, name: nav.name, type: nav.type,
+      freq: nav.freq > 0 ? nav.freq.toFixed(0) + ' kHz' : '',
+      lat: nav.lat, lon: nav.lon,
+      desc: ndbDesc,
+    };
+    _navGroup.add(m);
+    _navHitTargets.push(m);
+  }
+
+  // Fix/waypoint hit targets
+  for (const { name, fix, pos } of fixScenePos) {
+    const m = new THREE.Mesh(hitGeo, hitMat);
+    m.position.set(pos.x, 0.05, pos.z);
+    let typeLabel, fixDesc;
+    if (fix.type === 'FAF') {
+      typeLabel = 'Final Approach Fix';
+      fixDesc = 'The point where the aircraft begins its final descent to the runway. After crossing the FAF, the pilot follows a precise glidepath — typically 3° — down to the landing threshold. This is the last checkpoint before the runway comes into view.';
+    } else if (fix.type === 'IAF') {
+      typeLabel = 'Initial Approach Fix';
+      fixDesc = 'The entry gate to an instrument approach procedure. ATC clears aircraft to this fix to begin the transition from the en-route phase to the approach sequence. From here, pilots follow a published path of altitude and heading changes toward the runway.';
+    } else if (fix.type === 'IF') {
+      typeLabel = 'Intermediate Fix';
+      fixDesc = 'A waypoint between the initial and final approach fixes where the aircraft stabilizes its configuration — lowering gear, extending flaps, and aligning with the final approach course. This segment ensures safe deceleration and altitude positioning.';
+    } else if (fix.type === 'INT') {
+      typeLabel = 'Airway Intersection';
+      fixDesc = 'Where two or more airways cross. Intersections are defined by the crossing of VOR radials or GPS coordinates. ATC uses them as reporting points and to separate traffic on converging routes. Named with five-letter identifiers.';
+    } else {
+      typeLabel = 'RNAV Waypoint';
+      fixDesc = 'A GPS-defined point in space — no ground-based transmitter needed. RNAV (Area Navigation) waypoints allow curved, fuel-efficient routes instead of zigzagging between ground stations. Modern airliners navigate almost entirely via these waypoints.';
+    }
+    m.userData.navaid = {
+      ident: name, name: typeLabel, type: fix.type || 'WP',
+      freq: fix.icao ? `${fix.icao}` : '',
+      lat: fix.lat, lon: fix.lon,
+      desc: fixDesc + (fix.icao ? ` Part of ${fix.icao} procedure.` : ''),
+    };
+    _navGroup.add(m);
+    _navHitTargets.push(m);
+  }
+
+  // TACAN hit targets
+  for (const { nav, pos } of tacanScenePos) {
+    const m = new THREE.Mesh(hitGeo, hitMat);
+    m.position.set(pos.x, 0.05, pos.z);
+    const tacanDesc = nav.type === 'TACAN'
+      ? 'Tactical Air Navigation — a military UHF beacon that provides both bearing and distance to aircraft. Paired with VOR at VORTAC sites for civil/military shared use. Military aircraft use TACAN channels instead of VOR frequencies.'
+      : 'Distance Measuring Equipment — a transponder that measures slant-range distance between the aircraft and the ground station in nautical miles. The aircraft sends interrogation pulses; the station replies after a fixed delay. Accuracy is typically within 0.5 nm.';
+    m.userData.navaid = {
+      ident: nav.ident, name: nav.name, type: nav.type,
+      freq: nav.freq > 0 ? 'CH ' + nav.freq.toFixed(0) : '',
+      lat: nav.lat, lon: nav.lon,
+      desc: tacanDesc,
+    };
+    _navGroup.add(m);
+    _navHitTargets.push(m);
+  }
+
   scene.add(_navGroup);
   _navLoadedLat = lat;
   _navLoadedLon = lon;
-  const chartCount = (airportData?.runways?.length || 0) > 0 ? 4 : 2;
-  console.log(`[STRATUM] Aero chart: ${vors.length} VOR, ${ndbs.length} NDB, ${chartCount} chart types`);
+  const fixCount = fixScenePos.length;
+  const chartCount = (airportData?.runways?.length || 0) > 0 ? 7 : 2;
+  console.log(`[STRATUM] Aero chart: ${vors.length} VOR, ${ndbs.length} NDB, ${fixCount} fixes, ${tacans.length} TACAN, ${chartCount} chart types`);
 }
 
 function _createNavLabel(ident, freq) {
@@ -2115,10 +2708,10 @@ function _createNavLabel(ident, freq) {
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
-  ctx.font = '500 8px "JetBrains Mono", monospace';
+  ctx.font = '600 14px "JetBrains Mono", monospace';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.30)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.80)';
   const text = freq ? `${ident.toUpperCase()} ${freq}` : ident.toUpperCase();
   ctx.fillText(text, 1, logH / 2);
 
@@ -2140,6 +2733,17 @@ function _createNavLabel(ident, freq) {
   return sprite;
 }
 
+// Simplified magnetic declination estimate (WMM-like approximation)
+function _estimateMagVar(lat, lon) {
+  // Very rough model — captures major trends:
+  // Americas: west declination, Europe/Asia: east declination
+  // Poles: extreme values, equator: moderate
+  const latRad = lat * Math.PI / 180;
+  const lonRad = lon * Math.PI / 180;
+  // Dominant dipole term + longitude correction
+  return -11.5 * Math.sin(lonRad + 1.2) * Math.cos(latRad) + 3.5 * Math.sin(latRad);
+}
+
 function _clearNavChart(scene) {
   if (_navGroup) {
     scene.remove(_navGroup);
@@ -2152,8 +2756,13 @@ function _clearNavChart(scene) {
     });
     _navGroup = null;
   }
+  _navHitTargets.length = 0;
   _navLoadedLat = null;
   _navLoadedLon = null;
+}
+
+export function getNavHitTargets() {
+  return _navHitTargets;
 }
 
 export function clearNavChart(scene) {
@@ -2165,236 +2774,6 @@ export async function reloadNavChart(scene, lat, lon) {
   await loadNavChart(scene, lat, lon);
 }
 
-
-// ── Approach Procedure Chart ──
-let _approachGroup = null;
-
-const _APPROACH_COLORS = {
-  ILS:  0x6abfff, // blue — precision
-  RNAV: 0x6ae8a0, // green — RNAV
-  LOC:  0xf0c860, // amber — localizer only
-  VOR:  0xe8a06a, // orange — VOR
-};
-
-export function renderApproachChart(scene, approaches, userLat, userLon, highlightName = null) {
-  clearApproachChart(scene);
-  if (!approaches || approaches.length === 0) return;
-
-  _approachGroup = new THREE.Group();
-  _approachGroup.name = 'approachChart';
-
-  const Y_APP = 0.035;
-
-  for (const app of approaches) {
-    const isHighlight = highlightName && app.name === highlightName;
-    const baseOpacity = isHighlight ? 0.25 : 0.10;
-    const labelOpacity = isHighlight ? 0.55 : 0.25;
-    const color = _APPROACH_COLORS[app.type] || 0xffffff;
-
-    const wps = app.waypoints;
-    if (!wps || wps.length < 2) continue;
-
-    // ── Main approach path lines ──
-    const linePositions = [];
-
-    if (app.tBar) {
-      // T-bar RNAV: draw left IAF → IF, right IAF → IF, then IF → FAF → MAP
-      // wps: [leftIAF, rightIAF, straightIAF, IF, FAF, MAP]
-      const straightIAF = _gs(wps[2], userLat, userLon);
-      const ifPos = _gs(wps[3], userLat, userLon);
-      const leftIAF = _gs(wps[0], userLat, userLon);
-      const rightIAF = _gs(wps[1], userLat, userLon);
-
-      // T-bar arms
-      linePositions.push(leftIAF.x, Y_APP, leftIAF.z, ifPos.x, Y_APP, ifPos.z);
-      linePositions.push(rightIAF.x, Y_APP, rightIAF.z, ifPos.x, Y_APP, ifPos.z);
-      linePositions.push(straightIAF.x, Y_APP, straightIAF.z, ifPos.x, Y_APP, ifPos.z);
-
-      // IF → FAF → MAP
-      for (let i = 3; i < wps.length - 1; i++) {
-        const a = _gs(wps[i], userLat, userLon);
-        const b = _gs(wps[i + 1], userLat, userLon);
-        linePositions.push(a.x, Y_APP, a.z, b.x, Y_APP, b.z);
-      }
-    } else {
-      // Sequential: IAF → IF → FAF → MAP
-      for (let i = 0; i < wps.length - 1; i++) {
-        const a = _gs(wps[i], userLat, userLon);
-        const b = _gs(wps[i + 1], userLat, userLon);
-        linePositions.push(a.x, Y_APP, a.z, b.x, Y_APP, b.z);
-      }
-    }
-
-    if (linePositions.length > 0) {
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
-      const line = new THREE.LineSegments(geo, new THREE.LineDashedMaterial({
-        color, transparent: true, opacity: baseOpacity,
-        depthWrite: false, dashSize: 0.12, gapSize: 0.06,
-      }));
-      line.computeLineDistances();
-      _approachGroup.add(line);
-    }
-
-    // ── Missed approach path (different style) ──
-    if (app.missed && app.missed.length >= 2) {
-      const missedPositions = [];
-      // MAP → first missed wp
-      const mapPos = _gs(wps[wps.length - 1], userLat, userLon);
-      const ma0 = _gs(app.missed[0], userLat, userLon);
-      missedPositions.push(mapPos.x, Y_APP, mapPos.z, ma0.x, Y_APP, ma0.z);
-      for (let i = 0; i < app.missed.length - 1; i++) {
-        const a = _gs(app.missed[i], userLat, userLon);
-        const b = _gs(app.missed[i + 1], userLat, userLon);
-        missedPositions.push(a.x, Y_APP, a.z, b.x, Y_APP, b.z);
-      }
-      const mGeo = new THREE.BufferGeometry();
-      mGeo.setAttribute('position', new THREE.Float32BufferAttribute(missedPositions, 3));
-      const mLine = new THREE.LineSegments(mGeo, new THREE.LineDashedMaterial({
-        color: 0xe06050, transparent: true, opacity: baseOpacity * 0.7,
-        depthWrite: false, dashSize: 0.06, gapSize: 0.08,
-      }));
-      mLine.computeLineDistances();
-      _approachGroup.add(mLine);
-    }
-
-    // ── Holding pattern at IAF ──
-    if (app.holdFix != null && app.holdInbound != null) {
-      const holdWp = wps[app.holdFix];
-      const holdPts = holdingPatternPoints(holdWp.lat, holdWp.lon, app.holdInbound, app.holdTurn || 'R', 2.5, 1.2);
-      const holdPositions = [];
-      for (let i = 0; i < holdPts.length - 1; i++) {
-        const a = _gs(holdPts[i], userLat, userLon);
-        const b = _gs(holdPts[i + 1], userLat, userLon);
-        holdPositions.push(a.x, Y_APP, a.z, b.x, Y_APP, b.z);
-      }
-      if (holdPositions.length > 0) {
-        const hGeo = new THREE.BufferGeometry();
-        hGeo.setAttribute('position', new THREE.Float32BufferAttribute(holdPositions, 3));
-        const hLine = new THREE.LineSegments(hGeo, new THREE.LineDashedMaterial({
-          color, transparent: true, opacity: baseOpacity * 0.6,
-          depthWrite: false, dashSize: 0.05, gapSize: 0.05,
-        }));
-        hLine.computeLineDistances();
-        _approachGroup.add(hLine);
-      }
-    }
-
-    // ── Waypoint dots ──
-    const dotPositions = [];
-    for (const wp of wps) {
-      const p = _gs(wp, userLat, userLon);
-      dotPositions.push(p.x, Y_APP + 0.002, p.z);
-    }
-    if (dotPositions.length > 0) {
-      const dGeo = new THREE.BufferGeometry();
-      dGeo.setAttribute('position', new THREE.Float32BufferAttribute(dotPositions, 3));
-      _approachGroup.add(new THREE.Points(dGeo, new THREE.PointsMaterial({
-        color, size: isHighlight ? 0.012 : 0.008, transparent: true, opacity: baseOpacity * 1.8,
-        depthWrite: false, sizeAttenuation: true,
-      })));
-    }
-
-    // ── Waypoint labels (name + altitude) ──
-    for (const wp of wps) {
-      const p = _gs(wp, userLat, userLon);
-      const altStr = wp.alt > 0 ? Math.round(wp.alt).toLocaleString() : '';
-      const label = _createApproachLabel(wp.name, altStr, wp.fixType, color, labelOpacity);
-      label.position.set(p.x + 0.025, Y_APP + 0.012, p.z);
-      _approachGroup.add(label);
-    }
-
-    // ── Approach name label near FAF ──
-    const fafIdx = wps.findIndex(w => w.fixType === 'FAF');
-    if (fafIdx >= 0) {
-      const fafPos = _gs(wps[fafIdx], userLat, userLon);
-      const nameLabel = _createApproachLabel(app.name, '', null, color, labelOpacity * 1.2);
-      nameLabel.scale.set(0.18, 0.025, 1);
-      nameLabel.position.set(fafPos.x - 0.06, Y_APP + 0.022, fafPos.z + 0.04);
-      _approachGroup.add(nameLabel);
-    }
-  }
-
-  scene.add(_approachGroup);
-}
-
-export function clearApproachChart(scene) {
-  if (_approachGroup) {
-    scene.remove(_approachGroup);
-    _approachGroup.traverse(obj => {
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material) {
-        if (obj.material.map) obj.material.map.dispose();
-        obj.material.dispose();
-      }
-    });
-    _approachGroup = null;
-  }
-}
-
-// Shorthand for geoToScene
-function _gs(wp, uLat, uLon) {
-  return geoToScene(wp.lat, wp.lon, uLat, uLon);
-}
-
-function _createApproachLabel(name, altStr, fixType, color, opacity) {
-  const canvas = document.createElement('canvas');
-  const dpr = 4;
-  const logW = 140, logH = 22;
-  canvas.width = logW * dpr;
-  canvas.height = logH * dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  // Fix type prefix
-  const prefix = fixType === 'IAF' ? 'IAF ' :
-                 fixType === 'IF' ? 'IF ' :
-                 fixType === 'FAF' ? 'FAF ' :
-                 fixType === 'MAP' ? 'MAP ' :
-                 fixType === 'STEPDOWN' ? 'SD ' :
-                 fixType === 'MA' ? 'MA ' : '';
-
-  const hexColor = '#' + new THREE.Color(color).getHexString();
-  const r = parseInt(hexColor.slice(1, 3), 16);
-  const g = parseInt(hexColor.slice(3, 5), 16);
-  const b = parseInt(hexColor.slice(5, 7), 16);
-
-  ctx.font = '600 7px "JetBrains Mono", monospace';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-
-  // Fix type in dim
-  if (prefix) {
-    ctx.fillStyle = `rgba(${r},${g},${b},0.4)`;
-    ctx.fillText(prefix, 1, logH / 2 - 4);
-  }
-
-  // Name
-  ctx.fillStyle = `rgba(${r},${g},${b},0.7)`;
-  ctx.font = '500 7px "JetBrains Mono", monospace';
-  ctx.fillText(name, prefix ? ctx.measureText(prefix).width + 2 : 1, logH / 2 - 4);
-
-  // Altitude
-  if (altStr) {
-    ctx.fillStyle = `rgba(255,255,255,0.35)`;
-    ctx.font = '400 6px "JetBrains Mono", monospace';
-    ctx.fillText(`${altStr}'`, 1, logH / 2 + 5);
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.generateMipmaps = true;
-  texture.anisotropy = 4;
-
-  const mat = new THREE.SpriteMaterial({
-    map: texture, transparent: true, opacity,
-    depthWrite: false, sizeAttenuation: true,
-  });
-  const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(0.14, 0.024, 1);
-  return sprite;
-}
 
 
 // ── S4: Fuel Range Ring ──
@@ -2429,6 +2808,75 @@ export function clearFuelRangeRing(scene) {
     if (_fuelRangeRing.geometry) _fuelRangeRing.geometry.dispose();
     if (_fuelRangeRing.material) _fuelRangeRing.material.dispose();
     _fuelRangeRing = null;
+  }
+}
+
+// ── Bulk Route Overlay ──────────────────────────────────────────────────────
+// Renders great-circle route arcs for ALL aircraft with known origin + destination
+let _routeOverlayGroup = null;
+
+/**
+ * Update the route overlay for all aircraft.
+ * @param {THREE.Scene} scene
+ * @param {Array<{originLat, originLon, destLat, destLon}>} routes
+ * @param {number} userLat
+ * @param {number} userLon
+ */
+export function updateRouteOverlay(scene, routes, userLat, userLon) {
+  clearRouteOverlay(scene);
+  if (!routes || routes.length === 0) return;
+
+  _routeOverlayGroup = new THREE.Group();
+  _routeOverlayGroup.name = 'routeOverlay';
+
+  const cosLat = Math.cos(userLat * Math.PI / 180);
+  const HALF = GROUND_SIZE / 2;
+  const SEG = 48; // segments per arc
+  const Y_ROUTE = 0.025;
+  const allPositions = [];
+
+  for (const r of routes) {
+    const pts = [];
+    let anyVisible = false;
+    for (let i = 0; i <= SEG; i++) {
+      const t = i / SEG;
+      const la = r.originLat + (r.destLat - r.originLat) * t;
+      const lo = r.originLon + (r.destLon - r.originLon) * t;
+      const x = (lo - userLon) * GEO_SCALE * cosLat;
+      const z = -(la - userLat) * GEO_SCALE;
+      pts.push({ x, z });
+      if (Math.abs(x) < HALF && Math.abs(z) < HALF) anyVisible = true;
+    }
+    if (!anyVisible) continue;
+
+    // Push as line segments (p0-p1, p1-p2, p2-p3, ...)
+    for (let i = 0; i < pts.length - 1; i++) {
+      allPositions.push(
+        pts[i].x, Y_ROUTE, pts[i].z,
+        pts[i + 1].x, Y_ROUTE, pts[i + 1].z
+      );
+    }
+  }
+
+  if (allPositions.length > 0) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(allPositions, 3));
+    _routeOverlayGroup.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+      color: 0xc4a058, transparent: true, opacity: 0.12, depthWrite: false,
+    })));
+  }
+
+  scene.add(_routeOverlayGroup);
+}
+
+export function clearRouteOverlay(scene) {
+  if (_routeOverlayGroup) {
+    scene.remove(_routeOverlayGroup);
+    _routeOverlayGroup.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    _routeOverlayGroup = null;
   }
 }
 

@@ -101,8 +101,6 @@ const elOperatorRow = document.getElementById('detail-operator-row');
 const elOperator = document.getElementById('detail-operator');
 const elAgeRow = document.getElementById('detail-age-row');
 const elAge = document.getElementById('detail-age');
-const elRadio = document.getElementById('detail-radio');
-
 // Route elements
 const elRoute = document.getElementById('detail-route');
 const elOriginCode = document.getElementById('detail-origin-code');
@@ -1665,16 +1663,6 @@ export function showDetail(aircraftObj, userLat, userLon) {
   if (elTrackedTime) {
     elTrackedTime.textContent = d.trackedTime ? `tracked ${d.trackedTime}` : '';
   }
-  const atcAirport = d.origin || d.destination;
-  if (atcAirport && atcAirport.length >= 3) {
-    elRadio.classList.remove('hidden');
-    elRadio.onclick = () => {
-      window.open(`https://www.liveatc.net/search/?icao=${encodeURIComponent(atcAirport)}`, '_blank');
-    };
-  } else {
-    elRadio.classList.add('hidden');
-  }
-
   elStatus.textContent = d.status;
   elStatus.className = 'detail-status ' + d.status.toLowerCase();
 

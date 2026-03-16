@@ -6,6 +6,8 @@
   <title>STRATUM</title>
   <link rel="preconnect" href="https://a.basemaps.cartocdn.com" crossorigin />
   <link rel="preconnect" href="https://b.basemaps.cartocdn.com" crossorigin />
+  <link rel="preconnect" href="https://c.basemaps.cartocdn.com" crossorigin />
+  <link rel="preconnect" href="https://d.basemaps.cartocdn.com" crossorigin />
   <link href="/fonts/css/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" fetchpriority="high" />
 </head>
@@ -42,7 +44,7 @@
       </div>
       <div class="hud-stat hud-stat-clock">
         <span class="hud-stat-value" id="hud-zulu">--:--Z</span>
-        <span class="hud-stat-label">UTC</span>
+        <span class="hud-stat-label" id="hud-clock-label">UTC</span>
       </div>
     </div>
     <!-- Weather — always visible, single compact line -->
@@ -285,7 +287,6 @@
     <!-- ── FOOTER: ATC radio + tracked time ── -->
     <div class="hud-divider"></div>
     <div class="detail-footer">
-      <button type="button" id="detail-radio" class="detail-radio-btn hidden" title="Listen to ATC">&#9399; ATC</button>
       <span id="detail-tracked-time" class="detail-tracked-time"></span>
       <div id="detail-status" class="detail-status"></div>
     </div>
@@ -481,6 +482,7 @@
       <div class="help-row"><kbd>G</kbd><span>Distance rings</span></div>
       <div class="help-row"><kbd>F</kbd><span>Filter panel</span></div>
       <div class="help-row"><kbd>P</kbd><span>Screenshot mode</span></div>
+      <div class="help-row"><kbd>R</kbd><span>Radio</span></div>
     </div>
 
     <div class="help-section-header">DATA</div>
@@ -488,7 +490,6 @@
       <div class="help-row"><kbd>I</kbd><span>Info panel</span></div>
       <div class="help-row"><kbd>H</kbd><span>Flight history</span></div>
       <div class="help-row"><kbd>N</kbd><span>Airport notes</span></div>
-      <div class="help-row"><kbd>R</kbd><span>ATC radio</span></div>
       <div class="help-row"><kbd>L</kbd><span>Share view link</span></div>
     </div>
 
@@ -514,7 +515,6 @@
         <span id="aw-iata" class="aw-iata">---</span>
         <span id="aw-icao" class="aw-icao">----</span>
       </div>
-      <button type="button" id="aw-radio-btn" class="aw-radio-btn hidden" aria-label="ATC Radio" title="ATC Radio (R)">&#9738;</button>
       <button type="button" id="aw-close" class="aw-close" aria-label="Close">&times;</button>
     </div>
     <div id="aw-name" class="aw-name">--</div>
@@ -565,9 +565,6 @@
     <div id="aw-desc" class="aw-desc hidden"></div>
   </div>
 
-  <!-- Approach chart floating button -->
-  <button type="button" id="approach-fab" class="approach-fab hidden" aria-label="Toggle approach charts" title="Toggle IFR Approaches">APP</button>
-
   <!-- Aircraft hover tooltip -->
   <div id="aircraft-tooltip" class="aircraft-tooltip hidden" aria-hidden="true"></div>
 
@@ -590,6 +587,18 @@
 
   <!-- Runway threshold tooltip -->
   <div id="rwy-tooltip" class="rwy-tooltip hidden"></div>
+
+  <!-- Navaid tooltip -->
+  <div id="nav-tooltip" class="nav-tooltip hidden"></div>
+
+  <!-- Radio toggle button -->
+  <button type="button" id="radio-toggle-btn" class="radio-toggle-btn" title="Radio (R)" aria-label="Toggle radio">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 15V9a8 8 0 0116 0v6"/>
+      <path d="M2 15.5a2.5 2.5 0 015 0v2a2.5 2.5 0 01-5 0v-2z"/>
+      <path d="M17 15.5a2.5 2.5 0 015 0v2a2.5 2.5 0 01-5 0v-2z"/>
+    </svg>
+  </button>
 
   <script type="module" src="/src/main.js"></script>
   <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')</script>

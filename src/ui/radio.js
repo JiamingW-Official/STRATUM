@@ -1,336 +1,394 @@
-// ── Live ATC Radio Panel ──
-// Premium frequency reference + LiveATC launcher
-// Opens LiveATC's own player (no proxy/CORS issues)
+// ── STRATUM Radio ──
+// Auto-plays shuffled tracks from station folders
+// Users can switch stations but not skip songs
 
-// IATA → feed config: { icao, freqs: [{ type, mhz, feed }] }
-const RADIO_DB = {
-  // ── North America ──
-  ATL: { icao: 'KATL', freqs: [
-    { type: 'TWR', mhz: '119.500', feed: 'katl_twr' },
-    { type: 'GND', mhz: '121.900', feed: 'katl_gnd' },
-    { type: 'APP', mhz: '125.200', feed: 'katl_app' },
-    { type: 'ATIS', mhz: '127.175', feed: 'katl_atis' },
-  ]},
-  JFK: { icao: 'KJFK', freqs: [
-    { type: 'TWR', mhz: '119.100', feed: 'kjfk_twr' },
-    { type: 'GND', mhz: '121.900', feed: 'kjfk_gnd' },
-    { type: 'APP', mhz: '128.125', feed: 'kjfk_app' },
-    { type: 'ATIS', mhz: '128.725', feed: 'kjfk_atis' },
-  ]},
-  LAX: { icao: 'KLAX', freqs: [
-    { type: 'TWR', mhz: '133.900', feed: 'klax_twr' },
-    { type: 'GND', mhz: '121.650', feed: 'klax_gnd' },
-    { type: 'APP', mhz: '124.500', feed: 'klax_app' },
-    { type: 'ATIS', mhz: '133.800', feed: 'klax_atis' },
-  ]},
-  ORD: { icao: 'KORD', freqs: [
-    { type: 'TWR', mhz: '132.700', feed: 'kord_twr' },
-    { type: 'GND', mhz: '121.750', feed: 'kord_gnd' },
-    { type: 'APP', mhz: '124.350', feed: 'kord_app' },
-    { type: 'ATIS', mhz: '135.400', feed: 'kord_atis' },
-  ]},
-  DFW: { icao: 'KDFW', freqs: [
-    { type: 'TWR', mhz: '124.150', feed: 'kdfw_twr' },
-    { type: 'GND', mhz: '121.650', feed: 'kdfw_gnd' },
-    { type: 'APP', mhz: '124.300', feed: 'kdfw_app' },
-  ]},
-  DEN: { icao: 'KDEN', freqs: [
-    { type: 'TWR', mhz: '132.350', feed: 'kden_twr' },
-    { type: 'GND', mhz: '121.850', feed: 'kden_gnd' },
-    { type: 'APP', mhz: '120.800', feed: 'kden_app' },
-  ]},
-  SFO: { icao: 'KSFO', freqs: [
-    { type: 'TWR', mhz: '120.500', feed: 'ksfo_twr' },
-    { type: 'GND', mhz: '121.800', feed: 'ksfo_gnd' },
-    { type: 'APP', mhz: '120.350', feed: 'ksfo_app' },
-  ]},
-  MIA: { icao: 'KMIA', freqs: [
-    { type: 'TWR', mhz: '118.300', feed: 'kmia_twr' },
-    { type: 'GND', mhz: '121.800', feed: 'kmia_gnd' },
-    { type: 'APP', mhz: '124.850', feed: 'kmia_app' },
-  ]},
-  SEA: { icao: 'KSEA', freqs: [
-    { type: 'TWR', mhz: '119.900', feed: 'ksea_twr' },
-    { type: 'GND', mhz: '121.700', feed: 'ksea_gnd' },
-    { type: 'APP', mhz: '124.200', feed: 'ksea_app' },
-  ]},
-  BOS: { icao: 'KBOS', freqs: [
-    { type: 'TWR', mhz: '128.800', feed: 'kbos_twr' },
-    { type: 'GND', mhz: '121.900', feed: 'kbos_gnd' },
-    { type: 'APP', mhz: '120.600', feed: 'kbos_app' },
-  ]},
-  EWR: { icao: 'KEWR', freqs: [
-    { type: 'TWR', mhz: '118.300', feed: 'kewr_twr' },
-    { type: 'GND', mhz: '121.800', feed: 'kewr_gnd' },
-    { type: 'APP', mhz: '119.200', feed: 'kewr_app' },
-  ]},
-  IAD: { icao: 'KIAD', freqs: [
-    { type: 'TWR', mhz: '120.100', feed: 'kiad_twr' },
-    { type: 'APP', mhz: '126.650', feed: 'kiad_app' },
-  ]},
-  MSP: { icao: 'KMSP', freqs: [
-    { type: 'TWR', mhz: '126.700', feed: 'kmsp_twr' },
-    { type: 'APP', mhz: '119.300', feed: 'kmsp_app' },
-  ]},
-  PHX: { icao: 'KPHX', freqs: [
-    { type: 'TWR', mhz: '118.700', feed: 'kphx_twr' },
-    { type: 'APP', mhz: '120.700', feed: 'kphx_app' },
-  ]},
-  LAS: { icao: 'KLAS', freqs: [
-    { type: 'TWR', mhz: '119.900', feed: 'klas_twr' },
-    { type: 'APP', mhz: '125.900', feed: 'klas_app' },
-  ]},
-  CLT: { icao: 'KCLT', freqs: [
-    { type: 'TWR', mhz: '119.900', feed: 'kclt_twr' },
-    { type: 'APP', mhz: '124.000', feed: 'kclt_app' },
-  ]},
-  YYZ: { icao: 'CYYZ', freqs: [
-    { type: 'TWR', mhz: '118.700', feed: 'cyyz_twr' },
-    { type: 'GND', mhz: '121.900', feed: 'cyyz_gnd' },
-    { type: 'APP', mhz: '119.350', feed: 'cyyz_app' },
-  ]},
-  MEX: { icao: 'MMMX', freqs: [
-    { type: 'TWR', mhz: '118.100', feed: 'mmmx_twr' },
-    { type: 'APP', mhz: '119.150', feed: 'mmmx_app' },
-  ]},
-  GRU: { icao: 'SBGR', freqs: [
-    { type: 'TWR', mhz: '118.200', feed: 'sbgr_twr' },
-    { type: 'APP', mhz: '127.150', feed: 'sbgr_app' },
-  ]},
-  // ── Europe ──
-  LHR: { icao: 'EGLL', freqs: [
-    { type: 'TWR', mhz: '118.500', feed: 'egll_twr' },
-    { type: 'GND', mhz: '121.900', feed: 'egll_gnd' },
-    { type: 'APP', mhz: '119.725', feed: 'egll_app' },
-    { type: 'ATIS', mhz: '113.750', feed: 'egll_atis' },
-  ]},
-  CDG: { icao: 'LFPG', freqs: [
-    { type: 'TWR', mhz: '119.250', feed: 'lfpg_twr' },
-    { type: 'GND', mhz: '121.600', feed: 'lfpg_gnd' },
-    { type: 'APP', mhz: '121.150', feed: 'lfpg_app' },
-  ]},
-  FRA: { icao: 'EDDF', freqs: [
-    { type: 'TWR', mhz: '119.900', feed: 'eddf_twr' },
-    { type: 'GND', mhz: '121.900', feed: 'eddf_gnd' },
-    { type: 'APP', mhz: '120.800', feed: 'eddf_app' },
-  ]},
-  AMS: { icao: 'EHAM', freqs: [
-    { type: 'TWR', mhz: '118.100', feed: 'eham_twr' },
-    { type: 'GND', mhz: '121.800', feed: 'eham_gnd' },
-    { type: 'APP', mhz: '119.050', feed: 'eham_app' },
-  ]},
-  MAD: { icao: 'LEMD', freqs: [
-    { type: 'TWR', mhz: '118.150', feed: 'lemd_twr' },
-    { type: 'APP', mhz: '120.000', feed: 'lemd_app' },
-  ]},
-  IST: { icao: 'LTFM', freqs: [
-    { type: 'TWR', mhz: '118.100', feed: 'ltfm_twr' },
-    { type: 'APP', mhz: '120.600', feed: 'ltfm_app' },
-  ]},
-  MUC: { icao: 'EDDM', freqs: [
-    { type: 'TWR', mhz: '118.700', feed: 'eddm_twr' },
-    { type: 'APP', mhz: '120.200', feed: 'eddm_app' },
-  ]},
-  FCO: { icao: 'LIRF', freqs: [
-    { type: 'TWR', mhz: '118.700', feed: 'lirf_twr' },
-    { type: 'APP', mhz: '119.200', feed: 'lirf_app' },
-  ]},
-  ZRH: { icao: 'LSZH', freqs: [
-    { type: 'TWR', mhz: '118.100', feed: 'lszh_twr' },
-    { type: 'APP', mhz: '118.000', feed: 'lszh_app' },
-  ]},
-  // ── Asia-Pacific ──
-  NRT: { icao: 'RJAA', freqs: [
-    { type: 'TWR', mhz: '118.350', feed: 'rjaa_twr' },
-    { type: 'APP', mhz: '119.100', feed: 'rjaa_app' },
-  ]},
-  HND: { icao: 'RJTT', freqs: [
-    { type: 'TWR', mhz: '118.100', feed: 'rjtt_twr' },
-    { type: 'APP', mhz: '119.700', feed: 'rjtt_app' },
-  ]},
-  ICN: { icao: 'RKSI', freqs: [
-    { type: 'TWR', mhz: '118.200', feed: 'rksi_twr' },
-    { type: 'APP', mhz: '119.500', feed: 'rksi_app' },
-  ]},
-  SIN: { icao: 'WSSS', freqs: [
-    { type: 'TWR', mhz: '118.600', feed: 'wsss_twr' },
-    { type: 'APP', mhz: '119.100', feed: 'wsss_app' },
-  ]},
-  HKG: { icao: 'VHHH', freqs: [
-    { type: 'TWR', mhz: '118.400', feed: 'vhhh_twr' },
-    { type: 'APP', mhz: '119.100', feed: 'vhhh_app' },
-  ]},
-  BKK: { icao: 'VTBS', freqs: [
-    { type: 'TWR', mhz: '118.100', feed: 'vtbs_twr' },
-    { type: 'APP', mhz: '119.500', feed: 'vtbs_app' },
-  ]},
-  SYD: { icao: 'YSSY', freqs: [
-    { type: 'TWR', mhz: '120.500', feed: 'yssy_twr' },
-    { type: 'APP', mhz: '126.100', feed: 'yssy_app' },
-  ]},
-  // ── Middle East ──
-  DXB: { icao: 'OMDB', freqs: [
-    { type: 'TWR', mhz: '118.350', feed: 'omdb_twr' },
-    { type: 'APP', mhz: '124.900', feed: 'omdb_app' },
-  ]},
-  DOH: { icao: 'OTHH', freqs: [
-    { type: 'TWR', mhz: '118.900', feed: 'othh_twr' },
-    { type: 'APP', mhz: '119.400', feed: 'othh_app' },
-  ]},
-};
+const STATIONS = [
+  {
+    id: 'electronic',
+    name: 'NEON APPROACH',
+    shortName: 'NEON',
+    color: '#c06cf0',
+    folder: 'Electronic',
+    tracks: [
+      'Daniel Brown - SENSATION',
+      'Giorgio Vitté - Ataca',
+      'LaFaye - Hidden',
+      'NUEQ - Tiramisu',
+      'Out of Flux - Sunnydance',
+      'Rynn - Heart Beat - Instrumental version',
+      'Yarin Primak - DREEEAAAMS',
+      'ZISO - Gonna Freak',
+      'Ziskoe - SIREN - Ziskoe Remix',
+    ],
+  },
+  {
+    id: 'indie',
+    name: 'GOLDEN HOUR',
+    shortName: 'GOLDEN',
+    color: '#e8a44c',
+    folder: 'Indie',
+    tracks: [
+      'Ben Juliet - Still Bloom',
+      'Danger Roberts - Hard Reset',
+      'Emma-Rose - Clouds',
+      'IamDayLight - Hold On',
+      'Lia Dsau - Grow',
+      'Neska Rose - GROW',
+      'Neska Rose - Rolling Through Da Night',
+      'SOURWAH - Mandalas',
+      'Southern Call - Smoke Show',
+      'Tal Tamari - Love Her So - Instrumental version',
+      'Tiko Tiko - Baby Lets Go - Stripped Version',
+      'messwave - maybe its over',
+    ],
+  },
+  {
+    id: 'relax',
+    name: 'FLIGHT LEVEL',
+    shortName: 'FL',
+    color: '#5ab8e8',
+    folder: 'Relax_Ambiance',
+    tracks: [
+      'Assaf Ayalon - Locked in Silence',
+      'Aves - Sunshine',
+      'Ian Locke - Once Interlude',
+      'MAIKY - Above the Clouds',
+      'Master Minded - Strings of Soul',
+    ],
+  },
+  {
+    id: 'soul',
+    name: 'VELVET TAXI',
+    shortName: 'VELVET',
+    color: '#e85a8a',
+    folder: 'Soul_R&B',
+    tracks: [
+      'Aves - Summer Breakup Song',
+      'Aves - Sunshine',
+      'Aves - Velvet',
+      'Honey G - More than Words',
+      'Michael Shynes - Extra Extra - Instrumental version',
+      'NOA - Made to Love You',
+      'Skipp Whitman - Lush - Instrumental version',
+      'Skipp Whitman - Vegas - Instrumental version',
+      'Ziv Moran - Dance',
+    ],
+  },
+];
 
-let _radioPanel = null;
-let _radioPopup = null;
-let _radioState = { iata: null, icao: null, activeFreq: null };
+// Fake FM frequencies
+const _FREQS = ['88.3', '91.7', '96.5', '103.1'];
 
-export function isRadioAvailable(iata) {
-  return !!RADIO_DB[iata];
-}
+// ── State ──
+let _audio = null;
+let _stationIdx = 0;
+let _trackIdx = 0;
+let _shuffled = [];
+let _playing = false;
+let _panelEl = null;
+let _visible = false;
+let _volume = 0.5;
+let _fadeInterval = null;
+let _loadRetries = 0;
+let _progressRAF = null;
+const MAX_RETRIES = 3;
 
-export function openRadio(iata, airportName) {
-  const db = RADIO_DB[iata];
-  if (!db) return;
-
-  _radioState.iata = iata;
-  _radioState.icao = db.icao;
-  _radioState.activeFreq = null;
-
-  if (!_radioPanel) _createPanel();
-
-  // Update header
-  _radioPanel.querySelector('.radio-icao').textContent = db.icao;
-  _radioPanel.querySelector('.radio-name').textContent = airportName || iata;
-
-  // Build frequency cards
-  const freqList = _radioPanel.querySelector('.radio-freq-list');
-  freqList.innerHTML = db.freqs.map(f =>
-    `<div class="radio-freq-card" data-feed="${f.feed}">
-      <span class="radio-freq-type">${f.type}</span>
-      <span class="radio-freq-mhz">${f.mhz}</span>
-    </div>`
-  ).join('');
-
-  // Click on freq card → open that feed in LiveATC
-  freqList.querySelectorAll('.radio-freq-card').forEach(card => {
-    card.addEventListener('click', () => {
-      freqList.querySelectorAll('.radio-freq-card').forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
-      _radioState.activeFreq = card.dataset.feed;
-      _openLiveATC(card.dataset.feed, db.icao);
-    });
-  });
-
-  _radioPanel.querySelector('.radio-status').textContent = 'SELECT FREQUENCY';
-  _radioPanel.querySelector('.radio-status').className = 'radio-status';
-  _radioPanel.classList.remove('hidden');
-  _radioPanel.classList.add('visible');
-  _setVizActive(false);
-}
-
-export function closeRadio() {
-  if (_radioPanel) {
-    _radioPanel.classList.remove('visible');
-    _radioPanel.classList.add('hidden');
+function _shuffle(arr) {
+  const a = [...arr.keys()];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  _radioState.iata = null;
-  _radioState.activeFreq = null;
+  return a;
 }
 
-export function toggleRadio(iata, airportName) {
-  if (_radioPanel && !_radioPanel.classList.contains('hidden') && _radioState.iata === iata) {
-    closeRadio();
-  } else {
-    openRadio(iata, airportName);
-  }
+function _currentStation() { return STATIONS[_stationIdx]; }
+
+function _currentTrack() {
+  const st = _currentStation();
+  return st.tracks[_shuffled[_trackIdx % _shuffled.length]];
 }
 
-export function isRadioOpen() {
-  return _radioPanel && !_radioPanel.classList.contains('hidden');
+function _trackUrl() {
+  const st = _currentStation();
+  return `/radio/${encodeURIComponent(st.folder)}/${encodeURIComponent(_currentTrack())}.mp3`;
 }
 
-function _openLiveATC(feed, icao) {
-  const statusEl = _radioPanel.querySelector('.radio-status');
-
-  // Build LiveATC listen URL
-  const listenUrl = `https://www.liveatc.net/flisten.php?mount=${feed}&icao=${icao}`;
-
-  // Open or reuse popup
-  const popupFeatures = 'width=400,height=500,left=100,top=100,scrollbars=no,resizable=yes';
-  _radioPopup = window.open(listenUrl, 'stratum_atc', popupFeatures);
-
-  if (_radioPopup) {
-    _radioPopup.focus();
-    statusEl.textContent = 'LIVE';
-    statusEl.className = 'radio-status live';
-    _setVizActive(true);
-
-    // Monitor popup close
-    const checkClosed = setInterval(() => {
-      if (!_radioPopup || _radioPopup.closed) {
-        clearInterval(checkClosed);
-        statusEl.textContent = 'STOPPED';
-        statusEl.className = 'radio-status';
-        _setVizActive(false);
-        _radioPopup = null;
-      }
-    }, 1000);
-  } else {
-    // Popup blocked — open in new tab instead
-    window.open(listenUrl, '_blank');
-    statusEl.textContent = 'OPENED IN TAB';
-    statusEl.className = 'radio-status live';
-    _setVizActive(true);
-    setTimeout(() => _setVizActive(false), 3000);
-  }
+function _parseTrackName(raw) {
+  const sep = raw.indexOf(' - ');
+  if (sep < 0) return { artist: '', title: raw };
+  return { artist: raw.substring(0, sep), title: raw.substring(sep + 3) };
 }
 
-function _setVizActive(active) {
-  if (!_radioPanel) return;
-  const viz = _radioPanel.querySelector('.radio-viz');
-  if (viz) viz.classList.toggle('active', active);
+function _initShuffled() {
+  _shuffled = _shuffle(_currentStation().tracks);
+  _trackIdx = 0;
 }
 
-function _createPanel() {
-  _radioPanel = document.createElement('div');
-  _radioPanel.id = 'radio-panel';
-  _radioPanel.className = 'radio-panel hidden';
-  _radioPanel.innerHTML = `
-    <div class="radio-header">
-      <div class="radio-title-row">
-        <span class="radio-icon">📻</span>
-        <span class="radio-icao">----</span>
-        <span class="radio-status">STANDBY</span>
-      </div>
-      <button class="radio-close" aria-label="Close">&times;</button>
-    </div>
-    <div class="radio-name">--</div>
-    <div class="radio-freq-list"></div>
-    <div class="radio-viz">
-      <div class="radio-bar"></div><div class="radio-bar"></div><div class="radio-bar"></div>
-      <div class="radio-bar"></div><div class="radio-bar"></div><div class="radio-bar"></div>
-      <div class="radio-bar"></div><div class="radio-bar"></div><div class="radio-bar"></div>
-      <div class="radio-bar"></div><div class="radio-bar"></div><div class="radio-bar"></div>
-      <div class="radio-bar"></div><div class="radio-bar"></div><div class="radio-bar"></div>
-      <div class="radio-bar"></div>
-    </div>
-    <div class="radio-controls">
-      <button class="radio-listen-btn">LISTEN LIVE</button>
-    </div>
-    <div class="radio-hint">Click frequency to tune in</div>
-  `;
-  document.body.appendChild(_radioPanel);
+function _advanceTrack() {
+  _trackIdx++;
+  _loadRetries = 0;
+  if (_trackIdx >= _shuffled.length) _initShuffled();
+}
 
-  // Close button
-  _radioPanel.querySelector('.radio-close').addEventListener('click', closeRadio);
-
-  // Listen button — opens LiveATC for the airport
-  _radioPanel.querySelector('.radio-listen-btn').addEventListener('click', () => {
-    if (_radioState.activeFreq) {
-      _openLiveATC(_radioState.activeFreq, _radioState.icao);
-    } else if (_radioState.icao) {
-      // No freq selected — open airport overview
-      const url = `https://www.liveatc.net/listen.php?ident=${_radioState.icao}`;
-      window.open(url, 'stratum_atc', 'width=400,height=500,left=100,top=100');
+// ── Progress bar loop ──
+function _startProgress() {
+  _stopProgress();
+  const bar = _panelEl?.querySelector('#radio-progress');
+  const timeEl = _panelEl?.querySelector('#radio-time');
+  if (!bar || !_audio) return;
+  const tick = () => {
+    if (_audio && _audio.duration && isFinite(_audio.duration)) {
+      const pct = (_audio.currentTime / _audio.duration) * 100;
+      bar.style.width = pct + '%';
+      // Current time display
+      const m = Math.floor(_audio.currentTime / 60);
+      const s = Math.floor(_audio.currentTime % 60);
+      const tm = Math.floor(_audio.duration / 60);
+      const ts = Math.floor(_audio.duration % 60);
+      if (timeEl) timeEl.textContent = `${m}:${s.toString().padStart(2,'0')} / ${tm}:${ts.toString().padStart(2,'0')}`;
     }
+    _progressRAF = requestAnimationFrame(tick);
+  };
+  _progressRAF = requestAnimationFrame(tick);
+}
+
+function _stopProgress() {
+  if (_progressRAF) { cancelAnimationFrame(_progressRAF); _progressRAF = null; }
+}
+
+// ── Playback ──
+function _playTrack() {
+  if (!_audio) {
+    _audio = new Audio();
+    _audio.volume = _volume;
+    _audio.preload = 'auto';
+    _audio.addEventListener('ended', () => { _advanceTrack(); _playTrack(); });
+    _audio.addEventListener('error', () => {
+      _loadRetries++;
+      if (_loadRetries >= MAX_RETRIES) _advanceTrack();
+      setTimeout(() => _playTrack(), 800);
+    });
+    _audio.addEventListener('canplaythrough', () => { _loadRetries = 0; });
+  }
+  _audio.src = _trackUrl();
+  _audio.play().catch(() => {});
+  _playing = true;
+  _startProgress();
+  _updateUI();
+}
+
+function _stop() {
+  if (_audio) { _audio.pause(); _audio.currentTime = 0; }
+  _playing = false;
+  _stopProgress();
+  _updateUI();
+}
+
+// ── Crossfade ──
+function _crossfadeToStation(newIdx) {
+  if (newIdx === _stationIdx && _playing) return;
+  _stationIdx = newIdx;
+  _initShuffled();
+  _loadRetries = 0;
+  if (_fadeInterval) clearInterval(_fadeInterval);
+
+  if (_audio && _playing) {
+    let vol = _audio.volume;
+    _fadeInterval = setInterval(() => {
+      vol -= 0.05;
+      if (vol <= 0) {
+        clearInterval(_fadeInterval);
+        _fadeInterval = null;
+        _audio.volume = _volume;
+        _playTrack();
+      } else {
+        _audio.volume = vol;
+      }
+    }, 30);
+  } else {
+    _playTrack();
+  }
+  _updateUI();
+}
+
+// ── Volume icon helper ──
+function _volIcon() {
+  if (_volume <= 0) return `<path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>`;
+  if (_volume < 0.5) return `<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 010 7.07"/>`;
+  return `<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/>`;
+}
+
+// ── UI ──
+function _createPanel() {
+  if (_panelEl) return;
+  _panelEl = document.createElement('div');
+  _panelEl.id = 'radio-panel';
+  _panelEl.className = 'radio-panel hidden';
+  _panelEl.innerHTML = `
+    <div class="radio-accent" id="radio-accent"></div>
+    <div class="radio-header">
+      <span class="radio-header-label">STRATUM RADIO</span>
+      <span class="radio-header-freq" id="radio-freq">88.3 FM</span>
+    </div>
+    <div class="radio-dial">
+      <div class="radio-dial-stations" id="radio-dial-stations"></div>
+    </div>
+    <div class="radio-display">
+      <div class="radio-station-name" id="radio-station-name">--</div>
+      <div class="radio-now-playing">
+        <div class="radio-track-title" id="radio-track-title">--</div>
+        <div class="radio-track-artist" id="radio-track-artist">--</div>
+      </div>
+      <div class="radio-progress-wrap">
+        <div class="radio-progress-bar"><div class="radio-progress" id="radio-progress"></div></div>
+        <span class="radio-time" id="radio-time">0:00 / 0:00</span>
+      </div>
+      <div class="radio-eq" id="radio-eq">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span>
+      </div>
+    </div>
+    <div class="radio-bottom">
+      <button type="button" class="radio-power-btn" id="radio-power-btn" title="Power">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="12"/><path d="M16.24 7.76a6 6 0 11-8.49 0"/></svg>
+      </button>
+      <button type="button" class="radio-vol-btn" id="radio-vol-btn" title="Mute">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="radio-vol-icon">${_volIcon()}</svg>
+      </button>
+      <input type="range" class="radio-volume" id="radio-volume" min="0" max="100" value="50" title="Volume">
+      <button type="button" class="radio-close-btn" id="radio-close-btn" title="Close panel">&times;</button>
+    </div>
+  `;
+  document.body.appendChild(_panelEl);
+
+  // Station dial
+  const dial = _panelEl.querySelector('#radio-dial-stations');
+  STATIONS.forEach((st, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'radio-dial-btn';
+    btn.dataset.idx = i;
+    btn.innerHTML = `<span class="radio-dial-dot" style="--c:${st.color}"></span><span class="radio-dial-label">${st.shortName}</span>`;
+    btn.addEventListener('click', () => _crossfadeToStation(i));
+    dial.appendChild(btn);
   });
+
+  // Power
+  _panelEl.querySelector('#radio-power-btn').addEventListener('click', () => {
+    if (_playing) _stop(); else _playTrack();
+  });
+
+  // Volume slider
+  const volSlider = _panelEl.querySelector('#radio-volume');
+  volSlider.addEventListener('input', (e) => {
+    _volume = parseInt(e.target.value) / 100;
+    if (_audio) _audio.volume = _volume;
+    _updateVolIcon();
+  });
+
+  // Volume mute toggle
+  let _prevVol = 0.5;
+  _panelEl.querySelector('#radio-vol-btn').addEventListener('click', () => {
+    if (_volume > 0) { _prevVol = _volume; _volume = 0; }
+    else { _volume = _prevVol || 0.5; }
+    volSlider.value = Math.round(_volume * 100);
+    if (_audio) _audio.volume = _volume;
+    _updateVolIcon();
+  });
+
+  // Close
+  _panelEl.querySelector('#radio-close-btn').addEventListener('click', () => hideRadio());
+}
+
+function _updateVolIcon() {
+  const svg = _panelEl?.querySelector('#radio-vol-icon');
+  if (svg) svg.innerHTML = _volIcon();
+}
+
+function _updateUI() {
+  if (!_panelEl) return;
+  const st = _currentStation();
+
+  // Accent line color
+  _panelEl.querySelector('#radio-accent').style.background =
+    `linear-gradient(90deg, transparent, ${st.color}, transparent)`;
+
+  // Station name + freq
+  const nameEl = _panelEl.querySelector('#radio-station-name');
+  nameEl.textContent = st.name;
+  nameEl.style.color = st.color;
+  _panelEl.querySelector('#radio-freq').textContent = _FREQS[_stationIdx] + ' FM';
+
+  // Track info
+  if (_playing && _shuffled.length > 0) {
+    const { artist, title } = _parseTrackName(_currentTrack());
+    _panelEl.querySelector('#radio-track-title').textContent = title;
+    _panelEl.querySelector('#radio-track-artist').textContent = artist;
+  } else {
+    _panelEl.querySelector('#radio-track-title').textContent = '--';
+    _panelEl.querySelector('#radio-track-artist').textContent = '';
+  }
+
+  // Dial
+  _panelEl.querySelectorAll('.radio-dial-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === _stationIdx);
+  });
+
+  // EQ — color matches station
+  const eq = _panelEl.querySelector('#radio-eq');
+  eq.classList.toggle('active', _playing);
+  eq.style.setProperty('--eq-color', st.color);
+
+  // Power
+  _panelEl.querySelector('#radio-power-btn').classList.toggle('on', _playing);
+
+  // Progress bar color
+  const prog = _panelEl.querySelector('#radio-progress');
+  if (prog) prog.style.background = st.color;
+
+  // Reset progress if not playing
+  if (!_playing) {
+    if (prog) prog.style.width = '0%';
+    const timeEl = _panelEl.querySelector('#radio-time');
+    if (timeEl) timeEl.textContent = '0:00 / 0:00';
+  }
+}
+
+// ── Public API ──
+export function showRadio() {
+  _createPanel();
+  _panelEl.classList.remove('hidden');
+  _panelEl.classList.add('visible');
+  _visible = true;
+  if (!_playing) {
+    _initShuffled();
+    _playTrack();
+  } else {
+    _startProgress();
+  }
+  _updateUI();
+}
+
+export function hideRadio() {
+  if (_panelEl) {
+    _panelEl.classList.remove('visible');
+    _panelEl.classList.add('hidden');
+  }
+  _visible = false;
+}
+
+export function toggleRadio() {
+  if (_visible) hideRadio(); else showRadio();
+}
+
+export function isRadioVisible() { return _visible; }
+export function isRadioPlaying() { return _playing; }
+
+export function nextStation() {
+  _crossfadeToStation((_stationIdx + 1) % STATIONS.length);
+}
+export function prevStation() {
+  _crossfadeToStation((_stationIdx - 1 + STATIONS.length) % STATIONS.length);
 }

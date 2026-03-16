@@ -5,19 +5,19 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderFuelRangeRing, clearFuelRangeRing, getRunwayThresholdTargets, renderApproachChart, clearApproachChart } from './scene/environment.js';
+import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderFuelRangeRing, clearFuelRangeRing, getRunwayThresholdTargets, getNavHitTargets, updateRouteOverlay, clearRouteOverlay } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic, setSunState } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
-import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, showSignalLost } from './ui/hud.js';
+import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, setLocalTimezone, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft, showDetailLoading, reseedChartData } from './ui/detail.js';
 import { getAirlineName as _getAirlineName } from './data/airlineDb.js';
 import { initRouteInfer, triggerInference } from './data/routeInfer.js';
-import { generateApproaches, detectApproach } from './data/approachProc.js';
 import { CITIES_EXTRA } from './data/citiesExtra.js';
 import { initAirportCities } from './data/airportCities.js';
 import { fetchWeather, weatherDescription, windDirToCardinal, formatVisibility, weatherIcon, flightCategory, computeDensityAltitude, estimateTurbulence } from './data/weather.js';
-import { isRadioAvailable, toggleRadio } from './ui/radio.js';
+import { toggleRadio, isRadioVisible, isRadioPlaying } from './ui/radio.js';
+
 
 // --- Cinematic post-processing shader ---
 const CinematicShader = {
@@ -395,6 +395,7 @@ canvas.addEventListener('pointermove', (e) => {
 
   if (hits.length > 0) {
     canvas.style.cursor = 'pointer';
+    _hideNavaidTooltip();
     const ac = aircraftManager.getByHitMesh(hits[0].object);
     if (ac) {
       showAircraftTooltip(ac.getDisplayData(), e.clientX, e.clientY);
@@ -405,6 +406,7 @@ canvas.addEventListener('pointermove', (e) => {
     canvas.style.cursor = 'pointer';
     hideAircraftTooltip();
     _hideRunwayTooltip();
+    _hideNavaidTooltip();
   } else {
     // Check runway threshold targets
     const rwyTargets = getRunwayThresholdTargets();
@@ -412,16 +414,56 @@ canvas.addEventListener('pointermove', (e) => {
     if (rwyHits.length > 0 && rwyHits[0].object.userData.runwayThreshold) {
       canvas.style.cursor = 'pointer';
       hideAircraftTooltip();
+      _hideNavaidTooltip();
       _showRunwayTooltip(rwyHits[0].object.userData.runwayThreshold, e.clientX, e.clientY);
     } else {
-      canvas.style.cursor = '';
-      hideAircraftTooltip();
-      _hideRunwayTooltip();
-      // FIR hover: raycast to ground and look up FIR
-      _checkFIRHover();
+      // Check navaid hit targets
+      const navTargets = getNavHitTargets();
+      const navHits = navTargets.length > 0 ? raycaster.intersectObjects(navTargets, false) : [];
+      if (navHits.length > 0 && navHits[0].object.userData.navaid) {
+        canvas.style.cursor = 'pointer';
+        hideAircraftTooltip();
+        _hideRunwayTooltip();
+        _showNavaidTooltip(navHits[0].object.userData.navaid, e.clientX, e.clientY);
+      } else {
+        canvas.style.cursor = '';
+        hideAircraftTooltip();
+        _hideRunwayTooltip();
+        _hideNavaidTooltip();
+        // FIR hover: raycast to ground and look up FIR
+        _checkFIRHover();
+      }
     }
   }
 });
+
+// ── Navaid Tooltip ──
+const _navTooltip = document.getElementById('nav-tooltip');
+let _navTooltipVisible = false;
+
+function _showNavaidTooltip(info, mx, my) {
+  if (!_navTooltip) return;
+  let html = `<div><span class="nav-tooltip-ident">${info.ident}</span><span class="nav-tooltip-type">${info.type}</span></div>`;
+  if (info.name) html += `<div class="nav-tooltip-name">${info.name}</div>`;
+  const rows = [];
+  if (info.freq) rows.push(['FREQ', info.freq]);
+  rows.push(['POS', `${info.lat.toFixed(4)}, ${info.lon.toFixed(4)}`]);
+  for (const [label, val] of rows) {
+    html += `<div class="nav-tooltip-row"><span class="nav-tooltip-label">${label}</span><span class="nav-tooltip-val">${val}</span></div>`;
+  }
+  if (info.desc) html += `<div class="nav-tooltip-desc">${info.desc}</div>`;
+  _navTooltip.innerHTML = html;
+  _navTooltip.style.left = (mx + 16) + 'px';
+  _navTooltip.style.top = (my - 10) + 'px';
+  _navTooltip.classList.remove('hidden');
+  _navTooltipVisible = true;
+}
+
+function _hideNavaidTooltip() {
+  if (!_navTooltipVisible || !_navTooltip) return;
+  _navTooltip.classList.add('hidden');
+  _navTooltipVisible = false;
+}
 
 // ── Runway Threshold Tooltip ──
 const _rwyTooltip = document.getElementById('rwy-tooltip');
@@ -651,14 +693,34 @@ canvas.addEventListener('click', (e) => {
     pointer.y = -(cy / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
 
+    // Check both aircraft and airport hits, pick the best one
     const hits = raycaster.intersectObjects(aircraftManager.raycasterTargets, false);
-    let ac = null;
+    const aptTargets = getAirportHitTargets();
+    const aptIntersects = aptTargets.length > 0 ? raycaster.intersectObjects(aptTargets) : [];
+
+    let ac = null, acDist = Infinity;
     if (hits.length > 0) {
       for (const hit of hits) {
         const a = aircraftManager.getByHitMesh(hit.object);
-        if (a && a !== followTarget) { ac = a; break; }
+        if (a && a !== followTarget) { ac = a; acDist = hit.distance; break; }
       }
-      if (!ac) ac = aircraftManager.getByHitMesh(hits[0].object);
+      if (!ac && hits[0]) { ac = aircraftManager.getByHitMesh(hits[0].object); acDist = hits[0].distance; }
+    }
+
+    let airport = null, aptDist = Infinity;
+    if (aptIntersects.length > 0 && aptIntersects[0].object.userData.airport) {
+      airport = aptIntersects[0].object.userData.airport;
+      aptDist = aptIntersects[0].distance;
+    }
+
+    // Prefer airport when both hit — give airport a distance bias (airports are ground targets, harder to click)
+    if (ac && airport) {
+      if (aptDist < acDist * 1.5) {
+        // Airport is closer or comparable — pick airport
+        closeDetail();
+        handleAirportClick(airport);
+        return;
+      }
     }
 
     if (ac) {
@@ -667,17 +729,10 @@ canvas.addEventListener('click', (e) => {
       return;
     }
 
-    const aptTargets = getAirportHitTargets();
-    if (aptTargets.length > 0) {
-      const aptIntersects = raycaster.intersectObjects(aptTargets);
-      if (aptIntersects.length > 0) {
-        const airport = aptIntersects[0].object.userData.airport;
-        if (airport) {
-          closeDetail();
-          handleAirportClick(airport);
-          return;
-        }
-      }
+    if (airport) {
+      closeDetail();
+      handleAirportClick(airport);
+      return;
     }
 
     closeDetail();
@@ -899,149 +954,7 @@ function showAirportWidget(airport, arrivals, departures) {
     <div style="display:flex;justify-content:center;gap:8px;font-size:7px;margin-top:2px"><span style="color:rgba(90,172,255,0.7)">ARR</span><span style="color:rgba(232,131,51,0.7)">DEP</span></div>
   `;
 
-  // Radio button — show only if feeds available for this airport
-  const radioBtn = document.getElementById('aw-radio-btn');
-  if (radioBtn) {
-    const iata = airport.iata || airport.icao;
-    if (isRadioAvailable(iata)) {
-      radioBtn.classList.remove('hidden');
-      radioBtn.onclick = () => toggleRadio(iata, airport.name || iata);
-    } else {
-      radioBtn.classList.add('hidden');
-      radioBtn.onclick = null;
-    }
-  }
-
-  // Approach procedure selector
-  _buildApproachSelector(airport);
-
-  // Show floating approach button
-  const fab = document.getElementById('approach-fab');
-  if (fab && _approachCache.length > 0) {
-    fab.classList.remove('hidden');
-    fab.classList.toggle('active', _activeApproaches.length > 0);
-  }
-
   w.classList.remove('hidden');
-}
-
-// ── Approach Procedure Chart state ──
-let _approachCache = [];      // generated approaches for current airport
-let _activeApproaches = [];   // names of currently displayed approaches
-let _detectedApproach = null; // auto-detected approach name for arrivals
-
-function _buildApproachSelector(airport) {
-  const data = getAirportData();
-  if (!data || !data.runways || data.runways.length === 0) return;
-
-  const meta = typeof AIRPORT_DATA !== 'undefined' ? AIRPORT_DATA[airport.iata || airport.icao] : null;
-  const elev = meta?.elev || 0;
-  _approachCache = generateApproaches(data.runways, elev);
-  _activeApproaches = [];
-  _detectedApproach = null;
-
-  let container = document.getElementById('aw-approaches');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'aw-approaches';
-    container.className = 'aw-approaches';
-    const w = document.getElementById('airport-widget');
-    // Insert before flight list
-    const flightList = document.getElementById('aw-flight-list');
-    if (flightList) w.insertBefore(container, flightList);
-    else w.appendChild(container);
-  }
-
-  if (_approachCache.length === 0) {
-    container.innerHTML = '';
-    return;
-  }
-
-  // Group approaches by runway
-  const byRunway = {};
-  for (const app of _approachCache) {
-    if (!byRunway[app.runway]) byRunway[app.runway] = [];
-    byRunway[app.runway].push(app);
-  }
-
-  let html = '<div class="aw-app-header">APPROACHES</div><div class="aw-app-chips">';
-  for (const [rwy, apps] of Object.entries(byRunway)) {
-    for (const app of apps) {
-      const typeClass = app.type.toLowerCase();
-      html += `<button class="aw-app-chip aw-app-${typeClass}" data-app="${app.name}" title="${app.name}">${app.type} ${rwy}</button>`;
-    }
-  }
-  html += '<button class="aw-app-chip aw-app-all" data-app="__ALL__" title="Show all approaches">ALL</button>';
-  html += '</div>';
-  container.innerHTML = html;
-
-  // Click handlers
-  container.querySelectorAll('.aw-app-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const name = btn.dataset.app;
-      if (name === '__ALL__') {
-        // Toggle all
-        if (_activeApproaches.length === _approachCache.length) {
-          _activeApproaches = [];
-          container.querySelectorAll('.aw-app-chip').forEach(b => b.classList.remove('active'));
-          clearApproachChart(scene);
-        } else {
-          _activeApproaches = _approachCache.map(a => a.name);
-          container.querySelectorAll('.aw-app-chip').forEach(b => b.classList.add('active'));
-          _renderActiveApproaches();
-        }
-      } else {
-        const idx = _activeApproaches.indexOf(name);
-        if (idx >= 0) {
-          _activeApproaches.splice(idx, 1);
-          btn.classList.remove('active');
-        } else {
-          _activeApproaches.push(name);
-          btn.classList.add('active');
-        }
-        if (_activeApproaches.length === 0) {
-          clearApproachChart(scene);
-        } else {
-          _renderActiveApproaches();
-        }
-      }
-    });
-  });
-}
-
-function _renderActiveApproaches() {
-  if (_activeApproaches.length === 0) { clearApproachChart(scene); return; }
-  const { lat, lon } = getUserLocation();
-  const filtered = _approachCache.filter(a => _activeApproaches.includes(a.name));
-  renderApproachChart(scene, filtered, lat, lon, _detectedApproach);
-}
-
-function _toggleAllApproaches() {
-  if (!selectedAirportState || _approachCache.length === 0) return;
-  if (_activeApproaches.length > 0) {
-    _activeApproaches = [];
-    clearApproachChart(scene);
-  } else {
-    _activeApproaches = _approachCache.map(a => a.name);
-    _renderActiveApproaches();
-  }
-  // Sync chip UI
-  document.querySelectorAll('.aw-app-chip').forEach(b => {
-    if (_activeApproaches.length > 0) b.classList.add('active');
-    else b.classList.remove('active');
-  });
-  // Sync floating button
-  const fab = document.getElementById('approach-fab');
-  if (fab) fab.classList.toggle('active', _activeApproaches.length > 0);
-}
-
-function _clearApproachState() {
-  _approachCache = [];
-  _activeApproaches = [];
-  _detectedApproach = null;
-  clearApproachChart(scene);
-  const fab = document.getElementById('approach-fab');
-  if (fab) fab.classList.add('hidden');
 }
 
 // I2: Airport activity session store
@@ -1060,7 +973,6 @@ function _svgArc(cx, cy, rInner, rOuter, startAngle, endAngle) {
 function hideAirportWidget() {
   const w = document.getElementById('airport-widget');
   if (w) w.classList.add('hidden');
-  _clearApproachState();
 }
 
 document.getElementById('aw-close')?.addEventListener('click', () => {
@@ -1071,9 +983,6 @@ document.getElementById('aw-close')?.addEventListener('click', () => {
     selectedAirportState = null;
   }
 });
-
-// Floating approach button
-document.getElementById('approach-fab')?.addEventListener('click', _toggleAllApproaches);
 
 function handleAirportClick(airport) {
   const data = getAirportData();
@@ -1230,24 +1139,6 @@ function handleData(dataList) {
       checkLandings(dataList, aptData.runways, scene);
     }
 
-    // Approach detection — highlight detected approach for arrivals
-    if (selectedAirportState && _approachCache.length > 0 && _activeApproaches.length > 0) {
-      const { arrivals } = categorizeFlights(dataList, selectedAirportState, aptData?.runways);
-      let detected = null;
-      for (const ac of arrivals) {
-        const result = detectApproach(ac, _approachCache);
-        if (result) { detected = result.approach.name; break; }
-      }
-      if (detected !== _detectedApproach) {
-        _detectedApproach = detected;
-        _renderActiveApproaches(); // re-render with highlight
-        // Update chip highlight
-        document.querySelectorAll('.aw-app-chip').forEach(btn => {
-          btn.classList.toggle('detected', btn.dataset.app === detected);
-        });
-      }
-    }
-
     // Unified filter — build filterSet for smooth opacity dimming
     applyFilters(dataList);
 
@@ -1381,6 +1272,18 @@ function toggleHelp() {
 }
 document.getElementById('help-close')?.addEventListener('click', toggleHelp);
 
+// Radio toggle button — stays lit when music is playing in background
+const _radioToggleBtn = document.getElementById('radio-toggle-btn');
+function _syncRadioBtn() {
+  if (_radioToggleBtn) _radioToggleBtn.classList.toggle('active', isRadioPlaying() || isRadioVisible());
+}
+if (_radioToggleBtn) {
+  _radioToggleBtn.addEventListener('click', () => {
+    toggleRadio();
+    _syncRadioBtn();
+  });
+}
+
 document.addEventListener('keydown', (e) => {
   if (document.activeElement.tagName === 'INPUT') return;
   if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
@@ -1478,20 +1381,16 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // Session replay (V key)
-  else if (k === 'v') {
-    _toggleSessionReplay();
+  // Radio (R key)
+  else if (k === 'r') {
+    toggleRadio();
+    _syncRadioBtn();
     return;
   }
 
-  // ATC Radio (R key)
-  else if (k === 'r') {
-    if (selectedAirportState) {
-      const iata = selectedAirportState.iata || selectedAirportState.icao;
-      toggleRadio(iata, selectedAirportState.name || iata);
-    } else if (activeCity) {
-      toggleRadio(activeCity.code, activeCity.name || activeCity.code);
-    }
+  // Session replay (V key)
+  else if (k === 'v') {
+    _toggleSessionReplay();
     return;
   }
 
@@ -2109,6 +2008,8 @@ async function updateWeatherWidget() {
   if (!data) return;
   window._cachedWeather = data;
 
+  // Pass timezone info to HUD clock for UTC/Local cycling
+  setLocalTimezone(data.utcOffsetSeconds, data.timezoneAbbr);
 
   const desc = weatherDescription(data.weatherCode);
   const windDir = windDirToCardinal(data.windDir);
@@ -2702,6 +2603,31 @@ function _stopSessionReplay() {
   _replayCloseHandler = null;
 }
 
+// --- Route overlay ---
+let _lastRouteOverlayUpdate = 0;
+
+function _rebuildRouteOverlay() {
+  if (!aircraftManager) { clearRouteOverlay(scene); return; }
+  const { lat, lon } = getUserLocation();
+  const routes = [];
+  const seen = new Set();
+  for (const [, ac] of aircraftManager.aircraft) {
+    if (ac.fadingOut) continue;
+    const origin = ac.data.origin;
+    const dest = ac.data.destination;
+    if (!origin || !dest) continue;
+    const key = origin + '-' + dest;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const origApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(origin) : null;
+    const destApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(dest) : null;
+    if (origApt && destApt) {
+      routes.push({ originLat: origApt.lat, originLon: origApt.lon, destLat: destApt.lat, destLon: destApt.lon });
+    }
+  }
+  updateRouteOverlay(scene, routes, lat, lon);
+}
+
 // --- Animation loop ---
 const clock = new THREE.Clock();
 let _lastDayNightTime = 0;
@@ -2790,6 +2716,12 @@ function animate() {
     aircraftManager.animate(delta, elapsed, camera);
     aircraftManager.animateSelection(elapsed);
     _recordSessionSnapshot(elapsed);
+
+    // Route overlay — rebuild every 5 seconds
+    if (elapsed - _lastRouteOverlayUpdate > 5) {
+      _lastRouteOverlayUpdate = elapsed;
+      _rebuildRouteOverlay();
+    }
   }
 
   // T3-09: Animate touchdown effects (dust puffs, runway flashes)
@@ -5170,7 +5102,7 @@ async function init() {
   aptP.then(() => reloadNavChart(scene, defaultCity.lat, defaultCity.lon));
 
   // Background-prefetch airport data after initial load settles (15s)
-  setTimeout(() => prefetchAirportData(CITIES), 15000);
+  setTimeout(() => prefetchAirportData(CITIES), 5000);
 }
 
 init();

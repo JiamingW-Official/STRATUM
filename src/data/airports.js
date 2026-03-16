@@ -288,8 +288,8 @@ export function prefetchAirportData(cities) {
   if (uncached.length === 0) return;
   console.log(`[STRATUM] Prefetching airport data for ${uncached.length} cities`);
   let i = 0;
-  const BATCH = 2; // conservative — direct Overpass fallback can trigger 429s
-  const DELAY = 1200;
+  const BATCH = 4;   // Worker handles the load — Overpass fallback is rare
+  const DELAY = 600;
   const nextBatch = () => {
     if (i >= uncached.length) return;
     const batch = uncached.slice(i, i + BATCH);

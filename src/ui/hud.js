@@ -7,6 +7,7 @@ const hudAirports = document.getElementById('hud-airports');
 const hudLiveText = document.querySelector('.hud-live-text');
 const hudLiveDot = document.querySelector('.hud-live-dot');
 const hudZulu = document.getElementById('hud-zulu');
+const hudClockLabel = document.getElementById('hud-clock-label');
 
 let cityOverride = null;
 let prevCount = 0;
@@ -67,6 +68,18 @@ export function updateHUDAirports(count) {
   }
 }
 
+// ── UTC / Local time cycling ──
+let _utcOffsetSec = 0;
+let _tzAbbr = '';
+let _showLocal = false;
+let _lastToggle = 0;
+const TOGGLE_INTERVAL = 15000; // cycle every 15 seconds
+
+export function setLocalTimezone(offsetSeconds, abbr) {
+  _utcOffsetSec = offsetSeconds || 0;
+  _tzAbbr = abbr || '';
+}
+
 export function updateHUDTimer() {
   const last = getLastFetchTime();
   if (!last) {
@@ -80,10 +93,42 @@ export function updateHUDTimer() {
     }
   }
 
-  // T1-05: UTC clock
-  if (hudZulu) {
-    const now = new Date();
-    hudZulu.textContent = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}Z`;
+  if (!hudZulu) return;
+
+  const now = Date.now();
+
+  // Auto-toggle between UTC and local every TOGGLE_INTERVAL
+  if (_utcOffsetSec !== 0 && now - _lastToggle > TOGGLE_INTERVAL) {
+    _lastToggle = now;
+    const wasLocal = _showLocal;
+    _showLocal = !_showLocal;
+
+    // Trigger slide animation
+    if (hudZulu) {
+      hudZulu.classList.remove('clock-slide-in');
+      void hudZulu.offsetWidth;
+      hudZulu.classList.add('clock-slide-in');
+    }
+    if (hudClockLabel) {
+      hudClockLabel.classList.remove('clock-slide-in');
+      void hudClockLabel.offsetWidth;
+      hudClockLabel.classList.add('clock-slide-in');
+    }
+  }
+
+  const d = new Date();
+
+  if (_showLocal && _utcOffsetSec !== 0) {
+    // Local time = UTC + offset
+    const localMs = d.getTime() + _utcOffsetSec * 1000;
+    const local = new Date(localMs);
+    const hh = String(local.getUTCHours()).padStart(2, '0');
+    const mm = String(local.getUTCMinutes()).padStart(2, '0');
+    hudZulu.textContent = `${hh}:${mm}`;
+    if (hudClockLabel) hudClockLabel.textContent = _tzAbbr || 'LCL';
+  } else {
+    hudZulu.textContent = `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}Z`;
+    if (hudClockLabel) hudClockLabel.textContent = 'UTC';
   }
 }
 

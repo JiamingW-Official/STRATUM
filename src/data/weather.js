@@ -71,6 +71,8 @@ export async function fetchWeather(lat, lon) {
       visibility: c.visibility,
       weatherCode: c.weather_code,
       isDay: c.is_day,
+      utcOffsetSeconds: data.utc_offset_seconds || 0,
+      timezoneAbbr: data.timezone_abbreviation || '',
       hourly,
       daily,
       _lat: lat.toFixed(1),
