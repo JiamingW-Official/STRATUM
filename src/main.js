@@ -941,56 +941,59 @@ function showAirportWidget(airport, arrivals, departures) {
     hourData[r.hour].dep = Math.max(hourData[r.hour].dep, r.dep);
     hourData[r.hour].count++;
   }
-  // Render pulse clock — 24h SVG ring
+  // Render PULSE — compact 24h EKG horizontal strip
   const maxTraffic = Math.max(...Object.values(hourData).map(h => h.arr + h.dep), 1);
-  const cx = 50, cy = 50, r = 38, rInner = 26;
-  let arcs = '';
+  const PW = 268, SH = 18, MID = SH / 2, COL = PW / 24;
+  let bgEl = '', barEl = '';
+
   for (let h = 0; h < 24; h++) {
-    const d = hourData[h];
-    if (!d) continue;
-    const total = d.arr + d.dep;
-    if (total === 0) continue;
-    const startAngle = (h / 24) * Math.PI * 2 - Math.PI / 2;
-    const endAngle = ((h + 1) / 24) * Math.PI * 2 - Math.PI / 2;
-    const gap = 0.02;
-    const sa = startAngle + gap, ea = endAngle - gap;
-    // Arrival arc (outer)
-    const arrH = d.arr / maxTraffic;
-    const arrR = rInner + (r - rInner) * arrH;
-    arcs += `<path d="${_svgArc(cx, cy, rInner, arrR, sa, ea)}" fill="rgba(90,172,255,${0.3 + arrH * 0.5})" />`;
-    // Departure arc (outer, stacked)
+    const d = hourData[h] || { arr: 0, dep: 0 };
+    const bx = (h * COL + 0.4).toFixed(1);
+    const bw = (COL - 0.8).toFixed(1);
+    const isCur = h === nowHour;
+
+    // Highlight column for current hour
+    if (isCur) bgEl += `<rect x="${bx}" y="0" width="${bw}" height="${SH}" fill="rgba(196,160,88,0.06)" rx="0.5"/>`;
+
+    // Arrivals (above midline, blue)
+    if (d.arr > 0) {
+      const bh = Math.max(1.2, (d.arr / maxTraffic) * (MID - 1.5));
+      const a = (isCur ? 0.90 : 0.22 + (d.arr / maxTraffic) * 0.58).toFixed(2);
+      barEl += `<rect x="${bx}" y="${(MID - bh).toFixed(1)}" width="${bw}" height="${bh.toFixed(1)}" fill="rgba(90,172,255,${a})" rx="0.5"/>`;
+    }
+    // Departures (below midline, orange)
     if (d.dep > 0) {
-      const depH = d.dep / maxTraffic;
-      const depR = rInner + (r - rInner) * depH;
-      arcs += `<path d="${_svgArc(cx, cy, rInner, depR, sa, ea)}" fill="rgba(232,131,51,${0.2 + depH * 0.4})" />`;
+      const bh = Math.max(1.2, (d.dep / maxTraffic) * (MID - 1.5));
+      const a = (isCur ? 0.90 : 0.20 + (d.dep / maxTraffic) * 0.52).toFixed(2);
+      barEl += `<rect x="${bx}" y="${MID.toFixed(1)}" width="${bw}" height="${bh.toFixed(1)}" fill="rgba(232,131,51,${a})" rx="0.5"/>`;
+    }
+    // NOW marker — gold dashed vertical
+    if (isCur) {
+      const lx = (h * COL + COL / 2).toFixed(1);
+      barEl += `<line x1="${lx}" y1="0" x2="${lx}" y2="${SH}" stroke="rgba(196,160,88,0.85)" stroke-width="0.75" stroke-dasharray="2,1.5"/>`;
     }
   }
-  // Current time pointer
-  const now = new Date();
-  const nowFrac = (now.getHours() + now.getMinutes() / 60) / 24;
-  const pAngle = nowFrac * Math.PI * 2 - Math.PI / 2;
-  const px1 = cx + Math.cos(pAngle) * (rInner - 2), py1 = cy + Math.sin(pAngle) * (rInner - 2);
-  const px2 = cx + Math.cos(pAngle) * (r + 3), py2 = cy + Math.sin(pAngle) * (r + 3);
-  // Hour ticks
-  let ticks = '';
-  for (let h = 0; h < 24; h += 6) {
-    const a = (h / 24) * Math.PI * 2 - Math.PI / 2;
-    const tx1 = cx + Math.cos(a) * (r + 1), ty1 = cy + Math.sin(a) * (r + 1);
-    const tx2 = cx + Math.cos(a) * (r + 4), ty2 = cy + Math.sin(a) * (r + 4);
-    ticks += `<line x1="${tx1}" y1="${ty1}" x2="${tx2}" y2="${ty2}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>`;
-    const lx = cx + Math.cos(a) * (r + 8), ly = cy + Math.sin(a) * (r + 8);
-    ticks += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="central" fill="rgba(255,255,255,0.2)" font-size="5" font-family="var(--font-mono)">${String(h).padStart(2,'0')}</text>`;
-  }
+
+  // Time axis labels at 0 / 6 / 12 / 18
+  const tAxis = [0, 6, 12, 18].map(h => {
+    const lx = (h * COL + COL / 2).toFixed(1);
+    const col = h === nowHour ? 'rgba(196,160,88,0.70)' : 'rgba(255,255,255,0.16)';
+    return `<text x="${lx}" y="${SH + 5.5}" text-anchor="middle" fill="${col}" font-size="4" font-family="monospace">${String(h).padStart(2,'0')}</text>`;
+  }).join('');
+
+  const midLine = `<line x1="0" y1="${MID}" x2="${PW}" y2="${MID}" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>`;
+
   activityEl.innerHTML = `
-    <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:2px;text-align:center">PULSE</div>
-    <svg viewBox="0 0 100 100" style="width:80px;height:80px;display:block;margin:0 auto">
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="${r - rInner}"/>
-      ${arcs}${ticks}
-      <line x1="${px1}" y1="${py1}" x2="${px2}" y2="${py2}" stroke="rgba(196,160,88,0.6)" stroke-width="0.8" stroke-linecap="round"/>
-      <circle cx="${cx}" cy="${cy}" r="1.5" fill="rgba(196,160,88,0.4)"/>
-    </svg>
-    <div style="display:flex;justify-content:center;gap:8px;font-size:7px;margin-top:2px"><span style="color:rgba(90,172,255,0.7)">ARR</span><span style="color:rgba(232,131,51,0.7)">DEP</span></div>
-  `;
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+      <span style="font-size:6px;letter-spacing:1.8px;color:rgba(196,160,88,0.45);font-family:var(--font-mono);font-weight:700">PULSE</span>
+      <span style="display:flex;align-items:baseline;gap:8px;font-family:var(--font-mono)">
+        <span style="font-size:11px;font-weight:700;color:rgba(90,172,255,0.90);line-height:1">${arrivals.length}</span><span style="font-size:6.5px;color:rgba(90,172,255,0.50);margin-left:-5px">ARR</span>
+        <span style="font-size:11px;font-weight:700;color:rgba(232,131,51,0.85);line-height:1">${departures.length}</span><span style="font-size:6.5px;color:rgba(232,131,51,0.50);margin-left:-5px">DEP</span>
+      </span>
+    </div>
+    <svg viewBox="0 0 ${PW} ${SH + 8}" style="width:100%;height:${SH + 8}px;display:block;overflow:visible">
+      ${midLine}${bgEl}${barEl}${tAxis}
+    </svg>`;
 
   // ── Wind Advisor ──
   _renderWindAdvisor(airport, w);
@@ -1040,7 +1043,7 @@ function _renderWindAdvisor(airport, container) {
   });
   if (!aptRunways.length) { el.innerHTML = ''; return; }
 
-  const windSpd = wx.windSpeed * 1.944; // m/s → knots
+  const windSpd = wx.windSpeed; // already in kt (converted in weather.js)
   const windDir = wx.windDir;
   const windCard = windDirToCardinal(windDir);
 
@@ -2243,6 +2246,10 @@ function initWeatherPanel() {
       _wxExpanded = !_wxExpanded;
       const detail = document.getElementById('hud-wx-detail');
       if (detail) detail.classList.toggle('open', _wxExpanded);
+      // Re-draw chart after expand — panel was display:none so clientWidth was 0
+      if (_wxExpanded && window._cachedWeather?.hourly?.length > 0) {
+        requestAnimationFrame(() => _drawHourlyChart(window._cachedWeather.hourly));
+      }
     });
   }
 }
@@ -2266,35 +2273,110 @@ async function updateWeatherWidget() {
   set('hud-wx-icon', weatherIcon(data.weatherCode));
   set('hud-wx-temp', `${Math.round(data.temp)}°`);
   set('hud-wx-desc', desc);
-  set('hud-wx-wind', `${windDir} ${Math.round(data.windSpeed)}kt`);
+  // Show gusts in compact line when notably higher: "SSW 15G20kt"
+  const hasGusts = data.windGusts != null && data.windGusts >= data.windSpeed * 1.2 && data.windGusts >= 10;
+  const windCompact = hasGusts
+    ? `${windDir} ${Math.round(data.windSpeed)}G${Math.round(data.windGusts)}kt`
+    : `${windDir} ${Math.round(data.windSpeed)}kt`;
+  set('hud-wx-wind', windCompact);
   const catEl = document.getElementById('hud-wx-cat');
-  if (catEl) { catEl.textContent = cat.label; catEl.style.color = cat.color; }
+  if (catEl) {
+    catEl.textContent = cat.label;
+    catEl.style.color = cat.color;
+    catEl.dataset.cat = cat.label; // for CSS background tinting
+  }
 
-  // Detail grid values
+  // Detail grid values — color-coded by severity
+  // setColor resets inline color to '' (CSS default) when col is null/undefined
+  const setColor = (id, txt, col) => {
+    const e = document.getElementById(id);
+    if (e) { e.textContent = txt; e.style.color = col || ''; }
+  };
+
+  // Temperature: blue=cold, white=moderate, orange=hot
+  const tempC = Math.round(data.temp);
+  const tempColor = tempC <= 0 ? '#5aacff' : tempC >= 32 ? '#ee8833' : null;
+  setColor('hud-wx-temp', `${tempC}°`, tempColor);
   set('hud-wx-feels', `${Math.round(data.feelsLike)}°`);
   set('hud-wx-dew', data.dewpoint != null ? `${Math.round(data.dewpoint)}°` : '--');
-  set('hud-wx-humidity', `${data.humidity}%`);
+
+  // Humidity: green<70, yellow 70-85, orange >85, red >95
+  const humColor = data.humidity >= 95 ? '#b05048' : data.humidity >= 85 ? '#ee8833' : data.humidity >= 70 ? '#e8c36a' : null;
+  setColor('hud-wx-humidity', `${data.humidity}%`, humColor);
+
   set('hud-wx-pressure', `${Math.round(data.pressure)} hPa`);
-  set('hud-wx-vis', vis);
-  set('hud-wx-cloud', `${data.cloudCover}%`);
-  set('hud-wx-gusts', data.windGusts != null ? `${Math.round(data.windGusts)} kt` : '--');
+
+  // VIS: color matches flight category
+  const visKm = data.visibility / 1000;
+  const visColor = visKm >= 8 ? '#52a86c' : visKm >= 5 ? '#5aacff' : visKm >= 1.6 ? '#ee8833' : '#cc44cc';
+  setColor('hud-wx-vis', vis, visColor);
+
+  // CLOUD: green=clear, neutral=scattered, amber=overcast
+  const cloudColor = data.cloudCover < 25 ? '#52a86c' : data.cloudCover < 65 ? null : 'rgba(200,170,100,0.9)';
+  setColor('hud-wx-cloud', `${data.cloudCover}%`, cloudColor);
+
+  // GUSTS: colored by strength
+  if (data.windGusts != null) {
+    const gColor = data.windGusts < 15 ? null : data.windGusts < 25 ? '#e8c36a' : data.windGusts < 35 ? '#ee8833' : '#ff5555';
+    setColor('hud-wx-gusts', `${Math.round(data.windGusts)}kt`, gColor);
+  } else { set('hud-wx-gusts', '--'); }
 
   // Density altitude
   const dalt = computeDensityAltitude(data.pressure, data.temp);
-  set('hud-wx-dalt', dalt != null ? `${dalt} ft` : '--');
+  if (dalt != null) {
+    const daColor = dalt < 0 ? '#52a86c' : dalt < 1500 ? null : dalt < 3500 ? '#e8c36a' : '#ee8833';
+    setColor('hud-wx-dalt', `${dalt > 0 ? '+' : ''}${dalt}ft`, daColor);
+  } else { set('hud-wx-dalt', '--'); }
 
   // Turbulence estimate
   const turb = estimateTurbulence(data);
   const turbEl = document.getElementById('hud-wx-turb');
   if (turbEl && turb) { turbEl.textContent = turb.label; turbEl.style.color = turb.color; }
 
-  // Sunrise / sunset from today's daily data
+  // Wind rose
+  _drawWindRose(data.windDir, data.windSpeed, data.windGusts);
+  const roseSpdEl = document.getElementById('hud-wx-rose-spd');
+  if (roseSpdEl) roseSpdEl.textContent = `${Math.round(data.windDir)}° / ${Math.round(data.windSpeed)}kt`;
+
+  // Pressure trend
+  const tendEl = document.getElementById('hud-wx-ptend');
+  if (tendEl && data.pressure != null) {
+    const tend = _trackPressure(data.pressure);
+    if (tend != null) {
+      if (tend > 1.0)       { tendEl.textContent = '▲'; tendEl.style.color = '#52a86c'; }
+      else if (tend > 0.3)  { tendEl.textContent = '↑'; tendEl.style.color = 'rgba(240,236,226,0.5)'; }
+      else if (tend < -1.0) { tendEl.textContent = '▼'; tendEl.style.color = '#b05048'; }
+      else if (tend < -0.3) { tendEl.textContent = '↓'; tendEl.style.color = 'rgba(240,236,226,0.5)'; }
+      else                  { tendEl.textContent = '→'; tendEl.style.color = 'rgba(240,236,226,0.35)'; }
+    }
+  }
+
+  // Sunrise / sunset + daylight progress bar
   if (data.daily && data.daily.length > 0 && data.daily[0].sunrise) {
     const fmtTime = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
     const srEl = document.getElementById('hud-wx-sunrise');
     const ssEl = document.getElementById('hud-wx-sunset');
     if (srEl) srEl.innerHTML = `<span class="hud-wx-sun-icon">&#9788;</span> ${fmtTime(data.daily[0].sunrise)}`;
     if (ssEl) ssEl.innerHTML = `<span class="hud-wx-sun-icon">&#9790;</span> ${fmtTime(data.daily[0].sunset)}`;
+
+    // Daylight progress bar (fills left→right from sunrise to sunset, dot = now)
+    const srT = new Date(data.daily[0].sunrise).getTime();
+    const ssT = new Date(data.daily[0].sunset).getTime();
+    const now = Date.now();
+    const pct = Math.max(0, Math.min(100, (now - srT) / (ssT - srT) * 100));
+    const isDay = now >= srT && now <= ssT;
+    const sunRow = document.querySelector('.hud-wx-sun-row');
+    if (sunRow) {
+      let bar = sunRow.querySelector('.hud-wx-daybar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'hud-wx-daybar';
+        sunRow.appendChild(bar);
+      }
+      bar.innerHTML = isDay
+        ? `<div class="hud-wx-daybar-fill" style="width:${pct.toFixed(1)}%"></div><div class="hud-wx-daybar-dot" style="left:${pct.toFixed(1)}%"></div>`
+        : `<div class="hud-wx-daybar-fill" style="width:${now < srT ? '0' : '100'}%"></div>`;
+    }
   }
 
   // 24h hourly trend canvas
@@ -2308,89 +2390,212 @@ async function updateWeatherWidget() {
   }
 }
 
+// ── Wind Rose (canvas) ────────────────────────────────────────────────────────
+function _drawWindRose(windDir, windSpeedKt, windGustsKt) {
+  const canvas = document.getElementById('hud-wx-rose');
+  if (!canvas) return;
+  const SIZE = 52;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = SIZE * dpr;
+  canvas.height = SIZE * dpr;
+  canvas.style.width = SIZE + 'px';
+  canvas.style.height = SIZE + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const cx = SIZE / 2, cy = SIZE / 2, R = 22;
+
+  // Background
+  ctx.fillStyle = 'rgba(4,6,16,0.65)';
+  ctx.beginPath(); ctx.arc(cx, cy, R + 3, 0, Math.PI * 2); ctx.fill();
+
+  // Outer ring
+  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+  ctx.lineWidth = 0.75;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+
+  // Inner ring (calm zone)
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.arc(cx, cy, R * 0.35, 0, Math.PI * 2); ctx.stroke();
+
+  // Cardinal labels
+  const MONO = "'JetBrains Mono',monospace";
+  ctx.font = `700 5.5px ${MONO}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const lblR = R - 5;
+  ctx.fillStyle = 'rgba(196,160,88,0.80)';
+  ctx.fillText('N', cx, cy - lblR);
+  ctx.fillStyle = 'rgba(240,236,226,0.28)';
+  ctx.fillText('S', cx, cy + lblR);
+  ctx.fillText('E', cx + lblR, cy);
+  ctx.fillText('W', cx - lblR, cy);
+
+  if (windDir == null || windSpeedKt == null) return;
+
+  // Wind arrow: FROM windDir toward center
+  // Meteorological convention: 270° wind blows from W, arrow tip points toward E
+  const fromRad = (windDir - 90) * Math.PI / 180;
+  const toRad   = fromRad + Math.PI;
+  const arrowR  = R - 8;
+  const tipX  = cx + Math.cos(toRad)   * arrowR;
+  const tipY  = cy + Math.sin(toRad)   * arrowR;
+  const tailX = cx + Math.cos(fromRad) * arrowR;
+  const tailY = cy + Math.sin(fromRad) * arrowR;
+
+  // Shaft
+  ctx.strokeStyle = 'rgba(106,173,204,0.90)';
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(tipX, tipY); ctx.stroke();
+
+  // Arrowhead
+  const ang = Math.atan2(tipY - tailY, tipX - tailX);
+  const hLen = 5, hAng = Math.PI / 5;
+  ctx.fillStyle = 'rgba(106,173,204,0.90)';
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tipX - hLen * Math.cos(ang - hAng), tipY - hLen * Math.sin(ang - hAng));
+  ctx.lineTo(tipX - hLen * Math.cos(ang + hAng), tipY - hLen * Math.sin(ang + hAng));
+  ctx.closePath(); ctx.fill();
+
+  // Gust ring — outer semi-transparent arc proportional to gusts
+  if (windGustsKt != null && windGustsKt > windSpeedKt) {
+    const gustR = R - 2;
+    ctx.strokeStyle = 'rgba(232,144,90,0.22)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, gustR, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // Center dot
+  ctx.fillStyle = 'rgba(106,173,204,0.85)';
+  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI * 2); ctx.fill();
+}
+
+// ── Pressure Trend Tracker ────────────────────────────────────────────────────
+const _wxPressHistory = [];
+function _trackPressure(hPa) {
+  const now = Date.now();
+  _wxPressHistory.push({ ts: now, hPa });
+  while (_wxPressHistory.length > 8) _wxPressHistory.shift();
+  if (_wxPressHistory.length < 2) return null;
+  const oldest = _wxPressHistory[0];
+  const hoursDiff = (now - oldest.ts) / 3_600_000;
+  if (hoursDiff < 0.02) return null; // need at least ~1 min of data
+  return (hPa - oldest.hPa) / hoursDiff; // hPa/hr
+}
+
+// ── Hourly Chart ──────────────────────────────────────────────────────────────
 function _drawHourlyChart(hourly) {
   const canvas = document.getElementById('hud-wx-hourly-chart');
   if (!canvas) return;
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 280;
-  const h = canvas.clientHeight || 64;
+  const h = canvas.clientHeight || 60;
   canvas.width = w * dpr;
   canvas.height = h * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
-  const temps = hourly.map(h => h.temp);
-  const precips = hourly.map(h => h.precip || 0);
-  const tMin = Math.min(...temps) - 2;
-  const tMax = Math.max(...temps) + 2;
+  const temps   = hourly.map(e => e.temp);
+  const winds   = hourly.map(e => e.wind || 0);
+  const precips = hourly.map(e => e.precip || 0);
+  const tMin  = Math.min(...temps) - 1;
+  const tMax  = Math.max(...temps) + 1;
   const tRange = tMax - tMin || 1;
-  const pMax = Math.max(...precips, 1);
+  const pMax  = Math.max(...precips, 0.5);
+  const wMax  = Math.max(...winds, 10);
 
-  const padTop = 14, padBot = 14, padL = 2, padR = 2;
+  const padTop = 13, padBot = 12, padL = 2, padR = 2;
   const plotW = w - padL - padR;
   const plotH = h - padTop - padBot;
 
-  // Precipitation bars (background)
-  ctx.fillStyle = 'rgba(90,172,255,0.15)';
+  const xAt = i => padL + (i / (hourly.length - 1)) * plotW;
+  const yAtTemp = t => padTop + plotH - ((t - tMin) / tRange) * plotH;
+
+  // Precipitation bars
+  ctx.fillStyle = 'rgba(90,172,255,0.18)';
   for (let i = 0; i < hourly.length; i++) {
     if (precips[i] <= 0) continue;
-    const x = padL + (i / (hourly.length - 1)) * plotW;
-    const barH = (precips[i] / pMax) * plotH * 0.6;
-    const barW = Math.max(plotW / hourly.length - 1, 2);
-    ctx.fillRect(x - barW / 2, padTop + plotH - barH, barW, barH);
+    const bh = (precips[i] / pMax) * plotH * 0.55;
+    const bw = Math.max(plotW / hourly.length - 1, 2);
+    ctx.fillRect(xAt(i) - bw / 2, padTop + plotH - bh, bw, bh);
   }
 
-  // Temperature line
+  // Wind speed line (subtle, lower portion)
   ctx.beginPath();
-  ctx.strokeStyle = 'rgba(232,195,106,0.7)';
-  ctx.lineWidth = 1.5;
-  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(106,173,204,0.28)';
+  ctx.lineWidth = 1; ctx.lineJoin = 'round';
   for (let i = 0; i < hourly.length; i++) {
-    const x = padL + (i / (hourly.length - 1)) * plotW;
-    const y = padTop + plotH - ((temps[i] - tMin) / tRange) * plotH;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    const wy = padTop + plotH - (winds[i] / wMax) * (plotH * 0.4);
+    if (i === 0) ctx.moveTo(xAt(i), wy); else ctx.lineTo(xAt(i), wy);
+  }
+  ctx.stroke();
+
+  // Temperature area + line
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(232,195,106,0.75)';
+  ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+  for (let i = 0; i < hourly.length; i++) {
+    const y = yAtTemp(temps[i]);
+    if (i === 0) ctx.moveTo(xAt(i), y); else ctx.lineTo(xAt(i), y);
   }
   ctx.stroke();
 
   // Temperature gradient fill
-  const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
-  grad.addColorStop(0, 'rgba(232,195,106,0.12)');
-  grad.addColorStop(1, 'rgba(232,195,106,0)');
-  ctx.lineTo(padL + plotW, padTop + plotH);
+  ctx.beginPath();
+  for (let i = 0; i < hourly.length; i++) {
+    const y = yAtTemp(temps[i]);
+    if (i === 0) ctx.moveTo(xAt(i), y); else ctx.lineTo(xAt(i), y);
+  }
+  ctx.lineTo(xAt(hourly.length - 1), padTop + plotH);
   ctx.lineTo(padL, padTop + plotH);
   ctx.closePath();
+  const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+  grad.addColorStop(0, 'rgba(232,195,106,0.14)');
+  grad.addColorStop(1, 'rgba(232,195,106,0)');
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Dots + temp labels at key points (every 4h)
-  ctx.font = `${Math.round(7 * dpr) / dpr}px monospace`;
+  // Current time marker
+  const nowHour = new Date().getHours();
+  const nowIdx = hourly.findIndex(e => e.hour === nowHour);
+  if (nowIdx >= 0) {
+    const nx = xAt(nowIdx);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 0.75;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(nx, padTop); ctx.lineTo(nx, padTop + plotH); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Dots + labels every 4h
   ctx.textAlign = 'center';
   for (let i = 0; i < hourly.length; i++) {
-    const x = padL + (i / (hourly.length - 1)) * plotW;
-    const y = padTop + plotH - ((temps[i] - tMin) / tRange) * plotH;
+    if (i % 4 !== 0 && i !== hourly.length - 1) continue;
+    const x = xAt(i), y = yAtTemp(temps[i]);
 
-    if (i % 4 === 0 || i === hourly.length - 1) {
-      // Temp value above curve
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fillText(`${temps[i]}°`, x, y - 4);
+    // Dot
+    ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(232,195,106,0.85)'; ctx.fill();
 
-      // Hour label below
-      ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.fillText(`${String(hourly[i].hour).padStart(2, '0')}`, x, h - 2);
+    // Temp label
+    ctx.font = `7px monospace`;
+    ctx.fillStyle = 'rgba(255,255,255,0.60)';
+    ctx.fillText(`${temps[i]}°`, x, y - 4);
 
-      // Dot
-      ctx.beginPath();
-      ctx.arc(x, y, 2, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(232,195,106,0.8)';
-      ctx.fill();
-    }
+    // Hour label
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fillText(String(hourly[i].hour).padStart(2, '0'), x, h - 1);
+  }
 
-    // Rain amount label if significant
-    if (precips[i] >= 0.5 && i % 3 === 0) {
-      ctx.fillStyle = 'rgba(90,172,255,0.6)';
-      const barTop = padTop + plotH - (precips[i] / pMax) * plotH * 0.6;
-      ctx.fillText(`${precips[i].toFixed(1)}`, x, barTop - 2);
-    }
+  // Rain label if significant
+  ctx.font = `6px monospace`;
+  for (let i = 0; i < hourly.length; i++) {
+    if (precips[i] < 0.5 || i % 3 !== 0) continue;
+    const bTop = padTop + plotH - (precips[i] / pMax) * plotH * 0.55;
+    ctx.fillStyle = 'rgba(90,172,255,0.65)';
+    ctx.fillText(`${precips[i].toFixed(1)}`, xAt(i), bTop - 2);
   }
 }
 
@@ -2409,18 +2614,31 @@ function _renderDailyForecast(daily) {
     const icon = weatherIcon(d.code);
     const left = ((d.tempMin - allMin) / range) * 100;
     const width = ((d.tempMax - d.tempMin) / range) * 100;
-    const precipTxt = d.precip > 0 ? `${d.precip.toFixed(1)}mm` : '';
-    const precipProbTxt = d.precipProb > 0 && d.precip <= 0 ? `${d.precipProb}%` : '';
 
-    return `<div class="hud-wx-day">
+    // Precipitation: always show prob bar; show mm if ≥1mm, else prob% if ≥5
+    const prob = d.precipProb || 0;
+    const precipLabel = d.precip >= 1 ? `${Math.round(d.precip)}mm`
+                      : prob >= 5    ? `${prob}%`
+                      : '';
+    // Rain bar opacity scales with probability
+    const rainOpacity = Math.min(0.8, 0.15 + prob * 0.006);
+    const rainBar = prob > 0
+      ? `<div class="hud-wx-day-rain-bar" style="width:${prob}%;opacity:${rainOpacity.toFixed(2)}"></div>`
+      : '';
+
+    // Temp color: blue for cold, orange for hot
+    const hiC = d.tempMax;
+    const hiColor = hiC <= 0 ? 'color:#5aacff' : hiC >= 32 ? 'color:#ee8833' : '';
+
+    return `<div class="hud-wx-day${i === 0 ? ' hud-wx-day-today' : ''}">
       <span class="hud-wx-day-name">${name}</span>
       <span class="hud-wx-day-icon">${icon}</span>
       <span class="hud-wx-day-lo">${d.tempMin}°</span>
       <div class="hud-wx-day-bar-track">
         <div class="hud-wx-day-bar-fill" style="left:${left}%;width:${Math.max(width, 4)}%"></div>
       </div>
-      <span class="hud-wx-day-hi">${d.tempMax}°</span>
-      <span class="hud-wx-day-precip">${precipTxt || precipProbTxt}</span>
+      <span class="hud-wx-day-hi" style="${hiColor}">${d.tempMax}°</span>
+      <div class="hud-wx-day-rain">${rainBar}<span class="hud-wx-day-rain-lbl">${precipLabel}</span></div>
     </div>`;
   }).join('');
 }

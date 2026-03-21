@@ -28,6 +28,7 @@ export async function fetchWeather(lat, lon) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const c = data.current;
+    const KMH_TO_KT = 0.539957;
     const hourly = [];
     if (data.hourly && data.hourly.time) {
       for (let i = 0; i < Math.min(data.hourly.time.length, 24); i++) {
@@ -36,7 +37,8 @@ export async function fetchWeather(lat, lon) {
           hour: t.getHours(),
           temp: Math.round(data.hourly.temperature_2m[i]),
           code: data.hourly.weather_code[i],
-          wind: Math.round(data.hourly.wind_speed_10m[i]),
+          wind: Math.round((data.hourly.wind_speed_10m[i] || 0) * KMH_TO_KT),
+          windDir: Math.round(data.hourly.wind_direction_10m?.[i] || 0),
           precip: data.hourly.precipitation?.[i] || 0,
           precipProb: data.hourly.precipitation_probability?.[i] || 0,
         });
@@ -64,8 +66,8 @@ export async function fetchWeather(lat, lon) {
       dewpoint: c.dewpoint_2m,
       humidity: c.relative_humidity_2m,
       pressure: c.surface_pressure,
-      windSpeed: c.wind_speed_10m,
-      windGusts: c.wind_gusts_10m,
+      windSpeed: Math.round(c.wind_speed_10m * KMH_TO_KT * 10) / 10,   // stored in kt
+      windGusts: c.wind_gusts_10m != null ? Math.round(c.wind_gusts_10m * KMH_TO_KT * 10) / 10 : null, // stored in kt
       windDir: c.wind_direction_10m,
       cloudCover: c.cloud_cover,
       visibility: c.visibility,
@@ -199,9 +201,9 @@ export function estimateTurbulence(weather, nearbyHeavy = 0) {
     else if (gustFactor > 1.2) score += 1;
   }
 
-  // High wind speed alone
-  if (weather.windSpeed > 50) score += 2;
-  else if (weather.windSpeed > 30) score += 1;
+  // High wind speed alone (windSpeed is now in kt)
+  if (weather.windSpeed > 40) score += 2;
+  else if (weather.windSpeed > 25) score += 1;
 
   // WMO convective codes (thunderstorms)
   const wc = weather.weatherCode;

@@ -58,16 +58,26 @@
       </div>
       <!-- Expandable forecast detail -->
       <div id="hud-wx-detail" class="hud-wx-detail">
-        <div class="hud-wx-grid">
+        <!-- Wind rose + avionics METAR grid -->
+        <div class="hud-wx-body">
+          <div class="hud-wx-rose-wrap">
+            <canvas id="hud-wx-rose" class="hud-wx-rose"></canvas>
+            <div id="hud-wx-rose-spd" class="hud-wx-rose-spd">-- kt</div>
+          </div>
+          <div class="hud-wx-atis">
+            <span class="hud-wx-cell"><span class="hud-wx-k">QNH</span><span id="hud-wx-pressure" class="hud-wx-v">--</span><span id="hud-wx-ptend" class="hud-wx-ptend"></span></span>
+            <span class="hud-wx-cell"><span class="hud-wx-k">VIS</span><span id="hud-wx-vis" class="hud-wx-v">--</span></span>
+            <span class="hud-wx-cell"><span class="hud-wx-k">CLOUD</span><span id="hud-wx-cloud" class="hud-wx-v">--</span></span>
+            <span class="hud-wx-cell"><span class="hud-wx-k">TURB</span><span id="hud-wx-turb" class="hud-wx-v">--</span></span>
+            <span class="hud-wx-cell"><span class="hud-wx-k">D-ALT</span><span id="hud-wx-dalt" class="hud-wx-v">--</span></span>
+            <span class="hud-wx-cell"><span class="hud-wx-k">GUSTS</span><span id="hud-wx-gusts" class="hud-wx-v">--</span></span>
+          </div>
+        </div>
+        <!-- Comfort / dew row -->
+        <div class="hud-wx-comfort">
           <span class="hud-wx-cell"><span class="hud-wx-k">FEELS</span><span id="hud-wx-feels" class="hud-wx-v">--</span></span>
           <span class="hud-wx-cell"><span class="hud-wx-k">DEW PT</span><span id="hud-wx-dew" class="hud-wx-v">--</span></span>
           <span class="hud-wx-cell"><span class="hud-wx-k">HUM</span><span id="hud-wx-humidity" class="hud-wx-v">--</span></span>
-          <span class="hud-wx-cell"><span class="hud-wx-k">QNH</span><span id="hud-wx-pressure" class="hud-wx-v">--</span></span>
-          <span class="hud-wx-cell"><span class="hud-wx-k">VIS</span><span id="hud-wx-vis" class="hud-wx-v">--</span></span>
-          <span class="hud-wx-cell"><span class="hud-wx-k">CLOUD</span><span id="hud-wx-cloud" class="hud-wx-v">--</span></span>
-          <span class="hud-wx-cell"><span class="hud-wx-k">GUSTS</span><span id="hud-wx-gusts" class="hud-wx-v">--</span></span>
-          <span class="hud-wx-cell"><span class="hud-wx-k">D-ALT</span><span id="hud-wx-dalt" class="hud-wx-v">--</span></span>
-          <span class="hud-wx-cell"><span class="hud-wx-k">TURB</span><span id="hud-wx-turb" class="hud-wx-v">--</span></span>
         </div>
         <div class="hud-wx-sun-row">
           <span class="hud-wx-sun" id="hud-wx-sunrise">--:--</span>

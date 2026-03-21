@@ -256,7 +256,7 @@ html, body {
   margin-top: 2px;
 }
 
-/* ── HUD Weather — compact inline ── */
+/* ── HUD Weather ── */
 .hud-weather { pointer-events: auto; padding: 4px 0 2px; }
 
 .hud-wx-line {
@@ -268,96 +268,159 @@ html, body {
 .hud-wx-icon { font-size: 11px; line-height: 1; }
 .hud-wx-temp {
   font-family: var(--font-mono);
-  font-size: 11px; font-weight: 600;
+  font-size: 12px; font-weight: 700;
   color: var(--text); line-height: 1;
 }
 .hud-wx-desc {
   font-family: var(--font-mono);
-  font-size: 7px; color: var(--text-3);
+  font-size: 7.5px; color: var(--text-3);
   letter-spacing: 0.3px; text-transform: uppercase;
 }
 .hud-wx-wind {
   font-family: var(--font-mono);
-  font-size: 7px; color: var(--text-3);
+  font-size: 7.5px; color: var(--text-2);
   margin-left: auto;
 }
 .hud-wx-cat {
   font-family: var(--font-mono);
-  font-size: 6px; font-weight: 700;
-  letter-spacing: 1px; padding: 0 3px;
+  font-size: 6.5px; font-weight: 700;
+  letter-spacing: 1px; padding: 1px 4px;
   border-radius: 2px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  line-height: 1.6;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  line-height: 1.6; transition: background 0.3s, border-color 0.3s;
 }
+.hud-wx-cat[data-cat="VFR"]  { background: rgba(82,168,108,0.18); border-color: rgba(82,168,108,0.45); }
+.hud-wx-cat[data-cat="MVFR"] { background: rgba(90,172,255,0.15); border-color: rgba(90,172,255,0.45); }
+.hud-wx-cat[data-cat="IFR"]  { background: rgba(176,80,72,0.18);  border-color: rgba(176,80,72,0.45); }
+.hud-wx-cat[data-cat="LIFR"] { background: rgba(176,80,204,0.18); border-color: rgba(176,80,204,0.45); }
 
 /* Forecast detail — collapsed by default */
 .hud-wx-detail { display: none; padding-top: 6px; }
 .hud-wx-detail.open { display: block; }
 
-.hud-wx-grid {
-  display: grid; grid-template-columns: 1fr 1fr 1fr;
-  gap: 3px 0; padding-bottom: 6px;
+/* Wind rose + METAR grid row */
+.hud-wx-body {
+  display: flex; gap: 8px; align-items: flex-start;
+  padding-bottom: 5px; margin-bottom: 4px;
   border-bottom: 1px solid var(--border);
 }
-.hud-wx-cell { display: flex; flex-direction: column; gap: 1px; }
+.hud-wx-rose-wrap {
+  display: flex; flex-direction: column;
+  align-items: center; flex-shrink: 0; gap: 2px;
+}
+.hud-wx-rose { width: 52px; height: 52px; border-radius: 50%; }
+.hud-wx-rose-spd {
+  font-family: var(--font-mono); font-size: 7px;
+  color: var(--text-2); font-weight: 600;
+  letter-spacing: 0.5px; white-space: nowrap;
+}
+.hud-wx-atis {
+  flex: 1; display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px 0;
+}
+.hud-wx-cell { display: flex; flex-direction: column; gap: 1.5px; position: relative; }
 .hud-wx-k {
   font-family: var(--font-mono);
-  font-size: 5.5px; color: var(--text-3);
-  letter-spacing: 0.8px; text-transform: uppercase;
+  font-size: 6.5px; color: var(--text-3);
+  letter-spacing: 0.6px; text-transform: uppercase;
 }
 .hud-wx-v {
   font-family: var(--font-mono);
-  font-size: 8.5px; color: var(--text-2); font-weight: 500;
+  font-size: 9px; color: var(--text-2); font-weight: 600;
+}
+.hud-wx-ptend {
+  position: absolute; right: 0; bottom: 0;
+  font-family: var(--font-mono); font-size: 8px; font-weight: 700;
+}
+
+/* Comfort row */
+.hud-wx-comfort {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 3px 0; padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
 }
 
 /* Sunrise / sunset row */
 .hud-wx-sun-row {
-  display: flex; justify-content: space-between;
-  padding: 4px 0 2px;
-  border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 0 5px; border-bottom: 1px solid var(--border);
+  flex-wrap: wrap; gap: 2px;
+  position: relative;
 }
 .hud-wx-sun {
   font-family: var(--font-mono);
   font-size: 7.5px; color: var(--text-3);
   display: flex; align-items: center; gap: 3px;
 }
-.hud-wx-sun-icon {
-  font-size: 9px; color: rgba(232,195,106,0.5);
+.hud-wx-sun-icon { font-size: 9px; color: rgba(232,195,106,0.55); }
+
+/* Daylight progress bar */
+.hud-wx-daybar {
+  position: absolute; bottom: 1px; left: 0; right: 0;
+  height: 2px; background: rgba(255,255,255,0.06); border-radius: 1px;
+  overflow: visible;
+}
+.hud-wx-daybar-fill {
+  height: 100%; background: rgba(232,195,106,0.35); border-radius: 1px;
+  transition: width 1s linear;
+}
+.hud-wx-daybar-dot {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(232,195,106,0.80);
+  box-shadow: 0 0 4px rgba(232,195,106,0.50);
 }
 
 .hud-wx-section-label {
   font-family: var(--font-mono);
-  font-size: 5.5px; font-weight: 600;
-  letter-spacing: 1.2px; color: rgba(196,160,88,0.35);
-  text-transform: uppercase; margin: 5px 0 2px;
+  font-size: 5.5px; font-weight: 700;
+  letter-spacing: 1.4px; color: rgba(196,160,88,0.45);
+  text-transform: uppercase; margin: 6px 0 3px;
 }
 .hud-wx-chart {
-  width: 100%; height: 52px;
-  border-radius: 3px; background: rgba(0,0,0,0.15);
+  width: 100%; height: 60px;
+  border-radius: 3px; background: rgba(0,0,0,0.18);
 }
 
 /* 7-day forecast */
-.hud-wx-daily { display: flex; flex-direction: column; }
+.hud-wx-daily { display: flex; flex-direction: column; gap: 1px; }
 .hud-wx-day {
   display: flex; align-items: center;
   font-family: var(--font-mono); font-size: 7px;
-  padding: 1px 0;
+  padding: 1.5px 0;
 }
-.hud-wx-day-name { width: 20px; color: var(--text-3); font-size: 6px; flex-shrink: 0; }
-.hud-wx-day-icon { width: 13px; text-align: center; font-size: 8px; flex-shrink: 0; }
-.hud-wx-day-lo { width: 18px; text-align: right; color: var(--text-3); font-size: 6.5px; flex-shrink: 0; }
+.hud-wx-day-name { width: 22px; color: var(--text-3); font-size: 6.5px; flex-shrink: 0; }
+.hud-wx-day-icon { width: 14px; text-align: center; font-size: 9px; flex-shrink: 0; }
+.hud-wx-day-lo { width: 20px; text-align: right; color: var(--text-3); font-size: 7px; flex-shrink: 0; }
 .hud-wx-day-bar-track {
-  flex: 1; height: 2.5px; margin: 0 3px;
-  background: rgba(255,255,255,0.04); border-radius: 1px;
+  flex: 1; height: 3px; margin: 0 4px;
+  background: rgba(255,255,255,0.06); border-radius: 2px;
   overflow: hidden; position: relative;
 }
 .hud-wx-day-bar-fill {
-  position: absolute; top: 0; height: 100%; border-radius: 1px;
+  position: absolute; top: 0; height: 100%; border-radius: 2px;
   background: linear-gradient(90deg, #5aacff, #ee8833);
 }
-.hud-wx-day-hi { width: 18px; color: var(--text); font-size: 6.5px; font-weight: 500; flex-shrink: 0; }
-.hud-wx-day-precip { width: 22px; text-align: right; font-size: 6px; color: rgba(90,172,255,0.45); flex-shrink: 0; }
+.hud-wx-day-hi { width: 20px; color: var(--text); font-size: 7px; font-weight: 600; flex-shrink: 0; }
+.hud-wx-day-today { border-left: 2px solid rgba(196,160,88,0.40); padding-left: 2px; margin-left: -2px; }
+.hud-wx-day-today .hud-wx-day-name { color: rgba(196,160,88,0.85); }
+
+/* Precipitation column — bar + label stacked */
+.hud-wx-day-rain {
+  width: 30px; display: flex; flex-direction: column;
+  align-items: flex-end; gap: 1.5px; flex-shrink: 0;
+}
+.hud-wx-day-rain-bar {
+  height: 2.5px; border-radius: 1px; align-self: stretch;
+  background: rgba(90,172,255,0.7);
+}
+.hud-wx-day-rain-lbl {
+  font-family: var(--font-mono); font-size: 6px;
+  color: rgba(90,172,255,0.65); white-space: nowrap;
+}
 
 /* ── Detail Panel ── */
 .detail-panel {
