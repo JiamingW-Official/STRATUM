@@ -5,23 +5,23 @@
 
 // ── Design tokens (mirrors src/style.css) ────────────────────────────────────
 const C = {
-  overlay:    'rgba(4,5,9,0.065)',     // subtle atmospheric tint
-  bg:         'rgba(4,6,16,0.44)',
-  bgPanel:    'rgba(4,6,16,0.43)',
-  border:     'rgba(255,255,255,0.03)',
-  borderGold: 'rgba(196,160,88,0.11)',
+  overlay:    'rgba(4,5,9,0.033)',
+  bg:         'rgba(4,6,16,0.22)',
+  bgPanel:    'rgba(4,6,16,0.22)',
+  border:     'rgba(255,255,255,0.015)',
+  borderGold: 'rgba(196,160,88,0.055)',
   accent:     '#c9a45c',
-  accentDim:  'rgba(196,160,88,0.10)',
+  accentDim:  'rgba(196,160,88,0.05)',
   info:       '#6aadcc',
   success:    '#52a86c',
   danger:     '#b05048',
   text:       'rgba(240,236,226,0.95)',
   text2:      'rgba(240,236,226,0.60)',
   text3:      'rgba(240,236,226,0.30)',
-  skyTop:     'rgba(3,10,28,0.48)',
-  skyBot:     'rgba(8,28,68,0.48)',
-  gndTop:     'rgba(48,26,7,0.48)',
-  gndBot:     'rgba(14,8,3,0.49)',
+  skyTop:     'rgba(3,10,28,0.24)',
+  skyBot:     'rgba(8,28,68,0.24)',
+  gndTop:     'rgba(48,26,7,0.24)',
+  gndBot:     'rgba(14,8,3,0.25)',
 };
 const MONO = "'JetBrains Mono','SF Mono',ui-monospace,monospace";
 const SANS = "'Inter',system-ui,-apple-system,sans-serif";
@@ -226,7 +226,7 @@ function _render() {
   // ── 5. Scanline texture (panel only) ─────────────────────────────────────
   ctx.save();
   ctx.beginPath(); _rr(ctx, PX, PY, PW, PH, 6); ctx.clip();
-  ctx.globalAlpha = 0.004;
+  ctx.globalAlpha = 0.002;
   ctx.fillStyle = 'rgba(0,0,0,1)';
   for (let sy = PY; sy < PY + PH; sy += 3) ctx.fillRect(PX, sy, PW, 1);
   ctx.globalAlpha = 1;
@@ -237,7 +237,7 @@ function _render() {
   // ── 6. Key hint — in screen coords below the scaled panel ─────────────────
   const scaledRight  = W / 2 + S * PW / 2;
   const scaledBottom = H / 2 + S * PH / 2;
-  _t(ctx, '[V]  EXIT HUD', scaledRight, scaledBottom + 8, 7, C.text3, 'right', 'normal', MONO, 'top');
+  _t(ctx, '[V]  EXIT HUD', scaledRight, scaledBottom + 6, 4, C.text3, 'right', 'normal', MONO, 'top');
 
   ctx.restore();
 }
@@ -255,17 +255,17 @@ function _topBar(ctx, px, py, pw, ph, d, phase) {
 
   // Callsign — gold
   const cs = d?.callsign || d?.icao24 || '——';
-  _t(ctx, cs, px + 12, mid - 3, 14, C.accent, 'left', '600');
+  _t(ctx, cs, px + 12, mid - 2, 7, C.accent, 'left', '600');
 
   // Registration · airline (sub-line)
   const reg  = d?.registration || '';
   const airl = (d?.routeAirline || d?.operator || '').slice(0, 22);
   const sub  = [reg, airl].filter(Boolean).join('  ·  ').toUpperCase();
-  if (sub) _t(ctx, sub, px + 12, mid + 7, 6.5, C.text2, 'left', 'normal', SANS, 'top');
+  if (sub) _t(ctx, sub, px + 12, mid + 4, 4, C.text2, 'left', 'normal', SANS, 'top');
 
   // Aircraft type
   if (d?.aircraftType) {
-    _t(ctx, d.aircraftType.toUpperCase(), px + pw / 2 - 72, mid, 8, C.text3, 'center', 'normal', MONO);
+    _t(ctx, d.aircraftType.toUpperCase(), px + pw / 2 - 72, mid, 4, C.text3, 'center', 'normal', MONO);
   }
 
   // Phase badge (center)
@@ -274,8 +274,8 @@ function _topBar(ctx, px, py, pw, ph, d, phase) {
   // UTC clock (right)
   const now = new Date();
   const utc = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}:${String(now.getUTCSeconds()).padStart(2,'0')}`;
-  _t(ctx, utc, px + pw - 12, mid - 3, 11, C.text, 'right', '400');
-  _t(ctx, 'UTC', px + pw - 12, mid + 7, 6.5, C.text3, 'right', 'normal', SANS, 'top');
+  _t(ctx, utc, px + pw - 12, mid - 2, 6, C.text, 'right', '400');
+  _t(ctx, 'UTC', px + pw - 12, mid + 4, 4, C.text3, 'right', 'normal', SANS, 'top');
 }
 
 // ── Phase Badge ───────────────────────────────────────────────────────────────
@@ -283,15 +283,15 @@ function _phaseBadge(ctx, cx, cy, phase) {
   if (!phase) return;
   const col = PHASE_COLOR[phase] || C.text2;
   ctx.save();
-  ctx.font = `600 9px ${SANS}`;
+  ctx.font = `600 5px ${SANS}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const tw = ctx.measureText(phase).width;
-  const bw = tw + 22, bh = 21;
+  const bw = tw + 12, bh = 12;
   const bx = cx - bw / 2, by = cy - bh / 2;
-  ctx.globalAlpha = 0.08; ctx.fillStyle = col;
+  ctx.globalAlpha = 0.04; ctx.fillStyle = col;
   _rr(ctx, bx, by, bw, bh, 3); ctx.fill();
-  ctx.globalAlpha = 0.26; ctx.strokeStyle = col; ctx.lineWidth = 0.75;
+  ctx.globalAlpha = 0.13; ctx.strokeStyle = col; ctx.lineWidth = 0.75;
   _rr(ctx, bx, by, bw, bh, 3); ctx.stroke();
   ctx.globalAlpha = 1; ctx.fillStyle = col;
   ctx.fillText(phase, cx, cy);
@@ -320,14 +320,14 @@ function _horizon(ctx, x, y, w, h, pitchDeg, degPx, cx) {
   ctx.fillRect(x, Math.max(y, horizY), w, y + h - Math.max(y, horizY));
 
   // Horizon line
-  ctx.strokeStyle = 'rgba(255,255,255,0.33)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.165)';
   ctx.lineWidth = 1;
   if (horizY >= y && horizY <= y + h) {
     ctx.beginPath(); ctx.moveTo(x, horizY); ctx.lineTo(x + w, horizY); ctx.stroke();
   }
 
   // Sky grid (very subtle vertical columns)
-  ctx.strokeStyle = 'rgba(255,255,255,0.007)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.004)';
   ctx.lineWidth = 0.5;
   for (let gx = x + 40; gx < x + w; gx += 40) {
     ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y + h); ctx.stroke();
@@ -348,11 +348,11 @@ function _horizon(ctx, x, y, w, h, pitchDeg, degPx, cx) {
 // ── Pitch Ladder ──────────────────────────────────────────────────────────────
 function _pitchLadder(ctx, py, pw, ph, cx, horizY, degPx) {
   const LADDERS = [
-    { deg: 2.5, ow: pw * 0.09, op: 0.10 },
-    { deg: 5,   ow: pw * 0.15, op: 0.14 },
-    { deg: 10,  ow: pw * 0.24, op: 0.24, lbl: true },
-    { deg: 15,  ow: pw * 0.19, op: 0.19, lbl: true },
-    { deg: 20,  ow: pw * 0.24, op: 0.24, lbl: true },
+    { deg: 2.5, ow: pw * 0.09, op: 0.05 },
+    { deg: 5,   ow: pw * 0.15, op: 0.07 },
+    { deg: 10,  ow: pw * 0.24, op: 0.12, lbl: true },
+    { deg: 15,  ow: pw * 0.19, op: 0.10, lbl: true },
+    { deg: 20,  ow: pw * 0.24, op: 0.12, lbl: true },
   ];
 
   ctx.save();
@@ -381,7 +381,7 @@ function _pitchLadder(ctx, py, pw, ph, cx, horizY, degPx) {
       }
 
       if (lbl) {
-        ctx.font = `8.5px ${MONO}`;
+        ctx.font = `4.5px ${MONO}`;
         ctx.fillStyle = `rgba(196,160,88,${op * 0.9})`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -397,7 +397,7 @@ function _pitchLadder(ctx, py, pw, ph, cx, horizY, degPx) {
 function _rollArc(ctx, cx, pfdTopY, radius) {
   const arcCY = pfdTopY + radius;
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.11)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.055)';
   ctx.lineWidth = 0.75;
   ctx.beginPath();
   ctx.arc(cx, arcCY, radius, (-90 - 65) * Math.PI / 180, (-90 + 65) * Math.PI / 180);
@@ -417,7 +417,7 @@ function _rollArc(ctx, cx, pfdTopY, radius) {
   // Zero triangle
   const za = -Math.PI / 2;
   const tx = cx + radius * Math.cos(za), ty = arcCY + radius * Math.sin(za);
-  ctx.fillStyle = 'rgba(240,236,226,0.28)';
+  ctx.fillStyle = 'rgba(240,236,226,0.14)';
   ctx.beginPath();
   ctx.moveTo(tx, ty + 2); ctx.lineTo(tx - 4, ty - 7); ctx.lineTo(tx + 4, ty - 7);
   ctx.closePath(); ctx.fill();
@@ -464,7 +464,7 @@ function _pfdFrame(ctx, x, y, w, h) {
   }
   // Center crosshairs (very faint)
   const mx = x + w / 2, my = y + h / 2;
-  ctx.strokeStyle = 'rgba(196,160,88,0.035)';
+  ctx.strokeStyle = 'rgba(196,160,88,0.018)';
   ctx.lineWidth = 0.5;
   ctx.beginPath();
   ctx.moveTo(x + 12, my); ctx.lineTo(mx - 56, my);
@@ -491,7 +491,7 @@ function _altTape(ctx, x, y, w, h, alt, navAlt, altDev) {
   if (alt < 12000) {
     const loY = cy - ((Math.min(9999, alt + RANGE) - alt) / RANGE) * (h / 2);
     const hiY = cy - ((Math.max(0, alt - RANGE) - alt) / RANGE) * (h / 2);
-    ctx.fillStyle = 'rgba(201,164,92,0.02)';
+    ctx.fillStyle = 'rgba(201,164,92,0.01)';
     ctx.fillRect(x, Math.max(y, loY), w, Math.min(y + h, hiY) - Math.max(y, loY));
   }
 
@@ -503,14 +503,14 @@ function _altTape(ctx, x, y, w, h, alt, navAlt, altDev) {
     const isMaj = a % MAJOR === 0;
     const isLow = a < 10000;
     ctx.strokeStyle = isMaj
-      ? (isLow ? 'rgba(201,164,92,0.21)' : 'rgba(255,255,255,0.16)')
-      : 'rgba(255,255,255,0.06)';
+      ? (isLow ? 'rgba(201,164,92,0.11)' : 'rgba(255,255,255,0.08)')
+      : 'rgba(255,255,255,0.03)';
     ctx.lineWidth = isMaj ? 0.75 : 0.5;
     const tl = isMaj ? 14 : 7;
     ctx.beginPath(); ctx.moveTo(x + w - tl - 1, fy); ctx.lineTo(x + w - 1, fy); ctx.stroke();
     if (isMaj) {
       const lbl = a >= 18000 ? `FL${Math.round(a / 100)}` : String(a);
-      ctx.font = `8px ${MONO}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.font = `4px ${MONO}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
       ctx.fillStyle = isLow ? 'rgba(201,164,92,0.5)' : C.text2;
       ctx.fillText(lbl, x + w - 18, fy);
     }
@@ -526,7 +526,7 @@ function _altTape(ctx, x, y, w, h, alt, navAlt, altDev) {
     ctx.closePath(); ctx.fill();
     // Off-scale arrow
     if (bugY < y || bugY > y + h) {
-      ctx.font = `8px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `4px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(navAlt > alt + RANGE ? '▲' : '▼', x + w - 5, by);
     }
   }
@@ -535,22 +535,22 @@ function _altTape(ctx, x, y, w, h, alt, navAlt, altDev) {
 
   // Current alt readout box
   const altDev200 = altDev != null && Math.abs(altDev) > 200;
-  ctx.fillStyle = altDev200 ? 'rgba(232,144,90,0.46)' : 'rgba(196,160,88,0.46)';
-  _rr(ctx, x, cy - 12, w, 24, 3); ctx.fill();
+  ctx.fillStyle = altDev200 ? 'rgba(232,144,90,0.23)' : 'rgba(196,160,88,0.23)';
+  _rr(ctx, x, cy - 7, w, 14, 3); ctx.fill();
   const altStr = alt >= 18000 ? `FL${Math.round(alt / 100)}` : String(Math.round(alt / 100) * 100);
-  _t(ctx, altStr, x + w / 2, cy, 12, '#fff', 'center', '600');
+  _t(ctx, altStr, x + w / 2, cy, 6, '#fff', 'center', '600');
 
   // Altitude deviation indicator
   if (altDev != null && Math.abs(altDev) > 50) {
     const devStr = `${altDev > 0 ? '+' : ''}${Math.round(altDev)}`;
-    _t(ctx, devStr, x + w / 2, cy + 14, 7, altDev200 ? C.danger : C.text3, 'center', 'normal', MONO, 'top');
+    _t(ctx, devStr, x + w / 2, cy + 9, 4, altDev200 ? C.danger : C.text3, 'center', 'normal', MONO, 'top');
   }
 
   // Labels below tape
-  _t(ctx, 'ALT  ft', x + w / 2, y + h + 5, 7, C.text3, 'center', 'normal', SANS, 'top');
+  _t(ctx, 'ALT  ft', x + w / 2, y + h + 4, 4, C.text3, 'center', 'normal', SANS, 'top');
   if (navAlt != null) {
     const navStr = navAlt >= 18000 ? `FL${Math.round(navAlt / 100)}` : String(Math.round(navAlt / 100) * 100);
-    _t(ctx, `SEL ${navStr}`, x + w / 2, y + h + 14, 7, C.info, 'center', 'normal', SANS, 'top');
+    _t(ctx, `SEL ${navStr}`, x + w / 2, y + h + 9, 4, C.info, 'center', 'normal', SANS, 'top');
   }
 }
 
@@ -575,7 +575,7 @@ function _iasTape(ctx, x, y, w, h, ias, isRealIas) {
     const tl = isMaj ? 14 : 7;
     ctx.beginPath(); ctx.moveTo(x + 1, fy); ctx.lineTo(x + tl + 1, fy); ctx.stroke();
     if (isMaj && s > 0) {
-      ctx.font = `8px ${MONO}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.font = `4px ${MONO}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillStyle = C.text2;
       ctx.fillText(String(s), x + tl + 5, fy);
     }
@@ -583,13 +583,13 @@ function _iasTape(ctx, x, y, w, h, ias, isRealIas) {
   ctx.restore();
 
   // Current IAS readout — info blue
-  ctx.fillStyle = 'rgba(106,173,204,0.46)';
-  _rr(ctx, x, cy - 12, w, 24, 3); ctx.fill();
-  _t(ctx, String(Math.round(ias)), x + w / 2, cy, 12, '#fff', 'center', '600');
+  ctx.fillStyle = 'rgba(106,173,204,0.23)';
+  _rr(ctx, x, cy - 7, w, 14, 3); ctx.fill();
+  _t(ctx, String(Math.round(ias)), x + w / 2, cy, 6, '#fff', 'center', '600');
 
   // Label
   const lbl = isRealIas ? 'IAS  kt' : 'GS  kt';
-  _t(ctx, lbl, x + w / 2, y + h + 5, 7, C.text3, 'center', 'normal', SANS, 'top');
+  _t(ctx, lbl, x + w / 2, y + h + 4, 4, C.text3, 'center', 'normal', SANS, 'top');
 }
 
 // ── Heading Strip ─────────────────────────────────────────────────────────────
@@ -613,14 +613,14 @@ function _headingStrip(ctx, x, y, w, h, hdg, navHdg) {
     const isCard = CARDS[deg] !== undefined;
     const isMainCard = deg % 90 === 0;
 
-    ctx.strokeStyle = isMaj ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.05)';
+    ctx.strokeStyle = isMaj ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.025)';
     ctx.lineWidth = isMaj ? 0.75 : 0.5;
     const tickH = isMaj ? 10 : 5;
     ctx.beginPath(); ctx.moveTo(px, y + 2); ctx.lineTo(px, y + 2 + tickH); ctx.stroke();
 
     if (isMaj) {
       const lbl = isCard ? CARDS[deg] : String(Math.round(deg)).padStart(3, '0');
-      ctx.font = isMainCard ? `600 9px ${MONO}` : `8px ${MONO}`;
+      ctx.font = isMainCard ? `600 5px ${MONO}` : `4px ${MONO}`;
       ctx.fillStyle = isMainCard ? C.accent : C.text2;
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
       ctx.fillText(lbl, px, y + h - 5);
@@ -648,10 +648,10 @@ function _headingStrip(ctx, x, y, w, h, hdg, navHdg) {
   ctx.closePath(); ctx.fill();
 
   // Heading readout badge
-  const bw = 52, bh = 19;
+  const bw = 28, bh = 11;
   ctx.fillStyle = C.accent;
   _rr(ctx, cx - bw / 2, y - bh - 4, bw, bh, 3); ctx.fill();
-  _t(ctx, `${String(Math.round(hdg)).padStart(3,'0')}°`, cx, y - bh / 2 - 4, 11, '#000', 'center', '600');
+  _t(ctx, `${String(Math.round(hdg)).padStart(3,'0')}°`, cx, y - bh / 2 - 4, 6, '#000', 'center', '600');
 }
 
 // ── Bottom Bar (panel-relative) ───────────────────────────────────────────────
@@ -671,20 +671,20 @@ function _bottomBar(ctx, px, py, pw, ph, d, vs, mach, alt) {
   const isClimb = vs > 80, isDescent = vs < -80;
   const vsCol   = isClimb ? C.accent : isDescent ? C.info : C.text2;
   const vsArrow = isClimb ? '▲' : isDescent ? '▼' : '—';
-  _t(ctx, `${vsArrow} ${Math.abs(Math.round(vs))}`, px + 12, mid, 11, vsCol, 'left', '500');
-  _t(ctx, 'V/SPD', px + 12, sub, 6.5, C.text3, 'left', 'normal', SANS);
+  _t(ctx, `${vsArrow} ${Math.abs(Math.round(vs))}`, px + 12, mid, 6, vsCol, 'left', '500');
+  _t(ctx, 'V/SPD', px + 12, sub, 4, C.text3, 'left', 'normal', SANS);
 
   // ── LEFT+: Wind ────────────────────────────────────────────────────────────
   const hw = d?.headwind, xw = d?.crosswind;
   if (hw != null && xw != null) {
-    _t(ctx, `${hw > 0 ? 'HW' : 'TW'} ${Math.abs(hw)}`, px + 84, mid - 3, 8.5, hw > 0 ? C.success : C.danger, 'left', 'normal');
-    _t(ctx, `XW ${Math.abs(Math.round(xw))}`, px + 84, mid + 7, 8.5, C.text2, 'left', 'normal');
-    _t(ctx, 'kt', px + 84, sub, 6.5, C.text3, 'left', 'normal', SANS);
+    _t(ctx, `${hw > 0 ? 'HW' : 'TW'} ${Math.abs(hw)}`, px + 84, mid - 2, 5, hw > 0 ? C.success : C.danger, 'left', 'normal');
+    _t(ctx, `XW ${Math.abs(Math.round(xw))}`, px + 84, mid + 4, 5, C.text2, 'left', 'normal');
+    _t(ctx, 'kt', px + 84, sub, 4, C.text3, 'left', 'normal', SANS);
   }
 
   // ── CENTER: Route ──────────────────────────────────────────────────────────
   const orig = d?.origin || '???', dest = d?.destination || '???';
-  _t(ctx, `${orig}  →  ${dest}`, px + pw / 2, mid, 13, C.text, 'center', '500');
+  _t(ctx, `${orig}  →  ${dest}`, px + pw / 2, mid, 7, C.text, 'center', '500');
 
   const parts = [];
   const distKm = d?.distToDest;
@@ -699,20 +699,20 @@ function _bottomBar(ctx, px, py, pw, ph, d, vs, mach, alt) {
   }
   if (d?.todNm != null && d.todNm > 0) parts.push(`TOD ${d.todNm}nm`);
   else if (d?.todNm === 0) parts.push('DESCEND NOW');
-  if (parts.length) _t(ctx, parts.join('  ·  '), px + pw / 2, sub, 6.5, C.text2, 'center', 'normal', SANS);
+  if (parts.length) _t(ctx, parts.join('  ·  '), px + pw / 2, sub, 4, C.text2, 'center', 'normal', SANS);
 
   // ── RIGHT: Mach / GS ───────────────────────────────────────────────────────
   const showMach = mach != null && mach > 0.15 && alt > 10000;
   if (showMach) {
-    _t(ctx, `M${mach.toFixed(3)}`, px + pw - 12, mid, 11, alt > 25000 ? C.info : C.text2, 'right', '500');
-    _t(ctx, 'MACH', px + pw - 12, sub, 6.5, C.text3, 'right', 'normal', SANS);
+    _t(ctx, `M${mach.toFixed(3)}`, px + pw - 12, mid, 6, alt > 25000 ? C.info : C.text2, 'right', '500');
+    _t(ctx, 'MACH', px + pw - 12, sub, 4, C.text3, 'right', 'normal', SANS);
   } else if (gsKts != null) {
-    _t(ctx, `${Math.round(gsKts)} kt`, px + pw - 12, mid, 11, C.text2, 'right', '500');
-    _t(ctx, 'GS', px + pw - 12, sub, 6.5, C.text3, 'right', 'normal', SANS);
+    _t(ctx, `${Math.round(gsKts)} kt`, px + pw - 12, mid, 6, C.text2, 'right', '500');
+    _t(ctx, 'GS', px + pw - 12, sub, 4, C.text3, 'right', 'normal', SANS);
   }
 
   // Squawk (top-right corner)
   if (d?.squawk) {
-    _t(ctx, `SQK ${d.squawk}`, px + pw - 12, py + 4, 6.5, 'rgba(196,160,88,0.42)', 'right', 'normal', MONO, 'top');
+    _t(ctx, `SQK ${d.squawk}`, px + pw - 12, py + 4, 4, 'rgba(196,160,88,0.21)', 'right', 'normal', MONO, 'top');
   }
 }
