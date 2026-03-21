@@ -11,11 +11,14 @@ const DEG_TO_RAD = Math.PI / 180;
 let cachedData = null;
 let fetchPromise = null;
 let _epoch = 0; // incremented on clear; prevents stale in-flight fetch from writing back
+let _activeController = null; // AbortController for the in-flight Worker fetch
 
 export function clearAirportCache() {
   _epoch++;
   cachedData = null;
   fetchPromise = null;
+  // Cancel any in-flight network request immediately
+  if (_activeController) { _activeController.abort(); _activeController = null; }
 }
 
 export async function fetchAirportData(centerLat, centerLon, radiusDeg = 1.5) {
@@ -65,9 +68,13 @@ async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
 
   // 2. Try Worker smart endpoint — edge-cached 24h, races all Overpass servers
   try {
+    _activeController = new AbortController();
+    const timeoutId = setTimeout(() => _activeController?.abort(), 10000);
     const res = await fetch(`/api/airports?lat=${centerLat}&lon=${centerLon}&r=${radiusDeg}`, {
-      signal: AbortSignal.timeout(15000),
+      signal: _activeController.signal,
     });
+    clearTimeout(timeoutId);
+    _activeController = null;
     if (res.ok) {
       const data = await res.json();
       const cacheHit = res.headers.get('X-Cache');
@@ -77,7 +84,10 @@ async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
       return result;
     }
   } catch (err) {
-    console.warn('[STRATUM] Worker /api/airports failed:', err.message);
+    _activeController = null;
+    if (err.name !== 'AbortError') {
+      console.warn('[STRATUM] Worker /api/airports failed:', err.message);
+    }
   }
 
   // 3. Fallback: race Overpass endpoints directly (dev mode / Worker unavailable)
@@ -280,7 +290,8 @@ export function categorizeFlights(aircraftList, airport, allRunways) {
 /**
  * Background-prefetch airport data for a list of cities.
  * Only fetches cities that aren't already in localStorage cache.
- * Uses a single sequential stream with generous delays to avoid 429s.
+ * Uses the /api/airports/batch endpoint so the Worker runs all lookups
+ * in parallel — one HTTP round-trip per 20 cities instead of 20 individual calls.
  * @param {Array<{lat:number, lon:number}>} cities
  */
 export function prefetchAirportData(cities) {
@@ -288,24 +299,45 @@ export function prefetchAirportData(cities) {
   if (uncached.length === 0) return;
   console.log(`[STRATUM] Prefetching airport data for ${uncached.length} cities`);
   let i = 0;
-  const BATCH = 4;   // Worker handles the load — Overpass fallback is rare
-  const DELAY = 600;
+  const BATCH = 20;  // Worker runs all in parallel — one HTTP call covers 20 cities
   const nextBatch = () => {
     if (i >= uncached.length) return;
     const batch = uncached.slice(i, i + BATCH);
     i += BATCH;
-    Promise.allSettled(batch.map(c => _prefetchSingle(c.lat, c.lon)))
-      .then(() => setTimeout(nextBatch, DELAY));
+    _prefetchBatch(batch).then(nextBatch);
   };
   nextBatch();
 }
 
-// Prefetch: try Worker first, fall back to Overpass directly
+// Prefetch via batch endpoint: one HTTP request → Worker runs all in parallel
+async function _prefetchBatch(cities) {
+  const locsParam = cities.map(c => `${c.lat},${c.lon}`).join('|');
+  try {
+    const res = await fetch(`/api/airports/batch?locs=${encodeURIComponent(locsParam)}`, {
+      signal: AbortSignal.timeout(28000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      for (const [key, rawResult] of Object.entries(data)) {
+        if (!rawResult) continue;
+        const [latStr, lonStr] = key.split(',');
+        const lat = parseFloat(latStr), lon = parseFloat(lonStr);
+        const parsed = parseOverpassData(rawResult);
+        _saveToCache(lat, lon, parsed);
+      }
+      return;
+    }
+  } catch { /* batch endpoint unavailable — fall through */ }
+
+  // Fallback: individual requests (dev mode / batch endpoint unavailable)
+  await Promise.allSettled(cities.map(c => _prefetchSingle(c.lat, c.lon)));
+}
+
+// Prefetch single city: try Worker first, fall back to Overpass directly
 async function _prefetchSingle(lat, lon) {
   const cached = _loadFromCache(lat, lon);
   if (cached) return cached;
 
-  // Try Worker endpoint first (edge-cached)
   try {
     const res = await fetch(`/api/airports?lat=${lat}&lon=${lon}&r=1.2`, {
       signal: AbortSignal.timeout(12000),

@@ -123,7 +123,7 @@ async function handleAirports(url) {
     return fetch(endpoint, {
       method: 'POST',
       body,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'STRATUM/1.0' },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'STRATUM/1.0', 'Accept-Encoding': 'gzip, br' },
       signal: ctrl.signal,
     }).then(async res => {
       clearTimeout(timer);
@@ -152,6 +152,48 @@ async function handleAirports(url) {
   } catch {
     return new Response('All Overpass endpoints failed', { status: 502, headers: corsHeaders() });
   }
+}
+
+// ── /api/airports/batch — Parallel multi-location airport lookup ──
+// Client sends ?locs=lat1,lon1|lat2,lon2|... (up to 25 locations)
+// Worker runs all lookups in parallel, each benefits from its own edge cache.
+// Returns { "lat.1,lon.1": <raw Overpass JSON>, ... }
+async function handleAirportsBatch(url) {
+  const locsParam = url.searchParams.get('locs') || '';
+  if (!locsParam) return new Response('Missing locs', { status: 400, headers: corsHeaders() });
+
+  const locs = locsParam.split('|').slice(0, 25).map(s => {
+    const parts = s.split(',');
+    const lat = parseFloat(parts[0]);
+    const lon = parseFloat(parts[1]);
+    const r   = parseFloat(parts[2]) || 1.2;
+    return (isNaN(lat) || isNaN(lon)) ? null : { lat, lon, r };
+  }).filter(Boolean);
+
+  if (locs.length === 0) return new Response('No valid locs', { status: 400, headers: corsHeaders() });
+
+  // All lookups in parallel — each call reads/writes its own cache key
+  const settled = await Promise.allSettled(
+    locs.map(({ lat, lon, r }) =>
+      handleAirports(new URL(`https://cache.internal/api/airports?lat=${lat}&lon=${lon}&r=${r}`))
+        .then(res => res.text())
+    )
+  );
+
+  const out = {};
+  for (let i = 0; i < locs.length; i++) {
+    const { lat, lon } = locs[i];
+    const key = `${lat.toFixed(1)},${lon.toFixed(1)}`;
+    if (settled[i].status === 'fulfilled') {
+      try { out[key] = JSON.parse(settled[i].value); } catch { out[key] = null; }
+    } else {
+      out[key] = null;
+    }
+  }
+
+  return new Response(JSON.stringify(out), {
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
 }
 
 // ── Generic proxy with edge caching ──
@@ -520,30 +562,92 @@ async function handlePositions(url) {
   return addPerfHeaders(response);
 }
 
-// ── Cron: Pre-warm edge cache for top 20 busiest airspaces ──
+// ── Cron: Pre-warm edge cache for top ~60 busiest airspaces worldwide ──
 // Paid plan includes cron triggers — run every 5 min to keep cache hot.
 // When a real user visits any of these cities, data is already cached = 0ms API latency.
+// Airport data has a 24h edge cache so handleAirports is a no-op after first warm.
 const WARM_CITIES = [
-  { lat: 40.64, lon: -73.78 },  // NYC (JFK)
-  { lat: 33.94, lon: -118.41 }, // LAX
-  { lat: 41.97, lon: -87.91 },  // ORD
-  { lat: 51.47, lon: -0.46 },   // LHR
-  { lat: 49.01, lon: 2.55 },    // CDG
-  { lat: 50.03, lon: 8.57 },    // FRA
-  { lat: 25.25, lon: 55.36 },   // DXB
-  { lat: 1.36, lon: 103.99 },   // SIN
-  { lat: 35.76, lon: 140.39 },  // NRT
-  { lat: 22.31, lon: 113.91 },  // HKG
-  { lat: 40.08, lon: 116.58 },  // PEK
-  { lat: 37.46, lon: 126.44 },  // ICN
-  { lat: 33.59, lon: -84.43 },  // ATL
-  { lat: 32.90, lon: -97.04 },  // DFW
-  { lat: 39.86, lon: -104.67 }, // DEN
-  { lat: 52.31, lon: 4.77 },    // AMS
-  { lat: 40.47, lon: -3.57 },   // MAD
-  { lat: 13.69, lon: 100.75 },  // BKK
-  { lat: -33.95, lon: 151.18 }, // SYD
-  { lat: -23.43, lon: -46.47 }, // GRU
+  // ── USA ──
+  { lat: 33.64, lon:  -84.43 },  // ATL Atlanta
+  { lat: 41.97, lon:  -87.91 },  // ORD Chicago O'Hare
+  { lat: 32.90, lon:  -97.04 },  // DFW Dallas/Fort Worth
+  { lat: 33.94, lon: -118.41 },  // LAX Los Angeles
+  { lat: 39.86, lon: -104.67 },  // DEN Denver
+  { lat: 36.08, lon: -115.15 },  // LAS Las Vegas
+  { lat: 28.43, lon:  -81.31 },  // MCO Orlando
+  { lat: 33.44, lon: -112.01 },  // PHX Phoenix
+  { lat: 25.80, lon:  -80.29 },  // MIA Miami
+  { lat: 37.62, lon: -122.38 },  // SFO San Francisco
+  { lat: 47.45, lon: -122.31 },  // SEA Seattle
+  { lat: 40.64, lon:  -73.78 },  // JFK New York
+  { lat: 40.69, lon:  -74.17 },  // EWR Newark
+  { lat: 42.37, lon:  -71.01 },  // BOS Boston
+  { lat: 29.99, lon:  -95.34 },  // IAH Houston
+  { lat: 44.88, lon:  -93.22 },  // MSP Minneapolis
+  { lat: 42.21, lon:  -83.35 },  // DTW Detroit
+  { lat: 26.07, lon:  -80.15 },  // FLL Fort Lauderdale
+  { lat: 35.21, lon:  -80.94 },  // CLT Charlotte
+  { lat: 39.87, lon:  -75.24 },  // PHL Philadelphia
+  // ── Canada ──
+  { lat: 43.68, lon:  -79.62 },  // YYZ Toronto
+  { lat: 49.19, lon: -123.18 },  // YVR Vancouver
+  { lat: 45.47, lon:  -73.74 },  // YUL Montreal
+  { lat: 51.13, lon: -114.01 },  // YYC Calgary
+  // ── Mexico & Caribbean ──
+  { lat: 19.44, lon:  -99.07 },  // MEX Mexico City
+  { lat: 21.04, lon:  -86.88 },  // CUN Cancún
+  { lat: 18.44, lon:  -66.00 },  // SJU San Juan
+  // ── South America ──
+  { lat: -23.44, lon: -46.47 },  // GRU São Paulo
+  { lat: -22.81, lon: -43.25 },  // GIG Rio de Janeiro
+  { lat: -34.82, lon: -58.54 },  // EZE Buenos Aires
+  { lat:   4.70, lon: -74.15 },  // BOG Bogotá
+  { lat: -12.02, lon: -77.11 },  // LIM Lima
+  { lat: -33.39, lon: -70.79 },  // SCL Santiago
+  // ── Europe ──
+  { lat: 51.48, lon:   -0.46 },  // LHR London Heathrow
+  { lat: 51.15, lon:   -0.18 },  // LGW London Gatwick
+  { lat: 49.01, lon:    2.55 },  // CDG Paris
+  { lat: 50.04, lon:    8.56 },  // FRA Frankfurt
+  { lat: 52.31, lon:    4.77 },  // AMS Amsterdam
+  { lat: 40.47, lon:   -3.57 },  // MAD Madrid
+  { lat: 41.30, lon:    2.08 },  // BCN Barcelona
+  { lat: 48.35, lon:   11.77 },  // MUC Munich
+  { lat: 52.37, lon:   13.50 },  // BER Berlin
+  { lat: 41.80, lon:   12.24 },  // FCO Rome
+  { lat: 47.46, lon:    8.55 },  // ZRH Zurich
+  { lat: 48.11, lon:   16.57 },  // VIE Vienna
+  { lat: 50.90, lon:    4.48 },  // BRU Brussels
+  { lat: 55.63, lon:   12.66 },  // CPH Copenhagen
+  { lat: 40.98, lon:   28.82 },  // IST Istanbul
+  { lat: 53.37, lon:   -2.27 },  // MAN Manchester
+  { lat: 55.95, lon:   -3.37 },  // EDI Edinburgh
+  // ── Middle East ──
+  { lat: 25.25, lon:   55.36 },  // DXB Dubai
+  { lat: 25.27, lon:   51.61 },  // DOH Doha
+  { lat: 24.43, lon:   46.70 },  // RUH Riyadh
+  { lat: 24.90, lon:   67.16 },  // KHI Karachi
+  // ── Asia-Pacific ──
+  { lat:  1.36, lon:  103.99 },  // SIN Singapore
+  { lat: 35.76, lon:  140.39 },  // NRT Tokyo Narita
+  { lat: 35.55, lon:  139.78 },  // HND Tokyo Haneda
+  { lat: 40.08, lon:  116.58 },  // PEK Beijing
+  { lat: 31.14, lon:  121.81 },  // PVG Shanghai
+  { lat: 22.31, lon:  113.91 },  // HKG Hong Kong
+  { lat: 37.46, lon:  126.44 },  // ICN Seoul
+  { lat: 13.69, lon:  100.75 },  // BKK Bangkok
+  { lat:  2.74, lon:  101.71 },  // KUL Kuala Lumpur
+  { lat: -6.13, lon:  106.65 },  // CGK Jakarta
+  { lat: 28.57, lon:   77.10 },  // DEL Delhi
+  { lat: 19.09, lon:   72.87 },  // BOM Mumbai
+  // ── Oceania ──
+  { lat: -33.95, lon:  151.18 }, // SYD Sydney
+  { lat: -37.67, lon:  144.84 }, // MEL Melbourne
+  // ── Africa ──
+  { lat: -26.13, lon:   28.24 }, // JNB Johannesburg
+  { lat:  30.12, lon:   31.41 }, // CAI Cairo
+  { lat: -33.96, lon:   18.60 }, // CPT Cape Town
+  { lat:  33.37, lon:   -7.59 }, // CMN Casablanca
 ];
 
 // ── /api/liveatc — LiveATC Icecast stream proxy ──
@@ -587,16 +691,13 @@ export default {
   // Cron trigger: pre-warm cache every 5 min (paid plan feature)
   // Positions + weather refresh every 5 min; airports refresh daily (24h cache)
   async scheduled(event, env, ctx) {
-    // Stagger: 4 cities at a time to avoid thundering herd on upstream APIs
-    for (let i = 0; i < WARM_CITIES.length; i += 4) {
-      const batch = WARM_CITIES.slice(i, i + 4);
-      await Promise.allSettled(batch.flatMap(c => [
-        handlePositions(new URL(`https://cache.internal/api/positions?lat=${c.lat}&lon=${c.lon}&r=100`)).catch(() => null),
-        handleWeather(new URL(`https://cache.internal/api/weather?lat=${c.lat}&lon=${c.lon}`)).catch(() => null),
-        // Airport data: Overpass queries are heavy, only warm if not cached (24h TTL)
-        handleAirports(new URL(`https://cache.internal/api/airports?lat=${c.lat}&lon=${c.lon}&r=1.2`)).catch(() => null),
-      ]));
-    }
+    // Run all cities fully in parallel — edge workers have ample CPU headroom.
+    // Airport data has 24h TTL so handleAirports is nearly instant after first warm.
+    await Promise.allSettled(WARM_CITIES.flatMap(c => [
+      handlePositions(new URL(`https://cache.internal/api/positions?lat=${c.lat}&lon=${c.lon}&r=100`)).catch(() => null),
+      handleWeather(new URL(`https://cache.internal/api/weather?lat=${c.lat}&lon=${c.lon}`)).catch(() => null),
+      handleAirports(new URL(`https://cache.internal/api/airports?lat=${c.lat}&lon=${c.lon}&r=1.2`)).catch(() => null),
+    ]));
   },
 
   async fetch(request, env) {
@@ -608,8 +709,9 @@ export default {
     }
 
     // Smart endpoints
-    if (url.pathname === '/api/positions') return handlePositions(url);
-    if (url.pathname === '/api/airports')  return handleAirports(url);
+    if (url.pathname === '/api/positions')        return handlePositions(url);
+    if (url.pathname === '/api/airports')         return handleAirports(url);
+    if (url.pathname === '/api/airports/batch')   return handleAirportsBatch(url);
     if (url.pathname === '/api/enrich')    return handleEnrich(url);
     if (url.pathname === '/api/weather')   return handleWeather(url);
     if (url.pathname === '/api/atlas')     return handleAtlas();

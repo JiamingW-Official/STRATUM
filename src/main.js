@@ -1,22 +1,47 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+// Postprocessing is lazy-loaded after first render to keep critical-path JS small
 import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderFuelRangeRing, clearFuelRangeRing, getRunwayThresholdTargets, getNavHitTargets, updateRouteOverlay, clearRouteOverlay } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic, setSunState } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, setLocalTimezone, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft, showDetailLoading, reseedChartData } from './ui/detail.js';
-import { getAirlineName as _getAirlineName } from './data/airlineDb.js';
-import { initRouteInfer, triggerInference } from './data/routeInfer.js';
-import { CITIES_EXTRA } from './data/citiesExtra.js';
+// Cockpit HUD — lazy-loaded, only needed when user presses V in follow mode
+let _cockpitMod = null;
+async function _getCockpit() {
+  if (!_cockpitMod) _cockpitMod = await import('./ui/cockpit.js');
+  return _cockpitMod;
+}
+// Data modules lazy-loaded — not needed for first render
+let _airlineDbMod = null;
+import('./data/airlineDb.js').then(m => { _airlineDbMod = m; });
+function _getAirlineName(code) { return _airlineDbMod ? _airlineDbMod.getAirlineName(code) : ''; }
+
+let _triggerInference = null;
+import('./data/routeInfer.js').then(({ initRouteInfer, triggerInference }) => {
+  _triggerInference = triggerInference;
+  window._initRouteInfer = () => initRouteInfer(window._CITIES, window._AIRPORT_DATA);
+  window.dispatchEvent(new Event('routeInferReady'));
+});
+
+// citiesExtra lazy-loaded — extra globe density, not needed on first render
+import('./data/citiesExtra.js').then(({ CITIES_EXTRA }) => {
+  if (!CITIES_EXTRA?.length) return;
+  const existing = new Set(CITIES.map(c => c.code));
+  for (const c of CITIES_EXTRA) {
+    if (!existing.has(c.code)) { CITIES.push(c); existing.add(c.code); }
+  }
+  window._CITIES = CITIES;
+});
 import { initAirportCities } from './data/airportCities.js';
 import { fetchWeather, weatherDescription, windDirToCardinal, formatVisibility, weatherIcon, flightCategory, computeDensityAltitude, estimateTurbulence } from './data/weather.js';
-import { toggleRadio, isRadioVisible, isRadioPlaying } from './ui/radio.js';
+// Radio lazy-loaded — only needed when user first opens it
+let _radioMod = null;
+async function _getRadio() {
+  if (!_radioMod) _radioMod = await import('./ui/radio.js');
+  return _radioMod;
+}
 
 
 // --- Cinematic post-processing shader ---
@@ -93,24 +118,44 @@ renderer.toneMappingExposure = 1.4;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x09090c, 0.008);
 
-// --- Post-processing ---
-const composer = new EffectComposer(renderer);
-const renderPass = new RenderPass(scene, null);
-composer.addPass(renderPass);
-const bloomPass = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
-  0.65, 0.4, 0.82,
-);
-composer.addPass(bloomPass);
-const colorGradePass = new ShaderPass(CinematicShader);
-colorGradePass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
-composer.addPass(colorGradePass);
-composer.addPass(new OutputPass());
+// --- Post-processing (lazy-loaded after first render) ---
+let composer = null;
+let bloomPass = null;
+let colorGradePass = null;
+
+async function _initPostProcessing() {
+  const [
+    { EffectComposer },
+    { RenderPass },
+    { UnrealBloomPass },
+    { OutputPass },
+    { ShaderPass },
+  ] = await Promise.all([
+    import('three/addons/postprocessing/EffectComposer.js'),
+    import('three/addons/postprocessing/RenderPass.js'),
+    import('three/addons/postprocessing/UnrealBloomPass.js'),
+    import('three/addons/postprocessing/OutputPass.js'),
+    import('three/addons/postprocessing/ShaderPass.js'),
+  ]);
+  composer = new EffectComposer(renderer);
+  const renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
+  bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
+    0.65, 0.4, 0.82,
+  );
+  composer.addPass(bloomPass);
+  colorGradePass = new ShaderPass(CinematicShader);
+  colorGradePass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
+  composer.addPass(colorGradePass);
+  composer.addPass(new OutputPass());
+  composer.setSize(window.innerWidth, window.innerHeight);
+}
+_initPostProcessing();
 
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
 camera.position.set(0, 35, 0.1);
 camera.lookAt(0, 0, 0);
-renderPass.camera = camera;
 
 // --- Controls ---
 const controls = new OrbitControls(camera, canvas);
@@ -211,6 +256,8 @@ function stopFollow() {
   followTarget = null;
   focusZooming = false;
   if (followIndicator) followIndicator.classList.add('hidden');
+  // Hide cockpit HUD when follow ends
+  if (_cockpitMod) _cockpitMod.hideCockpitHUD();
 }
 
 const _fPrevTarget = new THREE.Vector3();
@@ -627,7 +674,7 @@ let selectedAirportState = null;
 
 function handleAircraftSelect(ac) {
   const { lat, lon } = getUserLocation();
-  triggerInference(ac.data.icao24, ac.data.callsign);
+  if (_triggerInference) _triggerInference(ac.data.icao24, ac.data.callsign);
   showDetail(ac, lat, lon);
   // T3-13: Add to flight history
   addToHistory(ac.getDisplayData());
@@ -713,16 +760,7 @@ canvas.addEventListener('click', (e) => {
       aptDist = aptIntersects[0].distance;
     }
 
-    // Prefer airport when both hit — give airport a distance bias (airports are ground targets, harder to click)
-    if (ac && airport) {
-      if (aptDist < acDist * 1.5) {
-        // Airport is closer or comparable — pick airport
-        closeDetail();
-        handleAirportClick(airport);
-        return;
-      }
-    }
-
+    // Aircraft always wins — user explicitly clicked on a moving target
     if (ac) {
       if (shift) { toggleComparison(ac); return; }
       handleAircraftSelect(ac);
@@ -954,11 +992,21 @@ function showAirportWidget(airport, arrivals, departures) {
     <div style="display:flex;justify-content:center;gap:8px;font-size:7px;margin-top:2px"><span style="color:rgba(90,172,255,0.7)">ARR</span><span style="color:rgba(232,131,51,0.7)">DEP</span></div>
   `;
 
+  // ── Wind Advisor ──
+  _renderWindAdvisor(airport, w);
+
+  // ── Airport Traffic Story ──
+  _recordTraffic(airport, arrivals.length, departures.length);
+  _renderTrafficStory(airport, w);
+
   w.classList.remove('hidden');
 }
 
 // I2: Airport activity session store
 const _airportActivity = {};
+
+// Airport Traffic Story — minute-level session store
+const _airportTraffic = {}; // { [aptCode]: [{time, arr, dep}, ...] }
 
 // SVG arc path helper for pulse clock
 function _svgArc(cx, cy, rInner, rOuter, startAngle, endAngle) {
@@ -968,6 +1016,197 @@ function _svgArc(cx, cy, rInner, rOuter, startAngle, endAngle) {
   const x2i = cx + Math.cos(startAngle) * rInner, y2i = cy + Math.sin(startAngle) * rInner;
   const large = endAngle - startAngle > Math.PI ? 1 : 0;
   return `M${x1o},${y1o} A${rOuter},${rOuter} 0 ${large} 1 ${x2o},${y2o} L${x1i},${y1i} A${rInner},${rInner} 0 ${large} 0 ${x2i},${y2i} Z`;
+}
+
+// ── Runway Wind Advisor ──
+// Shows headwind/crosswind analysis for each runway strip at the selected airport.
+function _renderWindAdvisor(airport, container) {
+  let el = document.getElementById('aw-wind-advisor');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'aw-wind-advisor';
+    el.style.cssText = 'margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)';
+    container.appendChild(el);
+  }
+
+  const wx = window._cachedWeather;
+  if (!wx || wx.windSpeed == null || wx.windDir == null) { el.innerHTML = ''; return; }
+
+  const data = getAirportData();
+  const aptRunways = (data?.runways || []).filter(r => {
+    const rlat = r.lat ?? ((r.startLat + r.endLat) / 2);
+    const rlon = r.lon ?? ((r.startLon + r.endLon) / 2);
+    return Math.hypot(rlat - airport.lat, rlon - airport.lon) < 0.05;
+  });
+  if (!aptRunways.length) { el.innerHTML = ''; return; }
+
+  const windSpd = wx.windSpeed * 1.944; // m/s → knots
+  const windDir = wx.windDir;
+  const windCard = windDirToCardinal(windDir);
+
+  // For each runway strip: pick the better of the two directions
+  const seen = new Set();
+  const strips = aptRunways.map(rwy => {
+    const refs = (rwy.ref || '').split('/').map(s => s.trim()).filter(Boolean);
+    const hdg1 = rwy.heading || 0;
+    const ang1 = ((windDir - hdg1 + 540) % 360) - 180; // [-180, 180]
+    const hw1 = windSpd * Math.cos(ang1 * Math.PI / 180);
+    const xw = Math.abs(windSpd * Math.sin(ang1 * Math.PI / 180));
+    const hdg2 = (hdg1 + 180) % 360;
+    return hw1 >= 0
+      ? { ref: refs[0] || String(Math.round(hdg1 / 10)).padStart(2, '0'), headwind: hw1, crosswind: xw }
+      : { ref: refs[1] || refs[0] || String(Math.round(hdg2 / 10)).padStart(2, '0'), headwind: -hw1, crosswind: xw };
+  }).filter(s => { if (seen.has(s.ref)) return false; seen.add(s.ref); return true; });
+
+  strips.sort((a, b) => b.headwind - a.headwind);
+  const best = strips[0];
+
+  const rows = strips.map((s, i) => {
+    const isBest = i === 0 && s.headwind > 1;
+    const hwColor = s.headwind >= 5 ? 'rgba(90,200,90,0.9)' : s.headwind >= 0 ? 'rgba(200,200,90,0.8)' : 'rgba(200,90,90,0.7)';
+    const xwColor = s.crosswind < 10 ? 'rgba(255,255,255,0.5)' : s.crosswind < 20 ? 'rgba(200,180,90,0.8)' : 'rgba(220,90,90,0.8)';
+    const mark = isBest ? '<span style="color:rgba(90,200,90,0.9)">✓</span>' : '<span style="color:rgba(255,255,255,0.12)">·</span>';
+    const hwLabel = `${Math.round(Math.abs(s.headwind))}kt HW`;
+    return `<div style="display:flex;align-items:center;gap:6px;padding:1px 0;font-size:9px;font-family:var(--font-mono)">
+      <span style="width:10px;text-align:center">${mark}</span>
+      <span style="width:28px;color:rgba(255,255,255,0.85);font-weight:600">${s.ref}</span>
+      <span style="width:44px;color:${hwColor}">${hwLabel}</span>
+      <span style="color:${xwColor}">${Math.round(s.crosswind)}kt XW</span>
+    </div>`;
+  }).join('');
+
+  const edu = best.crosswind > 20
+    ? 'High crosswind — pilots apply crosswind correction technique'
+    : best.headwind < 2
+    ? 'Light winds — any runway usable; ATC optimizes traffic flow'
+    : `RWY ${best.ref} preferred — headwind reduces ground roll & improves control`;
+
+  // Wind direction compass (mini SVG arrow)
+  const rad = (windDir - 90) * Math.PI / 180;
+  const ax = (12 + Math.cos(rad) * 8).toFixed(1), ay = (12 + Math.sin(rad) * 8).toFixed(1);
+  const bx = (12 - Math.cos(rad) * 8).toFixed(1), by = (12 - Math.sin(rad) * 8).toFixed(1);
+
+  el.innerHTML = `
+    <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:4px">WIND ADVISOR</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+      <svg viewBox="0 0 24 24" width="22" height="22" style="flex-shrink:0">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="0.8"/>
+        <line x1="${bx}" y1="${by}" x2="${ax}" y2="${ay}" stroke="rgba(90,160,255,0.75)" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="${ax}" cy="${ay}" r="2.5" fill="rgba(90,160,255,0.9)"/>
+      </svg>
+      <div>
+        <div style="font-size:9px;color:rgba(255,255,255,0.8);letter-spacing:0.5px">${Math.round(windDir)}° ${windCard} · ${Math.round(windSpd)}kt</div>
+        <div style="font-size:8px;color:rgba(255,255,255,0.3)">surface wind</div>
+      </div>
+    </div>
+    ${rows}
+    <div style="font-size:8px;color:rgba(255,255,255,0.3);margin-top:5px;line-height:1.4">${edu}</div>
+  `;
+}
+
+// ── Airport Traffic Story helpers ──
+function _recordTraffic(airport, arrCount, depCount) {
+  const code = airport.iata || airport.icao;
+  if (!_airportTraffic[code]) _airportTraffic[code] = [];
+  const now = Date.now();
+  _airportTraffic[code].push({ time: now, arr: arrCount, dep: depCount });
+  // Keep only last 60 minutes
+  const cutoff = now - 60 * 60 * 1000;
+  while (_airportTraffic[code].length && _airportTraffic[code][0].time < cutoff) {
+    _airportTraffic[code].shift();
+  }
+}
+
+function _renderTrafficStory(airport, container) {
+  let el = document.getElementById('aw-traffic-story');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'aw-traffic-story';
+    el.style.cssText = 'margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)';
+    container.appendChild(el);
+  }
+
+  const code = airport.iata || airport.icao;
+  const records = _airportTraffic[code] || [];
+  if (records.length < 2) { el.innerHTML = ''; return; }
+
+  const now = Date.now();
+  const SPAN = 60 * 60 * 1000; // 60 minutes
+  const W = 200, H = 30, pad = 2;
+  const plotW = W - pad * 2;
+
+  // Build per-minute buckets
+  const BUCKETS = 60;
+  const arr = new Array(BUCKETS).fill(0);
+  const dep = new Array(BUCKETS).fill(0);
+  for (const r of records) {
+    const age = now - r.time;
+    const bucket = Math.floor((1 - age / SPAN) * BUCKETS);
+    if (bucket >= 0 && bucket < BUCKETS) {
+      arr[bucket] = Math.max(arr[bucket], r.arr);
+      dep[bucket] = Math.max(dep[bucket], r.dep);
+    }
+  }
+  const maxVal = Math.max(...arr, ...dep, 1);
+
+  // Detect peak clusters (5-min window ≥ 3 flights)
+  let peakAnnotation = '';
+  for (let b = 2; b < BUCKETS - 2; b++) {
+    const windowArr = arr.slice(b - 2, b + 3).reduce((s, v) => s + v, 0);
+    if (windowArr >= 3 && b > 5 && b < BUCKETS - 5) {
+      // Peak at ~b/BUCKETS * 60 minutes ago
+      const minsAgo = Math.round((1 - b / BUCKETS) * 60);
+      peakAnnotation = minsAgo < 5
+        ? 'Arrival bank now — airlines bundle arrivals for connections'
+        : `Arrival peak ${minsAgo}min ago — hub banks bring planes in waves`;
+      break;
+    }
+    const windowDep = dep.slice(b - 2, b + 3).reduce((s, v) => s + v, 0);
+    if (windowDep >= 3 && b > 5 && b < BUCKETS - 5) {
+      const minsAgo = Math.round((1 - b / BUCKETS) * 60);
+      peakAnnotation = minsAgo < 5
+        ? 'Departure wave underway — aircraft push back after connection window closes'
+        : `Departure peak ${minsAgo}min ago — connecting wave completed`;
+      break;
+    }
+  }
+
+  // Build SVG bars
+  const bw = plotW / BUCKETS;
+  let bars = '';
+  for (let b = 0; b < BUCKETS; b++) {
+    const x = pad + b * bw;
+    const ah = arr[b] / maxVal * (H - 4);
+    const dh = dep[b] / maxVal * (H - 4);
+    if (arr[b] > 0) bars += `<rect x="${x.toFixed(1)}" y="${(H - ah).toFixed(1)}" width="${(bw * 0.45).toFixed(1)}" height="${ah.toFixed(1)}" fill="rgba(90,200,120,0.65)"/>`;
+    if (dep[b] > 0) bars += `<rect x="${(x + bw * 0.5).toFixed(1)}" y="${(H - dh).toFixed(1)}" width="${(bw * 0.45).toFixed(1)}" height="${dh.toFixed(1)}" fill="rgba(232,131,51,0.65)"/>`;
+  }
+
+  // Time labels (15-min marks)
+  let timeLabels = '';
+  for (let t = 0; t <= 60; t += 15) {
+    const x = pad + (t / 60) * plotW;
+    const label = t === 60 ? 'now' : `-${60 - t}m`;
+    timeLabels += `<text x="${x.toFixed(1)}" y="${H + 7}" text-anchor="middle" fill="rgba(255,255,255,0.2)" font-size="4.5" font-family="var(--font-mono,monospace)">${label}</text>`;
+  }
+
+  // Current time line
+  const nowX = pad + plotW;
+
+  el.innerHTML = `
+    <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:4px">TRAFFIC STORY</div>
+    <svg viewBox="0 0 ${W} ${H + 10}" style="width:100%;display:block">
+      <rect x="${pad}" y="0" width="${plotW}" height="${H}" fill="rgba(255,255,255,0.02)" rx="1"/>
+      ${bars}
+      <line x1="${nowX}" y1="0" x2="${nowX}" y2="${H}" stroke="rgba(255,255,255,0.35)" stroke-width="0.8"/>
+      ${timeLabels}
+    </svg>
+    <div style="display:flex;justify-content:center;gap:10px;font-size:7px;margin-top:1px">
+      <span style="color:rgba(90,200,120,0.7)">▊ ARR</span>
+      <span style="color:rgba(232,131,51,0.7)">▊ DEP</span>
+    </div>
+    ${peakAnnotation ? `<div style="font-size:8px;color:rgba(255,255,255,0.3);margin-top:4px;line-height:1.4">${peakAnnotation}</div>` : ''}
+  `;
 }
 
 function hideAirportWidget() {
@@ -1161,9 +1400,9 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    composer.setSize(window.innerWidth, window.innerHeight);
-    bloomPass.resolution.set(window.innerWidth * 0.5, window.innerHeight * 0.5);
-    colorGradePass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
+    if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    if (bloomPass) bloomPass.resolution.set(window.innerWidth * 0.5, window.innerHeight * 0.5);
+    if (colorGradePass) colorGradePass.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
     _resizeTimer = null;
   });
 });
@@ -1275,12 +1514,12 @@ document.getElementById('help-close')?.addEventListener('click', toggleHelp);
 // Radio toggle button — stays lit when music is playing in background
 const _radioToggleBtn = document.getElementById('radio-toggle-btn');
 function _syncRadioBtn() {
-  if (_radioToggleBtn) _radioToggleBtn.classList.toggle('active', isRadioPlaying() || isRadioVisible());
+  if (!_radioToggleBtn) return;
+  if (_radioMod) _radioToggleBtn.classList.toggle('active', _radioMod.isRadioPlaying() || _radioMod.isRadioVisible());
 }
 if (_radioToggleBtn) {
   _radioToggleBtn.addEventListener('click', () => {
-    toggleRadio();
-    _syncRadioBtn();
+    _getRadio().then(r => { r.toggleRadio(); _syncRadioBtn(); });
   });
 }
 
@@ -1335,7 +1574,7 @@ document.addEventListener('keydown', (e) => {
   // T2-09: Bloom intensity toggle
   else if (k === 'b') {
     bloomLevel = (bloomLevel + 1) % 3;
-    bloomPass.strength = BLOOM_PRESETS[bloomLevel];
+    if (bloomPass) bloomPass.strength = BLOOM_PRESETS[bloomLevel];
     // Show brief label
     let lbl = document.getElementById('bloom-label');
     if (!lbl) {
@@ -1383,14 +1622,20 @@ document.addEventListener('keydown', (e) => {
 
   // Radio (R key)
   else if (k === 'r') {
-    toggleRadio();
-    _syncRadioBtn();
+    _getRadio().then(r => { r.toggleRadio(); _syncRadioBtn(); });
     return;
   }
 
-  // Session replay (V key)
+  // Session replay (V key) — or cockpit HUD when following an aircraft
   else if (k === 'v') {
-    _toggleSessionReplay();
+    if (followTarget) {
+      // V in follow mode = toggle cockpit HUD
+      _getCockpit().then(m => {
+        m.toggleCockpitHUD(followTarget);
+      });
+    } else {
+      _toggleSessionReplay();
+    }
     return;
   }
 
@@ -1427,7 +1672,7 @@ document.addEventListener('keydown', (e) => {
   if (_konamiBuffer.join(',') === 'ArrowUp,ArrowUp,ArrowDown,ArrowDown,ArrowLeft,ArrowRight,ArrowLeft,ArrowRight,b,a') {
     _konamiBuffer.length = 0;
     _cinematicMode = !_cinematicMode;
-    bloomPass.strength = _cinematicMode ? 1.4 : BLOOM_PRESETS[bloomLevel];
+    if (bloomPass) bloomPass.strength = _cinematicMode ? 1.4 : BLOOM_PRESETS[bloomLevel];
     renderer.toneMappingExposure = _cinematicMode ? 1.8 : 1.4;
     scene.fog.density = _cinematicMode ? 0.004 : 0.008;
     const lbl = document.getElementById('bloom-label') || document.createElement('div');
@@ -2629,17 +2874,18 @@ function _rebuildRouteOverlay() {
 }
 
 // --- Animation loop ---
-const clock = new THREE.Clock();
+const clock = new THREE.Timer();
+let _elapsed = 0;
 let _lastDayNightTime = 0;
 let _lastCompassDeg = -1;
 let _lastAtmosphereUpdate = 0;
 
 function animate() {
   requestAnimationFrame(animate);
-
+  clock.update();
   const delta = clock.getDelta();
-  const elapsed = clock.getElapsedTime();
-  colorGradePass.uniforms.time.value = elapsed;
+  _elapsed += delta;
+  if (colorGradePass) colorGradePass.uniforms.time.value = _elapsed;
 
   if (introActive) {
     updateIntro();
@@ -2662,13 +2908,13 @@ function animate() {
     controls.update();
   }
 
-  updatePulse(scene, elapsed);
-  animateAirportLoading(elapsed);
-  updateCompass(elapsed);
+  updatePulse(scene, _elapsed);
+  animateAirportLoading(_elapsed);
+  updateCompass(_elapsed);
 
   // T3-12: Day/night cycle (update every ~2s)
-  if (elapsed - _lastDayNightTime >= 2.0) {
-    _lastDayNightTime = elapsed;
+  if (_elapsed - _lastDayNightTime >= 2.0) {
+    _lastDayNightTime = _elapsed;
     const { lat, lon } = getUserLocation();
     const now = new Date();
     const utcH = now.getUTCHours() + now.getUTCMinutes() / 60;
@@ -2698,28 +2944,28 @@ function animate() {
     }
   }
   particles.geometry.attributes.position.needsUpdate = true;
-  if (elapsed - _lastAtmosphereUpdate >= 0.25) {
-    _lastAtmosphereUpdate = elapsed;
-    particleMat.opacity = 0.06 + 0.04 * Math.sin(elapsed * 0.4);
-    starMat.opacity = 0.3 + 0.14 * Math.sin(elapsed * 0.3);
+  if (_elapsed - _lastAtmosphereUpdate >= 0.25) {
+    _lastAtmosphereUpdate = _elapsed;
+    particleMat.opacity = 0.06 + 0.04 * Math.sin(_elapsed * 0.4);
+    starMat.opacity = 0.3 + 0.14 * Math.sin(_elapsed * 0.3);
 
     // Star twinkling — subtle per-star size oscillation
     const sizeArr = stars.geometry.attributes.size.array;
     for (let i = 0; i < STAR_COUNT; i++) {
-      const phase = i * 1.618 + elapsed * (0.3 + (i % 7) * 0.08);
+      const phase = i * 1.618 + _elapsed * (0.3 + (i % 7) * 0.08);
       sizeArr[i] = (0.15 + Math.sin(phase) * 0.07) * (0.5 + starSizes[i] * 0.7);
     }
     stars.geometry.attributes.size.needsUpdate = true;
   }
 
   if (aircraftManager) {
-    aircraftManager.animate(delta, elapsed, camera);
-    aircraftManager.animateSelection(elapsed);
-    _recordSessionSnapshot(elapsed);
+    aircraftManager.animate(delta, _elapsed, camera);
+    aircraftManager.animateSelection(_elapsed);
+    _recordSessionSnapshot(_elapsed);
 
     // Route overlay — rebuild every 5 seconds
-    if (elapsed - _lastRouteOverlayUpdate > 5) {
-      _lastRouteOverlayUpdate = elapsed;
+    if (_elapsed - _lastRouteOverlayUpdate > 5) {
+      _lastRouteOverlayUpdate = _elapsed;
       _rebuildRouteOverlay();
     }
   }
@@ -2729,10 +2975,10 @@ function animate() {
 
   // T3-10: TCAS traffic display in follow mode
   if (followTarget && aircraftManager && !followTarget.removed) {
-    updateTCASDisplay(followTarget, aircraftManager.aircraft, elapsed);
+    updateTCASDisplay(followTarget, aircraftManager.aircraft, _elapsed);
     // S4: Fuel range ring — update every 2s
-    if (elapsed - _lastFuelRingUpdate > 2) {
-      _lastFuelRingUpdate = elapsed;
+    if (_elapsed - _lastFuelRingUpdate > 2) {
+      _lastFuelRingUpdate = _elapsed;
       const fd = followTarget.getDisplayData();
       if (fd.specs && fd.specs.range && fd._originDist != null && fd.distToDest != null) {
         const flownNm = fd._originDist * 0.539957;
@@ -2748,7 +2994,7 @@ function animate() {
     clearFuelRangeRing(scene);
   }
 
-  composer.render();
+  if (composer) composer.render(); else renderer.render(scene, camera);
 }
 
 // --- City picker ---
@@ -3403,17 +3649,6 @@ const CITIES = [
   { name: 'Nouméa',           code: 'NOU', lat: -22.0146,  lon:  166.2129, region: 'Pacific', country: 'New Caledonia' },
   { name: 'Apia',             code: 'APW', lat: -13.8300,  lon: -172.0083, region: 'Pacific', country: 'Samoa' },
 ];
-
-// Merge extra cities for denser globe (dedup by code)
-if (CITIES_EXTRA && CITIES_EXTRA.length) {
-  const existing = new Set(CITIES.map(c => c.code));
-  for (const c of CITIES_EXTRA) {
-    if (!existing.has(c.code)) {
-      CITIES.push(c);
-      existing.add(c.code);
-    }
-  }
-}
 
 // Build lookup index for aircraft.js to find destination coordinates
 const _cityByCode = {};
@@ -4381,9 +4616,12 @@ const AIRPORT_DATA = {
 
 // ── 初始化本地路由推断引擎 ───────────────────────────────────────────────────
 initAirportCities(CITIES);
-initRouteInfer(CITIES, AIRPORT_DATA);
 // T2-04: Expose CITIES for nearest airport lookup in detail.js
 window._CITIES = CITIES;
+window._AIRPORT_DATA = AIRPORT_DATA;
+// routeInfer initialized lazily once module loads (see import at top)
+if (window._initRouteInfer) window._initRouteInfer();
+else window.addEventListener('routeInferReady', () => window._initRouteInfer?.());
 
 function initCityPicker() {
   const overlay = document.getElementById('city-overlay');
@@ -5101,8 +5339,8 @@ async function init() {
   // Nav chart needs airportData for ILS corridors — wait for airports then load
   aptP.then(() => reloadNavChart(scene, defaultCity.lat, defaultCity.lon));
 
-  // Background-prefetch airport data after initial load settles (15s)
-  setTimeout(() => prefetchAirportData(CITIES), 5000);
+  // Background-prefetch airport data — start quickly so city switches hit localStorage
+  aptP.then(() => prefetchAirportData(CITIES));
 }
 
 init();
