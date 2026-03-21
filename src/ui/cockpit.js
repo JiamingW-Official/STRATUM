@@ -5,19 +5,19 @@
 
 // ── Design tokens (mirrors src/style.css) ────────────────────────────────────
 const C = {
-  overlay:    'rgba(4,5,9,0.08)',      // barely-there atmospheric tint
-  bg:         'rgba(4,6,16,0.80)',     // bars: readable but not a wall
-  bgPanel:    'rgba(4,6,16,0.72)',     // tapes: semi-transparent
-  border:     'rgba(255,255,255,0.038)',
-  borderGold: 'rgba(196,160,88,0.12)',
+  overlay:    'rgba(4,5,9,0.13)',      // subtle atmospheric tint
+  bg:         'rgba(4,6,16,0.88)',
+  bgPanel:    'rgba(4,6,16,0.86)',
+  border:     'rgba(255,255,255,0.06)',
+  borderGold: 'rgba(196,160,88,0.22)',
   accent:     '#c9a45c',
-  accentDim:  'rgba(196,160,88,0.12)',
+  accentDim:  'rgba(196,160,88,0.20)',
   info:       '#6aadcc',
   success:    '#52a86c',
   danger:     '#b05048',
-  text:       'rgba(240,236,226,0.92)',
-  text2:      'rgba(240,236,226,0.40)',
-  text3:      'rgba(240,236,226,0.16)',
+  text:       'rgba(240,236,226,0.95)',
+  text2:      'rgba(240,236,226,0.60)',
+  text3:      'rgba(240,236,226,0.30)',
   skyTop:     'rgba(3,10,28,0.96)',
   skyBot:     'rgba(8,28,68,0.96)',
   gndTop:     'rgba(48,26,7,0.96)',
@@ -173,7 +173,7 @@ function _render() {
   const phase = d?.flightPhase || '';
 
   // ── Floating panel — half screen height, ~75% of previous total width ──────
-  const HDR = 20, FTR = 22, HDG_H = 18, GAP = 4;
+  const HDR = 26, FTR = 28, HDG_H = 20, GAP = 5;
   const TAPE_W = Math.round(Math.min(W * 0.034, 46));
   const PW  = Math.round(Math.min(W * 0.34, 490));   // panel width
   const PH  = Math.round(Math.min(H * 0.50, 400));   // panel height ≈ ½ screen
@@ -224,7 +224,7 @@ function _render() {
   ctx.restore();
 
   // ── 5. Key hint below panel ───────────────────────────────────────────────
-  _t(ctx, '[V]  EXIT', PX + PW, PY + PH + 8, 6.5, C.text3, 'right', 'normal', MONO, 'top');
+  _t(ctx, '[V]  EXIT HUD', PX + PW, PY + PH + 8, 7, C.text3, 'right', 'normal', MONO, 'top');
 
   ctx.restore();
 }
@@ -242,17 +242,17 @@ function _topBar(ctx, px, py, pw, ph, d, phase) {
 
   // Callsign — gold
   const cs = d?.callsign || d?.icao24 || '——';
-  _t(ctx, cs, px + 10, mid, 13, C.accent, 'left', '500');
+  _t(ctx, cs, px + 12, mid - 3, 14, C.accent, 'left', '600');
 
   // Registration · airline (sub-line)
   const reg  = d?.registration || '';
   const airl = (d?.routeAirline || d?.operator || '').slice(0, 22);
   const sub  = [reg, airl].filter(Boolean).join('  ·  ').toUpperCase();
-  if (sub) _t(ctx, sub, px + 10, py + ph - 3, 5.5, C.text2, 'left', 'normal', SANS, 'bottom');
+  if (sub) _t(ctx, sub, px + 12, mid + 7, 6.5, C.text2, 'left', 'normal', SANS, 'top');
 
   // Aircraft type
   if (d?.aircraftType) {
-    _t(ctx, d.aircraftType.toUpperCase(), px + pw / 2 - 68, mid, 7.5, C.text3, 'center', 'normal', MONO);
+    _t(ctx, d.aircraftType.toUpperCase(), px + pw / 2 - 72, mid, 8, C.text3, 'center', 'normal', MONO);
   }
 
   // Phase badge (center)
@@ -261,7 +261,8 @@ function _topBar(ctx, px, py, pw, ph, d, phase) {
   // UTC clock (right)
   const now = new Date();
   const utc = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}:${String(now.getUTCSeconds()).padStart(2,'0')}`;
-  _t(ctx, utc, px + pw - 10, mid, 10, C.text, 'right', '400');
+  _t(ctx, utc, px + pw - 12, mid - 3, 11, C.text, 'right', '400');
+  _t(ctx, 'UTC', px + pw - 12, mid + 7, 6.5, C.text3, 'right', 'normal', SANS, 'top');
 }
 
 // ── Phase Badge ───────────────────────────────────────────────────────────────
@@ -269,15 +270,15 @@ function _phaseBadge(ctx, cx, cy, phase) {
   if (!phase) return;
   const col = PHASE_COLOR[phase] || C.text2;
   ctx.save();
-  ctx.font = `600 8px ${SANS}`;
+  ctx.font = `600 9px ${SANS}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const tw = ctx.measureText(phase).width;
-  const bw = tw + 20, bh = 19;
+  const bw = tw + 22, bh = 21;
   const bx = cx - bw / 2, by = cy - bh / 2;
-  ctx.globalAlpha = 0.10; ctx.fillStyle = col;
+  ctx.globalAlpha = 0.16; ctx.fillStyle = col;
   _rr(ctx, bx, by, bw, bh, 3); ctx.fill();
-  ctx.globalAlpha = 0.36; ctx.strokeStyle = col; ctx.lineWidth = 0.75;
+  ctx.globalAlpha = 0.52; ctx.strokeStyle = col; ctx.lineWidth = 0.75;
   _rr(ctx, bx, by, bw, bh, 3); ctx.stroke();
   ctx.globalAlpha = 1; ctx.fillStyle = col;
   ctx.fillText(phase, cx, cy);
@@ -521,22 +522,22 @@ function _altTape(ctx, x, y, w, h, alt, navAlt, altDev) {
 
   // Current alt readout box
   const altDev200 = altDev != null && Math.abs(altDev) > 200;
-  ctx.fillStyle = altDev200 ? 'rgba(232,144,90,0.90)' : 'rgba(196,160,88,0.90)';
-  _rr(ctx, x, cy - 11, w, 22, 3); ctx.fill();
+  ctx.fillStyle = altDev200 ? 'rgba(232,144,90,0.92)' : 'rgba(196,160,88,0.92)';
+  _rr(ctx, x, cy - 12, w, 24, 3); ctx.fill();
   const altStr = alt >= 18000 ? `FL${Math.round(alt / 100)}` : String(Math.round(alt / 100) * 100);
-  _t(ctx, altStr, x + w / 2, cy, 11, '#000', 'center', '500');
+  _t(ctx, altStr, x + w / 2, cy, 12, '#000', 'center', '600');
 
   // Altitude deviation indicator
   if (altDev != null && Math.abs(altDev) > 50) {
     const devStr = `${altDev > 0 ? '+' : ''}${Math.round(altDev)}`;
-    _t(ctx, devStr, x + w / 2, cy + 14, 6.5, altDev200 ? C.danger : C.text3, 'center', 'normal', MONO, 'top');
+    _t(ctx, devStr, x + w / 2, cy + 14, 7, altDev200 ? C.danger : C.text3, 'center', 'normal', MONO, 'top');
   }
 
   // Labels below tape
-  _t(ctx, 'ALT  ft', x + w / 2, y + h + 5, 6.5, C.text3, 'center', 'normal', SANS, 'top');
+  _t(ctx, 'ALT  ft', x + w / 2, y + h + 5, 7, C.text3, 'center', 'normal', SANS, 'top');
   if (navAlt != null) {
     const navStr = navAlt >= 18000 ? `FL${Math.round(navAlt / 100)}` : String(Math.round(navAlt / 100) * 100);
-    _t(ctx, `SEL ${navStr}`, x + w / 2, y + h + 13, 6.5, C.info, 'center', 'normal', SANS, 'top');
+    _t(ctx, `SEL ${navStr}`, x + w / 2, y + h + 14, 7, C.info, 'center', 'normal', SANS, 'top');
   }
 }
 
@@ -569,13 +570,13 @@ function _iasTape(ctx, x, y, w, h, ias, isRealIas) {
   ctx.restore();
 
   // Current IAS readout — info blue
-  ctx.fillStyle = 'rgba(106,173,204,0.88)';
-  _rr(ctx, x, cy - 11, w, 22, 3); ctx.fill();
-  _t(ctx, String(Math.round(ias)), x + w / 2, cy, 11, '#fff', 'center', '500');
+  ctx.fillStyle = 'rgba(106,173,204,0.92)';
+  _rr(ctx, x, cy - 12, w, 24, 3); ctx.fill();
+  _t(ctx, String(Math.round(ias)), x + w / 2, cy, 12, '#fff', 'center', '600');
 
   // Label
   const lbl = isRealIas ? 'IAS  kt' : 'GS  kt';
-  _t(ctx, lbl, x + w / 2, y + h + 5, 6.5, C.text3, 'center', 'normal', SANS, 'top');
+  _t(ctx, lbl, x + w / 2, y + h + 5, 7, C.text3, 'center', 'normal', SANS, 'top');
 }
 
 // ── Heading Strip ─────────────────────────────────────────────────────────────
@@ -634,10 +635,10 @@ function _headingStrip(ctx, x, y, w, h, hdg, navHdg) {
   ctx.closePath(); ctx.fill();
 
   // Heading readout badge
-  const bw = 46, bh = 17;
+  const bw = 52, bh = 19;
   ctx.fillStyle = C.accent;
   _rr(ctx, cx - bw / 2, y - bh - 4, bw, bh, 3); ctx.fill();
-  _t(ctx, `${String(Math.round(hdg)).padStart(3,'0')}°`, cx, y - bh / 2 - 4, 10, '#000', 'center', '500');
+  _t(ctx, `${String(Math.round(hdg)).padStart(3,'0')}°`, cx, y - bh / 2 - 4, 11, '#000', 'center', '600');
 }
 
 // ── Bottom Bar (panel-relative) ───────────────────────────────────────────────
@@ -649,28 +650,28 @@ function _bottomBar(ctx, px, py, pw, ph, d, vs, mach, alt) {
   ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + pw, py); ctx.stroke();
   ctx.restore();
 
-  const mid = py + ph * 0.44;
-  const sub = py + ph * 0.78;
+  const mid = py + ph * 0.40;
+  const sub = py + ph * 0.76;
   const gsKts = d?.gsKts;
 
   // ── LEFT: VSI ──────────────────────────────────────────────────────────────
   const isClimb = vs > 80, isDescent = vs < -80;
   const vsCol   = isClimb ? C.accent : isDescent ? C.info : C.text2;
   const vsArrow = isClimb ? '▲' : isDescent ? '▼' : '—';
-  _t(ctx, `${vsArrow} ${Math.abs(Math.round(vs))}`, px + 10, mid, 10, vsCol, 'left', '500');
-  _t(ctx, 'V/SPD', px + 10, sub, 5.5, C.text3, 'left', 'normal', SANS);
+  _t(ctx, `${vsArrow} ${Math.abs(Math.round(vs))}`, px + 12, mid, 11, vsCol, 'left', '500');
+  _t(ctx, 'V/SPD', px + 12, sub, 6.5, C.text3, 'left', 'normal', SANS);
 
   // ── LEFT+: Wind ────────────────────────────────────────────────────────────
   const hw = d?.headwind, xw = d?.crosswind;
   if (hw != null && xw != null) {
-    _t(ctx, `${hw > 0 ? 'HW' : 'TW'} ${Math.abs(hw)}`, px + 80, mid - 2, 7.5, hw > 0 ? C.success : C.danger, 'left', 'normal');
-    _t(ctx, `XW ${Math.abs(Math.round(xw))}`, px + 80, mid + 7, 7.5, C.text2, 'left', 'normal');
-    _t(ctx, 'kt', px + 80, sub, 5.5, C.text3, 'left', 'normal', SANS);
+    _t(ctx, `${hw > 0 ? 'HW' : 'TW'} ${Math.abs(hw)}`, px + 84, mid - 3, 8.5, hw > 0 ? C.success : C.danger, 'left', 'normal');
+    _t(ctx, `XW ${Math.abs(Math.round(xw))}`, px + 84, mid + 7, 8.5, C.text2, 'left', 'normal');
+    _t(ctx, 'kt', px + 84, sub, 6.5, C.text3, 'left', 'normal', SANS);
   }
 
   // ── CENTER: Route ──────────────────────────────────────────────────────────
   const orig = d?.origin || '???', dest = d?.destination || '???';
-  _t(ctx, `${orig}  →  ${dest}`, px + pw / 2, mid, 12, C.text, 'center', '500');
+  _t(ctx, `${orig}  →  ${dest}`, px + pw / 2, mid, 13, C.text, 'center', '500');
 
   const parts = [];
   const distKm = d?.distToDest;
@@ -685,20 +686,20 @@ function _bottomBar(ctx, px, py, pw, ph, d, vs, mach, alt) {
   }
   if (d?.todNm != null && d.todNm > 0) parts.push(`TOD ${d.todNm}nm`);
   else if (d?.todNm === 0) parts.push('DESCEND NOW');
-  if (parts.length) _t(ctx, parts.join('  ·  '), px + pw / 2, sub, 5.5, C.text2, 'center', 'normal', SANS);
+  if (parts.length) _t(ctx, parts.join('  ·  '), px + pw / 2, sub, 6.5, C.text2, 'center', 'normal', SANS);
 
   // ── RIGHT: Mach / GS ───────────────────────────────────────────────────────
   const showMach = mach != null && mach > 0.15 && alt > 10000;
   if (showMach) {
-    _t(ctx, `M${mach.toFixed(3)}`, px + pw - 10, mid, 10, alt > 25000 ? C.info : C.text2, 'right', '500');
-    _t(ctx, 'MACH', px + pw - 10, sub, 5.5, C.text3, 'right', 'normal', SANS);
+    _t(ctx, `M${mach.toFixed(3)}`, px + pw - 12, mid, 11, alt > 25000 ? C.info : C.text2, 'right', '500');
+    _t(ctx, 'MACH', px + pw - 12, sub, 6.5, C.text3, 'right', 'normal', SANS);
   } else if (gsKts != null) {
-    _t(ctx, `${Math.round(gsKts)} kt`, px + pw - 10, mid, 10, C.text2, 'right', '500');
-    _t(ctx, 'GS', px + pw - 10, sub, 5.5, C.text3, 'right', 'normal', SANS);
+    _t(ctx, `${Math.round(gsKts)} kt`, px + pw - 12, mid, 11, C.text2, 'right', '500');
+    _t(ctx, 'GS', px + pw - 12, sub, 6.5, C.text3, 'right', 'normal', SANS);
   }
 
   // Squawk (top-right corner)
   if (d?.squawk) {
-    _t(ctx, `SQK ${d.squawk}`, px + pw - 10, py + 3, 5.5, 'rgba(196,160,88,0.35)', 'right', 'normal', MONO, 'top');
+    _t(ctx, `SQK ${d.squawk}`, px + pw - 12, py + 4, 6.5, 'rgba(196,160,88,0.42)', 'right', 'normal', MONO, 'top');
   }
 }

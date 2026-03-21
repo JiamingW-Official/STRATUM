@@ -9,5 +9,11 @@
   },
   "triggers": {
     "crons": ["*/5 * * * *"]
-  }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "AIRPORT_CACHE",
+      "id": "b90577476db348e78298c8b0ff8fd500"
+    }
+  ]
 }

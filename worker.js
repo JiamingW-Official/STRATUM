@@ -88,8 +88,8 @@ function addPerfHeaders(response) {
 }
 
 // ── Smart Overpass endpoint: /api/airports?lat=X&lon=Y&r=1.2 ──
-// Races all 3 Overpass endpoints from the edge, caches 24h
-async function handleAirports(url) {
+// Cache hierarchy: PoP Cache API (instant same-DC) → KV (global, ~10ms) → Overpass (2-8s)
+async function handleAirports(url, env) {
   const lat = parseFloat(url.searchParams.get('lat'));
   const lon = parseFloat(url.searchParams.get('lon'));
   const r = parseFloat(url.searchParams.get('r')) || 1.2;
@@ -97,26 +97,39 @@ async function handleAirports(url) {
     return new Response('Missing lat/lon', { status: 400 });
   }
 
-  // Round for cache key stability
-  const cacheKey = new Request(`https://cache.internal/airports/${lat.toFixed(1)}/${lon.toFixed(1)}/${r}`);
+  const latR = lat.toFixed(1), lonR = lon.toFixed(1);
+  const cacheKey = new Request(`https://cache.internal/airports/${latR}/${lonR}/${r}`);
+  const kvKey = `apt:${latR}:${lonR}:${r}`;
 
-  // Check cache
+  // 1. PoP-local Cache API — zero-latency for same datacenter
   const cached = await cacheGet(cacheKey);
   if (cached) {
-    const r = corsResponse(cached);
-    r.headers.set('X-Cache', 'HIT');
-    return r;
+    const res = corsResponse(cached);
+    res.headers.set('X-Cache', 'HIT');
+    return res;
   }
 
-  // Build Overpass query
+  // 2. KV — globally consistent, ~10ms, survives PoP cold-start
+  if (env?.AIRPORT_CACHE) {
+    const kvVal = await env.AIRPORT_CACHE.get(kvKey);
+    if (kvVal) {
+      const res = new Response(kvVal, {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'KV' },
+      });
+      // Backfill PoP cache so next request from same DC is instant
+      cachePut(cacheKey, new Response(kvVal, { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }), 86400, 3600);
+      return addPerfHeaders(res);
+    }
+  }
+
+  // 3. Overpass — cold fetch, race all 3 mirrors
   const south = (lat - r).toFixed(4);
   const north = (lat + r).toFixed(4);
-  const west = (lon - r).toFixed(4);
-  const east = (lon + r).toFixed(4);
+  const west  = (lon - r).toFixed(4);
+  const east  = (lon + r).toFixed(4);
   const query = `[out:json][timeout:15];(way["aeroway"="runway"](${south},${west},${north},${east});way["aeroway"="taxiway"](${south},${west},${north},${east});way["aeroway"="terminal"](${south},${west},${north},${east});node["aeroway"="aerodrome"](${south},${west},${north},${east});way["aeroway"="aerodrome"](${south},${west},${north},${east});relation["aeroway"="aerodrome"](${south},${west},${north},${east}););out body geom;`;
   const body = `data=${encodeURIComponent(query)}`;
 
-  // Race all 3 Overpass endpoints from edge (datacenter → datacenter = fast)
   const racePromises = OVERPASS_URLS.map(endpoint => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 12000);
@@ -129,26 +142,21 @@ async function handleAirports(url) {
       clearTimeout(timer);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res;
-    }).catch(err => {
-      clearTimeout(timer);
-      throw err;
-    });
+    }).catch(err => { clearTimeout(timer); throw err; });
   });
 
   try {
     const upstream = await Promise.any(racePromises);
     const responseBody = await upstream.text();
-    const response = new Response(responseBody, {
+
+    // Write to both PoP cache (24h) and KV (7 days) — airport geometry barely changes
+    const toCache = new Response(responseBody, { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+    cachePut(cacheKey, toCache, 86400, 3600);
+    if (env?.AIRPORT_CACHE) env.AIRPORT_CACHE.put(kvKey, responseBody, { expirationTtl: 86400 * 7 });
+
+    return addPerfHeaders(new Response(responseBody, {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'MISS' },
-    });
-
-    // Cache for 24h (clone before caching since body can only be read once)
-    const toCache = new Response(responseBody, {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
-    await cachePut(cacheKey, toCache, 86400, 3600);
-
-    return addPerfHeaders(response);
+    }));
   } catch {
     return new Response('All Overpass endpoints failed', { status: 502, headers: corsHeaders() });
   }
@@ -158,7 +166,7 @@ async function handleAirports(url) {
 // Client sends ?locs=lat1,lon1|lat2,lon2|... (up to 25 locations)
 // Worker runs all lookups in parallel, each benefits from its own edge cache.
 // Returns { "lat.1,lon.1": <raw Overpass JSON>, ... }
-async function handleAirportsBatch(url) {
+async function handleAirportsBatch(url, env) {
   const locsParam = url.searchParams.get('locs') || '';
   if (!locsParam) return new Response('Missing locs', { status: 400, headers: corsHeaders() });
 
@@ -175,7 +183,7 @@ async function handleAirportsBatch(url) {
   // All lookups in parallel — each call reads/writes its own cache key
   const settled = await Promise.allSettled(
     locs.map(({ lat, lon, r }) =>
-      handleAirports(new URL(`https://cache.internal/api/airports?lat=${lat}&lon=${lon}&r=${r}`))
+      handleAirports(new URL(`https://cache.internal/api/airports?lat=${lat}&lon=${lon}&r=${r}`), env)
         .then(res => res.text())
     )
   );
@@ -696,7 +704,7 @@ export default {
     await Promise.allSettled(WARM_CITIES.flatMap(c => [
       handlePositions(new URL(`https://cache.internal/api/positions?lat=${c.lat}&lon=${c.lon}&r=100`)).catch(() => null),
       handleWeather(new URL(`https://cache.internal/api/weather?lat=${c.lat}&lon=${c.lon}`)).catch(() => null),
-      handleAirports(new URL(`https://cache.internal/api/airports?lat=${c.lat}&lon=${c.lon}&r=1.2`)).catch(() => null),
+      handleAirports(new URL(`https://cache.internal/api/airports?lat=${c.lat}&lon=${c.lon}&r=1.2`), env).catch(() => null),
     ]));
   },
 
@@ -710,8 +718,8 @@ export default {
 
     // Smart endpoints
     if (url.pathname === '/api/positions')        return handlePositions(url);
-    if (url.pathname === '/api/airports')         return handleAirports(url);
-    if (url.pathname === '/api/airports/batch')   return handleAirportsBatch(url);
+    if (url.pathname === '/api/airports')         return handleAirports(url, env);
+    if (url.pathname === '/api/airports/batch')   return handleAirportsBatch(url, env);
     if (url.pathname === '/api/enrich')    return handleEnrich(url);
     if (url.pathname === '/api/weather')   return handleWeather(url);
     if (url.pathname === '/api/atlas')     return handleAtlas();
