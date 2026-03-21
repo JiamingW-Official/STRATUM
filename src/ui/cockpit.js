@@ -172,19 +172,19 @@ function _render() {
   const mach  = _dMach;
   const phase = d?.flightPhase || '';
 
-  // ── Floating panel — half screen height, ~75% of previous total width ──────
+  // ── Base panel layout (computed at 1x, then scaled up) ──────────────────
   const HDR = 26, FTR = 28, HDG_H = 20, GAP = 5;
   const TAPE_W = Math.round(Math.min(W * 0.034, 46));
-  const PW  = Math.round(Math.min(W * 0.34, 490));   // panel width
-  const PH  = Math.round(Math.min(H * 0.50, 400));   // panel height ≈ ½ screen
-  const PX  = Math.round((W - PW) / 2);              // centered horizontally
-  const PY  = Math.round((H - PH) / 2);              // centered vertically
+  const PW  = Math.round(Math.min(W * 0.34, 490));
+  const PH  = Math.round(Math.min(H * 0.50, 400));
+  const PX  = Math.round((W - PW) / 2);
+  const PY  = Math.round((H - PH) / 2);
 
   const pfdW = PW - TAPE_W * 2 - GAP * 2;
   const pfdH = PH - HDR - FTR - HDG_H - GAP * 3;
   const pfdX = PX + TAPE_W + GAP;
   const pfdY = PY + HDR + GAP;
-  const pcx  = Math.round(pfdX + pfdW / 2);          // panel center x
+  const pcx  = Math.round(pfdX + pfdW / 2);
   const altX = PX + GAP;
   const spdX = pfdX + pfdW + GAP;
   const hdgY = pfdY + pfdH + GAP;
@@ -192,11 +192,20 @@ function _render() {
   const DEG_PX   = pfdH / 50;
   const pitchDeg = vs ? Math.max(-18, Math.min(18, (vs / 1000) * 3)) : 0;
 
-  // ── 1. Barely-there global tint ───────────────────────────────────────────
+  // ── 1. Full-screen tint (drawn before 2x scale so it covers whole screen) ─
   ctx.fillStyle = C.overlay;
   ctx.fillRect(0, 0, W, H);
 
-  // ── 2. Panel background + gold border ────────────────────────────────────
+  // ── 2. 2x scale centered on panel center (= screen center) ───────────────
+  // Panel is centered so scaling from W/2,H/2 keeps it perfectly centered.
+  // Clamp scale so panel never overflows viewport.
+  const S = Math.min(2.0, (W * 0.96) / PW, (H * 0.96) / PH);
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(S, S);
+  ctx.translate(-W / 2, -H / 2);
+
+  // ── 3. Panel background + gold border ────────────────────────────────────
   ctx.fillStyle = C.bgPanel;
   _rr(ctx, PX, PY, PW, PH, 6); ctx.fill();
   ctx.save();
@@ -205,7 +214,7 @@ function _render() {
   _rr(ctx, PX, PY, PW, PH, 6); ctx.stroke();
   ctx.restore();
 
-  // ── 3. Instruments ────────────────────────────────────────────────────────
+  // ── 4. Instruments ────────────────────────────────────────────────────────
   _topBar(ctx, PX, PY, PW, HDR, d, phase);
   _horizon(ctx, pfdX, pfdY, pfdW, pfdH, pitchDeg, DEG_PX, pcx);
   _pfdFrame(ctx, pfdX, pfdY, pfdW, pfdH);
@@ -214,7 +223,7 @@ function _render() {
   _headingStrip(ctx, pfdX, hdgY, pfdW, HDG_H, hdg, navHdg);
   _bottomBar(ctx, PX, PY + PH - FTR, PW, FTR, d, vs, mach, alt);
 
-  // ── 4. Scanline texture (panel only) ─────────────────────────────────────
+  // ── 5. Scanline texture (panel only) ─────────────────────────────────────
   ctx.save();
   ctx.beginPath(); _rr(ctx, PX, PY, PW, PH, 6); ctx.clip();
   ctx.globalAlpha = 0.004;
@@ -223,8 +232,12 @@ function _render() {
   ctx.globalAlpha = 1;
   ctx.restore();
 
-  // ── 5. Key hint below panel ───────────────────────────────────────────────
-  _t(ctx, '[V]  EXIT HUD', PX + PW, PY + PH + 8, 7, C.text3, 'right', 'normal', MONO, 'top');
+  ctx.restore(); // end 2x scale
+
+  // ── 6. Key hint — in screen coords below the scaled panel ─────────────────
+  const scaledRight  = W / 2 + S * PW / 2;
+  const scaledBottom = H / 2 + S * PH / 2;
+  _t(ctx, '[V]  EXIT HUD', scaledRight, scaledBottom + 8, 7, C.text3, 'right', 'normal', MONO, 'top');
 
   ctx.restore();
 }
@@ -525,7 +538,7 @@ function _altTape(ctx, x, y, w, h, alt, navAlt, altDev) {
   ctx.fillStyle = altDev200 ? 'rgba(232,144,90,0.46)' : 'rgba(196,160,88,0.46)';
   _rr(ctx, x, cy - 12, w, 24, 3); ctx.fill();
   const altStr = alt >= 18000 ? `FL${Math.round(alt / 100)}` : String(Math.round(alt / 100) * 100);
-  _t(ctx, altStr, x + w / 2, cy, 12, '#000', 'center', '600');
+  _t(ctx, altStr, x + w / 2, cy, 12, '#fff', 'center', '600');
 
   // Altitude deviation indicator
   if (altDev != null && Math.abs(altDev) > 50) {
