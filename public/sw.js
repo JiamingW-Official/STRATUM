@@ -1,10 +1,8 @@
 // STRATUM Service Worker — smart caching by resource type
-// Bump version on deploy to purge stale caches
-const CACHE_NAME = 'stratum-v5';
+const CACHE_NAME = 'stratum-v6';
 const TILE_CACHE = 'stratum-tiles-v1';
 const RADIO_CACHE = 'stratum-radio-v1';
 
-// Max tile entries to prevent unbounded cache growth
 const MAX_TILE_ENTRIES = 4000;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -20,11 +18,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-
-  // Skip API proxy routes — handled by Worker edge
   if (url.pathname.startsWith('/api/')) return;
 
-  // ── Map tiles: cache-first (tiles are immutable by zoom/x/y) ──
+  // ── Map tiles: cache-first (immutable by zoom/x/y) ──
   if (url.hostname.endsWith('basemaps.cartocdn.com')) {
     e.respondWith(
       caches.open(TILE_CACHE).then(cache =>
@@ -40,7 +36,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // ── Radio MP3: cache-first (files don't change) ──
+  // ── Radio MP3: cache-first ──
   if (url.pathname.startsWith('/radio/') && url.pathname.endsWith('.mp3')) {
     e.respondWith(
       caches.open(RADIO_CACHE).then(cache =>
@@ -56,7 +52,25 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // ── App assets: network-first (ensures fresh deploys load immediately) ──
+  // ── Hashed static assets (/assets/*.js, /assets/*.css): cache-first ──
+  // Content-hashed filenames are immutable — if the file changes, the hash changes.
+  // Cache-first here means repeat visits load from disk instantly, zero network.
+  if (url.pathname.startsWith('/assets/')) {
+    e.respondWith(
+      caches.open(CACHE_NAME).then(cache =>
+        cache.match(e.request).then(cached => {
+          if (cached) return cached;
+          return fetch(e.request).then(res => {
+            if (res.ok) cache.put(e.request, res.clone());
+            return res;
+          });
+        })
+      )
+    );
+    return;
+  }
+
+  // ── HTML + SW itself: network-first (picks up new deployments) ──
   e.respondWith(
     fetch(e.request).then(res => {
       if (res.ok) {

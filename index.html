@@ -223,7 +223,7 @@
     <div id="detail-xpdr" class="detail-xpdr hidden">
       <div class="detail-section-header">NAVIGATION</div>
       <div class="detail-meta">
-        <div class="detail-meta-row">
+        <div class="detail-meta-row" data-tip="Transponder code — 4-digit octal number broadcast to ATC radar. Emergency codes: 7500 hijack · 7600 radio failure · 7700 general emergency · 1200 VFR flight">
           <span class="detail-meta-label">SQUAWK</span>
           <span id="detail-squawk" class="detail-meta-value">--</span>
         </div>
@@ -235,15 +235,15 @@
           <span class="detail-meta-label">PHASE</span>
           <span id="detail-phase" class="detail-meta-value">--</span>
         </div>
-        <div id="detail-navalt-row" class="detail-meta-row hidden">
+        <div id="detail-navalt-row" class="detail-meta-row hidden" data-tip="Selected altitude — value dialed on the autopilot Mode Control Panel (MCP). The flight management system captures and holds this altitude when ALT mode is armed.">
           <span class="detail-meta-label">SEL ALT</span>
           <span id="detail-navalt" class="detail-meta-value">--</span>
         </div>
-        <div id="detail-navhdg-row" class="detail-meta-row hidden">
+        <div id="detail-navhdg-row" class="detail-meta-row hidden" data-tip="Selected heading — the autopilot heading bug. When HDG mode is engaged, the aircraft turns to and holds this magnetic heading, overriding lateral nav modes like LNAV.">
           <span class="detail-meta-label">SEL HDG</span>
           <span id="detail-navhdg" class="detail-meta-value">--</span>
         </div>
-        <div id="detail-rssi-row" class="detail-meta-row hidden">
+        <div id="detail-rssi-row" class="detail-meta-row hidden" data-tip="Receiver Signal Strength Indicator — ADS-B signal quality at the nearest ground station. 0 dBFS = maximum. Weaker signal means larger position uncertainty and longer update intervals.">
           <span class="detail-meta-label">RSSI</span>
           <span id="detail-rssi" class="detail-meta-value">--</span>
         </div>
@@ -261,23 +261,23 @@
     <div id="detail-position" class="detail-position hidden">
       <div class="detail-section-header">POSITION</div>
       <div class="detail-meta">
-        <div class="detail-meta-row">
+        <div class="detail-meta-row" data-tip="GPS coordinates from ADS-B transponder, updated every 0.5–2 seconds. Accuracy ±50 m typical. Uses WGS-84 datum — same standard as aviation charts.">
           <span class="detail-meta-label">COORD</span>
           <span id="detail-pos" class="detail-meta-value">--</span>
         </div>
-        <div class="detail-meta-row">
+        <div class="detail-meta-row" data-tip="Registration country from the ICAO Mode S hex address block — not necessarily where the aircraft is flying or where the airline is based.">
           <span class="detail-meta-label">COUNTRY</span>
           <span id="detail-country" class="detail-meta-value">--</span>
         </div>
-        <div class="detail-meta-row">
+        <div class="detail-meta-row" data-tip="True bearing from your location to the aircraft. 000°/360° = North · 090° = East · 180° = South · 270° = West.">
           <span class="detail-meta-label">BEARING</span>
           <span id="detail-bearing" class="detail-meta-value">--</span>
         </div>
-        <div class="detail-meta-row">
+        <div class="detail-meta-row" data-tip="Great circle distance — shortest path over Earth's surface between your location and the aircraft's current ADS-B position.">
           <span class="detail-meta-label">DISTANCE</span>
           <span id="detail-distance" class="detail-meta-value">--</span>
         </div>
-        <div id="detail-dtd-row" class="detail-meta-row hidden">
+        <div id="detail-dtd-row" class="detail-meta-row hidden" data-tip="Straight-line distance remaining to destination. Actual flight path is typically 3–8% longer due to SID/STAR procedures, ATC routing, and weather deviations.">
           <span class="detail-meta-label">TO DEST</span>
           <span id="detail-dtd" class="detail-meta-value">--</span>
         </div>

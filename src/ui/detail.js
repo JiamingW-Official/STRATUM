@@ -292,7 +292,12 @@ function renderAltChart() {
     canvas.addEventListener('touchend', () => setH(null));
   }
 
-  if (altHistory.length < 2) { canvas.style.display = 'none'; return; }
+  // Need meaningful history before showing chart — avoid giant bars with 2-3 seeded points
+  const validAlts = altHistory.filter(e => e.alt != null && isFinite(e.alt));
+  if (altHistory.length < 2 || validAlts.length < 5) {
+    canvas.style.display = 'none';
+    return;
+  }
 
   canvas.style.display = 'block';
   let w = Math.round(canvas.getBoundingClientRect().width);
@@ -463,7 +468,8 @@ function renderAltChart() {
     if (e.vs != null) maxVS = Math.max(maxVS, Math.abs(e.vs));
   }
   if (maxVS > 0) {
-    const barW = Math.max(1, plotW / altHistory.length);
+    // Cap bar width so sparse early data doesn't create giant bars
+    const barW = Math.min(3, Math.max(1, plotW / altHistory.length));
     for (let i = 0; i < altHistory.length; i++) {
       const e = altHistory[i];
       if (e.vs == null || Math.abs(e.vs) < 100) continue;
@@ -621,7 +627,7 @@ function renderSpeedChart() {
   }
 
   const speedEntries = altHistory.filter(e => e.gsKts != null && isFinite(e.gsKts));
-  if (speedEntries.length < 2) { canvas.style.display = 'none'; return; }
+  if (speedEntries.length < 5) { canvas.style.display = 'none'; return; }
 
   canvas.style.display = 'block';
   let w = Math.round(canvas.getBoundingClientRect().width);
@@ -942,8 +948,10 @@ export function showDetail(aircraftObj, userLat, userLon) {
       if (!_altHistorySeeded) seedFromTrack();
 
       const sd = selectedAircraft.data || {};
-      // Use barometric altitude consistently (matches track history source)
-      const altFt = sd.baroAltitude != null ? Math.round(sd.baroAltitude * 3.28084) : null;
+      // Use barometric altitude; fallback to 0 on ground so chart stays continuous
+      const altFt = sd.baroAltitude != null
+        ? Math.round(sd.baroAltitude * 3.28084)
+        : (sd.onGround ? 0 : null);
       const vsFtMin = sd.verticalRate != null ? Math.round(sd.verticalRate * 3.28084 * 60) : null;
       // Ground speed in knots — use getDisplayData() for best fallback chain
       const dd = selectedAircraft.getDisplayData ? selectedAircraft.getDisplayData() : {};
@@ -974,11 +982,17 @@ export function showDetail(aircraftObj, userLat, userLon) {
   // ── HEADER ──
   elCallsign.textContent = d.callsign || d.icao24;
 
-  // ── T1-09: Phonetic callsign ──
-  if (elPhonetic) {
+  // ── T1-09: Phonetic callsign — shown as hover tooltip on the callsign ──
+  if (elPhonetic) elPhonetic.classList.add('hidden');
+  {
     const ph = toPhonetic(d.callsign || d.icao24);
-    if (ph) { elPhonetic.textContent = ph; elPhonetic.classList.remove('hidden'); }
-    else { elPhonetic.classList.add('hidden'); }
+    if (ph && elCallsign) {
+      elCallsign.setAttribute('data-tip', ph);
+      elCallsign.classList.add('has-tip');
+    } else if (elCallsign) {
+      elCallsign.removeAttribute('data-tip');
+      elCallsign.classList.remove('has-tip');
+    }
   }
 
   if (d.aircraftType) {
@@ -1101,9 +1115,10 @@ export function showDetail(aircraftObj, userLat, userLon) {
     elProgress.classList.add('hidden');
   }
 
-  // ── T2-03: Flight Phase Timeline ──
+  // ── T2-03: Flight Phase Strip (compact dot·connector row with edu tooltip) ──
   if (elPhaseTimeline) {
-    const PHASES = ['TAXI', 'CLIMB', 'CRUISE', 'DESCENT', 'APPROACH', 'LAND'];
+    const PHASES  = ['TAXI', 'CLIMB', 'CRUISE', 'DESCENT', 'APPROACH', 'LAND'];
+    const ABBR    = { TAXI:'TAXI', CLIMB:'CLB', CRUISE:'CRZ', DESCENT:'DSC', APPROACH:'APP', LAND:'LND' };
     const phaseMap = {
       'ON GROUND': 'TAXI', 'TAKEOFF': 'TAXI',
       'INITIAL CLIMB': 'CLIMB', 'CLIMB': 'CLIMB',
@@ -1113,17 +1128,24 @@ export function showDetail(aircraftObj, userLat, userLon) {
       'LANDING': 'LAND',
     };
     const curPhase = phaseMap[d.flightPhase] || null;
-    const curIdx = curPhase ? PHASES.indexOf(curPhase) : -1;
+    const curIdx   = curPhase ? PHASES.indexOf(curPhase) : -1;
     if (curIdx >= 0) {
       elPhaseTimeline.classList.remove('hidden');
-      elPhaseTimeline.innerHTML = PHASES.map((p, i) => {
-        const cls = i < curIdx ? 'past' : i === curIdx ? 'active' : '';
-        return `<div class="phase-step ${cls}">${p}</div>`;
-      }).join('');
+      const parts = [];
+      PHASES.forEach((p, i) => {
+        const state   = i < curIdx ? 'past' : i === curIdx ? 'active' : '';
+        const eduText = (PHASE_EDU[p] ? PHASE_EDU[p].text : '').replace(/"/g, '&quot;');
+        parts.push(`<div class="phase-node ${state}"${eduText ? ` data-edu="${eduText}"` : ''}><div class="phase-dot"></div><span class="phase-lbl">${ABBR[p]}</span></div>`);
+        if (i < PHASES.length - 1) parts.push(`<div class="phase-conn${i < curIdx ? ' past' : ''}"></div>`);
+      });
+      elPhaseTimeline.innerHTML = parts.join('');
     } else {
       elPhaseTimeline.classList.add('hidden');
     }
   }
+  // Hide legacy journey arc if it exists from a previous render
+  const _oldArc = document.getElementById('detail-journey-arc');
+  if (_oldArc) _oldArc.style.display = 'none';
 
   // ── FLIGHT DATA — altitude uses best available (geo > baro) ──
   const bestAltFt = d._bestAltFt != null ? d._bestAltFt : (d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null);
@@ -1141,12 +1163,17 @@ export function showDetail(aircraftObj, userLat, userLon) {
         altCell.setAttribute('data-tip', `${bestAltFt.toLocaleString()} ft barometric`);
       }
     }
+  } else if (d.onGround) {
+    // On ground with no altitude report — show GND instead of --
+    flashUpdate(elAlt, 'GND');
+    const altCell = elAlt.closest('.detail-cell');
+    if (altCell) altCell.setAttribute('data-tip', 'Aircraft on ground');
   } else {
     flashUpdate(elAlt, '--');
   }
 
-  // T1-03: Speed unit toggle
-  if (d._rawSpd != null) {
+  // T1-03: Speed unit toggle — use gsKts as fallback when velocity is null
+  if (d._rawSpd != null || d.gsKts != null) {
     const kts = d.gsKts != null ? d.gsKts : Math.round(d._rawSpd * 1.94384);
     flashUpdate(elSpd, convertSpeed(kts, SPEED_UNITS[speedUnitIdx]));
     // Micro-tooltip: multi-speed comparison
@@ -1200,6 +1227,13 @@ export function showDetail(aircraftObj, userLat, userLon) {
     flashUpdate(elIas, d.ias != null ? `${d.ias}` : '--');
     flashUpdate(elTas, d.tas != null ? `${d.tas}` : '--');
     flashUpdate(elMach, d.mach != null ? `${d.mach}` : '--');
+    // Educational tooltips for airspeed types
+    const iasCell = elIas?.closest('.detail-cell');
+    if (iasCell) iasCell.setAttribute('data-tip', 'Indicated Airspeed — raw cockpit reading, uncorrected for altitude. Governs aircraft limits: approach speed Vref, max structural speed Vmo. Stays roughly constant across altitudes for the same maneuver.');
+    const tasCell = elTas?.closest('.detail-cell');
+    if (tasCell) tasCell.setAttribute('data-tip', 'True Airspeed — IAS corrected for air density at altitude. Actual speed through the airmass. At cruise altitude TAS is roughly 1.6× IAS. Wind correction gives groundspeed.');
+    const machCell = elMach?.closest('.detail-cell');
+    if (machCell) machCell.setAttribute('data-tip', 'Mach number — speed as a fraction of the local speed of sound. Sound travels ~661 kts at sea level, ~573 kts at FL350. Above FL280 pilots use Mach as the primary speed reference (Mmo ≈ 0.86–0.90 for most jets).');
     if (d.geoAltFt != null) {
       const geoStr = d.geoAltFt >= 18000 ? `FL${Math.round(d.geoAltFt / 100)}` : `${d.geoAltFt.toLocaleString()}`;
       const altFtBaro = d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null;
@@ -1231,6 +1265,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
     daRow.id = 'detail-da-row';
     daRow.className = 'detail-meta-row hidden';
     daRow.innerHTML = '<span class="detail-meta-label">DENSITY ALT</span><span id="detail-da" class="detail-meta-value">--</span>';
+    daRow.setAttribute('data-tip', 'Density Altitude — pressure altitude corrected for non-standard temperature. Hot or high airports raise DA: engines produce less thrust and wings less lift, extending takeoff roll and reducing climb rate.');
     condMeta.appendChild(daRow);
   }
   const lowPhase = d.flightPhase === 'TAKEOFF' || d.flightPhase === 'INITIAL CLIMB' ||
@@ -1258,6 +1293,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
     destWindRow.id = 'detail-destwind-row';
     destWindRow.className = 'detail-meta-row hidden';
     destWindRow.innerHTML = '<span class="detail-meta-label">DEST WIND</span><span id="detail-destwind" class="detail-meta-value">--</span>';
+    destWindRow.setAttribute('data-tip', 'Wind components at the destination. H/W = headwind (shortens landing roll, preferred). T/W = tailwind (increases required runway length). X/W = crosswind (acts sideways — most aircraft have a 25–35 kt crosswind limit).');
     condMeta.appendChild(destWindRow);
   }
   const isDescending = d.flightPhase === 'DESCENT' || d.flightPhase === 'APPROACH';
@@ -1296,9 +1332,11 @@ export function showDetail(aircraftObj, userLat, userLon) {
     turbRow.id = 'detail-turb-row';
     turbRow.className = 'detail-meta-row hidden';
     turbRow.innerHTML = '<span class="detail-meta-label">TURBULENCE</span><span id="detail-turb" class="detail-meta-value">--</span>';
+    turbRow.setAttribute('data-tip', 'Estimated turbulence intensity based on local weather and nearby traffic. LIGHT: slight attitude changes, seat belt sign on. MODERATE: definite strain against straps, cabin service stops. SEVERE: aircraft briefly uncontrollable, immediate ATC contact.');
     condMeta.appendChild(turbRow);
   }
   const w = typeof window._cachedWeather !== 'undefined' ? window._cachedWeather : null;
+  let _currentTurb = null;
   if (w) {
     let nearbyHeavy = 0;
     if (d.latitude != null && typeof window._aircraftManager !== 'undefined' && window._aircraftManager) {
@@ -1315,20 +1353,23 @@ export function showDetail(aircraftObj, userLat, userLon) {
         }
       }
     }
-    const turb = estimateTurbulence(w, nearbyHeavy);
-    if (turb) {
+    _currentTurb = estimateTurbulence(w, nearbyHeavy);
+    if (_currentTurb) {
       turbRow.classList.remove('hidden');
       showCond = true;
-      const cls = turb.label === 'SEVERE' ? 'detail-indicator--critical'
-        : turb.label === 'MODERATE' ? 'detail-indicator--danger'
-        : turb.label === 'LIGHT' ? 'detail-indicator--warn' : 'detail-indicator--ok';
-      document.getElementById('detail-turb').innerHTML = `<span class="detail-indicator ${cls}">${turb.label}</span>`;
+      const cls = _currentTurb.label === 'SEVERE' ? 'detail-indicator--critical'
+        : _currentTurb.label === 'MODERATE' ? 'detail-indicator--danger'
+        : _currentTurb.label === 'LIGHT' ? 'detail-indicator--warn' : 'detail-indicator--ok';
+      document.getElementById('detail-turb').innerHTML = `<span class="detail-indicator ${cls}">${_currentTurb.label}</span>`;
     } else {
       turbRow.classList.add('hidden');
     }
   } else {
     turbRow.classList.add('hidden');
   }
+
+  // W4: Weather Encounter Story — narrative educational card
+  _renderWeatherStory(d, _currentTurb);
 
   // Show/hide CONDITIONS section
   if (condSection) {
@@ -1400,25 +1441,19 @@ export function showDetail(aircraftObj, userLat, userLon) {
     if (d.wakeCat && elWakeRow) {
       elWakeRow.classList.remove('hidden');
       elWake.textContent = d.wakeCat;
+      const wakeTips = {
+        J: 'Super — A380/AN-225 class. Generates extreme wing-tip vortices. ATC mandates up to 8 nm separation behind — the largest standard in ICAO.',
+        H: 'Heavy — aircraft over 136,000 kg. Trailing vortices persist for several minutes at altitude. ATC mandates 4–6 nm separation for following aircraft.',
+        M: 'Medium — standard for single-aisle jets. Typical ATC radar separation: 3 nm. Vortices dissipate within 1–2 minutes.',
+        L: 'Light — aircraft under 7,000 kg. Must maintain extra separation behind heavier aircraft as small aircraft are highly susceptible to wake turbulence.',
+      };
+      elWakeRow.setAttribute('data-tip', wakeTips[d.wakeCat] || `Wake turbulence category ${d.wakeCat}`);
     } else if (elWakeRow) {
       elWakeRow.classList.add('hidden');
     }
 
-    if (d.flightPhase && elPhaseRow) {
-      elPhaseRow.classList.remove('hidden');
-      elPhase.textContent = d.flightPhase;
-      if (d.flightPhase === 'CLIMB' || d.flightPhase === 'INITIAL CLIMB' || d.flightPhase === 'TAKEOFF') {
-        elPhase.style.color = '#6ec87a';
-      } else if (d.flightPhase === 'DESCENT' || d.flightPhase === 'APPROACH' || d.flightPhase === 'LANDING') {
-        elPhase.style.color = '#e8836a';
-      } else if (d.flightPhase === 'CRUISE') {
-        elPhase.style.color = 'rgba(196,160,88,0.9)';
-      } else {
-        elPhase.style.color = '';
-      }
-    } else if (elPhaseRow) {
-      elPhaseRow.classList.add('hidden');
-    }
+    // Phase info is now shown in the compact phase strip above — hide redundant row
+    if (elPhaseRow) elPhaseRow.classList.add('hidden');
 
     if (d.navAlt != null && elNavAltRow) {
       elNavAltRow.classList.remove('hidden');
@@ -1449,6 +1484,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
       rwyRow.id = 'detail-rwy-row';
       rwyRow.className = 'detail-meta-row hidden';
       rwyRow.innerHTML = '<span class="detail-meta-label">RWY</span><span id="detail-rwy" class="detail-meta-value">--</span>';
+      rwyRow.setAttribute('data-tip', 'Estimated runway — number = magnetic heading ÷ 10 (e.g. RWY 27 = 270° heading). DEP = SID departure procedure. ILS = precision instrument approach guiding the aircraft to within 200 ft of the runway threshold.');
       const navMeta = elXpdr.querySelector('.detail-meta');
       if (navMeta) navMeta.appendChild(rwyRow);
     }
@@ -1497,6 +1533,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
       windRow.id = 'detail-wind-row';
       windRow.className = 'detail-meta-row hidden';
       windRow.innerHTML = '<span class="detail-meta-label">WIND</span><span id="detail-wind" class="detail-meta-value">--</span>';
+      windRow.setAttribute('data-tip', 'Wind component relative to aircraft heading. H/W (headwind) reduces groundspeed but improves climb performance. T/W (tailwind) increases groundspeed but extends required runway. X/W (crosswind) acts sideways — demands rudder correction on landing.');
       const navMeta = elXpdr.querySelector('.detail-meta');
       if (navMeta) navMeta.appendChild(windRow);
     }
@@ -1530,6 +1567,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
       rvsmRow.id = 'detail-rvsm-row';
       rvsmRow.className = 'detail-meta-row hidden';
       rvsmRow.innerHTML = '<span class="detail-meta-label">RVSM</span><span id="detail-rvsm" class="detail-meta-value">--</span>';
+      rvsmRow.setAttribute('data-tip', 'Reduced Vertical Separation Minima — in RVSM airspace (FL290–FL410), vertical separation shrinks from 2,000 ft to 1,000 ft, doubling available flight levels. Requires certified altimetry and regular accuracy checks.');
       const navMeta = elXpdr.querySelector('.detail-meta');
       if (navMeta) navMeta.appendChild(rvsmRow);
     }
@@ -1561,6 +1599,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
     todRow.id = 'detail-tod-row';
     todRow.className = 'detail-meta-row hidden';
     todRow.innerHTML = '<span class="detail-meta-label">TOP OF DESC</span><span id="detail-tod" class="detail-meta-value">--</span>';
+    todRow.setAttribute('data-tip', 'Top of Descent — the point where descent should begin. Rule of thumb: altitude to lose (ft) ÷ 300 = distance (nm). Descending from FL380 to sea level requires ~127 nm at idle thrust and 3° path.');
     perfMeta.appendChild(todRow);
   }
   if (d.todNm != null) {
@@ -1584,6 +1623,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
     effRow.id = 'detail-eff-row';
     effRow.className = 'detail-meta-row hidden';
     effRow.innerHTML = '<span class="detail-meta-label">EFFICIENCY</span><span id="detail-eff" class="detail-meta-value">--</span>';
+    effRow.setAttribute('data-tip', 'Route efficiency = great circle distance ÷ actual flown path. 100% = straight-line flight. Real routes are 3–12% longer due to jet stream routing, restricted airspace, SID/STAR procedures, and ATC slot constraints.');
     perfMeta.appendChild(effRow);
   }
   if (d.routeEfficiency != null) {
@@ -1639,6 +1679,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
       nearestRow.id = 'detail-nearest-row';
       nearestRow.className = 'detail-meta-row hidden';
       nearestRow.innerHTML = '<span class="detail-meta-label">NEAREST</span><span id="detail-nearest" class="detail-meta-value detail-nearest-value">--</span>';
+      nearestRow.setAttribute('data-tip', 'Nearest major airport by great circle distance. Aircraft below 10,000 ft within ~30 nm are typically in Terminal Maneuvering Area (TMA) airspace under approach control radar service.');
       const positionMeta = elPosition.querySelector('.detail-meta');
       if (positionMeta) positionMeta.appendChild(nearestRow);
     }
@@ -1718,4 +1759,185 @@ export function refreshDetail(aircraftManager, userLat, userLon) {
     return;
   }
   showDetail(selectedAircraft, userLat, userLon);
+}
+
+// ── Journey Arc: SVG flight profile + educational phase card ──
+const PHASE_EDU = {
+  TAXI:    { text: 'Taxiing to the runway. Crew received ATC clearance and taxi instructions. Passengers should have seatbelts fastened.', color: 'rgba(160,160,200,0.85)' },
+  CLIMB:   { text: 'Climbing to cruise altitude. Aircraft follows the SID departure procedure. ATC assigns altitude in steps — autopilot tracks each cleared level.', color: 'rgba(90,172,255,0.85)' },
+  CRUISE:  { text: 'Cruising at optimal altitude. Autopilot maintains heading and altitude. Fuel burn is at its most efficient — pilots monitor systems and weather ahead.', color: 'rgba(120,220,120,0.85)' },
+  DESCENT: { text: 'Beginning descent. Pilots follow the STAR arrival route. Cabin crew prepares for landing — electronic devices may be asked to enter flight mode.', color: 'rgba(232,160,60,0.85)' },
+  APPROACH:{ text: 'On approach. ILS frequency tuned, gear and flaps deploying. Pilots cross-check instruments and call out each checklist item with the co-pilot.', color: 'rgba(232,100,60,0.85)' },
+  LAND:    { text: 'Landing roll. Thrust reversers and spoilers deploy to decelerate. Once below 60 kts, control is handed from flight deck to ground crew.', color: 'rgba(180,90,220,0.85)' },
+};
+const PHASE_MAP_ARC = {
+  'ON GROUND': 'TAXI', 'TAKEOFF': 'TAXI',
+  'INITIAL CLIMB': 'CLIMB', 'CLIMB': 'CLIMB',
+  'CRUISE': 'CRUISE', 'EN ROUTE': 'CRUISE',
+  'DESCENT': 'DESCENT',
+  'APPROACH': 'APPROACH',
+  'LANDING': 'LAND',
+};
+const PHASES_ARC = ['TAXI', 'CLIMB', 'CRUISE', 'DESCENT', 'APPROACH', 'LAND'];
+
+function _renderJourneyArc(d) {
+  const panel = document.getElementById('detail-panel');
+  if (!panel) return;
+
+  let arc = document.getElementById('detail-journey-arc');
+  if (!arc) {
+    arc = document.createElement('div');
+    arc.id = 'detail-journey-arc';
+    arc.style.cssText = 'padding:0 12px 8px;';
+    // Insert after the phase timeline element
+    const timeline = document.getElementById('detail-phase-timeline');
+    if (timeline && timeline.parentNode) {
+      timeline.parentNode.insertBefore(arc, timeline.nextSibling);
+    } else {
+      panel.appendChild(arc);
+    }
+  }
+
+  const phase = PHASE_MAP_ARC[d.flightPhase] || null;
+  const edu = phase ? PHASE_EDU[phase] : null;
+
+  // Determine progress (0-1) for dot placement on arc
+  let progress = 0;
+  if (phase === 'TAXI') progress = 0.02;
+  else if (phase === 'CLIMB') progress = 0.18;
+  else if (phase === 'CRUISE') {
+    // Use actual progress if available, otherwise center
+    const pct = (d._originDist != null && d.distToDest != null)
+      ? d._originDist / (d._originDist + d.distToDest) : 0.5;
+    progress = 0.25 + pct * 0.5;
+  }
+  else if (phase === 'DESCENT') progress = 0.75;
+  else if (phase === 'APPROACH') progress = 0.88;
+  else if (phase === 'LAND') progress = 0.97;
+
+  // SVG dimensions
+  const W = 220, H = 44;
+  const pad = 12;
+  const arcW = W - pad * 2;
+
+  // Build arc path: smooth cubic bezier (takeoff -> cruise peak -> landing)
+  // Control points form a "hump" shape
+  const x0 = pad, y0 = H - 6;
+  const x3 = W - pad, y3 = H - 6;
+  const xm = W / 2, ym = 6; // peak at cruise
+  // Use quadratic bezier via SVG path
+  const path = `M${x0},${y0} C${x0 + arcW * 0.2},${ym} ${x3 - arcW * 0.2},${ym} ${x3},${y3}`;
+
+  // Dot position along the cubic bezier (approximate with t=progress)
+  const t = progress;
+  const mt = 1 - t;
+  const bx0 = x0 + arcW * 0.2, by0 = ym;
+  const bx1 = x3 - arcW * 0.2, by1 = ym;
+  const dotX = mt*mt*mt*x0 + 3*mt*mt*t*bx0 + 3*mt*t*t*bx1 + t*t*t*x3;
+  const dotY = mt*mt*mt*y0 + 3*mt*mt*t*by0 + 3*mt*t*t*by1 + t*t*t*y3;
+
+  // Phase zone dividers (approximate x positions)
+  const zoneX = [0, 0.12, 0.35, 0.65, 0.8, 0.93, 1].map(f => pad + f * arcW);
+  const phaseColors = ['rgba(160,160,200,0.5)','rgba(90,172,255,0.6)','rgba(120,220,120,0.5)','rgba(232,160,60,0.6)','rgba(232,100,60,0.6)','rgba(180,90,220,0.5)'];
+
+  // Phase labels at bottom
+  const phaseLabels = PHASES_ARC.map((p, i) => {
+    const lx = (zoneX[i] + zoneX[i + 1]) / 2;
+    const isActive = p === phase;
+    const color = isActive ? phaseColors[i].replace(/[\d.]+\)$/, '1)') : 'rgba(255,255,255,0.2)';
+    return `<text x="${lx.toFixed(1)}" y="${H}" text-anchor="middle" fill="${color}" font-size="5" font-family="var(--font-mono,monospace)" font-weight="${isActive ? '700' : '400'}">${p}</text>`;
+  }).join('');
+
+  const phaseColor = edu ? edu.color : 'rgba(255,255,255,0.7)';
+
+  arc.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H + 2}" style="width:100%;display:block;overflow:visible">
+      <path d="${path}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1.5" stroke-dasharray="2 2"/>
+      ${phase ? `<path d="M${pad},${y0} C${bx0},${ym} ${bx1},${ym} ${dotX.toFixed(1)},${dotY.toFixed(1)}" fill="none" stroke="${phaseColor.replace(/[\d.]+\)$/, '0.5)')}" stroke-width="2" stroke-linecap="round"/>` : ''}
+      ${phase ? `<circle cx="${dotX.toFixed(1)}" cy="${dotY.toFixed(1)}" r="4" fill="${phaseColor}" opacity="0.9">
+        <animate attributeName="opacity" values="0.9;0.55;0.9" dur="1.8s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="${dotX.toFixed(1)}" cy="${dotY.toFixed(1)}" r="7" fill="none" stroke="${phaseColor.replace(/[\d.]+\)$/, '0.35)')}" stroke-width="1.2">
+        <animate attributeName="r" values="7;12;7" dur="1.8s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.35;0;0.35" dur="1.8s" repeatCount="indefinite"/>
+      </circle>` : ''}
+      ${phaseLabels}
+    </svg>
+    ${edu ? `<div style="font-size:8.5px;color:rgba(255,255,255,0.42);line-height:1.45;margin-top:4px;padding:0 2px">${edu.text}</div>` : ''}
+  `;
+}
+
+// ── Weather Encounter Story ──
+// Narrative weather card: appears when notable conditions exist for the selected flight.
+function _renderWeatherStory(d, turb) {
+  const panel = document.getElementById('detail-panel');
+  if (!panel) return;
+
+  let el = document.getElementById('detail-wx-story');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'detail-wx-story';
+    el.style.cssText = 'margin:0 0 4px;padding:8px 12px;border-left:2px solid rgba(90,160,255,0.4);background:rgba(90,160,255,0.05);border-radius:0 4px 4px 0;display:none';
+    const condEl = document.getElementById('detail-conditions');
+    if (condEl && condEl.parentNode) {
+      condEl.parentNode.insertBefore(el, condEl.nextSibling);
+    } else {
+      panel.appendChild(el);
+    }
+  }
+
+  const wx = window._cachedWeather;
+  const cs = d.callsign || d.icao24 || 'This flight';
+  const phase = PHASE_MAP_ARC[d.flightPhase] || null;
+  const altFt = d._bestAltFt;
+  const altLabel = altFt != null ? (altFt >= 18000 ? `FL${Math.round(altFt / 100)}` : `${altFt.toLocaleString()} ft`) : null;
+  const hasTurb = turb && (turb.label === 'MODERATE' || turb.label === 'SEVERE');
+  const hasWx = wx && (wx.weatherCode >= 51 || wx.cloudCover > 75 || wx.visibility < 5000);
+
+  // Only show story when there's something to tell
+  if (!hasTurb && !hasWx) { el.style.display = 'none'; return; }
+  el.style.display = '';
+
+  let story = '';
+  let color = 'rgba(90,160,255,0.4)';
+
+  if (turb && turb.label === 'SEVERE') {
+    color = 'rgba(232,60,60,0.6)';
+    story = `<strong style="color:rgba(232,80,80,0.9)">${cs}</strong> is encountering <strong>severe turbulence</strong>${altLabel ? ` at ${altLabel}` : ''}. The seat belt sign is illuminated and cabin service is suspended. Pilots may request a different altitude from ATC to find smoother air. <span style="color:rgba(255,255,255,0.35);font-size:8px">CAT = Clear Air Turbulence</span>`;
+  } else if (turb && turb.label === 'MODERATE') {
+    color = 'rgba(232,160,60,0.5)';
+    story = `<strong style="color:rgba(232,200,80,0.9)">${cs}</strong> is flying through <strong>moderate turbulence</strong>${altLabel ? ` at ${altLabel}` : ''}. The seat belt sign is on and cabin crew are seated. Pilots have likely filed a PIREP (pilot weather report) to alert other flights.`;
+  } else if (wx && wx.weatherCode >= 80) {
+    color = 'rgba(60,120,232,0.5)';
+    story = `<strong style="color:rgba(120,180,255,0.9)">${cs}</strong> is operating in heavy precipitation. Pilots use onboard weather radar to navigate around convective cells — flying around storms rather than through them.`;
+  } else if (wx && wx.visibility < 1600) {
+    color = 'rgba(200,200,80,0.5)';
+    story = `<strong style="color:rgba(220,220,100,0.9)">${cs}</strong> is in low-visibility conditions. ${phase === 'APPROACH' || phase === 'LAND' ? 'An ILS (Instrument Landing System) precision approach is likely in use, guiding the aircraft to within 200ft of the runway before visual contact.' : 'Navigation relies entirely on instruments — no visual reference to the ground.'}`;
+  } else if (wx && wx.cloudCover > 75) {
+    color = 'rgba(130,130,180,0.4)';
+    story = `Overcast conditions. <strong style="color:rgba(180,180,220,0.9)">${cs}</strong> ${phase === 'CLIMB' ? 'will punch through the cloud layer shortly after takeoff — pilots switch to instrument-only flight (IMC) until above the clouds.' : 'is flying in instrument meteorological conditions (IMC). The cockpit instruments, not outside visibility, are the primary reference.'}`;
+  }
+
+  // Add destination weather story (async update)
+  if (d.destination && (phase === 'DESCENT' || phase === 'APPROACH')) {
+    const destApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(d.destination) : null;
+    if (destApt) {
+      fetchDestinationWeather(destApt.lat, destApt.lon).then(dw => {
+        if (!dw || !document.getElementById('detail-wx-story')) return;
+        const cat = dw.visibility != null ? (dw.visibility < 1600 ? 'LIFR' : dw.visibility < 4800 ? 'IFR' : dw.visibility < 8000 ? 'MVFR' : 'VFR') : null;
+        if (cat && (cat === 'IFR' || cat === 'LIFR')) {
+          const storyEl = document.getElementById('detail-wx-story');
+          if (storyEl) {
+            const catColor = cat === 'LIFR' ? 'rgba(232,60,60,0.9)' : 'rgba(232,130,60,0.9)';
+            storyEl.style.display = '';
+            storyEl.innerHTML += `<div style="margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.08);font-size:8.5px;color:rgba(255,255,255,0.4)">Destination <strong style="color:rgba(255,255,255,0.75)">${d.destination}</strong>: <span style="color:${catColor}">${cat} conditions</span> — ${cat === 'LIFR' ? 'LIFR (low IFR): ceiling below 500ft, visibility under 1 mile. CAT II/III ILS approach likely.' : 'IFR: instrument approach required. Pilots briefed on published approach procedure.'}</div>`;
+          }
+        }
+      });
+    }
+  }
+
+  el.style.borderLeftColor = color;
+  el.style.background = color.replace(/[\d.]+\)$/, '0.06)');
+  el.innerHTML = `<div style="font-size:8.5px;color:rgba(255,255,255,0.45);line-height:1.5">${story}</div>`;
 }

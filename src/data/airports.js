@@ -110,7 +110,6 @@ async function _raceOverpass(centerLat, centerLon, radiusDeg) {
   way["aeroway"="runway"](${south},${west},${north},${east});
   way["aeroway"="taxiway"](${south},${west},${north},${east});
   way["aeroway"="terminal"](${south},${west},${north},${east});
-  way["building"]["aeroway"](${south},${west},${north},${east});
   node["aeroway"="aerodrome"](${south},${west},${north},${east});
   way["aeroway"="aerodrome"](${south},${west},${north},${east});
   relation["aeroway"="aerodrome"](${south},${west},${north},${east});

@@ -251,7 +251,7 @@ export async function loadAirports(scene, userLat, userLon) {
       if (attempt === 0 && _loadEpoch === myEpoch) {
         console.warn('[STRATUM] Airport fetch attempt 1 failed, retrying...', err.message);
         clearAirportCache(); // clear stale fetchPromise so retry re-fetches
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 600));
         if (_loadEpoch !== myEpoch) return;
         continue;
       }
@@ -2271,68 +2271,7 @@ async function loadNavChart(scene, lat, lon) {
   }
 
   // ══════════════════════════════════════════════════════════════════
-  //  Chart Type 6: Radar / TRACON Facility Symbols
-  //  Concentric circles with sweep indicator at airport locations
-  //  Represents ASR (Airport Surveillance Radar) coverage
-  // ══════════════════════════════════════════════════════════════════
-  if (airportData && airportData.runways && airportData.runways.length > 0) {
-    const radarY = 0.036;
-    // Find airport center from runway midpoints
-    let sumLat = 0, sumLon = 0, rwyCount = 0;
-    const seenRefs = new Set();
-    for (const rwy of airportData.runways) {
-      if (!rwy.startLat || seenRefs.has(rwy.ref)) continue;
-      seenRefs.add(rwy.ref);
-      sumLat += (rwy.startLat + rwy.endLat) / 2;
-      sumLon += (rwy.startLon + rwy.endLon) / 2;
-      rwyCount++;
-    }
-    if (rwyCount > 0) {
-      const cPos = geoToScene(sumLat / rwyCount, sumLon / rwyCount, lat, lon);
-
-      // Concentric radar rings (3 rings)
-      const RADAR_RINGS = [0.15, 0.30, 0.50]; // scene units
-      const radarPts = [];
-      for (const r of RADAR_RINGS) {
-        const segments = 48;
-        for (let i = 0; i < segments; i++) {
-          const a1 = (i / segments) * Math.PI * 2;
-          const a2 = ((i + 1) / segments) * Math.PI * 2;
-          radarPts.push(
-            cPos.x + Math.cos(a1) * r, radarY, cPos.z + Math.sin(a1) * r,
-            cPos.x + Math.cos(a2) * r, radarY, cPos.z + Math.sin(a2) * r
-          );
-        }
-      }
-      // Radar sweep line (static — points northeast)
-      const sweepAngle = Math.PI / 6;
-      const sweepR = RADAR_RINGS[RADAR_RINGS.length - 1];
-      radarPts.push(
-        cPos.x, radarY, cPos.z,
-        cPos.x + Math.cos(sweepAngle) * sweepR, radarY, cPos.z + Math.sin(sweepAngle) * sweepR
-      );
-      // Cross-hairs (N-S and E-W lines through center)
-      const chR = RADAR_RINGS[0] * 0.5;
-      radarPts.push(
-        cPos.x - chR, radarY, cPos.z, cPos.x + chR, radarY, cPos.z,
-        cPos.x, radarY, cPos.z - chR, cPos.x, radarY, cPos.z + chR
-      );
-
-      const radarGeo = new THREE.BufferGeometry();
-      radarGeo.setAttribute('position', new THREE.Float32BufferAttribute(radarPts, 3));
-      _navGroup.add(new THREE.LineSegments(radarGeo, new THREE.LineBasicMaterial({
-        color: 0x40c060, transparent: true, opacity: 0.30, depthWrite: false,
-      })));
-
-      // "ASR" label
-      const asrLabel = _createNavLabel('ASR', '');
-      asrLabel.scale.set(0.08, 0.016, 1);
-      asrLabel.position.set(cPos.x + RADAR_RINGS[0] + 0.02, radarY + 0.01, cPos.z);
-      asrLabel.material.color = new THREE.Color(0x40c060);
-      asrLabel.material.opacity = 0.5;
-      _navGroup.add(asrLabel);
-    }
-  }
+  // Chart Type 6: ASR Radar — removed (mispositioned, too large)
 
   // ══════════════════════════════════════════════════════════════════
   //  Chart Type 7: TACAN / DME Stations (distinct symbol)
@@ -2691,12 +2630,56 @@ async function loadNavChart(scene, lat, lon) {
     _navHitTargets.push(m);
   }
 
+  // ── Label collision resolution ──
+  // Collect all Sprite labels and push overlapping ones apart
+  _resolveChartLabelOverlaps(_navGroup);
+
   scene.add(_navGroup);
   _navLoadedLat = lat;
   _navLoadedLon = lon;
   const fixCount = fixScenePos.length;
   const chartCount = (airportData?.runways?.length || 0) > 0 ? 7 : 2;
   console.log(`[STRATUM] Aero chart: ${vors.length} VOR, ${ndbs.length} NDB, ${fixCount} fixes, ${tacans.length} TACAN, ${chartCount} chart types`);
+}
+
+function _resolveChartLabelOverlaps(group) {
+  const sprites = group.children.filter(c => c.isSprite);
+  if (sprites.length < 2) return;
+
+  // Build records with position + bounding extents in xz plane
+  // Sprite scale.x = width, scale.y = height; on ground, x→x, y→screen vertical
+  // Use a minimum spacing in z to avoid visual stacking from the camera angle
+  const MIN_Z_GAP = 0.03;
+  const labels = sprites.map(s => ({
+    sprite: s,
+    x: s.position.x,
+    z: s.position.z,
+    hw: s.scale.x * 0.5,  // half-width in scene x
+    hh: Math.max(s.scale.y * 0.5, MIN_Z_GAP), // half-height → z spacing
+  }));
+
+  // Sort by x for sweep-line efficiency
+  labels.sort((a, b) => a.x - b.x);
+
+  // Two passes to stabilize positions
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = i + 1; j < labels.length; j++) {
+        // Labels too far apart in x — no overlap possible
+        if (labels[j].x - labels[i].x > labels[i].hw + labels[j].hw) break;
+
+        const zDist = Math.abs(labels[i].z - labels[j].z);
+        const minZ = labels[i].hh + labels[j].hh;
+
+        if (zDist < minZ) {
+          // Push j away from i in z direction
+          const dir = labels[j].z >= labels[i].z ? 1 : -1;
+          labels[j].z = labels[i].z + dir * minZ;
+          labels[j].sprite.position.z = labels[j].z;
+        }
+      }
+    }
+  }
 }
 
 function _createNavLabel(ident, freq) {

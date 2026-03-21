@@ -3,10 +3,26 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [],
   build: {
+    // Terser gives 8-12% smaller output than esbuild for complex JS
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: false,     // keep console.log for debugging
+        passes: 2,               // two compression passes for better ratio
+        pure_getters: true,
+        unsafe_math: true,       // safe for float display math
+      },
+      mangle: { toplevel: false },
+      format: { comments: false },
+    },
     rollupOptions: {
       output: {
-        manualChunks: {
-          three: ['three'],
+        // Split heavy chunks so critical path is smaller:
+        // - three.js: 3D engine, needed on first frame
+        // - data: large static datasets, most used post-init
+        manualChunks(id) {
+          // three core only — addons now lazy-loaded, so they split naturally
+          if (id.includes('node_modules/three/') && !id.includes('/addons/')) return 'three';
         },
       },
     },

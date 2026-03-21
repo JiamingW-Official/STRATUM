@@ -5,7 +5,7 @@
 
 // ── Design tokens (mirrors src/style.css) ────────────────────────────────────
 const C = {
-  overlay:    'rgba(4,5,9,0.24)',      // translucent — scene bleeds through
+  overlay:    'rgba(4,5,9,0.08)',      // barely-there atmospheric tint
   bg:         'rgba(4,6,16,0.80)',     // bars: readable but not a wall
   bgPanel:    'rgba(4,6,16,0.72)',     // tapes: semi-transparent
   border:     'rgba(255,255,255,0.038)',
@@ -165,93 +165,103 @@ function _render() {
   _dMach = _ema(_dMach, rawMach);
   _dHdg  = rawHdg; // heading: no EMA (wraparound risk)
 
-  const alt  = _dAlt  ?? 0;
-  const ias  = _dIas  ?? 0;
-  const vs   = _dVs   ?? 0;
-  const hdg  = _dHdg  ?? 0;
-  const mach = _dMach;
+  const alt   = _dAlt  ?? 0;
+  const ias   = _dIas  ?? 0;
+  const vs    = _dVs   ?? 0;
+  const hdg   = _dHdg  ?? 0;
+  const mach  = _dMach;
   const phase = d?.flightPhase || '';
 
-  // Layout — compact, lower footprint
-  const TOP   = 36, BOT = 38, HDG_H = 30, GAP = 5;
-  const TAPE_W = 58;
-  const pfdW = Math.min(W * 0.40, 500);
-  const pfdH = H - TOP - BOT - HDG_H - GAP * 4;
-  const pfdX = (W - pfdW) / 2;
-  const pfdY = TOP + GAP;
-  const cx   = W / 2;
-  const altX = pfdX - GAP - TAPE_W;
+  // ── Floating panel — half screen height, ~75% of previous total width ──────
+  const HDR = 20, FTR = 22, HDG_H = 18, GAP = 4;
+  const TAPE_W = Math.round(Math.min(W * 0.034, 46));
+  const PW  = Math.round(Math.min(W * 0.34, 490));   // panel width
+  const PH  = Math.round(Math.min(H * 0.50, 400));   // panel height ≈ ½ screen
+  const PX  = Math.round((W - PW) / 2);              // centered horizontally
+  const PY  = Math.round((H - PH) / 2);              // centered vertically
+
+  const pfdW = PW - TAPE_W * 2 - GAP * 2;
+  const pfdH = PH - HDR - FTR - HDG_H - GAP * 3;
+  const pfdX = PX + TAPE_W + GAP;
+  const pfdY = PY + HDR + GAP;
+  const pcx  = Math.round(pfdX + pfdW / 2);          // panel center x
+  const altX = PX + GAP;
   const spdX = pfdX + pfdW + GAP;
   const hdgY = pfdY + pfdH + GAP;
-  const DEG_PX = pfdH / 50; // pixels per degree of pitch
+
+  const DEG_PX   = pfdH / 50;
   const pitchDeg = vs ? Math.max(-18, Math.min(18, (vs / 1000) * 3)) : 0;
 
-  // ── 1. Full-screen overlay ─────────────────────────────────────────────────
+  // ── 1. Barely-there global tint ───────────────────────────────────────────
   ctx.fillStyle = C.overlay;
   ctx.fillRect(0, 0, W, H);
 
-  // ── 2. Instruments ─────────────────────────────────────────────────────────
-  _topBar(ctx, W, TOP, d, phase);
-  _horizon(ctx, pfdX, pfdY, pfdW, pfdH, pitchDeg, DEG_PX, cx);
+  // ── 2. Panel background + gold border ────────────────────────────────────
+  ctx.fillStyle = C.bgPanel;
+  _rr(ctx, PX, PY, PW, PH, 6); ctx.fill();
+  ctx.save();
+  ctx.strokeStyle = C.borderGold;
+  ctx.lineWidth = 0.75;
+  _rr(ctx, PX, PY, PW, PH, 6); ctx.stroke();
+  ctx.restore();
+
+  // ── 3. Instruments ────────────────────────────────────────────────────────
+  _topBar(ctx, PX, PY, PW, HDR, d, phase);
+  _horizon(ctx, pfdX, pfdY, pfdW, pfdH, pitchDeg, DEG_PX, pcx);
   _pfdFrame(ctx, pfdX, pfdY, pfdW, pfdH);
   _altTape(ctx, altX, pfdY, TAPE_W, pfdH, alt, navAlt, d?.altDeviation);
   _iasTape(ctx, spdX, pfdY, TAPE_W, pfdH, ias, d?.ias != null);
   _headingStrip(ctx, pfdX, hdgY, pfdW, HDG_H, hdg, navHdg);
-  _bottomBar(ctx, W, H, BOT, d, vs, mach, alt);
+  _bottomBar(ctx, PX, PY + PH - FTR, PW, FTR, d, vs, mach, alt);
 
-  // ── 3. Scanline texture ────────────────────────────────────────────────────
+  // ── 4. Scanline texture (panel only) ─────────────────────────────────────
   ctx.save();
-  ctx.globalAlpha = 0.010;
+  ctx.beginPath(); _rr(ctx, PX, PY, PW, PH, 6); ctx.clip();
+  ctx.globalAlpha = 0.008;
   ctx.fillStyle = 'rgba(0,0,0,1)';
-  for (let sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
+  for (let sy = PY; sy < PY + PH; sy += 3) ctx.fillRect(PX, sy, PW, 1);
   ctx.globalAlpha = 1;
   ctx.restore();
 
-  // ── 4. Key hint ────────────────────────────────────────────────────────────
-  _t(ctx, '[V]  EXIT COCKPIT VIEW', W - 14, H - BOT - 7, 7, C.text3, 'right', 'normal', MONO, 'bottom');
+  // ── 5. Key hint below panel ───────────────────────────────────────────────
+  _t(ctx, '[V]  EXIT', PX + PW, PY + PH + 8, 6.5, C.text3, 'right', 'normal', MONO, 'top');
 
   ctx.restore();
 }
 
-// ── Top Bar ───────────────────────────────────────────────────────────────────
-function _topBar(ctx, W, H, d, phase) {
-  ctx.fillStyle = C.bg;
-  ctx.fillRect(0, 0, W, H);
-  // Gold separator
+// ── Top Bar (panel-relative) ──────────────────────────────────────────────────
+function _topBar(ctx, px, py, pw, ph, d, phase) {
+  // Separator at bottom of header strip
   ctx.save();
   ctx.strokeStyle = C.borderGold;
   ctx.lineWidth = 0.5;
-  ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(W, H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(px, py + ph); ctx.lineTo(px + pw, py + ph); ctx.stroke();
   ctx.restore();
 
-  const mid = H / 2;
+  const mid = py + ph / 2;
 
-  // Callsign — gold, prominent
+  // Callsign — gold
   const cs = d?.callsign || d?.icao24 || '——';
-  _t(ctx, cs, 16, mid - 2, 15, C.accent, 'left', '500');
+  _t(ctx, cs, px + 10, mid, 13, C.accent, 'left', '500');
 
-  // Registration · airline (sub)
+  // Registration · airline (sub-line)
   const reg  = d?.registration || '';
-  const airl = (d?.routeAirline || d?.operator || '').slice(0, 28);
+  const airl = (d?.routeAirline || d?.operator || '').slice(0, 22);
   const sub  = [reg, airl].filter(Boolean).join('  ·  ').toUpperCase();
-  if (sub) _t(ctx, sub, 16, H - 7, 6.5, C.text2, 'left', 'normal', SANS, 'bottom');
+  if (sub) _t(ctx, sub, px + 10, py + ph - 3, 5.5, C.text2, 'left', 'normal', SANS, 'bottom');
 
-  // Aircraft type (left of phase badge)
+  // Aircraft type
   if (d?.aircraftType) {
-    _t(ctx, d.aircraftType.toUpperCase(), W / 2 - 90, mid, 8.5, C.text3, 'center', 'normal', MONO);
+    _t(ctx, d.aircraftType.toUpperCase(), px + pw / 2 - 68, mid, 7.5, C.text3, 'center', 'normal', MONO);
   }
 
   // Phase badge (center)
-  _phaseBadge(ctx, W / 2, mid, phase);
+  _phaseBadge(ctx, px + pw / 2, mid, phase);
 
   // UTC clock (right)
   const now = new Date();
   const utc = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}:${String(now.getUTCSeconds()).padStart(2,'0')}`;
-  _t(ctx, utc, W - 16, mid - 2, 11, C.text, 'right', '400');
-  _t(ctx, 'UTC', W - 16, H - 7, 6.5, C.text3, 'right', 'normal', SANS, 'bottom');
-
-  // ICAO24
-  if (d?.icao24) _t(ctx, d.icao24.toUpperCase(), W - 64, H - 7, 6.5, C.text3, 'right', 'normal', MONO, 'bottom');
+  _t(ctx, utc, px + pw - 10, mid, 10, C.text, 'right', '400');
 }
 
 // ── Phase Badge ───────────────────────────────────────────────────────────────
@@ -630,44 +640,40 @@ function _headingStrip(ctx, x, y, w, h, hdg, navHdg) {
   _t(ctx, `${String(Math.round(hdg)).padStart(3,'0')}°`, cx, y - bh / 2 - 4, 10, '#000', 'center', '500');
 }
 
-// ── Bottom Bar ────────────────────────────────────────────────────────────────
-function _bottomBar(ctx, W, H, barH, d, vs, mach, alt) {
-  const y = H - barH;
-  ctx.fillStyle = C.bg;
-  ctx.fillRect(0, y, W, barH);
+// ── Bottom Bar (panel-relative) ───────────────────────────────────────────────
+function _bottomBar(ctx, px, py, pw, ph, d, vs, mach, alt) {
+  // Separator at top of footer strip
   ctx.save();
   ctx.strokeStyle = C.borderGold;
   ctx.lineWidth = 0.5;
-  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + pw, py); ctx.stroke();
   ctx.restore();
 
-  const mid = y + barH * 0.44;
-  const sub = y + barH * 0.76;
+  const mid = py + ph * 0.44;
+  const sub = py + ph * 0.78;
+  const gsKts = d?.gsKts;
 
   // ── LEFT: VSI ──────────────────────────────────────────────────────────────
   const isClimb = vs > 80, isDescent = vs < -80;
   const vsCol   = isClimb ? C.accent : isDescent ? C.info : C.text2;
   const vsArrow = isClimb ? '▲' : isDescent ? '▼' : '—';
-  _t(ctx, `${vsArrow} ${Math.abs(Math.round(vs))}`, 16, mid, 11, vsCol, 'left', '500');
-  _t(ctx, 'V/SPD  fpm', 16, sub, 6.5, C.text3, 'left', 'normal', SANS);
+  _t(ctx, `${vsArrow} ${Math.abs(Math.round(vs))}`, px + 10, mid, 10, vsCol, 'left', '500');
+  _t(ctx, 'V/SPD', px + 10, sub, 5.5, C.text3, 'left', 'normal', SANS);
 
-  // ── LEFT+: Wind components ─────────────────────────────────────────────────
+  // ── LEFT+: Wind ────────────────────────────────────────────────────────────
   const hw = d?.headwind, xw = d?.crosswind;
   if (hw != null && xw != null) {
-    const hwStr = `${hw > 0 ? 'HW' : 'TW'} ${Math.abs(hw)}`;
-    const xwStr = `XW ${Math.abs(Math.round(xw))}`;
-    _t(ctx, hwStr, 110, mid - 3, 8.5, hw > 0 ? C.success : C.danger, 'left', 'normal');
-    _t(ctx, xwStr, 110, mid + 7, 8.5, C.text2, 'left', 'normal');
-    _t(ctx, 'WIND  kt', 110, sub, 6.5, C.text3, 'left', 'normal', SANS);
+    _t(ctx, `${hw > 0 ? 'HW' : 'TW'} ${Math.abs(hw)}`, px + 80, mid - 2, 7.5, hw > 0 ? C.success : C.danger, 'left', 'normal');
+    _t(ctx, `XW ${Math.abs(Math.round(xw))}`, px + 80, mid + 7, 7.5, C.text2, 'left', 'normal');
+    _t(ctx, 'kt', px + 80, sub, 5.5, C.text3, 'left', 'normal', SANS);
   }
 
-  // ── CENTER: Route ───────────────────────────────────────────────────────────
+  // ── CENTER: Route ──────────────────────────────────────────────────────────
   const orig = d?.origin || '???', dest = d?.destination || '???';
-  _t(ctx, `${orig}  →  ${dest}`, W / 2, mid, 13, C.text, 'center', '500');
+  _t(ctx, `${orig}  →  ${dest}`, px + pw / 2, mid, 12, C.text, 'center', '500');
 
-  // Sub: remaining nm + ETA
   const parts = [];
-  const distKm = d?.distToDest, gsKts = d?.gsKts;
+  const distKm = d?.distToDest;
   if (distKm != null) {
     const nm = Math.round(distKm * 0.539957);
     parts.push(`${nm} nm`);
@@ -677,37 +683,22 @@ function _bottomBar(ctx, W, H, barH, d, vs, mach, alt) {
       parts.push(`ETA ${String(eta.getUTCHours()).padStart(2,'0')}:${String(eta.getUTCMinutes()).padStart(2,'0')}Z`);
     }
   }
-  // TOD indicator
-  if (d?.todNm != null && d.todNm > 0) {
-    parts.push(`TOD ${d.todNm}nm`);
-  } else if (d?.todNm === 0) {
-    parts.push('DESCEND NOW');
-  }
-  if (parts.length) _t(ctx, parts.join('  ·  '), W / 2, sub, 6.5, C.text2, 'center', 'normal', SANS);
+  if (d?.todNm != null && d.todNm > 0) parts.push(`TOD ${d.todNm}nm`);
+  else if (d?.todNm === 0) parts.push('DESCEND NOW');
+  if (parts.length) _t(ctx, parts.join('  ·  '), px + pw / 2, sub, 5.5, C.text2, 'center', 'normal', SANS);
 
-  // ── RIGHT: Mach / GS / Squawk ──────────────────────────────────────────────
+  // ── RIGHT: Mach / GS ───────────────────────────────────────────────────────
   const showMach = mach != null && mach > 0.15 && alt > 10000;
   if (showMach) {
-    _t(ctx, `M${mach.toFixed(3)}`, W - 16, mid, 11, alt > 25000 ? C.info : C.text2, 'right', '500');
-    _t(ctx, 'MACH', W - 16, sub, 6.5, C.text3, 'right', 'normal', SANS);
+    _t(ctx, `M${mach.toFixed(3)}`, px + pw - 10, mid, 10, alt > 25000 ? C.info : C.text2, 'right', '500');
+    _t(ctx, 'MACH', px + pw - 10, sub, 5.5, C.text3, 'right', 'normal', SANS);
   } else if (gsKts != null) {
-    _t(ctx, `${Math.round(gsKts)} kt`, W - 16, mid, 11, C.text2, 'right', '500');
-    _t(ctx, 'GS', W - 16, sub, 6.5, C.text3, 'right', 'normal', SANS);
+    _t(ctx, `${Math.round(gsKts)} kt`, px + pw - 10, mid, 10, C.text2, 'right', '500');
+    _t(ctx, 'GS', px + pw - 10, sub, 5.5, C.text3, 'right', 'normal', SANS);
   }
 
-  // RVSM status
-  if (d?.rvsm) {
-    const rvsm = d.rvsm;
-    _t(ctx, `RVSM ${rvsm}`, W - 16, y + 7, 6.5, rvsm === 'OK' ? 'rgba(82,168,108,0.55)' : C.danger, 'right', 'normal', MONO, 'top');
-  }
-  // Squawk
+  // Squawk (top-right corner)
   if (d?.squawk) {
-    const sqkX = showMach || gsKts != null ? W - 80 : W - 16;
-    _t(ctx, `SQK ${d.squawk}`, sqkX, y + 7, 6.5, 'rgba(196,160,88,0.42)', 'right', 'normal', MONO, 'top');
-  }
-
-  // ── Origin country (far left, small) ───────────────────────────────────────
-  if (d?.originCountry && d.originCountry !== '--') {
-    _t(ctx, d.originCountry.toUpperCase(), 16, y + 7, 6.5, C.text3, 'left', 'normal', SANS, 'top');
+    _t(ctx, `SQK ${d.squawk}`, px + pw - 10, py + 3, 5.5, 'rgba(196,160,88,0.35)', 'right', 'normal', MONO, 'top');
   }
 }

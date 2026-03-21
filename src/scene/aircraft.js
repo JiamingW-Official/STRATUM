@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+// GLTFLoader is lazy-loaded on first model request to reduce critical-path JS
 import { getTrack, getTrackVersion, getRoute, getHexDetail } from '../data/opensky.js';
 import { getAircraftSpecs } from '../data/aircraftDb.js';
 import { getAircraftMeta, queueHexLookup } from '../data/hexdb.js';
@@ -137,7 +137,14 @@ function classifyAircraftType(typeCode) {
 // --- GLB Model Loading System ---
 
 const MODEL_SCALE = 0.25;
-const gltfLoader = new GLTFLoader();
+let _gltfLoaderInstance = null;
+async function _getGLTFLoader() {
+  if (!_gltfLoaderInstance) {
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    _gltfLoaderInstance = new GLTFLoader();
+  }
+  return _gltfLoaderInstance;
+}
 
 // Map aircraft categories to GLB file paths
 const MODEL_FILES = {
@@ -197,8 +204,8 @@ function getModelPath(typeCode) {
 function loadModel(path) {
   if (_modelCache[path]) return _modelCache[path];
 
-  _modelCache[path] = new Promise((resolve) => {
-    gltfLoader.load(
+  _modelCache[path] = _getGLTFLoader().then(loader => new Promise((resolve) => {
+    loader.load(
       path,
       (gltf) => {
         const scene = gltf.scene;
@@ -230,7 +237,7 @@ function loadModel(path) {
         resolve(null);
       }
     );
-  });
+  }));
 
   return _modelCache[path];
 }

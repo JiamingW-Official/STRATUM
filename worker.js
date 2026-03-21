@@ -113,7 +113,7 @@ async function handleAirports(url) {
   const north = (lat + r).toFixed(4);
   const west = (lon - r).toFixed(4);
   const east = (lon + r).toFixed(4);
-  const query = `[out:json][timeout:15];(way["aeroway"="runway"](${south},${west},${north},${east});way["aeroway"="taxiway"](${south},${west},${north},${east});way["aeroway"="terminal"](${south},${west},${north},${east});way["building"]["aeroway"](${south},${west},${north},${east});node["aeroway"="aerodrome"](${south},${west},${north},${east});way["aeroway"="aerodrome"](${south},${west},${north},${east});relation["aeroway"="aerodrome"](${south},${west},${north},${east}););out body geom;`;
+  const query = `[out:json][timeout:15];(way["aeroway"="runway"](${south},${west},${north},${east});way["aeroway"="taxiway"](${south},${west},${north},${east});way["aeroway"="terminal"](${south},${west},${north},${east});node["aeroway"="aerodrome"](${south},${west},${north},${east});way["aeroway"="aerodrome"](${south},${west},${north},${east});relation["aeroway"="aerodrome"](${south},${west},${north},${east}););out body geom;`;
   const body = `data=${encodeURIComponent(query)}`;
 
   // Race all 3 Overpass endpoints from edge (datacenter → datacenter = fast)
