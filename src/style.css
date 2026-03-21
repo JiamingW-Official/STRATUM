@@ -942,42 +942,46 @@ html, body {
   position: fixed;
   bottom: 76px; left: 50%;
   transform: translateX(-50%);
-  width: 292px;
+  width: 300px;
   z-index: 25; pointer-events: auto;
-  background: linear-gradient(180deg, rgba(8,12,18,0.96) 0%, rgba(6,8,14,0.97) 100%);
-  -webkit-backdrop-filter: blur(28px) saturate(1.3);
-  backdrop-filter: blur(28px) saturate(1.3);
-  border: 1px solid rgba(255,255,255,0.04);
-  border-top: 2px solid rgba(196,160,88,0.5);
+  background: linear-gradient(180deg, rgba(8,12,18,0.97) 0%, rgba(5,7,12,0.98) 100%);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  backdrop-filter: blur(32px) saturate(1.4);
+  border: 1px solid rgba(255,255,255,0.045);
+  border-top: 2px solid rgba(196,160,88,0.55);
   border-radius: 0 0 var(--r) var(--r);
   overflow: hidden;
-  box-shadow: 0 12px 48px rgba(0,0,0,0.55), var(--shadow-glow);
+  overflow-y: auto;
+  max-height: calc(100vh - 100px);
+  box-shadow: 0 16px 56px rgba(0,0,0,0.65), var(--shadow-glow);
   animation: aw-in 0.35s cubic-bezier(0.22,1,0.36,1) both;
+  scrollbar-width: none;
 }
+.airport-widget::-webkit-scrollbar { display: none; }
 .airport-widget.hidden { display: none; }
 
 @keyframes aw-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.97); }
+  from { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.97); }
   to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
 .aw-header {
   display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 14px 16px 6px;
+  padding: 16px 16px 4px;
 }
-.aw-codes { display: flex; align-items: baseline; gap: 8px; }
+.aw-codes { display: flex; align-items: baseline; gap: 9px; }
 .aw-iata {
-  font-family: var(--font-mono); font-size: 28px; font-weight: 500;
-  letter-spacing: 3.5px; color: var(--accent); line-height: 1;
-  text-shadow: 0 0 28px rgba(196,160,88,0.06);
+  font-family: var(--font-mono); font-size: 30px; font-weight: 500;
+  letter-spacing: 4px; color: var(--accent); line-height: 1;
+  text-shadow: 0 0 40px rgba(196,160,88,0.12);
 }
 .aw-icao {
   font-family: var(--font-mono); font-size: 8px;
-  color: rgba(238,233,220,0.25); letter-spacing: 1.2px;
+  color: rgba(238,233,220,0.22); letter-spacing: 1.4px;
 }
 .aw-close {
   background: none; border: none;
-  color: rgba(238,233,220,0.2); font-size: 16px;
+  color: rgba(238,233,220,0.18); font-size: 16px;
   cursor: pointer; padding: 2px 4px; line-height: 1;
   transition: color 0.2s, transform 0.2s var(--ease);
   border-radius: 3px;
@@ -986,106 +990,112 @@ html, body {
 .aw-close:active { transform: scale(0.9); }
 
 .aw-name {
-  padding: 0 16px 10px;
-  font-family: var(--font-sans); font-size: 10.5px;
-  color: rgba(238,233,220,0.45); line-height: 1.35;
-  letter-spacing: 0.2px;
+  padding: 0 16px 12px;
+  font-family: var(--font-sans); font-size: 10px;
+  color: rgba(238,233,220,0.38); line-height: 1.3;
+  letter-spacing: 0.3px;
 }
 
 .aw-divider {
-  height: 1px; background: rgba(255,255,255,0.035);
-  margin: 0 14px;
+  height: 1px; background: rgba(255,255,255,0.03);
+  margin: 0 16px;
 }
 
+/* ── ARR / DEP traffic counts ── */
 .aw-arr-dep {
-  display: flex; align-items: center; justify-content: center;
-  padding: 10px 14px 6px; gap: 0;
+  display: flex; align-items: stretch;
+  margin: 12px 16px 0;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.04);
 }
 .aw-ad-col {
   flex: 1; display: flex; flex-direction: column; align-items: center;
-  padding: 6px 4px; border-radius: var(--r-sm);
+  padding: 10px 4px 8px;
   transition: background 0.2s ease;
 }
-.aw-ad-col:hover { background: rgba(255,255,255,0.025); }
+.aw-ad-col:hover { background: rgba(255,255,255,0.02); }
+.aw-ad-arr { background: rgba(106,200,122,0.04); }
+.aw-ad-dep { background: rgba(232,131,106,0.04); }
 .aw-ad-label {
-  font-family: var(--font-mono); font-size: 7px; letter-spacing: 1.8px;
-  text-transform: uppercase; margin-bottom: 3px;
+  font-family: var(--font-mono); font-size: 6.5px; letter-spacing: 2px;
+  text-transform: uppercase; margin-bottom: 4px; opacity: 0.5;
 }
-.aw-ad-arr .aw-ad-label { color: rgba(106,200,122,0.5); }
-.aw-ad-dep .aw-ad-label { color: rgba(232,131,106,0.5); }
+.aw-ad-arr .aw-ad-label { color: rgba(106,200,122,1); }
+.aw-ad-dep .aw-ad-label { color: rgba(232,131,106,1); }
 .aw-ad-val {
-  font-family: var(--font-mono); font-size: 22px; font-weight: 400;
-  letter-spacing: -0.5px; line-height: 1;
+  font-family: var(--font-mono); font-size: 28px; font-weight: 300;
+  letter-spacing: -1px; line-height: 1;
 }
-.aw-ad-arr .aw-ad-val { color: rgba(106,200,122,0.85); }
-.aw-ad-dep .aw-ad-val { color: rgba(232,131,106,0.85); }
+.aw-ad-arr .aw-ad-val { color: rgba(106,200,122,0.9); }
+.aw-ad-dep .aw-ad-val { color: rgba(232,131,106,0.9); }
 .aw-ad-divider {
-  width: 1px; height: 28px; background: rgba(255,255,255,0.06);
-  margin: 0 8px;
+  width: 1px; background: rgba(255,255,255,0.05);
+  align-self: stretch; margin: 0;
 }
+
+/* ── Stats grid — 4 columns ── */
 .aw-stats {
-  display: grid; grid-template-columns: repeat(2, 1fr);
-  padding: 6px 14px 10px; gap: 3px;
-}
-.aw-stats-ext {
-  grid-template-columns: repeat(2, 1fr);
-  padding-top: 0; border-top: 1px solid rgba(255,255,255,0.03);
-}
-.aw-stats-ext .aw-stat-val {
-  font-size: 11px; color: var(--text-2);
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  padding: 10px 16px 0; gap: 3px;
 }
 .aw-stat {
   display: flex; flex-direction: column; align-items: center;
-  padding: 7px 2px; border-radius: var(--r-sm);
-  background: rgba(255,255,255,0.015);
-  border: 1px solid rgba(255,255,255,0.02);
+  padding: 7px 2px 6px; border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.012);
+  border: 1px solid rgba(255,255,255,0.025);
   transition: background 0.2s ease;
 }
-.aw-stat:hover { background: rgba(196,160,88,0.03); }
+.aw-stat:hover { background: rgba(196,160,88,0.04); }
 .aw-stat-val {
-  font-family: var(--font-mono); font-size: 14px; font-weight: 400;
-  color: rgba(238,233,220,0.85);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 400;
+  color: rgba(238,233,220,0.82);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.3px;
 }
 .aw-stat-lbl {
-  font-family: var(--font-mono); font-size: 6px; letter-spacing: 1.5px;
-  color: rgba(196,160,88,0.32); text-transform: uppercase; margin-top: 3px;
+  font-family: var(--font-mono); font-size: 5.5px; letter-spacing: 1.2px;
+  color: rgba(196,160,88,0.30); text-transform: uppercase; margin-top: 3px;
 }
 
+/* ── Meta rows ── */
 .aw-meta {
-  padding: 8px 16px; display: flex; flex-direction: column; gap: 3px;
+  padding: 10px 16px 6px; display: flex; flex-direction: column; gap: 4px;
 }
 .aw-meta-row {
   display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.025);
 }
+.aw-meta-row:last-child { border-bottom: none; }
 .aw-meta-label {
-  font-family: var(--font-mono); font-size: 7px; letter-spacing: 1.5px;
-  color: rgba(196,160,88,0.35); text-transform: uppercase;
+  font-family: var(--font-mono); font-size: 6.5px; letter-spacing: 1.8px;
+  color: rgba(196,160,88,0.32); text-transform: uppercase;
 }
 .aw-meta-val {
   font-family: var(--font-mono); font-size: 9px;
-  color: rgba(238,233,220,0.5); letter-spacing: 0.3px;
+  color: rgba(238,233,220,0.52); letter-spacing: 0.3px;
 }
 
+/* ── Fact & description ── */
 .aw-fact {
-  margin: 0 14px 12px; padding: 9px 14px;
-  background: rgba(196,160,88,0.03);
-  border-left: 2px solid rgba(196,160,88,0.15);
+  margin: 8px 16px 0; padding: 10px 14px;
+  background: linear-gradient(90deg, rgba(196,160,88,0.05) 0%, transparent 100%);
+  border-left: 2px solid rgba(196,160,88,0.25);
   border-radius: 0 var(--r-sm) var(--r-sm) 0;
-  font-family: var(--font-sans); font-size: 9px; line-height: 1.55;
-  color: rgba(238,233,220,0.35); font-style: italic;
+  font-family: var(--font-sans); font-size: 9px; line-height: 1.6;
+  color: rgba(238,233,220,0.42); font-style: italic;
   letter-spacing: 0.1px;
 }
 .aw-fact.hidden { display: none; }
 
 .aw-desc {
-  margin: 0 14px 12px; padding: 9px 14px;
-  background: rgba(255,255,255,0.015);
+  margin: 8px 16px 0; padding: 10px 14px;
+  background: rgba(255,255,255,0.012);
   border-radius: var(--r-sm);
-  border: 1px solid rgba(255,255,255,0.02);
-  font-family: var(--font-sans); font-size: 9px; line-height: 1.6;
-  color: rgba(238,233,220,0.38);
+  border: 1px solid rgba(255,255,255,0.025);
+  font-family: var(--font-sans); font-size: 9px; line-height: 1.65;
+  color: rgba(238,233,220,0.35);
   letter-spacing: 0.1px;
 }
 .aw-desc.hidden { display: none; }
@@ -2572,7 +2582,8 @@ html, body {
 
 /* ── T2-12: Airport ARR/DEP list ── */
 .aw-flight-list {
-  max-height: 100px; overflow-y: auto; padding: 4px 12px 8px;
+  max-height: 96px; overflow-y: auto; padding: 2px 16px 6px;
+  margin-top: 6px;
   scrollbar-width: thin; scrollbar-color: rgba(196,160,88,0.15) transparent;
 }
 .aw-flight-list::-webkit-scrollbar { width: 3px; }

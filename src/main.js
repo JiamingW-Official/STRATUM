@@ -913,112 +913,10 @@ function showAirportWidget(airport, arrivals, departures) {
     });
   });
 
-  // ── I2: Airport Activity Timeline ──
-  let activityEl = document.getElementById('aw-activity');
-  if (!activityEl) {
-    activityEl = document.createElement('div');
-    activityEl.id = 'aw-activity';
-    activityEl.style.cssText = 'margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)';
-    w.appendChild(activityEl);
-  }
-  // Record this observation
-  const aptCode = airport.iata || airport.icao;
-  if (!_airportActivity[aptCode]) _airportActivity[aptCode] = [];
-  const nowHour = new Date().getHours();
-  _airportActivity[aptCode].push({
-    hour: nowHour,
-    time: Date.now(),
-    arr: arrivals.length,
-    dep: departures.length,
-  });
-  // Render hourly bars for this session
-  const records = _airportActivity[aptCode];
-  // Aggregate by hour
-  const hourData = {};
-  for (const r of records) {
-    if (!hourData[r.hour]) hourData[r.hour] = { arr: 0, dep: 0, count: 0 };
-    hourData[r.hour].arr = Math.max(hourData[r.hour].arr, r.arr);
-    hourData[r.hour].dep = Math.max(hourData[r.hour].dep, r.dep);
-    hourData[r.hour].count++;
-  }
-  // Render PULSE — compact 24h EKG horizontal strip
-  const maxTraffic = Math.max(...Object.values(hourData).map(h => h.arr + h.dep), 1);
-  const PW = 268, SH = 18, MID = SH / 2, COL = PW / 24;
-  let bgEl = '', barEl = '';
-
-  for (let h = 0; h < 24; h++) {
-    const d = hourData[h] || { arr: 0, dep: 0 };
-    const bx = (h * COL + 0.4).toFixed(1);
-    const bw = (COL - 0.8).toFixed(1);
-    const isCur = h === nowHour;
-
-    // Highlight column for current hour
-    if (isCur) bgEl += `<rect x="${bx}" y="0" width="${bw}" height="${SH}" fill="rgba(196,160,88,0.06)" rx="0.5"/>`;
-
-    // Arrivals (above midline, blue)
-    if (d.arr > 0) {
-      const bh = Math.max(1.2, (d.arr / maxTraffic) * (MID - 1.5));
-      const a = (isCur ? 0.90 : 0.22 + (d.arr / maxTraffic) * 0.58).toFixed(2);
-      barEl += `<rect x="${bx}" y="${(MID - bh).toFixed(1)}" width="${bw}" height="${bh.toFixed(1)}" fill="rgba(90,172,255,${a})" rx="0.5"/>`;
-    }
-    // Departures (below midline, orange)
-    if (d.dep > 0) {
-      const bh = Math.max(1.2, (d.dep / maxTraffic) * (MID - 1.5));
-      const a = (isCur ? 0.90 : 0.20 + (d.dep / maxTraffic) * 0.52).toFixed(2);
-      barEl += `<rect x="${bx}" y="${MID.toFixed(1)}" width="${bw}" height="${bh.toFixed(1)}" fill="rgba(232,131,51,${a})" rx="0.5"/>`;
-    }
-    // NOW marker — gold dashed vertical
-    if (isCur) {
-      const lx = (h * COL + COL / 2).toFixed(1);
-      barEl += `<line x1="${lx}" y1="0" x2="${lx}" y2="${SH}" stroke="rgba(196,160,88,0.85)" stroke-width="0.75" stroke-dasharray="2,1.5"/>`;
-    }
-  }
-
-  // Time axis labels at 0 / 6 / 12 / 18
-  const tAxis = [0, 6, 12, 18].map(h => {
-    const lx = (h * COL + COL / 2).toFixed(1);
-    const col = h === nowHour ? 'rgba(196,160,88,0.70)' : 'rgba(255,255,255,0.16)';
-    return `<text x="${lx}" y="${SH + 5.5}" text-anchor="middle" fill="${col}" font-size="4" font-family="monospace">${String(h).padStart(2,'0')}</text>`;
-  }).join('');
-
-  const midLine = `<line x1="0" y1="${MID}" x2="${PW}" y2="${MID}" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>`;
-
-  activityEl.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-      <span style="font-size:6px;letter-spacing:1.8px;color:rgba(196,160,88,0.45);font-family:var(--font-mono);font-weight:700">PULSE</span>
-      <span style="display:flex;align-items:baseline;gap:8px;font-family:var(--font-mono)">
-        <span style="font-size:11px;font-weight:700;color:rgba(90,172,255,0.90);line-height:1">${arrivals.length}</span><span style="font-size:6.5px;color:rgba(90,172,255,0.50);margin-left:-5px">ARR</span>
-        <span style="font-size:11px;font-weight:700;color:rgba(232,131,51,0.85);line-height:1">${departures.length}</span><span style="font-size:6.5px;color:rgba(232,131,51,0.50);margin-left:-5px">DEP</span>
-      </span>
-    </div>
-    <svg viewBox="0 0 ${PW} ${SH + 8}" style="width:100%;height:${SH + 8}px;display:block;overflow:visible">
-      ${midLine}${bgEl}${barEl}${tAxis}
-    </svg>`;
-
   // ── Wind Advisor ──
   _renderWindAdvisor(airport, w);
 
-  // ── Airport Traffic Story ──
-  _recordTraffic(airport, arrivals.length, departures.length);
-  _renderTrafficStory(airport, w);
-
   w.classList.remove('hidden');
-}
-
-// I2: Airport activity session store
-const _airportActivity = {};
-
-// Airport Traffic Story — minute-level session store
-const _airportTraffic = {}; // { [aptCode]: [{time, arr, dep}, ...] }
-
-// SVG arc path helper for pulse clock
-function _svgArc(cx, cy, rInner, rOuter, startAngle, endAngle) {
-  const x1o = cx + Math.cos(startAngle) * rOuter, y1o = cy + Math.sin(startAngle) * rOuter;
-  const x2o = cx + Math.cos(endAngle) * rOuter, y2o = cy + Math.sin(endAngle) * rOuter;
-  const x1i = cx + Math.cos(endAngle) * rInner, y1i = cy + Math.sin(endAngle) * rInner;
-  const x2i = cx + Math.cos(startAngle) * rInner, y2i = cy + Math.sin(startAngle) * rInner;
-  const large = endAngle - startAngle > Math.PI ? 1 : 0;
-  return `M${x1o},${y1o} A${rOuter},${rOuter} 0 ${large} 1 ${x2o},${y2o} L${x1i},${y1i} A${rInner},${rInner} 0 ${large} 0 ${x2i},${y2i} Z`;
 }
 
 // ── Runway Wind Advisor ──
@@ -1028,7 +926,7 @@ function _renderWindAdvisor(airport, container) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'aw-wind-advisor';
-    el.style.cssText = 'margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)';
+    el.style.cssText = 'margin-top:10px;padding:10px 16px 14px;border-top:1px solid rgba(255,255,255,0.04)';
     container.appendChild(el);
   }
 
@@ -1104,111 +1002,6 @@ function _renderWindAdvisor(airport, container) {
     </div>
     ${rows}
     <div style="font-size:8px;color:rgba(255,255,255,0.3);margin-top:5px;line-height:1.4">${edu}</div>
-  `;
-}
-
-// ── Airport Traffic Story helpers ──
-function _recordTraffic(airport, arrCount, depCount) {
-  const code = airport.iata || airport.icao;
-  if (!_airportTraffic[code]) _airportTraffic[code] = [];
-  const now = Date.now();
-  _airportTraffic[code].push({ time: now, arr: arrCount, dep: depCount });
-  // Keep only last 60 minutes
-  const cutoff = now - 60 * 60 * 1000;
-  while (_airportTraffic[code].length && _airportTraffic[code][0].time < cutoff) {
-    _airportTraffic[code].shift();
-  }
-}
-
-function _renderTrafficStory(airport, container) {
-  let el = document.getElementById('aw-traffic-story');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'aw-traffic-story';
-    el.style.cssText = 'margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)';
-    container.appendChild(el);
-  }
-
-  const code = airport.iata || airport.icao;
-  const records = _airportTraffic[code] || [];
-  if (records.length < 2) { el.innerHTML = ''; return; }
-
-  const now = Date.now();
-  const SPAN = 60 * 60 * 1000; // 60 minutes
-  const W = 200, H = 30, pad = 2;
-  const plotW = W - pad * 2;
-
-  // Build per-minute buckets
-  const BUCKETS = 60;
-  const arr = new Array(BUCKETS).fill(0);
-  const dep = new Array(BUCKETS).fill(0);
-  for (const r of records) {
-    const age = now - r.time;
-    const bucket = Math.floor((1 - age / SPAN) * BUCKETS);
-    if (bucket >= 0 && bucket < BUCKETS) {
-      arr[bucket] = Math.max(arr[bucket], r.arr);
-      dep[bucket] = Math.max(dep[bucket], r.dep);
-    }
-  }
-  const maxVal = Math.max(...arr, ...dep, 1);
-
-  // Detect peak clusters (5-min window ≥ 3 flights)
-  let peakAnnotation = '';
-  for (let b = 2; b < BUCKETS - 2; b++) {
-    const windowArr = arr.slice(b - 2, b + 3).reduce((s, v) => s + v, 0);
-    if (windowArr >= 3 && b > 5 && b < BUCKETS - 5) {
-      // Peak at ~b/BUCKETS * 60 minutes ago
-      const minsAgo = Math.round((1 - b / BUCKETS) * 60);
-      peakAnnotation = minsAgo < 5
-        ? 'Arrival bank now — airlines bundle arrivals for connections'
-        : `Arrival peak ${minsAgo}min ago — hub banks bring planes in waves`;
-      break;
-    }
-    const windowDep = dep.slice(b - 2, b + 3).reduce((s, v) => s + v, 0);
-    if (windowDep >= 3 && b > 5 && b < BUCKETS - 5) {
-      const minsAgo = Math.round((1 - b / BUCKETS) * 60);
-      peakAnnotation = minsAgo < 5
-        ? 'Departure wave underway — aircraft push back after connection window closes'
-        : `Departure peak ${minsAgo}min ago — connecting wave completed`;
-      break;
-    }
-  }
-
-  // Build SVG bars
-  const bw = plotW / BUCKETS;
-  let bars = '';
-  for (let b = 0; b < BUCKETS; b++) {
-    const x = pad + b * bw;
-    const ah = arr[b] / maxVal * (H - 4);
-    const dh = dep[b] / maxVal * (H - 4);
-    if (arr[b] > 0) bars += `<rect x="${x.toFixed(1)}" y="${(H - ah).toFixed(1)}" width="${(bw * 0.45).toFixed(1)}" height="${ah.toFixed(1)}" fill="rgba(90,200,120,0.65)"/>`;
-    if (dep[b] > 0) bars += `<rect x="${(x + bw * 0.5).toFixed(1)}" y="${(H - dh).toFixed(1)}" width="${(bw * 0.45).toFixed(1)}" height="${dh.toFixed(1)}" fill="rgba(232,131,51,0.65)"/>`;
-  }
-
-  // Time labels (15-min marks)
-  let timeLabels = '';
-  for (let t = 0; t <= 60; t += 15) {
-    const x = pad + (t / 60) * plotW;
-    const label = t === 60 ? 'now' : `-${60 - t}m`;
-    timeLabels += `<text x="${x.toFixed(1)}" y="${H + 7}" text-anchor="middle" fill="rgba(255,255,255,0.2)" font-size="4.5" font-family="var(--font-mono,monospace)">${label}</text>`;
-  }
-
-  // Current time line
-  const nowX = pad + plotW;
-
-  el.innerHTML = `
-    <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:4px">TRAFFIC STORY</div>
-    <svg viewBox="0 0 ${W} ${H + 10}" style="width:100%;display:block">
-      <rect x="${pad}" y="0" width="${plotW}" height="${H}" fill="rgba(255,255,255,0.02)" rx="1"/>
-      ${bars}
-      <line x1="${nowX}" y1="0" x2="${nowX}" y2="${H}" stroke="rgba(255,255,255,0.35)" stroke-width="0.8"/>
-      ${timeLabels}
-    </svg>
-    <div style="display:flex;justify-content:center;gap:10px;font-size:7px;margin-top:1px">
-      <span style="color:rgba(90,200,120,0.7)">▊ ARR</span>
-      <span style="color:rgba(232,131,51,0.7)">▊ DEP</span>
-    </div>
-    ${peakAnnotation ? `<div style="font-size:8px;color:rgba(255,255,255,0.3);margin-top:4px;line-height:1.4">${peakAnnotation}</div>` : ''}
   `;
 }
 
