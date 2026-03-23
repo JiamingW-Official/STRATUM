@@ -1442,92 +1442,6 @@ function _maybeRefreshVertProfile() {
   if (_vertProfileVisible) _drawVerticalProfile();
 }
 
-// ── D-3: Aircraft Type Cluster Map ──
-let _clusterMapActive = false;
-let _clusterSprites = [];
-
-function _toggleClusterMap() {
-  _clusterMapActive = !_clusterMapActive;
-  _showMilestone(_clusterMapActive ? 'CLUSTER MAP: ON' : 'CLUSTER MAP: OFF');
-  if (_clusterMapActive) _buildClusterMap();
-  else _clearClusterSprites();
-}
-
-function _buildClusterMap() {
-  if (!aircraftManager || !scene) return;
-  _clearClusterSprites();
-  const GRID = 8;
-  const grid = {}; // key → { wb:0, nb:0, rj:0, bj:0, lat:[], lon:[] }
-
-  for (const [, ac] of aircraftManager.aircraft) {
-    if (ac.fadingOut || ac.data.latitude == null) continue;
-    const gi = Math.floor((ac.data.latitude + 90) / (180 / GRID));
-    const gj = Math.floor((ac.data.longitude + 180) / (360 / GRID));
-    const key = `${gi},${gj}`;
-    if (!grid[key]) grid[key] = { wb: 0, nb: 0, rj: 0, bj: 0, lats: [], lons: [] };
-    const cat = classifyAircraftType(ac.data.aircraftType);
-    if (cat === 'WB') grid[key].wb++;
-    else if (cat === 'NB') grid[key].nb++;
-    else if (cat === 'RJ') grid[key].rj++;
-    else grid[key].bj++;
-    grid[key].lats.push(ac.data.latitude);
-    grid[key].lons.push(ac.data.longitude);
-  }
-
-  const { lat: uLat, lon: uLon } = getUserLocation();
-  for (const [, cell] of Object.entries(grid)) {
-    const total = cell.wb + cell.nb + cell.rj + cell.bj;
-    if (total < 2) continue;
-    const avgLat = cell.lats.reduce((a, b) => a + b, 0) / cell.lats.length;
-    const avgLon = cell.lons.reduce((a, b) => a + b, 0) / cell.lons.length;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = 64; canvas.height = 32;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'rgba(8,12,20,0.75)';
-    ctx.fillRect(0, 0, 64, 32);
-    ctx.font = 'bold 9px monospace';
-    const parts = [];
-    if (cell.wb > 0) parts.push({ t: `W${cell.wb}`, c: '#c9a45c' });
-    if (cell.nb > 0) parts.push({ t: `N${cell.nb}`, c: '#ffffff' });
-    if (cell.rj > 0) parts.push({ t: `R${cell.rj}`, c: '#5aacff' });
-    if (cell.bj > 0) parts.push({ t: `B${cell.bj}`, c: '#44dd88' });
-    let xOff = 2;
-    for (const p of parts) {
-      ctx.fillStyle = p.c; ctx.fillText(p.t, xOff, 14); xOff += 18;
-    }
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font = '7px monospace';
-    ctx.fillText(`×${total}`, 4, 27);
-
-    const tex = new THREE.CanvasTexture(canvas);
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.85, depthWrite: false });
-    const sprite = new THREE.Sprite(mat);
-    // Position using dataToScenePos if available
-    if (typeof window._dataToScenePos === 'function') {
-      const pos = window._dataToScenePos(avgLat, avgLon, 0);
-      sprite.position.set(pos.x, pos.y + 10, pos.z);
-    } else {
-      const phi = (90 - avgLat) * Math.PI / 180;
-      const theta = (avgLon + 180) * Math.PI / 180;
-      const R = 105;
-      sprite.position.set(-R * Math.sin(phi) * Math.cos(theta), R * Math.cos(phi), R * Math.sin(phi) * Math.sin(theta));
-    }
-    sprite.scale.set(12, 6, 1);
-    scene.add(sprite);
-    _clusterSprites.push(sprite);
-  }
-}
-
-function _clearClusterSprites() {
-  for (const s of _clusterSprites) {
-    scene.remove(s);
-    if (s.material?.map) s.material.map.dispose();
-    s.material?.dispose();
-  }
-  _clusterSprites = [];
-}
-
 // ── A-3: Holding Pattern Detector & 3D Oval ──
 let _holdingOvalObj = null;
 
@@ -1799,13 +1713,6 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'x') {
     e.preventDefault();
     _toggleVerticalProfile();
-    return;
-  }
-
-  // D-3: Aircraft Type Cluster Map (M key)
-  else if (k === 'm') {
-    e.preventDefault();
-    _toggleClusterMap();
     return;
   }
 
