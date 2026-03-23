@@ -343,6 +343,23 @@ async function handleEnrich(url) {
 
   const [trace, route, hexDetail] = await Promise.all(promises);
 
+  // Cross-populate route PoP cache so /api/routes calls for this callsign hit instantly
+  if (callsign && route?.response?.flightroute) {
+    const fr = route.response.flightroute;
+    const parsedRoute = {
+      origin:      fr.origin?.iata_code      || null,
+      destination: fr.destination?.iata_code || null,
+      originCity:  fr.origin?.municipality   || null,
+      destCity:    fr.destination?.municipality || null,
+      airline:     fr.airline?.name          || null,
+    };
+    cachePut(
+      new Request(`https://cache.internal/route/v1/${callsign}`),
+      new Response(JSON.stringify(parsedRoute), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }),
+      86400, 3600,
+    );
+  }
+
   const result = { trace, route, hexDetail };
   const body = JSON.stringify(result);
   const response = new Response(body, {
@@ -439,6 +456,75 @@ async function handleAtlas() {
   }
 }
 
+// ── /api/routes?cs=AAL123|UAL456|... — Batch callsign route lookup ──
+// Worker fetches all callsigns from adsbdb in parallel at the edge.
+// Each result is cached 24h so the same callsign never re-hits adsbdb.
+// A single round-trip from the browser replaces N sequential adsbdb fetches.
+async function handleRoutes(url) {
+  const csParam = url.searchParams.get('cs') || '';
+  const callsigns = [...new Set(
+    csParam.split('|')
+      .map(s => s.trim().toUpperCase())
+      .filter(s => /^[A-Z]{2,3}\d{1,4}[A-Z]?$/.test(s)),
+  )].slice(0, 40); // max 40 callsigns per request
+
+  if (callsigns.length === 0) {
+    return new Response('{}', { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+  }
+
+  const result = {};
+  const toFetch = [];
+
+  // Check PoP cache for each callsign (populated by previous /api/routes or /api/enrich calls)
+  await Promise.all(callsigns.map(async cs => {
+    const cacheKey = new Request(`https://cache.internal/route/v1/${cs}`);
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      try { result[cs] = await cached.json(); } catch { /* corrupt cache entry — re-fetch */ }
+      if (result[cs]) return; // cache hit
+    }
+    toFetch.push(cs);
+  }));
+
+  // Fetch adsbdb in parallel for cache misses — Worker has ample CPU for 40 parallel requests
+  if (toFetch.length > 0) {
+    const fetched = await Promise.allSettled(
+      toFetch.map(cs =>
+        fetch(`https://api.adsbdb.com/v0/callsign/${cs}`, {
+          headers: { 'User-Agent': 'STRATUM/1.0' },
+          signal: AbortSignal.timeout(5000),
+        }).then(r => r.ok ? r.json() : null).catch(() => null),
+      ),
+    );
+
+    for (let i = 0; i < toFetch.length; i++) {
+      const cs = toFetch[i];
+      const data = fetched[i].status === 'fulfilled' ? fetched[i].value : null;
+      if (data?.response?.flightroute) {
+        const fr = data.response.flightroute;
+        const route = {
+          origin:      fr.origin?.iata_code      || null,
+          destination: fr.destination?.iata_code || null,
+          originCity:  fr.origin?.municipality   || null,
+          destCity:    fr.destination?.municipality || null,
+          airline:     fr.airline?.name          || null,
+        };
+        result[cs] = route;
+        // Cache 24h + SWR 1h — scheduled routes are extremely stable day-to-day
+        cachePut(
+          new Request(`https://cache.internal/route/v1/${cs}`),
+          new Response(JSON.stringify(route), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }),
+          86400, 3600,
+        );
+      }
+    }
+  }
+
+  return new Response(JSON.stringify(result), {
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
+}
+
 // ── Field pruning — strip unused fields to cut response size ~50% ──
 const KEEP_FIELDS = [
   'hex','flight','lat','lon','alt_baro','alt_geom','gs','track','baro_rate',
@@ -493,10 +579,11 @@ async function handlePositions(url) {
     }).then(res => res.ok ? res.json() : null).catch(() => null),
   ];
   sources.forEach((p, i) => p.then(v => { resolved[i] = v; settled++; }));
-  // Wait for all sources OR 2s — whichever comes first (paid plan = 30s CPU headroom)
+  // Wait for all sources OR 1.2s — whichever comes first; was 2s but most sources settle
+  // well under 1s. Reducing saves latency on cold first loads without losing any data.
   await Promise.race([
     Promise.allSettled(sources),
-    new Promise(r => setTimeout(r, 2000)),
+    new Promise(r => setTimeout(r, 1200)),
   ]);
   const results = resolved;
   const merged = new Map(); // hex → best aircraft data
@@ -720,6 +807,7 @@ export default {
     if (url.pathname === '/api/positions')        return handlePositions(url);
     if (url.pathname === '/api/airports')         return handleAirports(url, env);
     if (url.pathname === '/api/airports/batch')   return handleAirportsBatch(url, env);
+    if (url.pathname === '/api/routes')    return handleRoutes(url);
     if (url.pathname === '/api/enrich')    return handleEnrich(url);
     if (url.pathname === '/api/weather')   return handleWeather(url);
     if (url.pathname === '/api/atlas')     return handleAtlas();

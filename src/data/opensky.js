@@ -252,6 +252,44 @@ function queueTraceFetch(icao24) {
   }
 }
 
+// ── Worker batch route pre-fetch ─────────────────────────────────────────────
+// On first poll (and every 60s thereafter) send all visible callsigns without
+// cached routes to /api/routes. The Worker fetches adsbdb for all in parallel
+// at the edge and caches each result 24h — one round-trip replaces N per-click fetches.
+let _lastRoutePrefetch = 0;
+
+function _prefetchBatchRoutes(aircraftList) {
+  const missing = [];
+  for (const ac of aircraftList) {
+    const cs = ac.callsign;
+    if (!cs || !isValidFlightCallsign(cs)) continue;
+    if (routeCache.has(cs)) continue; // already known
+    missing.push(cs);
+  }
+  const unique = [...new Set(missing)].slice(0, 40);
+  if (unique.length === 0) return;
+
+  // Fire-and-forget — must not block the poll loop
+  fetch(`/api/routes?cs=${unique.join('|')}`, {
+    signal: AbortSignal.timeout(14000),
+  }).then(async res => {
+    if (!res.ok) return;
+    const data = await res.json();
+    for (const [cs, route] of Object.entries(data)) {
+      if (!route) continue;
+      if (routeCache.has(cs)) continue; // don't overwrite richer data
+      routeCache.set(cs, {
+        origin:      route.origin      || null,
+        destination: route.destination || null,
+        originCity:  route.originCity  || getAirportCity(route.origin),
+        destCity:    route.destCity    || getAirportCity(route.destination),
+        airline:     route.airline     || null,
+        fetchedAt:   Date.now(),
+      });
+    }
+  }).catch(() => { /* network unavailable — will retry next interval */ });
+}
+
 // ── Inference throttling ─────────────────────────────────────────────────────
 let _inferCleanupTimer = 0;
 const INFER_CLEANUP_INTERVAL = 30000; // cleanup every 30s, not every poll
@@ -296,6 +334,12 @@ async function poll() {
         destCity:   getAirportCity(ac.destination),
         fetchedAt: Date.now(),
       });
+    }
+
+    // Batch route pre-fetch — once per 60s, ask the Worker for all missing routes
+    if (Date.now() - _lastRoutePrefetch > 60000) {
+      _lastRoutePrefetch = Date.now();
+      _prefetchBatchRoutes(aircraft);
     }
 
     // Feed position data to the local route inference engine — staggered
