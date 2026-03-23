@@ -4205,27 +4205,35 @@ class GlobeView {
 
   _drawGrid() {
     const ctx = this.ctx;
-    // Equator
-    ctx.fillStyle = 'rgba(60,120,200,0.14)';
-    for (let lon = -180; lon < 180; lon += 5) {
+    // Equator — brighter reference line
+    ctx.fillStyle = 'rgba(70,140,220,0.20)';
+    for (let lon = -180; lon < 180; lon += 4) {
       const p = this._proj(0, lon);
       if (!p.visible) continue;
-      ctx.fillRect(p.x - 0.5, p.y - 0.5, 1.0, 1.0);
+      ctx.fillRect(p.x - 0.55, p.y - 0.55, 1.1, 1.1);
     }
-    // Other parallels — batch
-    ctx.fillStyle = 'rgba(60,120,200,0.07)';
-    for (let lat = -60; lat <= 60; lat += 30) {
-      if (lat === 0) continue;
-      for (let lon = -180; lon < 180; lon += 8) {
+    // Tropics (Cancer +23.4°, Capricorn -23.4°) — faint gold tint
+    ctx.fillStyle = 'rgba(196,160,88,0.10)';
+    for (const lat of [23.4, -23.4]) {
+      for (let lon = -180; lon < 180; lon += 6) {
         const p = this._proj(lat, lon);
         if (!p.visible) continue;
-        ctx.fillRect(p.x - 0.3, p.y - 0.3, 0.6, 0.6);
+        ctx.fillRect(p.x - 0.4, p.y - 0.4, 0.8, 0.8);
       }
     }
-    // Meridians — batch
-    ctx.fillStyle = 'rgba(60,120,200,0.05)';
-    for (let lon = -180; lon < 180; lon += 30) {
-      for (let lat = -80; lat <= 80; lat += 8) {
+    // Standard parallels ±30°, ±60° — subtle blue
+    ctx.fillStyle = 'rgba(60,120,200,0.09)';
+    for (const lat of [-60, -30, 30, 60]) {
+      for (let lon = -180; lon < 180; lon += 6) {
+        const p = this._proj(lat, lon);
+        if (!p.visible) continue;
+        ctx.fillRect(p.x - 0.35, p.y - 0.35, 0.7, 0.7);
+      }
+    }
+    // Meridians every 15° — denser coverage
+    ctx.fillStyle = 'rgba(60,120,200,0.06)';
+    for (let lon = -180; lon < 180; lon += 15) {
+      for (let lat = -80; lat <= 80; lat += 6) {
         const p = this._proj(lat, lon);
         if (!p.visible) continue;
         ctx.fillRect(p.x - 0.3, p.y - 0.3, 0.6, 0.6);
@@ -4331,61 +4339,86 @@ class GlobeView {
         if (pass === 1 && !matches) continue;
         const d = Math.max(0.2, p.depth);
         if (sel) {
-          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 14);
-          g.addColorStop(0, 'rgba(196,160,88,0.7)'); g.addColorStop(1, 'rgba(196,160,88,0)');
-          ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
-          ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255,215,80,${d})`; ctx.fill();
-          // White outline ring for contrast
-          ctx.beginPath(); ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(255,235,170,${0.6 * d})`; ctx.lineWidth = 0.8; ctx.stroke();
-          this._label(ctx, p, `${c.code}  ${c.name}`, 'rgba(255,210,80,0.95)', true);
-        } else if (hov) {
-          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 10);
-          g.addColorStop(0, 'rgba(90,180,255,0.6)'); g.addColorStop(1, 'rgba(90,180,255,0)');
-          ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
-          ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(150,220,255,${d})`; ctx.fill();
+          // Wide atmosphere bloom
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 18);
+          g.addColorStop(0, `rgba(255,215,80,${0.55 * d})`);
+          g.addColorStop(0.4, `rgba(196,160,88,${0.22 * d})`);
+          g.addColorStop(1, 'rgba(196,160,88,0)');
+          ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+          // Core dot
           ctx.beginPath(); ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(150,220,255,${0.4 * d})`; ctx.lineWidth = 0.7; ctx.stroke();
-          this._label(ctx, p, `${c.code}  ${c.name}`, 'rgba(150,220,255,0.9)', false);
+          ctx.fillStyle = `rgba(255,225,100,${d})`; ctx.fill();
+          // Bright inner pin
+          ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,248,210,${d})`; ctx.fill();
+          // Outer ring
+          ctx.beginPath(); ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255,235,140,${0.55 * d})`; ctx.lineWidth = 0.8; ctx.stroke();
+          this._label(ctx, p, `${c.code}  ${c.name}`, 'rgba(255,215,80,0.95)', true);
+        } else if (hov) {
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 12);
+          g.addColorStop(0, `rgba(100,200,255,${0.5 * d})`);
+          g.addColorStop(1, 'rgba(80,160,255,0)');
+          ctx.beginPath(); ctx.arc(p.x, p.y, 12, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(160,230,255,${d})`; ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(120,200,255,${0.45 * d})`; ctx.lineWidth = 0.8; ctx.stroke();
+          this._label(ctx, p, `${c.code}  ${c.name}`, 'rgba(160,230,255,0.92)', false);
         } else if (matches) {
           const tier = this._dotSizes ? this._dotSizes[i] : 0;
           if (tier === 2) {
-            // MEGA HUB — bright core + subtle outer ring (no gradient for perf)
-            const coreR = 3 + zoom * 0.4;
-            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 3, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255,200,60,${0.12 * d})`; ctx.fill();
+            // MEGA HUB — wide atmosphere bloom + bright core + outer ring
+            const coreR = 3.5 + zoom * 0.5;
+            // Wide soft bloom
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 7, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,195,50,${0.08 * d})`; ctx.fill();
+            // Mid bloom ring
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 3.5, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,210,80,${0.14 * d})`; ctx.fill();
+            // Core
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255,220,100,${0.75 * d + 0.2})`; ctx.fill();
-            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1.2, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(255,235,170,${0.45 * d})`; ctx.lineWidth = 0.6; ctx.stroke();
-            if (zoom > 1.0) {
-              this._label(ctx, p, c.code, `rgba(255,220,120,${0.7 * d})`, false);
+            ctx.fillStyle = `rgba(255,225,110,${0.88 * d + 0.12})`; ctx.fill();
+            // Bright pin center
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR * 0.45, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,248,200,${0.7 * d})`; ctx.fill();
+            // Outer stroke ring
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1.5, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(255,235,160,${0.50 * d})`; ctx.lineWidth = 0.7; ctx.stroke();
+            if (zoom > 0.9) {
+              this._label(ctx, p, c.code, `rgba(255,225,120,${0.75 * d})`, false);
             }
           } else if (tier === 1) {
-            // MAJOR — core + ring (no gradient for perf)
-            const coreR = 2.2 + zoom * 0.3;
-            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 2, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(196,170,88,${0.08 * d})`; ctx.fill();
+            // MAJOR — core + mid glow + ring
+            const coreR = 2.4 + zoom * 0.35;
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 3, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(210,175,90,${0.10 * d})`; ctx.fill();
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(220,190,100,${0.55 * d + 0.2})`; ctx.fill();
-            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(220,200,130,${0.3 * d})`; ctx.lineWidth = 0.5; ctx.stroke();
-            if (zoom > 1.3) {
-              this._label(ctx, p, c.code, `rgba(220,200,130,${0.55 * d})`, false);
+            ctx.fillStyle = `rgba(225,198,115,${0.70 * d + 0.15})`; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR * 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,235,175,${0.55 * d})`; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1.2, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(220,200,130,${0.35 * d})`; ctx.lineWidth = 0.5; ctx.stroke();
+            if (zoom > 1.2) {
+              this._label(ctx, p, c.code, `rgba(225,200,130,${0.60 * d})`, false);
             }
           } else {
-            // REGIONAL — small dot + outline
-            const coreR = 1.4 + zoom * 0.2;
+            // REGIONAL — dot with soft halo
+            const coreR = 1.6 + zoom * 0.25;
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(200,175,110,${0.10 * d})`; ctx.fill();
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(210,185,120,${0.4 * d + 0.12})`; ctx.fill();
-            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 0.7, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(210,185,120,${0.18 * d})`; ctx.lineWidth = 0.4; ctx.stroke();
+            ctx.fillStyle = `rgba(210,185,120,${0.55 * d + 0.10})`; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 0.8, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(210,185,120,${0.22 * d})`; ctx.lineWidth = 0.45; ctx.stroke();
           }
         } else {
-          ctx.beginPath(); ctx.arc(p.x, p.y, 0.8, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(30,50,80,${0.4 * d})`; ctx.fill();
+          // Unmatched — star-field style: vary size by index hash for texture
+          const tiny = ((i * 7 + 3) % 3 === 0);
+          const r = tiny ? 0.7 : 1.0;
+          const a = tiny ? 0.18 * d + 0.04 : 0.28 * d + 0.06;
+          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(55,85,130,${a})`; ctx.fill();
         }
       }
     }
@@ -4400,10 +4433,16 @@ class GlobeView {
       if (ac.latitude == null || ac.longitude == null) continue;
       const p = this._proj(ac.latitude, ac.longitude);
       if (!p.visible) continue;
-      const d = Math.max(0.2, p.depth);
+      const d = Math.max(0.25, p.depth);
+      // Soft halo
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(80,220,180,${0.5 * d})`;
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(60,210,170,${0.18 * d})`;
+      ctx.fill();
+      // Core
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(80,225,185,${0.65 * d})`;
       ctx.fill();
     }
   }
@@ -5431,7 +5470,7 @@ function initSearch() {
 
     // Aircraft results
     if (hasAC) {
-      html += `<div class="search-category">AIRCRAFT · ${acMatches.length}</div>`;
+      html += `<div class="search-category">AIRCRAFT <span class="search-category-count">${acMatches.length}</span></div>`;
       for (const ac of acMatches) {
         const d = ac.getDisplayData();
         const cs = esc(d.callsign || d.icao24);
@@ -5463,7 +5502,7 @@ function initSearch() {
 
     // Airport results
     if (hasAPT) {
-      html += `<div class="search-category">AIRPORTS · ${aptMatches.length}</div>`;
+      html += `<div class="search-category">AIRPORTS <span class="search-category-count">${aptMatches.length}</span></div>`;
       for (const apt of aptMatches) {
         html += `<div class="search-result search-result-airport" role="option" data-airport="${esc(apt.code)}">
           <div class="search-result-main">

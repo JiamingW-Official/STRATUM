@@ -296,7 +296,7 @@ async function handleProxy(request, prefix, target, url) {
 
 // ── /api/enrich — Parallel aircraft detail aggregation ──
 // Fetches trace + route + hex detail in ONE round-trip from the edge
-async function handleEnrich(url) {
+async function handleEnrich(url, env) {
   const hex = url.searchParams.get('hex');
   const callsign = (url.searchParams.get('cs') || '').trim();
   if (!hex) return new Response('Missing hex', { status: 400 });
@@ -343,7 +343,7 @@ async function handleEnrich(url) {
 
   const [trace, route, hexDetail] = await Promise.all(promises);
 
-  // Cross-populate route PoP cache so /api/routes calls for this callsign hit instantly
+  // Cross-populate route cache (PoP + KV) so /api/routes calls for this callsign hit instantly
   if (callsign && route?.response?.flightroute) {
     const fr = route.response.flightroute;
     const parsedRoute = {
@@ -353,11 +353,16 @@ async function handleEnrich(url) {
       destCity:    fr.destination?.municipality || null,
       airline:     fr.airline?.name          || null,
     };
+    const routeJson = JSON.stringify(parsedRoute);
     cachePut(
       new Request(`https://cache.internal/route/v1/${callsign}`),
-      new Response(JSON.stringify(parsedRoute), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }),
+      new Response(routeJson, { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }),
       86400, 3600,
     );
+    // Also write to KV for 90-day persistence across PoP cold-starts
+    if (env?.AIRPORT_CACHE) {
+      env.AIRPORT_CACHE.put(`rt:v2:${callsign}`, routeJson, { expirationTtl: 86400 * 90 });
+    }
   }
 
   const result = { trace, route, hexDetail };
@@ -457,10 +462,10 @@ async function handleAtlas() {
 }
 
 // ── /api/routes?cs=AAL123|UAL456|... — Batch callsign route lookup ──
-// Worker fetches all callsigns from adsbdb in parallel at the edge.
-// Each result is cached 24h so the same callsign never re-hits adsbdb.
+// 3-tier cache: PoP Cache (instant) → KV (global, 90-day persistent) → adsbdb (live)
 // A single round-trip from the browser replaces N sequential adsbdb fetches.
-async function handleRoutes(url) {
+// KV acts as a permanent route database — once a callsign is seen it never re-hits adsbdb.
+async function handleRoutes(url, env) {
   const csParam = url.searchParams.get('cs') || '';
   const callsigns = [...new Set(
     csParam.split('|')
@@ -475,18 +480,31 @@ async function handleRoutes(url) {
   const result = {};
   const toFetch = [];
 
-  // Check PoP cache for each callsign (populated by previous /api/routes or /api/enrich calls)
+  // Tier 1: PoP-local Cache API (zero latency, same datacenter)
+  // Tier 2: KV global store (10ms, survives PoP eviction — our permanent route DB)
   await Promise.all(callsigns.map(async cs => {
     const cacheKey = new Request(`https://cache.internal/route/v1/${cs}`);
     const cached = await cacheGet(cacheKey);
     if (cached) {
-      try { result[cs] = await cached.json(); } catch { /* corrupt cache entry — re-fetch */ }
-      if (result[cs]) return; // cache hit
+      try { result[cs] = await cached.json(); } catch { /* corrupt — re-fetch */ }
+      if (result[cs]) return;
+    }
+    // KV tier: persistent across PoP cold-starts, 90-day TTL
+    if (env?.AIRPORT_CACHE) {
+      const kvVal = await env.AIRPORT_CACHE.get(`rt:v2:${cs}`);
+      if (kvVal) {
+        try {
+          result[cs] = JSON.parse(kvVal);
+          // Backfill PoP cache so next request from same DC is instant
+          cachePut(cacheKey, new Response(kvVal, { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }), 86400, 3600);
+          return;
+        } catch { /* corrupt KV entry — re-fetch */ }
+      }
     }
     toFetch.push(cs);
   }));
 
-  // Fetch adsbdb in parallel for cache misses — Worker has ample CPU for 40 parallel requests
+  // Tier 3: adsbdb live fetch for remaining cache misses
   if (toFetch.length > 0) {
     const fetched = await Promise.allSettled(
       toFetch.map(cs =>
@@ -497,6 +515,7 @@ async function handleRoutes(url) {
       ),
     );
 
+    const kvWrites = [];
     for (let i = 0; i < toFetch.length; i++) {
       const cs = toFetch[i];
       const data = fetched[i].status === 'fulfilled' ? fetched[i].value : null;
@@ -510,14 +529,20 @@ async function handleRoutes(url) {
           airline:     fr.airline?.name          || null,
         };
         result[cs] = route;
-        // Cache 24h + SWR 1h — scheduled routes are extremely stable day-to-day
+        const routeJson = JSON.stringify(route);
+        // Write to PoP cache (24h + SWR 1h)
         cachePut(
           new Request(`https://cache.internal/route/v1/${cs}`),
-          new Response(JSON.stringify(route), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }),
+          new Response(routeJson, { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }),
           86400, 3600,
         );
+        // Write to KV (90-day TTL — permanent route database moat)
+        if (env?.AIRPORT_CACHE) {
+          kvWrites.push(env.AIRPORT_CACHE.put(`rt:v2:${cs}`, routeJson, { expirationTtl: 86400 * 90 }));
+        }
       }
     }
+    if (kvWrites.length > 0) await Promise.allSettled(kvWrites);
   }
 
   return new Response(JSON.stringify(result), {
@@ -807,8 +832,8 @@ export default {
     if (url.pathname === '/api/positions')        return handlePositions(url);
     if (url.pathname === '/api/airports')         return handleAirports(url, env);
     if (url.pathname === '/api/airports/batch')   return handleAirportsBatch(url, env);
-    if (url.pathname === '/api/routes')    return handleRoutes(url);
-    if (url.pathname === '/api/enrich')    return handleEnrich(url);
+    if (url.pathname === '/api/routes')    return handleRoutes(url, env);
+    if (url.pathname === '/api/enrich')    return handleEnrich(url, env);
     if (url.pathname === '/api/weather')   return handleWeather(url);
     if (url.pathname === '/api/atlas')     return handleAtlas();
 

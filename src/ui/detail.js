@@ -1170,6 +1170,23 @@ export function showDetail(aircraftObj, userLat, userLon) {
       elRoute.classList.remove('estimated');
       elRoute.title = '';
     }
+
+    // Confidence badge — shows data quality and geo-validation result
+    let badge = elRoute.querySelector('.route-confidence');
+    const conf = d.routeConfidence;
+    const confLabel = conf === 'HIGH'     ? '✓ VERIFIED'
+                    : conf === 'MEDIUM'   ? '~ LIKELY'
+                    : conf === 'LOW'      ? '? APPROX'
+                    : conf === 'INFERRED' ? '~ INFERRED'
+                    : conf === 'INVALID'  ? '⚠ MISMATCH'
+                    : '';
+    if (confLabel) {
+      if (!badge) { badge = document.createElement('span'); elRoute.appendChild(badge); }
+      badge.className = `route-confidence rc-${conf.toLowerCase()}`;
+      badge.textContent = confLabel;
+    } else if (badge) {
+      badge.remove();
+    }
   } else {
     elRoute.classList.add('hidden');
   }

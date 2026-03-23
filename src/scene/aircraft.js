@@ -1974,6 +1974,8 @@ class AircraftObject {
       onGround: this.data.onGround,
       category: this.data.category,
       routeEstimated,
+      routeConfidence: route?.confidence || (routeEstimated ? 'INFERRED' : null),
+      routeSource: route?.source || (routeEstimated ? 'inferred' : null),
       routeAirline,
       // Professional aviation fields
       headwind,

@@ -659,7 +659,7 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
     const perpX = -nz, perpZ = nx;
 
     const halfW = Math.max(rwy._rWid * 0.52, 0.007); // slightly outside edge
-    const spacing = 60 / METERS_PER_UNIT;
+    const spacing = 50 / METERS_PER_UNIT;             // 50m spacing (was 60m)
     const numLights = Math.floor(len / spacing);
 
     for (let i = 0; i <= numLights; i++) {
@@ -675,9 +675,9 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
       const minDist = Math.min(distFromStart, distFromEnd);
 
       let r, g, b;
-      if (minDist < 300) { r = 1.0; g = 0.15; b = 0.1; }       // red
-      else if (minDist < 600) { r = 1.0; g = 0.8; b = 0.2; }    // amber
-      else { r = 0.9; g = 0.95; b = 1.0; }                       // white
+      if (minDist < 300) { r = 1.0; g = 0.12; b = 0.08; }     // deep red
+      else if (minDist < 600) { r = 1.0; g = 0.72; b = 0.10; } // rich amber
+      else { r = 0.95; g = 0.97; b = 1.0; }                    // cool white
       colors.push(r, g, b, r, g, b);
     }
   }
@@ -687,13 +687,24 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
+  // Core bright lights
   _runwayEdgeLightMesh = new THREE.Points(geo, new THREE.PointsMaterial({
-    size: 0.004, transparent: true, opacity: 0.55,
+    size: 0.008, transparent: true, opacity: 0.90,
     vertexColors: true, sizeAttenuation: true,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
   _runwayEdgeLightMesh.name = 'runwayEdgeLights';
   airportGroup.add(_runwayEdgeLightMesh);
+
+  // Bloom glow halo layer (larger, softer, same colors)
+  const glowGeo = geo.clone();
+  const glowMesh = new THREE.Points(glowGeo, new THREE.PointsMaterial({
+    size: 0.032, transparent: true, opacity: 0.10,
+    vertexColors: true, sizeAttenuation: true,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  glowMesh.name = 'runwayEdgeLightsGlow';
+  airportGroup.add(glowMesh);
 }
 
 
@@ -728,7 +739,7 @@ function renderThresholdAndEndLights(runways) {
 
         // Green threshold lights (slightly elevated)
         positions.push(lx, 0.04, lz);
-        colors.push(0.1, 0.95, 0.3);
+        colors.push(0.05, 1.0, 0.25);  // vivid green
       }
     }
 
@@ -737,8 +748,8 @@ function renderThresholdAndEndLights(runways) {
       const bx = end === 0 ? sx : ex;
       const bz = end === 0 ? sz : ez;
       // Two lights, one at each edge
-      positions.push(bx + perpX * halfW * 1.05, 0.045, bz + perpZ * halfW * 1.05);
-      positions.push(bx - perpX * halfW * 1.05, 0.045, bz - perpZ * halfW * 1.05);
+      positions.push(bx + perpX * halfW * 1.05, 0.048, bz + perpZ * halfW * 1.05);
+      positions.push(bx - perpX * halfW * 1.05, 0.048, bz - perpZ * halfW * 1.05);
       colors.push(1.0, 1.0, 1.0, 1.0, 1.0, 1.0); // bright white strobes
     }
   }
@@ -748,13 +759,24 @@ function renderThresholdAndEndLights(runways) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
+  // Core lights
   _thresholdBarMesh = new THREE.Points(geo, new THREE.PointsMaterial({
-    size: 0.005, transparent: true, opacity: 0.7,
+    size: 0.009, transparent: true, opacity: 0.92,
     vertexColors: true, sizeAttenuation: true,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
   _thresholdBarMesh.name = 'thresholdLights';
   airportGroup.add(_thresholdBarMesh);
+
+  // Glow halo for threshold/REIL
+  const threshGlowGeo = geo.clone();
+  const threshGlow = new THREE.Points(threshGlowGeo, new THREE.PointsMaterial({
+    size: 0.036, transparent: true, opacity: 0.10,
+    vertexColors: true, sizeAttenuation: true,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  threshGlow.name = 'thresholdLightsGlow';
+  airportGroup.add(threshGlow);
 }
 
 // ---- Runway Threshold Hit Targets (for hover tooltips) ----
@@ -821,7 +843,7 @@ function renderTaxiwaysBatched(taxiways, userLat, userLon) {
         a.x - perpX, 0.025, a.z - perpZ,
         b.x - perpX, 0.025, b.z - perpZ,
       );
-      for (let j = 0; j < 6; j++) surfColors.push(0.07, 0.10, 0.16);
+      for (let j = 0; j < 6; j++) surfColors.push(0.04, 0.06, 0.10); // darker asphalt
 
       // Yellow edge lines
       edgePositions.push(
@@ -838,17 +860,17 @@ function renderTaxiwaysBatched(taxiways, userLat, userLon) {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(surfPositions, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(surfColors, 3));
     airportGroup.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-      vertexColors: true, transparent: true, opacity: 0.55,
+      vertexColors: true, transparent: true, opacity: 0.72,
       side: THREE.DoubleSide, depthWrite: false,
     })));
   }
 
-  // Yellow edge lines
+  // Yellow edge lines — brighter, more visible
   if (edgePositions.length > 0) {
     const edgeGeo = new THREE.BufferGeometry();
     edgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePositions, 3));
     airportGroup.add(new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({
-      color: 0x998822, transparent: true, opacity: 0.18, depthWrite: false,
+      color: 0xddcc00, transparent: true, opacity: 0.50, depthWrite: false,
     })));
   }
 
@@ -903,12 +925,21 @@ function renderTaxiwayLights(taxiways, userLat, userLon) {
   if (centerPositions.length > 0) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(centerPositions, 3));
+    // Core
     _taxiwayLightMesh = new THREE.Points(geo, new THREE.PointsMaterial({
-      color: 0x22cc66, size: 0.003, transparent: true, opacity: 0.35,
+      color: 0x22ee66, size: 0.006, transparent: true, opacity: 0.70,
       sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     _taxiwayLightMesh.name = 'taxiwayLights';
     airportGroup.add(_taxiwayLightMesh);
+    // Glow halo
+    const clGlowGeo = geo.clone();
+    const clGlow = new THREE.Points(clGlowGeo, new THREE.PointsMaterial({
+      color: 0x22ee66, size: 0.022, transparent: true, opacity: 0.12,
+      sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    clGlow.name = 'taxiwayLightsGlow';
+    airportGroup.add(clGlow);
   }
 
   // Blue edge lights
@@ -916,13 +947,23 @@ function renderTaxiwayLights(taxiways, userLat, userLon) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(edgeLightPositions, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(edgeLightColors, 3));
+    // Core
     const mesh = new THREE.Points(geo, new THREE.PointsMaterial({
-      size: 0.003, transparent: true, opacity: 0.4,
+      size: 0.006, transparent: true, opacity: 0.70,
       vertexColors: true, sizeAttenuation: true,
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     mesh.name = 'taxiwayEdgeLights';
     airportGroup.add(mesh);
+    // Glow halo
+    const edgeGlowGeo = geo.clone();
+    const edgeGlow = new THREE.Points(edgeGlowGeo, new THREE.PointsMaterial({
+      size: 0.022, transparent: true, opacity: 0.11,
+      vertexColors: true, sizeAttenuation: true,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    edgeGlow.name = 'taxiwayEdgeLightsGlow';
+    airportGroup.add(edgeGlow);
   }
 }
 
@@ -941,10 +982,10 @@ function renderTerminal(term, userLat, userLon) {
   }
   shape.closePath();
 
-  // Flat footprint on ground
+  // Flat footprint on ground — deep slate, high contrast
   const footGeo = new THREE.ShapeGeometry(shape);
   const footMat = new THREE.MeshBasicMaterial({
-    color: 0x1a2840, transparent: true, opacity: 0.6,
+    color: 0x0c1520, transparent: true, opacity: 0.78,
     side: THREE.DoubleSide, depthWrite: false,
   });
   const footMesh = new THREE.Mesh(footGeo, footMat);
@@ -952,12 +993,12 @@ function renderTerminal(term, userLat, userLon) {
   footMesh.position.y = 0.02;
   airportGroup.add(footMesh);
 
-  // Extruded volume — subtle height
+  // Extruded volume — taller, more structural presence
   const extGeo = new THREE.ExtrudeGeometry(shape, {
-    depth: 0.015, bevelEnabled: false,
+    depth: 0.022, bevelEnabled: false,
   });
   const extMat = new THREE.MeshBasicMaterial({
-    color: 0x1e3050, transparent: true, opacity: 0.35,
+    color: 0x14233e, transparent: true, opacity: 0.50,
     side: THREE.DoubleSide, depthWrite: false,
   });
   const extMesh = new THREE.Mesh(extGeo, extMat);
@@ -965,21 +1006,29 @@ function renderTerminal(term, userLat, userLon) {
   extMesh.position.y = 0.02;
   airportGroup.add(extMesh);
 
-  // Glowing edge outline for visibility
+  // Warm amber edge glow — premium terminal highlight
   const edgeVerts = [];
   for (let i = 0; i < scenePoints.length; i++) {
     const p = scenePoints[i];
     const next = scenePoints[(i + 1) % scenePoints.length];
-    edgeVerts.push(p.x, 0.04, p.z, next.x, 0.04, next.z);
+    edgeVerts.push(p.x, 0.045, p.z, next.x, 0.045, next.z);
   }
   const edgeGeo = new THREE.BufferGeometry();
   edgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgeVerts, 3));
-  const edgeMat = new THREE.LineBasicMaterial({
-    color: 0x5588aa, transparent: true, opacity: 0.2,
+  const edgeLine = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({
+    color: 0xc8a050, transparent: true, opacity: 0.55,
     depthWrite: false,
-  });
-  const edgeLine = new THREE.LineSegments(edgeGeo, edgeMat);
+  }));
   airportGroup.add(edgeLine);
+
+  // Soft outer glow ring (wider, very faint)
+  const glowEdgeGeo = new THREE.BufferGeometry();
+  glowEdgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgeVerts, 3));
+  const glowEdgeLine = new THREE.LineSegments(glowEdgeGeo, new THREE.LineBasicMaterial({
+    color: 0xf0c060, transparent: true, opacity: 0.12,
+    depthWrite: false,
+  }));
+  airportGroup.add(glowEdgeLine);
 }
 
 // ---- Airport Label (clean text, no background) ----

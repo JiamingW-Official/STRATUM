@@ -22,6 +22,49 @@ let onErrorCallback = null;
 let consecutiveErrors = 0;
 let _tabVisible = true;
 
+// ── Geo-validation helpers ─────────────────────────────────────────────────
+// Validate that a reported origin/destination actually makes sense given the
+// aircraft's current position, heading, and progress along the route.
+// Returns: 'HIGH' | 'MEDIUM' | 'LOW' | 'INVALID' | 'UNVALIDATED'
+const _GVR = Math.PI / 180;
+function _hvKm(lat1, lon1, lat2, lon2) {
+  const dLat = (lat2 - lat1) * _GVR, dLon = (lon2 - lon1) * _GVR;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*_GVR)*Math.cos(lat2*_GVR)*Math.sin(dLon/2)**2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function _brDeg(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * _GVR;
+  const y = Math.sin(dLon) * Math.cos(lat2 * _GVR);
+  const x = Math.cos(lat1*_GVR)*Math.sin(lat2*_GVR) - Math.sin(lat1*_GVR)*Math.cos(lat2*_GVR)*Math.cos(dLon);
+  return ((Math.atan2(y, x) / _GVR) + 360) % 360;
+}
+function _geoValidateRoute(originCode, destCode, acLat, acLon, trueTrack) {
+  if (!originCode || !destCode || acLat == null || acLon == null) return 'UNVALIDATED';
+  const findCity = window._findCityByCode;
+  if (typeof findCity !== 'function') return 'UNVALIDATED';
+  const oCity = findCity(originCode);
+  const dCity = findCity(destCode);
+  if (!oCity || !dCity) return 'UNVALIDATED';
+  const totalKm  = _hvKm(oCity.lat, oCity.lon, dCity.lat, dCity.lon);
+  if (totalKm < 50) return 'UNVALIDATED'; // too short to validate meaningfully
+  const fromOrig = _hvKm(oCity.lat, oCity.lon, acLat, acLon);
+  const toDest   = _hvKm(acLat, acLon, dCity.lat, dCity.lon);
+  const progress  = fromOrig / totalKm;
+  const deviation = (fromOrig + toDest) / totalKm - 1.0;
+  const progressOk = progress >= -0.05 && progress <= 1.12;
+  const deviOk     = deviation <= 0.22;
+  // Bearing check: only useful when aircraft is >80km from destination
+  let bearingOk = toDest <= 80;
+  if (!bearingOk && trueTrack != null) {
+    const diff = Math.abs(((trueTrack - _brDeg(acLat, acLon, dCity.lat, dCity.lon)) + 360) % 360);
+    bearingOk = (diff > 180 ? 360 - diff : diff) < 80;
+  }
+  if (progressOk && deviOk && bearingOk) return 'HIGH';
+  if (progressOk && deviOk) return 'MEDIUM';
+  if (progressOk || (deviOk && bearingOk)) return 'LOW';
+  return 'INVALID';
+}
+
 // Route cache
 const routeCache = new Map();
 const ROUTE_CACHE_TTL = 600000;
@@ -92,18 +135,21 @@ function parseAdsbResponse(data) {
   if (!list || !Array.isArray(list)) return [];
   const parsed = list.map(parseAircraft).filter((a) => a != null && a.baroAltitude != null && a.baroAltitude > 30);
 
-  // Pre-seed route cache from API oa/da fields so the route banner shows immediately
-  // on first render without waiting for enrichAircraft to fetch adsbdb.
+  // Pre-seed route cache from API oa/da fields.
+  // Geo-validate first — ADS-B oa/da can reflect stale or misassigned routes.
   for (const ac of parsed) {
     if (!ac.callsign || (!ac.origin && !ac.destination)) continue;
-    // Only populate when not already in cache — don't overwrite richer adsbdb data
     if (routeCache.has(ac.callsign)) continue;
+    const confidence = _geoValidateRoute(ac.origin, ac.destination, ac.latitude, ac.longitude, ac.trueTrack);
+    if (confidence === 'INVALID') continue; // clearly wrong — skip, wait for adsbdb
     routeCache.set(ac.callsign, {
       origin: ac.origin,
       destination: ac.destination,
       originCity: getAirportCity(ac.origin),
       destCity: getAirportCity(ac.destination),
       airline: null,
+      confidence,
+      source: 'ADS-B',
       fetchedAt: Date.now(),
     });
   }
@@ -259,10 +305,13 @@ function queueTraceFetch(icao24) {
 let _lastRoutePrefetch = 0;
 
 function _prefetchBatchRoutes(aircraftList) {
+  // Build position lookup for geo-validation of received routes
+  const acByCs = new Map();
   const missing = [];
   for (const ac of aircraftList) {
     const cs = ac.callsign;
     if (!cs || !isValidFlightCallsign(cs)) continue;
+    acByCs.set(cs, ac);
     if (routeCache.has(cs)) continue; // already known
     missing.push(cs);
   }
@@ -278,12 +327,19 @@ function _prefetchBatchRoutes(aircraftList) {
     for (const [cs, route] of Object.entries(data)) {
       if (!route) continue;
       if (routeCache.has(cs)) continue; // don't overwrite richer data
+      // Geo-validate adsbdb route against aircraft's current position
+      const ac = acByCs.get(cs);
+      const confidence = ac
+        ? _geoValidateRoute(route.origin, route.destination, ac.latitude, ac.longitude, ac.trueTrack)
+        : 'UNVALIDATED';
       routeCache.set(cs, {
         origin:      route.origin      || null,
         destination: route.destination || null,
         originCity:  route.originCity  || getAirportCity(route.origin),
         destCity:    route.destCity    || getAirportCity(route.destination),
         airline:     route.airline     || null,
+        confidence,
+        source: 'adsbdb',
         fetchedAt:   Date.now(),
       });
     }
@@ -320,18 +376,23 @@ async function poll() {
     lastFetchTime = Date.now();
     if (onDataCallback) onDataCallback(aircraft);
 
-    // Populate route cache from poll data — adsb.fi includes oa/da for many flights.
-    // This means FROM/TO shows immediately on click without needing a separate API call.
+    // Populate route cache from poll data — geo-validate before caching.
     for (const ac of aircraft) {
       const cs = ac.callsign;
-      if (!cs || cs.length < 3 || cs === ac.icao24) continue; // skip if no real callsign
-      if (!ac.origin && !ac.destination) continue;            // skip if no route data
+      if (!cs || cs.length < 3 || cs === ac.icao24) continue;
+      if (!ac.origin && !ac.destination) continue;
       const ex = routeCache.get(cs);
-      if (ex && (ex.originCity || ex.destCity)) continue;     // keep city names if present
+      // Keep higher-confidence data; don't downgrade adsbdb entries with raw ADS-B
+      if (ex && (ex.source === 'adsbdb' || ex.confidence === 'HIGH')) continue;
+      if (ex && (ex.originCity || ex.destCity)) continue; // keep city names if present
+      const confidence = _geoValidateRoute(ac.origin, ac.destination, ac.latitude, ac.longitude, ac.trueTrack);
+      if (confidence === 'INVALID') continue;
       routeCache.set(cs, {
         origin: ac.origin || null, destination: ac.destination || null,
         originCity: getAirportCity(ac.origin),
         destCity:   getAirportCity(ac.destination),
+        confidence,
+        source: 'ADS-B',
         fetchedAt: Date.now(),
       });
     }
@@ -517,12 +578,14 @@ async function fetchRouteAsync(callsign, icao24) {
         originCity: originCity || getAirportCity(origin),
         destCity:   destCity   || getAirportCity(destination),
         airline,
+        confidence: 'UNVALIDATED',
+        source: 'adsbdb',
         fetchedAt: Date.now(),
       });
     } else {
       routeCache.set(callsign, {
         origin: null, destination: null, originCity: null, destCity: null,
-        airline: null,
+        airline: null, confidence: null, source: null,
         fetchedAt: Date.now() - ROUTE_CACHE_TTL + ROUTE_NULL_TTL,
       });
     }
@@ -622,6 +685,8 @@ export async function fetchHexEnrich(icao24, callsign) {
           destination: ac.da || null,
           originCity: getAirportCity(ac.oa),
           destCity: getAirportCity(ac.da),
+          confidence: 'UNVALIDATED',
+          source: 'ADS-B',
           fetchedAt: Date.now(),
         });
       }
@@ -693,6 +758,8 @@ export async function enrichAircraft(icao24, callsign) {
           origin, destination: dest,
           originCity: fr.origin?.municipality || getAirportCity(origin),
           destCity: fr.destination?.municipality || getAirportCity(dest),
+          confidence: 'UNVALIDATED',
+          source: 'adsbdb',
           fetchedAt: Date.now(),
         });
       }
@@ -715,6 +782,8 @@ export async function enrichAircraft(icao24, callsign) {
           routeCache.set(cs, {
             origin: ac.oa || null, destination: ac.da || null,
             originCity: getAirportCity(ac.oa), destCity: getAirportCity(ac.da),
+            confidence: 'UNVALIDATED',
+            source: 'ADS-B',
             fetchedAt: Date.now(),
           });
         }
