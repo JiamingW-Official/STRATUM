@@ -20,6 +20,42 @@
       <div id="scene-trans-code" class="scene-trans-code">STR</div>
       <div id="scene-trans-name" class="scene-trans-name">INITIALIZING</div>
       <div class="scene-trans-bar"></div>
+      <div class="scene-trans-steps" id="scene-trans-steps">
+        <div class="sts-item" id="sts-loc"><span class="sts-icon">○</span><span class="sts-label">Location</span></div>
+        <div class="sts-sep">·</div>
+        <div class="sts-item" id="sts-map"><span class="sts-icon">○</span><span class="sts-label">Map</span></div>
+        <div class="sts-sep">·</div>
+        <div class="sts-item" id="sts-apt"><span class="sts-icon">○</span><span class="sts-label">Airports</span></div>
+        <div class="sts-sep">·</div>
+        <div class="sts-item" id="sts-acft"><span class="sts-icon">○</span><span class="sts-label">Aircraft</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Post-boot loading status pill -->
+  <div id="load-status" class="load-status hidden">
+    <div class="load-status-spinner"></div>
+    <span id="load-status-text">Loading…</span>
+  </div>
+
+  <!-- No ADS-B coverage dialog -->
+  <div id="no-coverage-backdrop" class="overlay-backdrop hidden">
+    <div class="no-coverage-panel">
+      <div class="no-coverage-header">
+        <div class="no-coverage-icon-wrap">📡</div>
+        <div class="no-coverage-titles">
+          <div class="no-coverage-eyebrow">ADS-B COVERAGE</div>
+          <div class="no-coverage-title" id="no-coverage-title">Limited Data</div>
+        </div>
+      </div>
+      <div class="no-coverage-body" id="no-coverage-body"></div>
+      <div class="no-coverage-footer">
+        <div class="no-coverage-note">We're actively working to expand coverage. Flight data will appear whenever signals are received nearby.</div>
+        <div class="no-coverage-actions">
+          <button type="button" class="no-coverage-btn-secondary" id="no-coverage-switch">Change Region</button>
+          <button type="button" class="no-coverage-btn-primary" id="no-coverage-close">Got It</button>
+        </div>
+      </div>
     </div>
   </div>
 

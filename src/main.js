@@ -1158,6 +1158,8 @@ function handleData(dataList) {
   console.log('[STRATUM] Received', dataList.length, 'aircraft');
   showSignalLost(false);
   lastRawData = dataList;
+  // Mark aircraft as arrived on first non-empty data
+  if (dataList.length > 0) _onAircraftArrived();
   if (aircraftManager) {
     aircraftManager.update(dataList);
     const { lat, lon } = getUserLocation();
@@ -4022,6 +4024,22 @@ async function switchCity(city) {
 
   // T3-02: Refresh weather for new city
   updateWeatherWidget();
+
+  // Reset loading state for new city
+  _aptLoadDone = false;
+  _aircraftArrived = false;
+  _setLoadStatus('Loading airports…');
+
+  // Re-wire airport done callback for the new city
+  aptP.then(() => {
+    if (activeCity.code !== city.code) return; // city changed again
+    _onAptLoaded();
+  });
+
+  // Check low-coverage zone after data has had time to arrive
+  setTimeout(() => {
+    if (activeCity.code === city.code) _checkLowCoverage(city);
+  }, 12000);
 }
 
 // ── Globe helpers ────────────────────────────────────────────────────────────
@@ -5556,44 +5574,162 @@ function initSearch() {
 }
 
 // --- Init ---
+// ── My Location: find nearest CITIES entry by haversine ──────────────────────
+function _findNearestCity(lat, lon) {
+  let best = null, bestDist = Infinity;
+  for (const city of CITIES) {
+    const d = haversineKm(lat, lon, city.lat, city.lon);
+    if (d < bestDist) { bestDist = d; best = city; }
+  }
+  return best || CITIES.find(c => c.code === 'JFK') || CITIES[0];
+}
+
+// ── Boot step progress helpers ────────────────────────────────────────────────
+function _setBootStep(id, state) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const icon = el.querySelector('.sts-icon');
+  el.classList.remove('sts-active', 'sts-done');
+  if (state === 'active') {
+    el.classList.add('sts-active');
+    if (icon) icon.textContent = '◌';
+  } else if (state === 'done') {
+    el.classList.add('sts-done');
+    if (icon) icon.textContent = '✓';
+  } else {
+    if (icon) icon.textContent = '○';
+  }
+}
+function _resetBootSteps() {
+  ['sts-loc','sts-map','sts-apt','sts-acft'].forEach(id => _setBootStep(id, 'idle'));
+}
+
+// ── Post-boot loading status pill ────────────────────────────────────────────
+const _loadStatusEl = document.getElementById('load-status');
+const _loadStatusTextEl = document.getElementById('load-status-text');
+let _aptLoadDone = false;
+let _aircraftArrived = false;
+
+function _setLoadStatus(text) {
+  if (!_loadStatusEl) return;
+  if (text) {
+    if (_loadStatusTextEl) _loadStatusTextEl.textContent = text;
+    _loadStatusEl.classList.remove('hidden');
+  } else {
+    _loadStatusEl.classList.add('hidden');
+  }
+}
+
+function _onAptLoaded() {
+  _aptLoadDone = true;
+  _setBootStep('sts-apt', 'done');
+  if (_aircraftArrived) _setLoadStatus(null);
+  else _setLoadStatus('Awaiting aircraft data…');
+}
+
+function _onAircraftArrived() {
+  if (_aircraftArrived) return;
+  _aircraftArrived = true;
+  _setBootStep('sts-acft', 'done');
+  if (_aptLoadDone) _setLoadStatus(null);
+}
+
+// ── Low-coverage region definitions ──────────────────────────────────────────
+const _LOW_COVERAGE = {
+  'China': {
+    title: 'Mainland China — Restricted ADS-B',
+    body: "China's civil aviation authority (CAAC) restricts public sharing of ADS-B transponder data from mainland airports and ground stations. Our network has very limited reception in this region, so only a small fraction of actual traffic is currently visible.",
+  },
+  'Russia': {
+    title: 'Russia — Reduced ADS-B Coverage',
+    body: "Since 2022, ADS-B feeder access across Russia has been significantly curtailed. Aircraft near international borders or operated by carriers with external feeders may still appear, but coverage is sparse.",
+  },
+  'North Korea': {
+    title: 'DPRK — No Civilian ADS-B',
+    body: "North Korean airspace is closed to civilian ADS-B reception. The handful of government-authorized international flights operating here don't broadcast publicly readable transponder data.",
+  },
+  'Kazakhstan': {
+    title: 'Central Asia — Sparse Feeders',
+    body: "This region has limited ADS-B ground station density. High-altitude en-route traffic may appear, but terminal-area departures and arrivals are often invisible until closer to major hubs.",
+  },
+  'Uzbekistan': {
+    title: 'Central Asia — Sparse Feeders',
+    body: "This region has limited ADS-B ground station density. High-altitude en-route traffic may appear, but terminal-area departures and arrivals are often invisible until closer to major hubs.",
+  },
+};
+
+function _showNoCoverageDialog(info) {
+  const backdrop = document.getElementById('no-coverage-backdrop');
+  const titleEl  = document.getElementById('no-coverage-title');
+  const bodyEl   = document.getElementById('no-coverage-body');
+  if (!backdrop || !titleEl || !bodyEl) return;
+  titleEl.textContent = info.title;
+  bodyEl.textContent  = info.body;
+  backdrop.classList.remove('hidden');
+}
+
+function _checkLowCoverage(city) {
+  const info = _LOW_COVERAGE[city.country];
+  if (!info) return;
+  const count = aircraftManager ? aircraftManager.getCount() : 0;
+  if (count < 3) _showNoCoverageDialog(info);
+}
+
 async function init() {
   // T3-15: Check for shared view link
   const urlCity = restoreViewFromURL();
 
-  // Default to JFK — user picks their airspace via the city picker.
-  const defaultCity = (urlCity && CITIES.find(c => c.code === urlCity)) || CITIES.find(c => c.code === 'JFK') || CITIES[0];
+  // ── 1. Start render loop IMMEDIATELY — intro camera animation plays while data loads ──
+  animate();
+
+  // ── 2. Detect user location (max 3.5s wait; falls back to JFK coords) ──
+  _setBootStep('sts-loc', 'active');
+  if (sceneTransName) sceneTransName.textContent = 'Detecting location…';
+  let geoCoords = { lat: 40.7128, lon: -74.0060 };
+  try {
+    geoCoords = await Promise.race([
+      initLocation(),
+      new Promise(r => setTimeout(() => r({ lat: 40.7128, lon: -74.0060 }), 3500)),
+    ]);
+  } catch { /* use NYC default */ }
+  _setBootStep('sts-loc', 'done');
+
+  // ── 3. Resolve starting city ──
+  const defaultCity = urlCity
+    ? (CITIES.find(c => c.code === urlCity) || _findNearestCity(geoCoords.lat, geoCoords.lon))
+    : _findNearestCity(geoCoords.lat, geoCoords.lon);
+
   activeCity = defaultCity;
   setUserLocation(defaultCity.lat, defaultCity.lon);
   updateHUDCity(defaultCity.name, defaultCity.code);
   updateHUD(0, defaultCity.lat, defaultCity.lon);
-
-  // T2-14: Track city visit
   sessionStats.cities.add(defaultCity.code);
 
   aircraftManager = new AircraftManager(scene, defaultCity.lat, defaultCity.lon);
-  window._aircraftManager = aircraftManager; // expose for W3 turbulence indicator
+  window._aircraftManager = aircraftManager;
 
-  // ── 1. Start render loop IMMEDIATELY — intro camera animation plays while data loads ──
-  animate();
-
-  // ── 2. Boot splash — show city code while loading ──
+  // ── 4. Boot splash — show resolved city ──
   if (sceneTransCode) sceneTransCode.textContent = defaultCity.code;
-  if (sceneTransName) sceneTransName.textContent = 'Loading airspace...';
+  if (sceneTransName) sceneTransName.textContent = defaultCity.name;
 
-  // ── 3. Kick off map + airports in parallel (highest visual impact) ──
+  // ── 5. Kick off map + airports in parallel ──
+  _setBootStep('sts-map', 'active');
+  _setBootStep('sts-apt', 'active');
   const mapP = loadGroundMap(defaultCity.lat, defaultCity.lon);
   const aptP = loadAirports(scene, defaultCity.lat, defaultCity.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
+    _onAptLoaded();
   });
 
-  // ── 4. Start live data polling immediately (doesn't block rendering) ──
+  // ── 6. Start live data polling immediately (doesn't block rendering) ──
+  _setBootStep('sts-acft', 'active');
   startPolling(handleData, handleError);
 
-  // ── 5. Wait for map to load, then fade in the scene ──
+  // ── 7. Wait for map, then reveal scene ──
   await mapP;
-  if (sceneTransName) sceneTransName.textContent = defaultCity.name;
-  // Give airports up to 1.5s to finish before revealing
+  _setBootStep('sts-map', 'done');
+  if (sceneTransName) sceneTransName.textContent = `${defaultCity.name}  ·  Loading airports…`;
   await Promise.race([aptP, new Promise(r => setTimeout(r, 1500))]);
 
   // Fade out boot splash
@@ -5605,7 +5741,12 @@ async function init() {
     sceneTrans.style.pointerEvents = '';
   }
 
-  // ── 6. Deferred UI init — next frame, after scene is visible ──
+  // Show post-boot loading pill if not fully loaded yet
+  if (!_aptLoadDone || !_aircraftArrived) {
+    _setLoadStatus(_aptLoadDone ? 'Awaiting aircraft data…' : 'Loading airports…');
+  }
+
+  // ── 8. Deferred UI init — next frame, after scene is visible ──
   requestAnimationFrame(() => {
     initSearch();
     initCityPicker();
@@ -5621,15 +5762,24 @@ async function init() {
     document.querySelectorAll('.overlay-close-btn').forEach(btn => {
       btn.addEventListener('click', () => { btn.closest('.overlay-backdrop')?.classList.add('hidden'); });
     });
+
+    // No-coverage dialog buttons
+    document.getElementById('no-coverage-close')?.addEventListener('click', () => {
+      document.getElementById('no-coverage-backdrop')?.classList.add('hidden');
+    });
+    document.getElementById('no-coverage-switch')?.addEventListener('click', () => {
+      document.getElementById('no-coverage-backdrop')?.classList.add('hidden');
+      document.getElementById('city-overlay')?.classList.remove('hidden');
+    });
   });
 
-  // ── 7. Deferred data loads — FIR loads soon, nav chart waits for airport data ──
+  // ── 9. Deferred data loads ──
   setTimeout(() => reloadFIRForLocation(scene, defaultCity.lat, defaultCity.lon), 1500);
-  // Nav chart needs airportData for ILS corridors — wait for airports then load
   aptP.then(() => reloadNavChart(scene, defaultCity.lat, defaultCity.lon));
-
-  // Background-prefetch airport data — start quickly so city switches hit localStorage
   aptP.then(() => prefetchAirportData(CITIES));
+
+  // ── 10. Check low-coverage zone after 12s ──
+  setTimeout(() => _checkLowCoverage(defaultCity), 12000);
 }
 
 init();
