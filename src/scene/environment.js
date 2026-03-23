@@ -337,7 +337,7 @@ function renderRunway(rwy, userLat, userLon) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 4; // was 8 — halved GPU upload cost, still sharp at typical zoom
 
   const geo = new THREE.PlaneGeometry(rLen, rWid);
   const mat = new THREE.MeshBasicMaterial({
@@ -360,13 +360,21 @@ function renderRunway(rwy, userLat, userLon) {
 
 // ---- Runway Texture (ICAO Annex 14 precision markings) ----
 
+// Cache textures by designation+width bucket — parallel runways (e.g. 04L/22R vs 04R/22L)
+// share the same markings and can reuse the same GPU texture.
+const _rwyTextureCache = new Map();
+
 function createRunwayTexture(ref, lengthMeters, widthMeters) {
-  const W = 4096;
-  const H = 320;
+  const wBucket = Math.round(widthMeters / 5) * 5; // 5m buckets
+  const cacheKey = `${ref}:${wBucket}`;
+  if (_rwyTextureCache.has(cacheKey)) return _rwyTextureCache.get(cacheKey);
+
+  const W = 2048;   // was 4096 — still crisp at typical zoom; 4× fewer pixels to paint
+  const H = 192;    // was 320
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { alpha: false });
   const ppm = W / lengthMeters; // pixels per meter along runway
 
   ctx.clearRect(0, 0, W, H);
@@ -380,14 +388,14 @@ function createRunwayTexture(ref, lengthMeters, widthMeters) {
   const rubberZoneW = H * 0.3;
   ctx.fillRect(0, (H - rubberZoneW) / 2, W, rubberZoneW);
 
-  // Asphalt grain noise
-  ctx.fillStyle = 'rgba(255,255,255,0.012)';
-  for (let i = 0; i < 600; i++) {
+  // Asphalt grain noise (reduced — invisible at typical zoom distance)
+  ctx.fillStyle = 'rgba(255,255,255,0.015)';
+  for (let i = 0; i < 80; i++) {
     ctx.fillRect(Math.random() * W, Math.random() * H, 1 + Math.random() * 3, 1);
   }
   // Dark speckle
-  ctx.fillStyle = 'rgba(0,0,0,0.04)';
-  for (let i = 0; i < 300; i++) {
+  ctx.fillStyle = 'rgba(0,0,0,0.05)';
+  for (let i = 0; i < 40; i++) {
     ctx.fillRect(Math.random() * W, Math.random() * H, 2 + Math.random() * 5, 1 + Math.random() * 2);
   }
 
@@ -520,6 +528,7 @@ function createRunwayTexture(ref, lengthMeters, widthMeters) {
     ctx.fillRect(xR, H * 0.69, fW, fH);
   }
 
+  _rwyTextureCache.set(cacheKey, canvas);
   return canvas;
 }
 
@@ -1176,6 +1185,7 @@ export function clearGroundMap(scene) {
 
 export function clearAirports(scene) {
   _loadEpoch++;        // invalidate any in-flight loadAirports call
+  _rwyTextureCache.clear(); // free cached runway canvases on city switch
   clearAirportCache();
   deselectAirport(scene);
   _removeLoadingPlaceholder(scene);
