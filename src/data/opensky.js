@@ -90,7 +90,25 @@ function parseAircraft(ac) {
 function parseAdsbResponse(data) {
   const list = data.ac || data.aircraft;
   if (!list || !Array.isArray(list)) return [];
-  return list.map(parseAircraft).filter((a) => a != null && a.baroAltitude != null && a.baroAltitude > 30);
+  const parsed = list.map(parseAircraft).filter((a) => a != null && a.baroAltitude != null && a.baroAltitude > 30);
+
+  // Pre-seed route cache from API oa/da fields so the route banner shows immediately
+  // on first render without waiting for enrichAircraft to fetch adsbdb.
+  for (const ac of parsed) {
+    if (!ac.callsign || (!ac.origin && !ac.destination)) continue;
+    // Only populate when not already in cache — don't overwrite richer adsbdb data
+    if (routeCache.has(ac.callsign)) continue;
+    routeCache.set(ac.callsign, {
+      origin: ac.origin,
+      destination: ac.destination,
+      originCity: getAirportCity(ac.origin),
+      destCity: getAirportCity(ac.destination),
+      airline: null,
+      fetchedAt: Date.now(),
+    });
+  }
+
+  return parsed;
 }
 
 let _adsbFiPausedUntil  = 0;

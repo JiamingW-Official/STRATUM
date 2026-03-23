@@ -1743,6 +1743,12 @@ class AircraftObject {
       }
     }
 
+    // If city names are still null, resolve synchronously from local CITIES lookup.
+    // This covers API-provided routes (oa/da) where routeCache exists but city names
+    // weren't available in getAirportCity's static table.
+    if (origin && !originCity) originCity = window._findCityByCode?.(origin)?.name ?? null;
+    if (destination && !destCity) destCity = window._findCityByCode?.(destination)?.name ?? null;
+
     // Ground speed in knots (from API)
     const gsKts = this.data.groundSpeed != null ? Math.round(this.data.groundSpeed) : null;
 

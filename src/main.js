@@ -685,19 +685,28 @@ function handleAircraftSelect(ac) {
   addToHistory(ac.getDisplayData());
   aircraftManager.selectAircraft(ac);
   flyToThenFollow(ac);
-  // Worker-powered parallel enrichment: trace + route + hex detail in ONE round-trip
+  // Draw route arc immediately if origin/destination already known (pre-seeded from ADS-B feed)
   removeRouteArc(scene);
+  const _d0 = ac.getDisplayData();
+  if (_d0.origin && _d0.destination) {
+    const _o0 = window._findCityByCode?.(_d0.origin);
+    const _x0 = window._findCityByCode?.(_d0.destination);
+    if (_o0 && _x0) createRouteArc(scene, _o0.lat, _o0.lon, _x0.lat, _x0.lon, lat, lon);
+  }
+
+  // Worker-powered parallel enrichment: trace + route + hex detail in ONE round-trip
   showDetailLoading(true);
   enrichAircraft(ac.data.icao24, ac.data.callsign).then(() => {
     showDetailLoading(false);
     reseedChartData(); // Immediately load trace data into speed/alt charts
     refreshDetail(aircraftManager, lat, lon);
-    // T3-01: Draw great circle route arc
+    // T3-01: Redraw route arc with enriched data (may have updated origin/dest)
     const d = ac.getDisplayData();
     if (d.origin && d.destination) {
       const origApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(d.origin) : null;
       const destApt = typeof window._findCityByCode === 'function' ? window._findCityByCode(d.destination) : null;
       if (origApt && destApt) {
+        removeRouteArc(scene);
         createRouteArc(scene, origApt.lat, origApt.lon, destApt.lat, destApt.lon, lat, lon);
       }
     }

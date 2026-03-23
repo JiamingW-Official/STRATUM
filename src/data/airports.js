@@ -86,7 +86,7 @@ async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
       _raceOverpass(centerLat, centerLon, radiusDeg)
         .then(data => { console.log('[STRATUM] Airport data from Overpass direct'); resolve(parseOverpassData(data)); })
         .catch(reject);
-    }, 1500);
+    }, 300); // was 1500 — Worker responds in <100ms when cached; fire Overpass after 300ms not 1.5s
   });
 
   try {
