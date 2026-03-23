@@ -66,35 +66,42 @@ async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
     return cached;
   }
 
-  // 2. Try Worker smart endpoint — edge-cached 24h, races all Overpass servers
-  try {
-    _activeController = new AbortController();
-    const timeoutId = setTimeout(() => _activeController?.abort(), 10000);
-    const res = await fetch(`/api/airports?lat=${centerLat}&lon=${centerLon}&r=${radiusDeg}`, {
-      signal: _activeController.signal,
-    });
-    clearTimeout(timeoutId);
-    _activeController = null;
-    if (res.ok) {
-      const data = await res.json();
-      const cacheHit = res.headers.get('X-Cache');
-      console.log(`[STRATUM] Airport data from Worker (${cacheHit || 'MISS'})`);
-      const result = parseOverpassData(data);
-      _saveToCache(centerLat, centerLon, result);
-      return result;
-    }
-  } catch (err) {
-    _activeController = null;
-    if (err.name !== 'AbortError') {
-      console.warn('[STRATUM] Worker /api/airports failed:', err.message);
-    }
-  }
+  // 2. Race Worker (edge-cached 24h) against direct Overpass in parallel.
+  //    Worker starts immediately; Overpass fires after 1.5 s — covers Worker outages
+  //    while not wasting Overpass bandwidth when the Worker responds quickly.
+  _activeController = new AbortController();
 
-  // 3. Fallback: race Overpass endpoints directly (dev mode / Worker unavailable)
-  const data = await _raceOverpass(centerLat, centerLon, radiusDeg);
-  const result = parseOverpassData(data);
-  _saveToCache(centerLat, centerLon, result);
-  return result;
+  const workerFetch = fetch(`/api/airports?lat=${centerLat}&lon=${centerLon}&r=${radiusDeg}`, {
+    signal: _activeController.signal,
+  }).then(async res => {
+    if (!res.ok) throw new Error(`Worker HTTP ${res.status}`);
+    const hit = res.headers.get('X-Cache');
+    console.log(`[STRATUM] Airport data from Worker (${hit || 'MISS'})`);
+    return parseOverpassData(await res.json());
+  });
+
+  let _directTimer = null;
+  const overpassFetch = new Promise((resolve, reject) => {
+    _directTimer = setTimeout(() => {
+      _raceOverpass(centerLat, centerLon, radiusDeg)
+        .then(data => { console.log('[STRATUM] Airport data from Overpass direct'); resolve(parseOverpassData(data)); })
+        .catch(reject);
+    }, 1500);
+  });
+
+  try {
+    const result = await Promise.any([workerFetch, overpassFetch]);
+    clearTimeout(_directTimer);
+    _activeController?.abort();
+    _activeController = null;
+    _saveToCache(centerLat, centerLon, result);
+    return result;
+  } catch {
+    clearTimeout(_directTimer);
+    _activeController = null;
+    console.warn('[STRATUM] All airport data sources failed');
+    return { airports: [], runways: [], taxiways: [], terminals: [] };
+  }
 }
 
 /** Race all Overpass mirrors with POST; returns raw JSON or throws */
@@ -265,21 +272,46 @@ export function categorizeFlights(aircraftList, airport, allRunways) {
     haversine(r.lat, r.lon, airport.lat, airport.lon) < 5000
   );
 
+  // Precompute both ends of each runway heading for track-alignment check.
+  // Both 090° and 270° are valid for a 09/27 runway (aircraft approach from either end).
+  const rwyHeadings = aptRunways.flatMap(r => [r.heading % 360, (r.heading + 180) % 360]);
+
+  // True if the aircraft's track aligns with any runway (±35° tolerance).
+  // Returns true when runway data is absent — erring toward inclusion.
+  const trackAlignsRunway = (trackDeg) => {
+    if (rwyHeadings.length === 0 || trackDeg == null) return true;
+    return rwyHeadings.some(h => {
+      const diff = Math.abs(((trackDeg - h) + 360) % 360);
+      return diff < 35 || diff > 325; // ±35°
+    });
+  };
+
   for (const ac of aircraftList) {
     if (ac.latitude == null || ac.longitude == null) continue;
+
     const dist = haversine(ac.latitude, ac.longitude, airport.lat, airport.lon);
-    if (dist > 55000) continue; // >55km, skip
+    if (dist > 52000) continue; // > ~28 nm — outside realistic terminal area
 
-    const vs = ac.verticalRate || 0;
-    const alt = ac.baroAltitude || 0;
+    // All values in SI units: altM in meters, vs in m/s (negative = descending)
+    const vs  = ac.verticalRate || 0;
+    const altM = ac.baroAltitude ?? ac.geoAltitude ?? 0;
+    const track = ac.trueTrack;
 
-    if (vs < -0.5 && alt < 4000) {
-      arrivals.push(ac);
-    } else if (vs > 0.5 && alt < 5000) {
-      departures.push(ac);
-    } else if (dist < 15000 && alt < 1000) {
-      if (vs > 0.3) departures.push(ac);
-      else arrivals.push(ac);
+    if (dist < 8000) {
+      // ── Zone A (< 8 km / ~4 nm): very close — final approach or initial climb.
+      // Threshold is loose; any low, moving aircraft near the airport counts.
+      if (altM < 1200 && vs < -0.3) arrivals.push(ac);
+      else if (altM < 2000 && vs > 0.3) departures.push(ac);
+    } else if (dist < 25000) {
+      // ── Zone B (8–25 km / ~4–14 nm): inner approach/departure corridor.
+      // Require 300 ft/min vs AND runway-aligned track to exclude overflights.
+      if (altM < 3000 && vs < -1.5 && trackAlignsRunway(track)) arrivals.push(ac);
+      else if (altM < 3500 && vs > 1.5 && trackAlignsRunway(track)) departures.push(ac);
+    } else {
+      // ── Zone C (25–52 km / ~14–28 nm): outer funnel.
+      // Need strong vs (≥ 500 ft/min) plus runway alignment to avoid false matches.
+      if (altM < 4500 && vs < -2.5 && trackAlignsRunway(track)) arrivals.push(ac);
+      else if (altM < 4500 && vs > 2.5 && trackAlignsRunway(track)) departures.push(ac);
     }
   }
 

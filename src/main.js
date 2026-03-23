@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // Postprocessing is lazy-loaded after first render to keep critical-path JS small
 import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderFuelRangeRing, clearFuelRangeRing, getRunwayThresholdTargets, getNavHitTargets, updateRouteOverlay, clearRouteOverlay } from './scene/environment.js';
-import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic, setSunState } from './scene/aircraft.js';
+import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic, setSunState, haversineDistance } from './scene/aircraft.js';
 import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, setLocalTimezone, showSignalLost } from './ui/hud.js';
@@ -673,8 +673,13 @@ canvas.addEventListener('wheel', () => {
 let selectedAirportState = null;
 
 function handleAircraftSelect(ac) {
+  _clearHoldingOval(); // A-3: clear previous holding oval
   const { lat, lon } = getUserLocation();
   if (_triggerInference) _triggerInference(ac.data.icao24, ac.data.callsign);
+  // A-3: detect holding pattern from trail
+  const isHolding = _detectHoldingFromTrail(ac.trailPositions);
+  ac.data.isHolding = isHolding;
+  if (isHolding) _renderHoldingOval(ac);
   showDetail(ac, lat, lon);
   // T3-13: Add to flight history
   addToHistory(ac.getDisplayData());
@@ -839,58 +844,56 @@ canvas.addEventListener('contextmenu', (e) => {
   }
 });
 
+// Cached airport widget element refs — queried once, reused on every selection
+const _aw = {};
+function _awEl(id) { return _aw[id] || (_aw[id] = document.getElementById(id)); }
+
 function showAirportWidget(airport, arrivals, departures) {
-  const w = document.getElementById('airport-widget');
+  const w = _awEl('airport-widget');
   if (!w) return;
   const code = airport.iata || airport.icao || '---';
-  document.getElementById('aw-iata').textContent = code;
-  document.getElementById('aw-icao').textContent = airport.icao || '';
-  document.getElementById('aw-name').textContent = airport.name || code;
-  document.getElementById('aw-arrivals').textContent = arrivals.length;
-  document.getElementById('aw-departures').textContent = departures.length;
+  _awEl('aw-iata').textContent = code;
+  _awEl('aw-icao').textContent = airport.icao || '';
+  _awEl('aw-name').textContent = airport.name || code;
+  _awEl('aw-arrivals').textContent = arrivals.length;
+  _awEl('aw-departures').textContent = departures.length;
 
   // Lookup rich data from AIRPORT_DATA
   const meta = typeof AIRPORT_DATA !== 'undefined' ? AIRPORT_DATA[code] : null;
-  document.getElementById('aw-elev').textContent = meta?.elev != null ? `${meta.elev.toLocaleString()} ft` : '--';
-  document.getElementById('aw-rwys').textContent = meta?.rwys ?? '--';
+  _awEl('aw-elev').textContent = meta?.elev != null ? `${meta.elev.toLocaleString()} ft` : '--';
+  _awEl('aw-rwys').textContent = meta?.rwys ?? '--';
 
   // Extended airport widget data
-  const awHub = document.getElementById('aw-hub');
+  const awHub = _awEl('aw-hub');
   if (awHub) awHub.textContent = meta?.hub || '--';
-  const awPax = document.getElementById('aw-pax');
+  const awPax = _awEl('aw-pax');
   if (awPax) awPax.textContent = meta?.pax != null ? `${meta.pax}M` : '--';
 
   const lat = airport.lat, lon = airport.lon;
   if (lat != null && lon != null) {
     const la = `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}`;
     const lo = `${Math.abs(lon).toFixed(2)}°${lon >= 0 ? 'E' : 'W'}`;
-    document.getElementById('aw-coord').textContent = `${la}  ${lo}`;
+    _awEl('aw-coord').textContent = `${la}  ${lo}`;
   } else {
-    document.getElementById('aw-coord').textContent = '--';
+    _awEl('aw-coord').textContent = '--';
   }
 
   // Tower frequency (approximate from airport data if available)
-  document.getElementById('aw-freq').textContent = meta?.icao ? `${meta.icao} TWR` : `${code} INFO`;
+  _awEl('aw-freq').textContent = meta?.icao ? `${meta.icao} TWR` : `${code} INFO`;
 
-  const factEl = document.getElementById('aw-fact');
-  if (meta?.fact) {
-    factEl.textContent = meta.fact;
-    factEl.classList.remove('hidden');
-  } else {
-    factEl.classList.add('hidden');
+  const factEl = _awEl('aw-fact');
+  if (factEl) {
+    if (meta?.fact) { factEl.textContent = meta.fact; factEl.classList.remove('hidden'); }
+    else factEl.classList.add('hidden');
   }
 
-  const descEl = document.getElementById('aw-desc');
+  const descEl = _awEl('aw-desc');
   if (descEl) {
-    if (meta?.desc) {
-      descEl.textContent = meta.desc;
-      descEl.classList.remove('hidden');
-    } else {
-      descEl.classList.add('hidden');
-    }
+    if (meta?.desc) { descEl.textContent = meta.desc; descEl.classList.remove('hidden'); }
+    else descEl.classList.add('hidden');
   }
 
-  // T2-12: ARR/DEP flight list
+  // B-4: Arrival Sequencing Queue — sorted by distance to airport, with ETA
   let flightListEl = document.getElementById('aw-flight-list');
   if (!flightListEl) {
     flightListEl = document.createElement('div');
@@ -898,13 +901,44 @@ function showAirportWidget(airport, arrivals, departures) {
     flightListEl.className = 'aw-flight-list';
     w.appendChild(flightListEl);
   }
-  const flightItems = [
-    ...arrivals.map(ac => ({ cs: ac.callsign || ac.icao24, tag: 'arr', icao24: ac.icao24 })),
-    ...departures.map(ac => ({ cs: ac.callsign || ac.icao24, tag: 'dep', icao24: ac.icao24 })),
-  ];
-  flightListEl.innerHTML = flightItems.slice(0, 20).map(f =>
-    `<div class="aw-flight-item" data-icao="${f.icao24}"><span>${f.cs}</span><span class="aw-flight-tag ${f.tag}">${f.tag.toUpperCase()}</span></div>`
-  ).join('');
+  const aptLat = airport.lat, aptLon = airport.lon;
+  // Sort arrivals by distance to airport (closest = #1)
+  const arrWithDist = arrivals.map(ac => {
+    const distKm = (aptLat != null && ac.data?.latitude != null)
+      ? haversineDistance(ac.data.latitude, ac.data.longitude, aptLat, aptLon) : Infinity;
+    const distNm = distKm < Infinity ? Math.round(distKm * 0.539957) : null;
+    const gsKts = ac.data?.velocity != null ? Math.round(ac.data.velocity * 1.94384) : null;
+    const etaMin = (distNm != null && gsKts != null && gsKts > 30)
+      ? Math.round((distNm / gsKts) * 60) : null;
+    return { ac, distNm, etaMin, tag: 'arr' };
+  }).sort((a, b) => (a.distNm ?? Infinity) - (b.distNm ?? Infinity));
+
+  const depItems = departures.map(ac => ({ ac, distNm: null, etaMin: null, tag: 'dep' }));
+  const allItems = [...arrWithDist, ...depItems].slice(0, 20);
+
+  flightListEl.innerHTML = allItems.map((item, i) => {
+    const cs = item.ac.callsign || item.ac.icao24;
+    const rank = item.tag === 'arr' ? `#${i + 1} ` : '';
+    const dist = item.distNm != null ? ` · ${item.distNm}nm` : '';
+    const eta = item.etaMin != null ? ` · ${item.etaMin}min` : '';
+    return `<div class="aw-flight-item" data-icao="${item.ac.icao24}"><span>${rank}${cs}${dist}${eta}</span><span class="aw-flight-tag ${item.tag}">${item.tag.toUpperCase()}</span></div>`;
+  }).join('');
+
+  // ATC spacing education note
+  let seqEduEl = document.getElementById('aw-seq-edu');
+  if (!seqEduEl) {
+    seqEduEl = document.createElement('div');
+    seqEduEl.id = 'aw-seq-edu';
+    seqEduEl.className = 'aw-seq-edu';
+    flightListEl.insertAdjacentElement('afterend', seqEduEl);
+  }
+  if (arrivals.length >= 2) {
+    seqEduEl.textContent = 'ATC spacing: heavy/heavy 6nm · heavy/medium 5nm · medium/light 4nm (wake turbulence)';
+    seqEduEl.style.display = '';
+  } else {
+    seqEduEl.style.display = 'none';
+  }
+
   flightListEl.querySelectorAll('.aw-flight-item').forEach(el => {
     el.addEventListener('click', () => {
       if (!aircraftManager) return;
@@ -1129,7 +1163,12 @@ function handleData(dataList) {
     const { lat, lon } = getUserLocation();
     const count = aircraftManager.getCount();
     updateHUD(count, lat, lon);
-    refreshDetail(aircraftManager, lat, lon);
+    // Throttle detail refresh to 1Hz — data arrives at 4-10Hz but UI update > 1Hz is wasted
+    const _now = Date.now();
+    if (_now - _lastDetailRefreshAt >= 900) {
+      _lastDetailRefreshAt = _now;
+      refreshDetail(aircraftManager, lat, lon);
+    }
 
     // Hidden: milestone celebration when aircraft count hits round numbers
     if (count >= 50 && !_milestones.has(50)) { _milestones.add(50); _showMilestone('50 aircraft in range'); }
@@ -1145,6 +1184,19 @@ function handleData(dataList) {
       if (ac.callsign) {
         const m = ac.callsign.match(/^([A-Z]{2,3})\d/);
         if (m) sessionStats.airlines.add(m[1]);
+      }
+      // E-2: fastest / highest / type counts
+      const gsKts = ac.velocity ? Math.round(ac.velocity * 1.94384) : 0;
+      if (gsKts > sessionStats.fastest.gsKts) {
+        sessionStats.fastest = { callsign: ac.callsign || ac.icao24 || '', gsKts, type: ac.aircraftType || '' };
+      }
+      const altFt = ac.baroAltitude ? Math.round(ac.baroAltitude * 3.28084) : 0;
+      if (altFt > sessionStats.highest.altFt) {
+        sessionStats.highest = { callsign: ac.callsign || ac.icao24 || '', altFt };
+      }
+      if (ac.aircraftType) {
+        const t = ac.aircraftType.toUpperCase();
+        sessionStats.typeCounts[t] = (sessionStats.typeCounts[t] || 0) + 1;
       }
       // T3-07: Spotter book
       if (ac.aircraftType) {
@@ -1179,6 +1231,9 @@ function handleData(dataList) {
 
     // I1: Fleet mix statistics (data for spotter overlay)
     updateFleetStats(dataList);
+
+    // D-1: Refresh vertical profile canvas if open
+    _maybeRefreshVertProfile();
   }
 }
 
@@ -1240,7 +1295,14 @@ const ALT_PRESETS = {
 
 // Session statistics (T2-14)
 const sessionStart = Date.now();
-const sessionStats = { seen: new Set(), types: new Set(), airlines: new Set(), peak: 0, cities: new Set() };
+let _lastDetailRefreshAt = 0; // throttle refreshDetail to 1Hz
+const sessionStats = {
+  seen: new Set(), types: new Set(), airlines: new Set(), peak: 0, cities: new Set(),
+  // E-2 extensions
+  fastest: { callsign: '', gsKts: 0, type: '' },
+  highest: { callsign: '', altFt: 0 },
+  typeCounts: {},
+};
 
 // Hidden: milestone celebrations
 const _milestones = new Set();
@@ -1263,6 +1325,280 @@ function saveSpotterBook() { localStorage.setItem('stratum:spotter', JSON.string
 // Favorites (T2-07)
 const favorites = new Set(JSON.parse(localStorage.getItem('stratum:favorites') || '[]'));
 function saveFavorites() { localStorage.setItem('stratum:favorites', JSON.stringify([...favorites])); }
+
+// ── D-1: Vertical Profile Cross-Section ──
+let _vertProfileVisible = false;
+function _toggleVerticalProfile() {
+  _vertProfileVisible = !_vertProfileVisible;
+  let panel = document.getElementById('vert-profile-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'vert-profile-panel';
+    panel.className = 'vert-profile-panel';
+    panel.innerHTML = `
+      <div class="vert-profile-header">
+        <div class="vert-profile-header-left">
+          <span class="vert-profile-title">VERTICAL PROFILE</span>
+          <span class="vert-profile-key">X</span>
+        </div>
+        <button class="vert-profile-close" id="vert-profile-close" title="Close">✕</button>
+      </div>
+      <canvas id="vert-profile-canvas" class="vert-profile-canvas" width="1120" height="340" style="width:100%;height:170px"></canvas>
+      <div class="vert-profile-legend">
+        <span class="vp-dot" style="background:#5aacff"></span>CLB
+        <span class="vp-dot" style="background:#44dd88"></span>CRZ
+        <span class="vp-dot" style="background:#e8836a"></span>DSC
+        <span class="vp-dot" style="background:rgba(255,255,255,0.25)"></span>GND
+        <span class="vert-profile-legend-spacer"></span>
+        <span class="vp-legend-note">FL180 pressurized · FL100 visual floor · 200nm radius</span>
+      </div>`;
+    document.getElementById('vert-profile-close')?.addEventListener('click', () => {
+      _vertProfileVisible = false;
+      panel.style.display = 'none';
+    });
+    document.body.appendChild(panel);
+  }
+  panel.style.display = _vertProfileVisible ? 'block' : 'none';
+  if (_vertProfileVisible) _drawVerticalProfile();
+}
+
+function _drawVerticalProfile() {
+  const canvas = document.getElementById('vert-profile-canvas');
+  if (!canvas || !aircraftManager) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const PAD = { l: 72, r: 20, t: 16, b: 44 };
+  const plotW = W - PAD.l - PAD.r, plotH = H - PAD.t - PAD.b;
+  const MAX_NM = 200, MAX_ALT = 45000;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const { lat: uLat, lon: uLon } = getUserLocation();
+
+  // FL reference lines
+  [{ fl: 0 }, { fl: 100 }, { fl: 180, gold: true }, { fl: 280 }, { fl: 410 }].forEach(({ fl, gold }) => {
+    const y = PAD.t + plotH - (fl * 100 / MAX_ALT) * plotH;
+    ctx.strokeStyle = gold ? 'rgba(196,160,88,0.28)' : 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = gold ? 1.5 : 1;
+    if (!gold) ctx.setLineDash([4, 6]);
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(PAD.l + plotW, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = gold ? 'rgba(196,160,88,0.65)' : 'rgba(255,255,255,0.25)';
+    ctx.font = `${gold ? 'bold ' : ''}22px "JetBrains Mono",monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillText(fl > 0 ? `FL${fl}` : 'GND', PAD.l - 6, y + 8);
+  });
+
+  // Distance tick marks
+  [50, 100, 150, 200].forEach(nm => {
+    const x = PAD.l + (nm / MAX_NM) * plotW;
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 8]);
+    ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, PAD.t + plotH); ctx.stroke();
+    ctx.setLineDash([]);
+    // tick
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.moveTo(x, PAD.t + plotH); ctx.lineTo(x, PAD.t + plotH + 6); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.font = '20px "JetBrains Mono",monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${nm}nm`, x, PAD.t + plotH + 30);
+  });
+
+  // User position vertical line
+  ctx.strokeStyle = 'rgba(196,160,88,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(PAD.l, PAD.t); ctx.lineTo(PAD.l, PAD.t + plotH); ctx.stroke();
+  ctx.fillStyle = 'rgba(196,160,88,0.45)';
+  ctx.font = '18px "JetBrains Mono",monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('YOU', PAD.l, PAD.t + plotH + 30);
+
+  // Plot aircraft dots
+  for (const [, ac] of aircraftManager.aircraft) {
+    if (ac.fadingOut || ac.data.latitude == null) continue;
+    const distKm = haversineDistance(uLat, uLon, ac.data.latitude, ac.data.longitude);
+    const distNm = distKm * 0.539957;
+    if (distNm > MAX_NM) continue;
+    const altFt = ac.data.baroAltitude != null ? ac.data.baroAltitude * 3.28084 :
+                  ac.data.geoAltitude != null ? ac.data.geoAltitude * 3.28084 : 0;
+    const x = PAD.l + (distNm / MAX_NM) * plotW;
+    const y = PAD.t + plotH - Math.min(1, altFt / MAX_ALT) * plotH;
+    const phase = ac.getDisplayData().flightPhase;
+    const color = phase === 'CLIMB' || phase === 'INITIAL CLIMB' ? '#5aacff'
+                : phase === 'CRUISE' || phase === 'EN ROUTE' ? '#44dd88'
+                : phase === 'DESCENT' || phase === 'APPROACH' ? '#e8836a'
+                : 'rgba(255,255,255,0.22)';
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// Refresh profile if visible (call from main data loop)
+function _maybeRefreshVertProfile() {
+  if (_vertProfileVisible) _drawVerticalProfile();
+}
+
+// ── D-3: Aircraft Type Cluster Map ──
+let _clusterMapActive = false;
+let _clusterSprites = [];
+
+function _toggleClusterMap() {
+  _clusterMapActive = !_clusterMapActive;
+  _showMilestone(_clusterMapActive ? 'CLUSTER MAP: ON' : 'CLUSTER MAP: OFF');
+  if (_clusterMapActive) _buildClusterMap();
+  else _clearClusterSprites();
+}
+
+function _buildClusterMap() {
+  if (!aircraftManager || !scene) return;
+  _clearClusterSprites();
+  const GRID = 8;
+  const grid = {}; // key → { wb:0, nb:0, rj:0, bj:0, lat:[], lon:[] }
+
+  for (const [, ac] of aircraftManager.aircraft) {
+    if (ac.fadingOut || ac.data.latitude == null) continue;
+    const gi = Math.floor((ac.data.latitude + 90) / (180 / GRID));
+    const gj = Math.floor((ac.data.longitude + 180) / (360 / GRID));
+    const key = `${gi},${gj}`;
+    if (!grid[key]) grid[key] = { wb: 0, nb: 0, rj: 0, bj: 0, lats: [], lons: [] };
+    const cat = classifyAircraftType(ac.data.aircraftType);
+    if (cat === 'WB') grid[key].wb++;
+    else if (cat === 'NB') grid[key].nb++;
+    else if (cat === 'RJ') grid[key].rj++;
+    else grid[key].bj++;
+    grid[key].lats.push(ac.data.latitude);
+    grid[key].lons.push(ac.data.longitude);
+  }
+
+  const { lat: uLat, lon: uLon } = getUserLocation();
+  for (const [, cell] of Object.entries(grid)) {
+    const total = cell.wb + cell.nb + cell.rj + cell.bj;
+    if (total < 2) continue;
+    const avgLat = cell.lats.reduce((a, b) => a + b, 0) / cell.lats.length;
+    const avgLon = cell.lons.reduce((a, b) => a + b, 0) / cell.lons.length;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(8,12,20,0.75)';
+    ctx.fillRect(0, 0, 64, 32);
+    ctx.font = 'bold 9px monospace';
+    const parts = [];
+    if (cell.wb > 0) parts.push({ t: `W${cell.wb}`, c: '#c9a45c' });
+    if (cell.nb > 0) parts.push({ t: `N${cell.nb}`, c: '#ffffff' });
+    if (cell.rj > 0) parts.push({ t: `R${cell.rj}`, c: '#5aacff' });
+    if (cell.bj > 0) parts.push({ t: `B${cell.bj}`, c: '#44dd88' });
+    let xOff = 2;
+    for (const p of parts) {
+      ctx.fillStyle = p.c; ctx.fillText(p.t, xOff, 14); xOff += 18;
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '7px monospace';
+    ctx.fillText(`×${total}`, 4, 27);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.85, depthWrite: false });
+    const sprite = new THREE.Sprite(mat);
+    // Position using dataToScenePos if available
+    if (typeof window._dataToScenePos === 'function') {
+      const pos = window._dataToScenePos(avgLat, avgLon, 0);
+      sprite.position.set(pos.x, pos.y + 10, pos.z);
+    } else {
+      const phi = (90 - avgLat) * Math.PI / 180;
+      const theta = (avgLon + 180) * Math.PI / 180;
+      const R = 105;
+      sprite.position.set(-R * Math.sin(phi) * Math.cos(theta), R * Math.cos(phi), R * Math.sin(phi) * Math.sin(theta));
+    }
+    sprite.scale.set(12, 6, 1);
+    scene.add(sprite);
+    _clusterSprites.push(sprite);
+  }
+}
+
+function _clearClusterSprites() {
+  for (const s of _clusterSprites) {
+    scene.remove(s);
+    if (s.material?.map) s.material.map.dispose();
+    s.material?.dispose();
+  }
+  _clusterSprites = [];
+}
+
+// ── A-3: Holding Pattern Detector & 3D Oval ──
+let _holdingOvalObj = null;
+
+function _detectHoldingFromTrail(trail) {
+  if (!trail || trail.length < 12) return false;
+  const pts = trail.slice(-60); // last 60 trail points
+  // Geographic spread check: must fit within ~10 scene units (≈15nm)
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const { pos } of pts) {
+    if (pos.x < minX) minX = pos.x;
+    if (pos.x > maxX) maxX = pos.x;
+    if (pos.z < minZ) minZ = pos.z;
+    if (pos.z > maxZ) maxZ = pos.z;
+  }
+  if ((maxX - minX) > 12 || (maxZ - minZ) > 12) return false;
+  // Cumulative heading change ≥ 2π (one full rotation)
+  let totalTurn = 0;
+  for (let i = 2; i < pts.length; i++) {
+    const dx = pts[i].pos.x - pts[i - 1].pos.x, dz = pts[i].pos.z - pts[i - 1].pos.z;
+    const px = pts[i - 1].pos.x - pts[i - 2].pos.x, pz = pts[i - 1].pos.z - pts[i - 2].pos.z;
+    if (dx * dx + dz * dz < 0.0001 || px * px + pz * pz < 0.0001) continue;
+    let delta = Math.atan2(dz, dx) - Math.atan2(pz, px);
+    if (delta > Math.PI) delta -= 2 * Math.PI;
+    if (delta < -Math.PI) delta += 2 * Math.PI;
+    totalTurn += Math.abs(delta);
+  }
+  return totalTurn >= 2 * Math.PI;
+}
+
+function _renderHoldingOval(ac) {
+  _clearHoldingOval();
+  const trail = ac.trailPositions;
+  if (!trail || trail.length < 4) return;
+
+  // Compute centroid and radii from recent trail
+  const pts = trail.slice(-60);
+  let cx = 0, cy = 0, cz = 0;
+  for (const { pos } of pts) { cx += pos.x; cy += pos.y; cz += pos.z; }
+  cx /= pts.length; cy /= pts.length; cz /= pts.length;
+
+  let rx = 0, rz = 0;
+  for (const { pos } of pts) {
+    rx = Math.max(rx, Math.abs(pos.x - cx));
+    rz = Math.max(rz, Math.abs(pos.z - cz));
+  }
+  // Minimum visible size
+  rx = Math.max(rx, 1.5); rz = Math.max(rz, 1.5);
+
+  const curve = new THREE.EllipseCurve(0, 0, rx, rz, 0, 2 * Math.PI, false, 0);
+  const points2D = curve.getPoints(60);
+  const verts = points2D.map(p => new THREE.Vector3(p.x, 0, p.y));
+  verts.push(verts[0]); // close loop
+
+  const geo = new THREE.BufferGeometry().setFromPoints(verts);
+  const mat = new THREE.LineDashedMaterial({ color: 0xffffaa, transparent: true, opacity: 0.55, depthWrite: false, dashSize: 0.18, gapSize: 0.09 });
+  const oval = new THREE.Line(geo, mat);
+  oval.computeLineDistances();
+  oval.position.set(cx, cy + 0.05, cz);
+  oval.name = 'holdingOval';
+  scene.add(oval);
+  _holdingOvalObj = oval;
+}
+
+function _clearHoldingOval() {
+  if (_holdingOvalObj) {
+    scene.remove(_holdingOvalObj);
+    _holdingOvalObj.geometry.dispose();
+    _holdingOvalObj.material.dispose();
+    _holdingOvalObj = null;
+  }
+}
 
 // --- Auto-tour mode ---
 let autoTour = false;
@@ -1459,6 +1795,20 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  // D-1: Vertical Profile Cross-Section (X key)
+  else if (k === 'x') {
+    e.preventDefault();
+    _toggleVerticalProfile();
+    return;
+  }
+
+  // D-3: Aircraft Type Cluster Map (M key)
+  else if (k === 'm') {
+    e.preventDefault();
+    _toggleClusterMap();
+    return;
+  }
+
   if ('wasdqe'.includes(k)) keysDown.add(k);
   if (e.key === 'Shift') shiftHeld = true;
 
@@ -1609,6 +1959,7 @@ function toggleInfoPanel() {
         <div class="stats-cell"><div class="stats-label">AIRPORTS</div><div class="stats-value" id="info-cities">0</div></div>
       </div>
     </div>
+    <div id="info-highlights" class="info-highlights-section"></div>
     <div class="overlay-footer"><span class="overlay-hint">I to toggle · click outside to close</span></div>
   </div>`;
   document.body.appendChild(overlay);
@@ -1690,6 +2041,25 @@ function renderInfoPanel() {
       ${count > 0 ? `<span class="spotter-card-count">×${count}</span>` : ''}
     </div>`;
   }).join('');
+
+  // ── E-2: Session Highlights ──
+  const hlEl = document.getElementById('info-highlights');
+  if (hlEl) {
+    const { fastest, highest, typeCounts } = sessionStats;
+    const topType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
+    // CO₂ estimate: avg 1500km flight, 0.090 kg CO₂/seat-km, 180 seats (educational)
+    const co2Tonnes = ((sessionStats.seen.size * 1500 * 0.090 * 180) / 1000).toFixed(0);
+    const fastStr = fastest.gsKts > 0
+      ? `<div class="hl-row"><span class="hl-label">FASTEST</span><span class="hl-val">${fastest.callsign}</span><span class="hl-sub">${fastest.type ? fastest.type + ' · ' : ''}${fastest.gsKts} kt</span></div>` : '';
+    const highStr = highest.altFt > 0
+      ? `<div class="hl-row"><span class="hl-label">HIGHEST</span><span class="hl-val">${highest.callsign}</span><span class="hl-sub">FL${Math.round(highest.altFt / 100)}</span></div>` : '';
+    const typeStr = topType
+      ? `<div class="hl-row"><span class="hl-label">TOP TYPE</span><span class="hl-val">${topType[0]}</span><span class="hl-sub">×${topType[1]}</span></div>` : '';
+    const co2Str = sessionStats.seen.size > 0
+      ? `<div class="hl-co2"><span class="hl-co2-val">~${co2Tonnes}t CO₂</span><span class="hl-co2-note">fleet estimate · ICAO CORSIA targets carbon-neutral growth from 2027</span></div>` : '';
+    hlEl.innerHTML = fastStr || highStr || typeStr
+      ? `<div class="overlay-section-header">HIGHLIGHTS</div><div class="hl-rows">${fastStr}${highStr}${typeStr}${co2Str}</div>` : '';
+  }
 }
 
 // ── T2-15: Emergency alert banner ──
@@ -5268,6 +5638,7 @@ function initSearch() {
         if (aircraftManager) aircraftManager.deselectAircraft();
         stopFollow();
         removeRouteArc(scene);
+        _clearHoldingOval(); // A-3
         return;
       }
       // Stop tour/follow

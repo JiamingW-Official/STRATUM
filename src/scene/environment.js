@@ -268,38 +268,42 @@ export async function loadAirports(scene, userLat, userLon) {
   airportGroup.name = 'airports';
   airportGroup.renderOrder = 50;
 
-  // Terminals first (lowest layer)
-  if (airportData.terminals) {
-    for (const term of airportData.terminals) {
-      renderTerminal(term, userLat, userLon);
-    }
-  }
-
-  // Taxiways
-  if (airportData.taxiways) {
-    renderTaxiwaysBatched(airportData.taxiways, userLat, userLon);
-  }
-
-  // Runways + all lighting systems
+  // ── Critical path: runways + labels (visible immediately) ──
   for (const rwy of airportData.runways) {
     renderRunway(rwy, userLat, userLon);
-    renderApproachLights(rwy, userLat, userLon);
   }
-
-  // Batched lighting (all runways)
-  renderRunwayEdgeLights(airportData.runways, userLat, userLon);
-
-  renderThresholdAndEndLights(airportData.runways);
-  renderRunwayThresholdTargets(airportData.runways);
-
   for (const apt of airportData.airports) {
     renderAirportLabel(apt, userLat, userLon);
   }
-
   scene.add(airportGroup);
-  const txCount = airportData.taxiways?.length || 0;
-  const tmCount = airportData.terminals?.length || 0;
-  console.log(`[STRATUM] Loaded ${airportData.airports.length} airports, ${airportData.runways.length} runways, ${txCount} taxiways, ${tmCount} terminals`);
+
+  // ── Deferred: lights, taxiways, terminals — rendered on next frames ──
+  // Each batch runs in a separate rAF so it never blocks the main render loop.
+  const _snapEpoch = _loadEpoch;
+  requestAnimationFrame(() => {
+    if (_loadEpoch !== _snapEpoch) return;
+    renderRunwayEdgeLights(airportData.runways, userLat, userLon);
+    renderThresholdAndEndLights(airportData.runways);
+    renderRunwayThresholdTargets(airportData.runways);
+    requestAnimationFrame(() => {
+      if (_loadEpoch !== _snapEpoch) return;
+      for (const rwy of airportData.runways) {
+        renderApproachLights(rwy, userLat, userLon);
+      }
+      requestAnimationFrame(() => {
+        if (_loadEpoch !== _snapEpoch) return;
+        if (airportData.taxiways) renderTaxiwaysBatched(airportData.taxiways, userLat, userLon);
+        if (airportData.terminals) {
+          for (const term of airportData.terminals) renderTerminal(term, userLat, userLon);
+        }
+        const txCount = airportData.taxiways?.length || 0;
+        const tmCount = airportData.terminals?.length || 0;
+        console.log(`[STRATUM] Airport detail loaded: ${airportData.runways.length} runways, ${txCount} taxiways, ${tmCount} terminals`);
+      });
+    });
+  });
+
+  console.log(`[STRATUM] Airports visible: ${airportData.airports.length} airports, ${airportData.runways.length} runways`);
 }
 
 // ---- Geo helpers ----

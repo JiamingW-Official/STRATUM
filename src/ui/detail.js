@@ -160,7 +160,85 @@ const elTrackedTime = document.getElementById('detail-tracked-time');
 const elPhonetic = document.getElementById('detail-phonetic');
 const elCopy = document.getElementById('detail-copy');
 
+// E-4: Flight Journal
+const _journal = JSON.parse(localStorage.getItem('stratum:journal') || '{}');
+function _saveJournal() { localStorage.setItem('stratum:journal', JSON.stringify(_journal)); }
+
+const elJournalBtn = document.getElementById('detail-journal-btn');
+if (elJournalBtn) {
+  elJournalBtn.addEventListener('click', () => {
+    if (!selectedAircraft) return;
+    const d = selectedAircraft.getDisplayData();
+    const key = d.callsign || d.icao24;
+    _showJournalPanel(key, d);
+  });
+}
+
+function _showJournalPanel(key, d) {
+  let panel = document.getElementById('detail-journal-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'detail-journal-panel';
+    panel.className = 'journal-panel hidden';
+    const detailPanel = document.getElementById('detail-panel');
+    if (detailPanel) detailPanel.appendChild(panel);
+  }
+
+  const entry = _journal[key] || {};
+  const stars = entry.stars || 0;
+  const note = entry.note || '';
+
+  panel.innerHTML = `
+    <div class="journal-header">
+      <span class="journal-title">FLIGHT LOG — ${key}</span>
+      <button class="journal-close" id="journal-close-btn">✕</button>
+    </div>
+    <div class="journal-stars" id="journal-stars">
+      ${[1,2,3].map(i => `<span class="journal-star ${stars >= i ? 'active' : ''}" data-star="${i}">★</span>`).join('')}
+    </div>
+    <textarea class="journal-note" id="journal-note" placeholder="Add a note about this flight..." maxlength="200">${note}</textarea>
+    <div class="journal-actions">
+      <button class="journal-save" id="journal-save-btn">SAVE</button>
+      <span class="journal-hint">${entry.ts ? 'Last saved: ' + new Date(entry.ts).toLocaleDateString() : 'Not yet saved'}</span>
+    </div>`;
+
+  panel.classList.remove('hidden');
+
+  document.getElementById('journal-close-btn').onclick = () => panel.classList.add('hidden');
+  panel.querySelectorAll('.journal-star').forEach(s => {
+    s.onclick = () => {
+      const v = parseInt(s.dataset.star);
+      panel.querySelectorAll('.journal-star').forEach((ss, i) => ss.classList.toggle('active', i < v));
+    };
+  });
+  document.getElementById('journal-save-btn').onclick = () => {
+    const activeStar = panel.querySelectorAll('.journal-star.active').length;
+    const noteText = document.getElementById('journal-note').value.trim();
+    _journal[key] = {
+      callsign: key, type: d.aircraftType || '', route: (d.origin && d.destination) ? `${d.origin}→${d.destination}` : '',
+      note: noteText, stars: activeStar, ts: Date.now(),
+    };
+    _saveJournal();
+    panel.classList.add('hidden');
+    const btn = document.getElementById('detail-journal-btn');
+    if (btn) btn.textContent = '★';
+  };
+}
+
+function _updateJournalBtn(key) {
+  const btn = document.getElementById('detail-journal-btn');
+  if (!btn) return;
+  const entry = _journal[key];
+  btn.textContent = entry ? '★' : '☆';
+  btn.classList.toggle('journal-btn--saved', !!entry);
+}
+
 let selectedAircraft = null;
+let _lastRenderedType = null; // skip SVG rebuild when type unchanged
+
+// C-2: Track last phase for education card transitions
+let _lastEduPhase = null;
+let _phaseEduTimer = null;
 
 // ── T3-03: Altitude profile chart (FR24-accurate) ──
 const altHistory = []; // {time, alt, speed, vs} entries — alt in feet
@@ -231,15 +309,17 @@ panel.addEventListener('click', (e) => {
   }
 });
 
-// Flash animation when a numeric value changes
+// Flash animation when a numeric value changes — no forced reflow via alternating classes
 function flashUpdate(el, newText) {
   if (!el) return;
-  if (el.textContent === newText) return;
+  if (el.textContent === String(newText)) return;
   el.textContent = newText;
-  el.classList.remove('flash');
-  void el.offsetWidth;
-  el.classList.add('flash');
-  el.addEventListener('animationend', () => el.classList.remove('flash'), { once: true });
+  // Toggle between flash-a / flash-b so removing one and adding the other always restarts
+  const next = el._flashToggle ? 'flash-b' : 'flash-a';
+  const prev = el._flashToggle ? 'flash-a' : 'flash-b';
+  el._flashToggle = !el._flashToggle;
+  el.classList.remove(prev);
+  el.classList.add(next);
 }
 
 // Compute bearing from point A to point B (degrees)
@@ -981,6 +1061,8 @@ export function showDetail(aircraftObj, userLat, userLon) {
 
   // ── HEADER ──
   elCallsign.textContent = d.callsign || d.icao24;
+  // E-4: Update journal star button
+  _updateJournalBtn(d.callsign || d.icao24);
 
   // ── T1-09: Phonetic callsign — shown as hover tooltip on the callsign ──
   if (elPhonetic) elPhonetic.classList.add('hidden');
@@ -996,13 +1078,16 @@ export function showDetail(aircraftObj, userLat, userLon) {
   }
 
   if (d.aircraftType) {
-    // T2-02: Aircraft type silhouette
-    const silCat = classifyAircraftType(d.aircraftType);
-    const silSvg = silCat ? SILHOUETTES[silCat] : '';
-    elType.innerHTML = silSvg + d.aircraftType;
+    // T2-02: Aircraft type silhouette — skip innerHTML rebuild if type unchanged
+    if (d.aircraftType !== _lastRenderedType) {
+      _lastRenderedType = d.aircraftType;
+      const silCat = classifyAircraftType(d.aircraftType);
+      const silSvg = silCat ? SILHOUETTES[silCat] : '';
+      elType.innerHTML = silSvg + d.aircraftType;
+    }
     elType.style.display = '';
   } else {
-    elType.style.display = 'none';
+    if (_lastRenderedType !== null) { _lastRenderedType = null; elType.style.display = 'none'; }
   }
 
   // Status badge (colored pill)
@@ -1115,6 +1200,10 @@ export function showDetail(aircraftObj, userLat, userLon) {
     elProgress.classList.add('hidden');
   }
 
+  // ── A-1: ETA Clock Strip ──
+  // Shows remaining nm, ETA time, and estimated destination local time.
+  _renderETAStrip(d);
+
   // ── T2-03: Flight Phase Strip (compact dot·connector row with edu tooltip) ──
   if (elPhaseTimeline) {
     const PHASES  = ['TAXI', 'CLIMB', 'CRUISE', 'DESCENT', 'APPROACH', 'LAND'];
@@ -1147,27 +1236,30 @@ export function showDetail(aircraftObj, userLat, userLon) {
   const _oldArc = document.getElementById('detail-journey-arc');
   if (_oldArc) _oldArc.style.display = 'none';
 
+  // C-2: Flight Phase Education Card — show when phase transitions
+  _checkPhaseEducationCard(d);
+
   // ── FLIGHT DATA — altitude uses best available (geo > baro) ──
   const bestAltFt = d._bestAltFt != null ? d._bestAltFt : (d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null);
   if (bestAltFt != null) {
     const altStr = bestAltFt >= 18000 ? `FL${Math.round(bestAltFt / 100)}` : `${bestAltFt.toLocaleString()} ft`;
     flashUpdate(elAlt, altStr);
-    // Micro-tooltip: baro vs geo comparison
+    // C-1: Rich educational tooltip for ALT
     const altCell = elAlt.closest('.detail-cell');
     if (altCell) {
       const geoFt = d.geoAltFt;
-      if (geoFt != null && bestAltFt != null) {
+      const flDesc = bestAltFt >= 18000 ? ` · Flight Level: altitude in hundreds of feet above standard pressure (1013.25 hPa), used above the transition altitude.` : '';
+      if (geoFt != null) {
         const delta = geoFt - bestAltFt;
-        altCell.setAttribute('data-tip', `Baro ${bestAltFt.toLocaleString()}ft · Geo ${geoFt.toLocaleString()}ft (${delta >= 0 ? '+' : ''}${delta}ft)`);
+        altCell.setAttribute('data-tip', `ALT (Altitude) — Barometric: ${bestAltFt.toLocaleString()}ft, GPS Geometric: ${geoFt.toLocaleString()}ft (Δ${delta >= 0 ? '+' : ''}${delta}ft). Barometric altitude is set by local QNH and is the ATC standard.${flDesc}`);
       } else {
-        altCell.setAttribute('data-tip', `${bestAltFt.toLocaleString()} ft barometric`);
+        altCell.setAttribute('data-tip', `ALT (Altitude) — ${bestAltFt.toLocaleString()} ft barometric. Derived from transponder Mode C pressure reading, adjusted by the altimeter setting (QNH).${flDesc}`);
       }
     }
   } else if (d.onGround) {
-    // On ground with no altitude report — show GND instead of --
     flashUpdate(elAlt, 'GND');
     const altCell = elAlt.closest('.detail-cell');
-    if (altCell) altCell.setAttribute('data-tip', 'Aircraft on ground');
+    if (altCell) altCell.setAttribute('data-tip', 'Aircraft on ground — transponder reports surface movement, no altitude transmitted.');
   } else {
     flashUpdate(elAlt, '--');
   }
@@ -1176,13 +1268,14 @@ export function showDetail(aircraftObj, userLat, userLon) {
   if (d._rawSpd != null || d.gsKts != null) {
     const kts = d.gsKts != null ? d.gsKts : Math.round(d._rawSpd * 1.94384);
     flashUpdate(elSpd, convertSpeed(kts, SPEED_UNITS[speedUnitIdx]));
-    // Micro-tooltip: multi-speed comparison
+    // C-1: Rich educational tooltip for GS
     const spdCell = elSpd.closest('.detail-cell');
     if (spdCell) {
-      let tip = `GS ${kts} kts`;
-      if (d.ias != null) tip += ` · IAS ${d.ias}`;
-      if (d.tas != null) tip += ` · TAS ${d.tas}`;
+      let tip = `GS (Groundspeed) — actual speed over the ground. GS = TAS ± wind component. A 500 kt TAS aircraft with a 100 kt tailwind has GS 600 kt. Values: GS ${kts} kts`;
+      if (d.ias != null) tip += ` · IAS ${d.ias} kts`;
+      if (d.tas != null) tip += ` · TAS ${d.tas} kts`;
       if (d.mach != null) tip += ` · M${d.mach}`;
+      tip += '. Click to cycle speed units.';
       spdCell.setAttribute('data-tip', tip);
     }
   } else {
@@ -1190,13 +1283,13 @@ export function showDetail(aircraftObj, userLat, userLon) {
   }
 
   flashUpdate(elHdg, d.heading);
-  // HDG tooltip
+  // C-1: Rich educational tooltip for HDG
   const hdgCell = elHdg.closest('.detail-cell');
   if (hdgCell && d.heading && d.heading !== '--') {
     const hdgDeg = parseInt(d.heading);
     if (!isNaN(hdgDeg)) {
       const card = headingToCardinal(hdgDeg);
-      hdgCell.setAttribute('data-tip', `${hdgDeg}° ${card} true`);
+      hdgCell.setAttribute('data-tip', `HDG (Heading) — direction the nose is pointing, measured in degrees from true north (0°=N, 90°=E, 180°=S, 270°=W). ${hdgDeg}° = ${card}. Differs from track when wind pushes the aircraft sideways (crab angle).`);
     }
   }
 
@@ -1216,7 +1309,9 @@ export function showDetail(aircraftObj, userLat, userLon) {
     const vsFpm = parseInt(vsText.replace(/[+,]/g, ''));
     if (!isNaN(vsFpm)) {
       const msVal = Math.round(vsFpm * 0.00508 * 100) / 100;
-      vsCell.setAttribute('data-tip', `${vsFpm > 0 ? '+' : ''}${vsFpm} ft/min · ${msVal.toFixed(1)} m/s`);
+      // C-1: Rich educational tooltip for V/S
+      const vsDesc = vsFpm > 1500 ? 'High climb rate — departure or go-around.' : vsFpm > 200 ? 'Normal climb.' : vsFpm < -1500 ? 'Rapid descent — late correction or emergency.' : vsFpm < -200 ? 'Normal descent.' : 'Level flight.';
+      vsCell.setAttribute('data-tip', `V/S (Vertical Speed) — rate of altitude change. ${vsFpm > 0 ? '+' : ''}${vsFpm} ft/min (${msVal.toFixed(1)} m/s). Standard cruise climb: 1500–2500 ft/min. Standard descent: −1200 to −1800 ft/min. ${vsDesc}`);
     }
   }
 
@@ -1233,7 +1328,21 @@ export function showDetail(aircraftObj, userLat, userLon) {
     const tasCell = elTas?.closest('.detail-cell');
     if (tasCell) tasCell.setAttribute('data-tip', 'True Airspeed — IAS corrected for air density at altitude. Actual speed through the airmass. At cruise altitude TAS is roughly 1.6× IAS. Wind correction gives groundspeed.');
     const machCell = elMach?.closest('.detail-cell');
-    if (machCell) machCell.setAttribute('data-tip', 'Mach number — speed as a fraction of the local speed of sound. Sound travels ~661 kts at sea level, ~573 kts at FL350. Above FL280 pilots use Mach as the primary speed reference (Mmo ≈ 0.86–0.90 for most jets).');
+    if (machCell) {
+      const mach = d.mach;
+      const altFtM = d._rawAlt != null ? d._rawAlt * 3.28084 : (d._bestAltFt || 0);
+      const isaTemp = 15 - 2 * (altFtM / 1000); // °C at altitude (ISA)
+      const soundKts = Math.round(Math.sqrt(1.4 * 287.05 * (isaTemp + 273.15)) * 1.94384);
+      const regime = mach != null ? (mach >= 0.85 ? 'High subsonic' : mach >= 0.75 ? 'Subsonic cruise' : 'Low subsonic') : '';
+      const mmo = 0.87; // typical commercial jet Mmo
+      const margin = mach != null ? Math.round((mmo - mach) * 100) / 100 : null;
+      let tip = `Mach number — ratio of speed to local speed of sound. Sound at this altitude (ISA ${Math.round(isaTemp)}°C): ~${soundKts} kts.`;
+      if (regime) tip += ` Regime: ${regime}.`;
+      if (margin != null) tip += ` Margin to Mmo (~${mmo}): ${margin > 0 ? '+' : ''}${margin} M. Above Mmo, shockwaves form causing buffet and control issues.`;
+      machCell.setAttribute('data-tip', tip);
+    }
+    // C-4: Mach education strip
+    _renderMachStrip(d);
     if (d.geoAltFt != null) {
       const geoStr = d.geoAltFt >= 18000 ? `FL${Math.round(d.geoAltFt / 100)}` : `${d.geoAltFt.toLocaleString()}`;
       const altFtBaro = d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null;
@@ -1242,7 +1351,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
         const sign = delta >= 0 ? '+' : '';
         flashUpdate(elGeoAlt, `${geoStr}`);
         const geoCell = elGeoAlt.closest('.detail-cell');
-        if (geoCell) geoCell.setAttribute('data-tip', `Geo ${d.geoAltFt.toLocaleString()}ft · Baro delta ${sign}${delta}ft`);
+        if (geoCell) geoCell.setAttribute('data-tip', `GEO ALT (Geometric/GPS Altitude) — satellite-derived height above WGS84 ellipsoid. Baro alt uses pressure and QNH setting; GPS alt is absolute. Typical difference at cruise: ±50–200 ft. ATC uses barometric. GPS: ${d.geoAltFt.toLocaleString()}ft · Baro: ${altFtBaro.toLocaleString()}ft · Δ${sign}${delta}ft.`);
       } else {
         flashUpdate(elGeoAlt, geoStr);
       }
@@ -1252,6 +1361,9 @@ export function showDetail(aircraftObj, userLat, userLon) {
   } else if (elExtGrid) {
     elExtGrid.classList.add('hidden');
   }
+
+  // ── A-4: Wind Triangle ──
+  _renderWindTriangle(d);
 
   // ── CONDITIONS SECTION (W1 DA, W2 Dest Wind, W3 Turbulence) ──
   const condSection = document.getElementById('detail-conditions');
@@ -1390,7 +1502,49 @@ export function showDetail(aircraftObj, userLat, userLon) {
   }
 
   elIcao.textContent = d.icao24 || '--';
-  elReg.textContent = d.registration || '--';
+  // C-1: ICAO hex glossary tooltip
+  const icaoRow = elIcao.closest('.detail-meta-row');
+  if (icaoRow && d.icao24) {
+    const hex = parseInt(d.icao24, 16);
+    let regBlock = 'Unknown block';
+    if (hex >= 0xA00000 && hex <= 0xAFFFFF) regBlock = 'USA (N-number)';
+    else if (hex >= 0xE00000 && hex <= 0xEFFFFF) regBlock = 'Europe';
+    else if (hex >= 0x780000 && hex <= 0x7BFFFF) regBlock = 'China';
+    else if (hex >= 0xC00000 && hex <= 0xC3FFFF) regBlock = 'Canada';
+    else if (hex >= 0x400000 && hex <= 0x43FFFF) regBlock = 'United Kingdom';
+    else if (hex >= 0x380000 && hex <= 0x3BFFFF) regBlock = 'Germany';
+    icaoRow.setAttribute('data-tip', `ICAO 24-bit address — unique transponder code assigned at aircraft registration. ${d.icao24.toUpperCase()} → ${regBlock}. Used by Mode S transponders, ADS-B, and TCAS. Unlike callsign, it stays with the aircraft for life.`);
+  }
+  // E-3: Registration Country Flag — show flag emoji from registration prefix
+  const _REG_FLAGS = {
+    N: '🇺🇸', G: '🇬🇧', D: '🇩🇪', F: '🇫🇷', B: '🇨🇳', JA: '🇯🇵', VH: '🇦🇺',
+    C: '🇨🇦', OE: '🇦🇹', PH: '🇳🇱', HB: '🇨🇭', SE: '🇸🇪', LN: '🇳🇴', OY: '🇩🇰',
+    OH: '🇫🇮', TC: '🇹🇷', HL: '🇰🇷', VT: '🇮🇳', A6: '🇦🇪', EI: '🇮🇪',
+    I: '🇮🇹', EC: '🇪🇸', CS: '🇵🇹', RP: '🇵🇭', HS: '🇹🇭', PK: '🇮🇩',
+    '9V': '🇸🇬', YR: '🇷🇴', LY: '🇱🇹', SP: '🇵🇱', OK: '🇨🇿', OM: '🇸🇰',
+  };
+  let regDisplay = d.registration || '--';
+  let regFlag = '';
+  if (d.registration) {
+    // Match longest prefix first (2-char prefixes before 1-char)
+    const reg = d.registration.toUpperCase();
+    const twoChar = reg.substring(0, 2);
+    const oneChar = reg.substring(0, 1);
+    regFlag = _REG_FLAGS[twoChar] || _REG_FLAGS[oneChar] || '';
+  }
+  elReg.textContent = regFlag ? `${regFlag} ${regDisplay}` : regDisplay;
+  // C-1: Registration glossary tooltip
+  const regRow = elReg.closest('.detail-meta-row');
+  if (regRow) {
+    const clickHint = d.registration ? ' Click for registry details.' : '';
+    regRow.setAttribute('data-tip', `REG (Registration) — tail number assigned at registration. Prefix indicates country: N=USA, G=UK, D=Germany, B=China, C=Canada, F=France, JA=Japan, VH=Australia.${clickHint}`);
+    // E-3: Click to show ICAO hex block + registration info modal
+    if (!regRow._e3 && d.registration) {
+      regRow._e3 = true;
+      regRow.style.cursor = 'pointer';
+      regRow.addEventListener('click', () => _showRegistryModal(d.registration, d.icao24));
+    }
+  }
 
   if (d.operator) {
     elOperatorRow.classList.remove('hidden');
@@ -1448,6 +1602,12 @@ export function showDetail(aircraftObj, userLat, userLon) {
         L: 'Light — aircraft under 7,000 kg. Must maintain extra separation behind heavier aircraft as small aircraft are highly susceptible to wake turbulence.',
       };
       elWakeRow.setAttribute('data-tip', wakeTips[d.wakeCat] || `Wake turbulence category ${d.wakeCat}`);
+      // C-3: Make wake row clickable to show separation diagram
+      if (!elWakeRow._c3) {
+        elWakeRow._c3 = true;
+        elWakeRow.style.cursor = 'pointer';
+        elWakeRow.addEventListener('click', () => _showWakeModal(d.wakeCat, d.aircraftType));
+      }
     } else if (elWakeRow) {
       elWakeRow.classList.add('hidden');
     }
@@ -1712,6 +1872,9 @@ export function showDetail(aircraftObj, userLat, userLon) {
 
 export function closeDetail() {
   selectedAircraft = null;
+  _lastEduPhase = null; // C-2: Reset so card shows again on next selection
+  _lastRenderedType = null; // reset silhouette cache
+  if (_phaseEduTimer) { clearTimeout(_phaseEduTimer); _phaseEduTimer = null; }
   panel.classList.add('hidden');
   showDetailLoading(false);
   stopTrackedTimer();
@@ -1759,6 +1922,332 @@ export function refreshDetail(aircraftManager, userLat, userLon) {
     return;
   }
   showDetail(selectedAircraft, userLat, userLon);
+}
+
+// ── E-3: Registration Registry Modal ──
+function _showRegistryModal(reg, icao24) {
+  const _REG_PREFIXES = {
+    N: { country: 'United States', authority: 'FAA', note: 'N-numbers: 1–5 characters after N. No I or O. FAA registry: faa.gov/licenses_certificates/aircraft_certification/aircraft_registry' },
+    G: { country: 'United Kingdom', authority: 'CAA', note: 'G- followed by 4 letters. UK Civil Aviation Authority register.' },
+    D: { country: 'Germany', authority: 'LBA/LuftfahrtBundesamt', note: 'D- prefix for Germany. D-A/B = jets, D-E/F = piston, D-H/K = helicopters.' },
+    F: { country: 'France', authority: 'DGAC', note: 'F- prefix. F-G = aircraft registered in metropolitan France.' },
+    B: { country: 'China', authority: 'CAAC', note: 'B- followed by 4 digits (older) or 4 alphanumeric. CAAC registry.' },
+    JA: { country: 'Japan', authority: 'JCAB', note: 'JA followed by 4 characters. Japan Civil Aviation Bureau.' },
+    VH: { country: 'Australia', authority: 'CASA', note: 'VH- followed by 3 letters. Civil Aviation Safety Authority.' },
+    C: { country: 'Canada', authority: 'TC', note: 'C- prefix. C-F and C-G series for civil aircraft. Transport Canada.' },
+  };
+  const regUp = (reg || '').toUpperCase();
+  const twoChar = regUp.substring(0, 2);
+  const oneChar = regUp.substring(0, 1);
+  const info = _REG_PREFIXES[twoChar] || _REG_PREFIXES[oneChar] || { country: 'Unknown', authority: '--', note: 'Registration prefix not in local database.' };
+
+  // ICAO hex block
+  let hexBlock = '--';
+  if (icao24) {
+    const hex = parseInt(icao24, 16);
+    if (hex >= 0xA00000 && hex <= 0xAFFFFF) hexBlock = 'USA block (A00000–AFFFFF)';
+    else if (hex >= 0xE00000 && hex <= 0xEFFFFF) hexBlock = 'Europe block (E00000–EFFFFF)';
+    else if (hex >= 0x780000 && hex <= 0x7BFFFF) hexBlock = 'China block (780000–7BFFFF)';
+    else if (hex >= 0xC00000 && hex <= 0xC3FFFF) hexBlock = 'Canada block (C00000–C3FFFF)';
+    else if (hex >= 0x400000 && hex <= 0x43FFFF) hexBlock = 'UK block (400000–43FFFF)';
+    else if (hex >= 0x380000 && hex <= 0x3BFFFF) hexBlock = 'Germany block (380000–3BFFFF)';
+    else hexBlock = `Block 0x${icao24.substring(0,2).toUpperCase()}xxxx`;
+  }
+
+  let modal = document.getElementById('registry-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'registry-modal';
+    modal.className = 'wake-modal-overlay';
+    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div class="wake-modal">
+      <div class="wake-modal-header">
+        <span class="wake-modal-cat">REG ${reg}</span>
+        <button class="wake-modal-close" onclick="document.getElementById('registry-modal').classList.add('hidden')">✕</button>
+      </div>
+      <div class="wake-sep-table">
+        <div class="wake-sep-row"><span class="wake-sep-label">COUNTRY</span><span class="wake-sep-val">${info.country}</span></div>
+        <div class="wake-sep-row"><span class="wake-sep-label">AUTHORITY</span><span class="wake-sep-val">${info.authority}</span></div>
+        <div class="wake-sep-row"><span class="wake-sep-label">ICAO HEX</span><span class="wake-sep-val">${icao24?.toUpperCase() || '--'}</span></div>
+        <div class="wake-sep-row"><span class="wake-sep-label">HEX BLOCK</span><span class="wake-sep-val">${hexBlock}</span></div>
+      </div>
+      <div class="wake-modal-edu">${info.note}</div>
+      <div class="wake-modal-edu" style="margin-top:6px">ICAO 24-bit addresses are allocated in national blocks. Each state receives a range of hex values for its aircraft — enabling nationality identification from the transponder code alone, without needing the registration.</div>
+    </div>`;
+  modal.classList.remove('hidden');
+}
+
+// ── C-3: Wake Turbulence Category Explainer Modal ──
+const _WAKE_DATA = {
+  J: { name: 'SUPER', color: '#ff4444', sep: { J:'8nm/3min', H:'8nm/3min', M:'8nm/3min', L:'8nm/3min' },
+       desc: 'SUPER category (J) applies to the Airbus A380 and Antonov An-225. Their enormous wingspan generates trailing vortices strong enough to roll a smaller aircraft inverted. ATC mandates the longest separations in ICAO — up to 8 nm and 3 minutes behind.' },
+  H: { name: 'HEAVY', color: '#ee8833', sep: { J:'6nm/2min', H:'4nm/2min', M:'5nm/2min', L:'6nm/2min' },
+       desc: 'HEAVY (H) applies to aircraft over 136,000 kg MTOW — B747, B777, A330, A350 etc. Trailing vortices persist for several minutes and up to 3 nm behind. A light aircraft entering a heavy\'s wake can experience an uncontrollable roll of 40°/sec.' },
+  M: { name: 'MEDIUM', color: '#e8c36a', sep: { H:'3nm/1min', M:'3nm/1min', L:'3nm/1min' },
+       desc: 'MEDIUM (M) covers most commercial jets: A320, B737, E-jets, ATR72. Vortices are significant for light aircraft but manageable. Standard ATC radar separation is 3 nm. Vortices typically dissipate within 1–2 minutes.' },
+  L: { name: 'LIGHT', color: '#44dd88', sep: { H:'3nm', M:'3nm', L:'3nm' },
+       desc: 'LIGHT (L) covers aircraft under 7,000 kg MTOW. Light aircraft are most susceptible to wake turbulence from heavier aircraft. Pilots are responsible for their own wake turbulence avoidance in VFR — no ATC separation is guaranteed.' },
+};
+
+function _showWakeModal(cat, type) {
+  const data = _WAKE_DATA[cat];
+  if (!data) return;
+
+  let modal = document.getElementById('wake-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'wake-modal';
+    modal.className = 'wake-modal-overlay';
+    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+    document.body.appendChild(modal);
+  }
+
+  const sepRows = Object.entries(data.sep).map(([k, v]) => {
+    const kd = _WAKE_DATA[k];
+    return `<div class="wake-sep-row"><span class="wake-sep-label" style="color:${kd?.color||'#fff'}">${kd?.name||k}</span><span class="wake-sep-val">${v}</span></div>`;
+  }).join('');
+
+  modal.innerHTML = `
+    <div class="wake-modal">
+      <div class="wake-modal-header">
+        <span class="wake-modal-cat" style="color:${data.color}">WAKE ${cat} — ${data.name}</span>
+        <button class="wake-modal-close" onclick="document.getElementById('wake-modal').classList.add('hidden')">✕</button>
+      </div>
+      <div class="wake-modal-desc">${data.desc}</div>
+      <div class="wake-modal-sep-title">ICAO SEPARATION MINIMUMS (following this aircraft)</div>
+      <svg class="wake-sep-svg" viewBox="0 0 200 28" width="100%">
+        <line x1="10" y1="14" x2="190" y2="14" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+        <polygon points="10,10 10,18 2,14" fill="${data.color}" opacity="0.8"/>
+        <circle cx="190" cy="14" r="4" fill="rgba(255,255,255,0.5)"/>
+        <text x="100" y="9" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="6" font-family="monospace">SEPARATION DISTANCE →</text>
+        <text x="14" y="26" fill="${data.color}" font-size="6" font-family="monospace" opacity="0.8">${type||cat}</text>
+        <text x="186" y="26" text-anchor="end" fill="rgba(255,255,255,0.4)" font-size="6" font-family="monospace">FOLLOWING AC</text>
+      </svg>
+      <div class="wake-sep-table">${sepRows}</div>
+      <div class="wake-modal-edu">Tip: Wake turbulence rolls toward the ground and drifts with the wind. Pilots can avoid it by flying slightly above the preceding aircraft's flight path and landing beyond their touchdown point.</div>
+    </div>`;
+  modal.classList.remove('hidden');
+}
+
+// ── C-2: Flight Phase Education Card ──
+// Slides in when flight phase transitions, auto-hides after 8s.
+const _PHASE_EDU_C2 = {
+  'ON GROUND': { title: 'TAXI', color: 'rgba(160,160,200,0.8)', text: 'Crew received ATC clearance and taxi instructions. Transponder set to Mode C. Passengers seated with seatbelts fastened. Wing walkers clear the gate.' },
+  'TAKEOFF':   { title: 'TAKEOFF', color: 'rgba(90,172,255,0.8)', text: 'TOGA (Takeoff/Go-Around) thrust applied. V1 = decision speed. VR = rotation. V2 = safety speed. Positive rate of climb confirmed — "Gear up!" Autopilot engaged after 1,000 ft AGL.' },
+  'INITIAL CLIMB': { title: 'INITIAL CLIMB', color: 'rgba(90,172,255,0.8)', text: 'Following SID (Standard Instrument Departure). Power reduced from TOGA to CLB thrust. Pitch ~15°. ATC assigns step climb clearances — altitude increases every few minutes.' },
+  'CLIMB':     { title: 'CLIMB', color: 'rgba(90,172,255,0.8)', text: 'Climbing at ~1,500–2,500 ft/min. LNAV/VNAV modes guide lateral and vertical path. VNAV calculates optimum step-climb altitudes for best fuel economy with jet stream routing.' },
+  'CRUISE':    { title: 'CRUISE', color: 'rgba(120,220,120,0.8)', text: 'Autopilot maintains heading and altitude. Mach hold above FL280 — speed expressed as fraction of sound speed. Pilots monitor fuel, weather ahead, and systems. Fuel burn most efficient here.' },
+  'EN ROUTE':  { title: 'EN ROUTE', color: 'rgba(120,220,120,0.8)', text: 'Cruising on filed flight plan route. ATC radar separation maintained at 5 nm lateral, 1,000 ft vertical (RVSM). FMC calculates fuel burn and optimum profile continuously.' },
+  'DESCENT':   { title: 'DESCENT', color: 'rgba(232,160,60,0.8)', text: 'Top of Descent (TOD) reached — throttles to idle. Descent follows STAR (Standard Terminal Arrival Route). Rule of thumb: 3 nm per 1,000 ft altitude to lose. Cabin crew preparing for landing.' },
+  'APPROACH':  { title: 'APPROACH', color: 'rgba(232,100,60,0.8)', text: 'ILS (Instrument Landing System) frequency tuned. Localizer and glideslope signals acquired. Gear down, flaps extending. Crew calling out checklist items. Decision altitude ~200 ft AGL for CAT I.' },
+  'LANDING':   { title: 'LANDING', color: 'rgba(180,90,220,0.8)', text: 'Flare initiated ~20 ft AGL. Thrust reversers deploy after main gear touch. Spoilers rise to dump lift. Brakes applied below 100 kts. Runway exit speed ~60 kts. Transponder switched to standby.' },
+};
+
+function _checkPhaseEducationCard(d) {
+  const panel = document.getElementById('detail-panel');
+  if (!panel) return;
+  const phase = d.flightPhase;
+  if (!phase || phase === _lastEduPhase) return;
+  _lastEduPhase = phase;
+
+  const edu = _PHASE_EDU_C2[phase];
+  if (!edu) return;
+
+  let card = document.getElementById('detail-phase-edu-card');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'detail-phase-edu-card';
+    card.className = 'phase-edu-card';
+    const phaseTimeline = document.getElementById('detail-phase-timeline');
+    if (phaseTimeline && phaseTimeline.parentNode) {
+      phaseTimeline.parentNode.insertBefore(card, phaseTimeline.nextSibling);
+    } else {
+      panel.appendChild(card);
+    }
+  }
+
+  card.style.borderLeftColor = edu.color;
+  card.innerHTML = `<div class="phase-edu-title" style="color:${edu.color}">${edu.title}</div><div class="phase-edu-text">${edu.text}</div>`;
+  card.classList.remove('phase-edu-card--hidden');
+  card.classList.add('phase-edu-card--visible');
+
+  clearTimeout(_phaseEduTimer);
+  _phaseEduTimer = setTimeout(() => {
+    if (card) { card.classList.remove('phase-edu-card--visible'); card.classList.add('phase-edu-card--hidden'); }
+  }, 8000);
+}
+
+// ── C-4: Mach Number & Altitude Education Strip ──
+// Shows ISA sound speed, mach regime, and Vmo margin below the ext data grid.
+function _renderMachStrip(d) {
+  const extGrid = document.getElementById('detail-ext-grid');
+  if (!extGrid) return;
+
+  let strip = document.getElementById('detail-mach-strip');
+  if (!strip) {
+    strip = document.createElement('div');
+    strip.id = 'detail-mach-strip';
+    strip.className = 'mach-strip';
+    extGrid.insertAdjacentElement('afterend', strip);
+  }
+
+  const mach = d.mach;
+  if (!mach) { strip.style.display = 'none'; return; }
+
+  const altFtM = d._rawAlt != null ? d._rawAlt * 3.28084 : (d._bestAltFt || 0);
+  const isaTemp = 15 - 2 * (altFtM / 1000);
+  const soundKts = Math.round(Math.sqrt(1.4 * 287.05 * (isaTemp + 273.15)) * 1.94384);
+  const mmo = 0.87;
+  const marginPct = Math.max(0, Math.round(((mmo - mach) / mmo) * 100));
+  const regime = mach >= 0.85 ? 'HIGH SUBSONIC' : mach >= 0.75 ? 'SUBSONIC CRUISE' : 'LOW SUBSONIC';
+  const barW = Math.min(100, Math.round((mach / mmo) * 100));
+  const barColor = mach >= 0.85 ? '#ee8833' : mach >= 0.75 ? '#c9a45c' : '#5aacff';
+  const flLabel = altFtM >= 18000 ? `FL${Math.round(altFtM / 100)}` : `${Math.round(altFtM / 100) * 100}ft`;
+
+  strip.style.display = '';
+  strip.innerHTML = `
+    <div class="mach-strip-row">
+      <span class="mach-strip-regime">${regime}</span>
+      <span class="mach-strip-val">M${mach} / Mmo ${mmo}</span>
+    </div>
+    <div class="mach-strip-bar-bg">
+      <div class="mach-strip-bar" style="width:${barW}%;background:${barColor}"></div>
+      <div class="mach-strip-mmo"></div>
+    </div>
+    <div class="mach-strip-edu">Sound at ${flLabel}: ~${soundKts} kt · ${marginPct}% below Mmo · ISA ${Math.round(isaTemp)}°C</div>`;
+}
+
+// ── A-4: Wind Triangle ──
+// Canvas-based diagram showing GS vector, TAS vector, and wind vector.
+// Only shown when IAS (or TAS) and GS are both available.
+function _renderWindTriangle(d) {
+  const extGrid = document.getElementById('detail-ext-grid');
+  if (!extGrid) return;
+
+  let wrap = document.getElementById('detail-wind-tri');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'detail-wind-tri';
+    wrap.className = 'wind-tri-wrap';
+    extGrid.insertAdjacentElement('afterend', wrap);
+  }
+
+  const wx = window._cachedWeather;
+  const gsKts = d.gsKts;
+  // TAS: prefer raw field, else estimate from IAS+altitude
+  let tasKts = d.tas != null ? d.tas : null;
+  if (tasKts == null && d.ias != null && d._rawAlt != null) {
+    const altFt = d._rawAlt * 3.28084;
+    const densityRatio = Math.pow(1 - 0.0000068756 * altFt, 4.2561);
+    tasKts = Math.round(d.ias / Math.sqrt(densityRatio));
+  }
+
+  if (!gsKts || !tasKts || !wx || !d.heading) {
+    wrap.style.display = 'none';
+    return;
+  }
+
+  const hdgDeg = parseInt(d.heading);
+  const hdgRad = (hdgDeg - 90) * Math.PI / 180;
+  const windSpeedKts = wx.windSpeed || 0;
+  const windDirRad = ((wx.windDir || 0) - 90) * Math.PI / 180;
+
+  const tasX = tasKts * Math.cos(hdgRad);
+  const tasY = tasKts * Math.sin(hdgRad);
+  const windX = windSpeedKts * Math.cos(windDirRad + Math.PI);
+  const windY = windSpeedKts * Math.sin(windDirRad + Math.PI);
+  const gsVecX = tasX + windX;
+  const gsVecY = tasY + windY;
+
+  const angleDiff = ((wx.windDir || 0) - hdgDeg + 360) % 360;
+  const hwKts = Math.round(windSpeedKts * Math.cos(angleDiff * Math.PI / 180));
+  const xwKts = Math.round(windSpeedKts * Math.sin(angleDiff * Math.PI / 180));
+  const hwLabel = hwKts >= 0 ? `headwind ${Math.abs(hwKts)} kt` : `tailwind ${Math.abs(hwKts)} kt`;
+  const xwLabel = Math.abs(xwKts) >= 2 ? ` · crosswind ${Math.abs(xwKts)} kt` : '';
+
+  const SIZE = 72;
+  const scale = (SIZE * 0.38) / Math.max(tasKts, gsKts, 1);
+  const cx = SIZE / 2, cy = SIZE / 2;
+
+  const tasEx = cx + tasX * scale, tasEy = cy - tasY * scale;
+  const windEx = cx + windX * scale, windEy = cy - windY * scale;
+  const gsEx = cx + gsVecX * scale, gsEy = cy - gsVecY * scale;
+
+  wrap.style.display = '';
+  wrap.innerHTML = `
+    <div class="wind-tri-inner">
+      <svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" class="wind-tri-svg">
+        <circle cx="${cx}" cy="${cy}" r="${(SIZE*0.44).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+        <line x1="${cx}" y1="${cy}" x2="${tasEx.toFixed(1)}" y2="${tasEy.toFixed(1)}" stroke="#5aacff" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="${tasEx.toFixed(1)}" cy="${tasEy.toFixed(1)}" r="2" fill="#5aacff"/>
+        <line x1="${tasEx.toFixed(1)}" y1="${tasEy.toFixed(1)}" x2="${gsEx.toFixed(1)}" y2="${gsEy.toFixed(1)}" stroke="#e8836a" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="3 2"/>
+        <line x1="${cx}" y1="${cy}" x2="${gsEx.toFixed(1)}" y2="${gsEy.toFixed(1)}" stroke="#c9a45c" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="${gsEx.toFixed(1)}" cy="${gsEy.toFixed(1)}" r="2.5" fill="#c9a45c"/>
+        <text x="${cx}" y="${(cy - SIZE*0.4).toFixed(1)}" text-anchor="middle" fill="rgba(255,255,255,0.2)" font-size="5" font-family="monospace">N</text>
+      </svg>
+      <div class="wind-tri-legend">
+        <div class="wind-tri-row"><span class="wind-tri-dot" style="background:#5aacff"></span><span>TAS ${tasKts} kt</span></div>
+        <div class="wind-tri-row"><span class="wind-tri-dot" style="background:#c9a45c"></span><span>GS ${gsKts} kt</span></div>
+        <div class="wind-tri-row"><span class="wind-tri-dot" style="background:#e8836a"></span><span>Wind ${Math.round(windSpeedKts)} kt</span></div>
+        <div class="wind-tri-edu">${hwLabel}${xwLabel}</div>
+      </div>
+    </div>`;
+}
+
+// ── A-1: ETA Clock Strip ──
+// Shows remaining distance, ETA as duration, and estimated destination local time.
+function _renderETAStrip(d) {
+  const progressEl = document.getElementById('detail-progress');
+  if (!progressEl) return;
+
+  let strip = document.getElementById('detail-eta-strip');
+  if (!strip) {
+    strip = document.createElement('div');
+    strip.id = 'detail-eta-strip';
+    strip.className = 'detail-eta-strip';
+    strip.setAttribute('data-tip', 'ETA computed from current groundspeed. Destination local time estimated from longitude-based timezone. Actual arrival may vary with routing, holding, and ATC sequencing.');
+    progressEl.insertAdjacentElement('afterend', strip);
+  }
+
+  if (!d.distToDest || d.distToDest <= 0 || !d.destination || !d._rawSpd || d._rawSpd < 10) {
+    strip.style.display = 'none';
+    return;
+  }
+
+  const remainNm = Math.round(d.distToDest * 0.539957);
+  const etaSecs = (d.distToDest * 1000) / d._rawSpd; // seconds to destination
+  const etaFormatted = formatETA(d.distToDest, d._rawSpd);
+
+  // Destination local time: UTC arrival + rough longitude-based offset
+  const destCity = typeof window._findCityByCode === 'function' ? window._findCityByCode(d.destination) : null;
+  const destLon = destCity ? destCity.lon : null;
+  const roughOffsetSec = destLon != null ? Math.round(destLon / 15) * 3600 : 0;
+  const arrivalUtcMs = Date.now() + etaSecs * 1000;
+  const arrivalLocal = new Date(arrivalUtcMs + roughOffsetSec * 1000);
+  const hh = String(arrivalLocal.getUTCHours()).padStart(2, '0');
+  const mm = String(arrivalLocal.getUTCMinutes()).padStart(2, '0');
+  const localTimeStr = `${hh}:${mm}`;
+  const tzLabel = roughOffsetSec === 0 ? 'UTC' : (roughOffsetSec > 0 ? `UTC+${roughOffsetSec/3600}` : `UTC${roughOffsetSec/3600}`);
+
+  strip.style.display = 'flex';
+  strip.innerHTML = `
+    <div class="detail-eta-cell">
+      <div class="detail-eta-val">${remainNm} <span class="detail-eta-unit">nm</span></div>
+      <div class="detail-eta-lbl">REMAINING</div>
+    </div>
+    <div class="detail-eta-sep"></div>
+    <div class="detail-eta-cell">
+      <div class="detail-eta-val">${etaFormatted || '--'}</div>
+      <div class="detail-eta-lbl">ETA</div>
+    </div>
+    <div class="detail-eta-sep"></div>
+    <div class="detail-eta-cell">
+      <div class="detail-eta-val">${localTimeStr}</div>
+      <div class="detail-eta-lbl">${tzLabel} LOCAL</div>
+    </div>`;
 }
 
 // ── Journey Arc: SVG flight profile + educational phase card ──
