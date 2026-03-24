@@ -46,19 +46,21 @@ export function createEnvironment(scene) {
   groundMaterial.__scene = scene;
   scene.add(groundMesh);
 
-  // Horizon fade ring — wide radial gradient that starts close to center
-  // and extends well past the ground edge. Long, soft transition like Cities Skylines.
-  const fadeInner = GROUND_SIZE * 0.22;  // starts fading at 22% from center
-  const fadeOuter = GROUND_SIZE * 1.1;   // extends past ground edge
-  const fadeGeo = new THREE.RingGeometry(fadeInner, fadeOuter, 96, 8);
+  // Horizon fade ring — gentle inner start, fully opaque BEFORE ground edge.
+  // Ground extends ±GROUND_SIZE/2 from center; the ring must completely hide
+  // the map tile boundary so it's never visible at any zoom.
+  const fadeInner = GROUND_SIZE * 0.22;
+  const fadeOuter = GROUND_SIZE * 1.1;
+  const fadeGeo = new THREE.RingGeometry(fadeInner, fadeOuter, 96, 12);
   const fadeVerts = fadeGeo.attributes.position;
   const fadeCols = new Float32Array(fadeVerts.count * 4);
   for (let i = 0; i < fadeVerts.count; i++) {
     const x = fadeVerts.getX(i), z = fadeVerts.getZ(i);
     const dist = Math.sqrt(x * x + z * z);
     const t = Math.max(0, Math.min(1, (dist - fadeInner) / (fadeOuter - fadeInner)));
-    // Cubic ease for very gentle start, aggressive end
-    const a = t * t * t;
+    // Scaled quadratic: reaches 1.0 at ~31% of range (≈ ground edge),
+    // then stays fully opaque past the edge. Inner fade is still gentle.
+    const a = Math.min(1, t * t * 10);
     fadeCols[i * 4] = 0.008;
     fadeCols[i * 4 + 1] = 0.032;
     fadeCols[i * 4 + 2] = 0.068;
