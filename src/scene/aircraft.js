@@ -34,11 +34,11 @@ const SPEED_STOPS = [
 const VS_THRESHOLD = 1.5;
 
 // Trail config — 30 min
-const TRAIL_SAMPLE_INTERVAL = 0.125;    // 8Hz live sampling — smoother curves between 2s polls
-const TRAIL_MAX_POINTS = 14400;         // 30 min at 8Hz
+const TRAIL_SAMPLE_INTERVAL = 0.25;     // 4Hz live sampling — good balance of smoothness vs CPU
+const TRAIL_MAX_POINTS = 7200;          // 30 min at 4Hz
 const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real track
 const SYNTHETIC_TRAIL_STEP = 0.5;
-const TRAIL_REBUILD_INTERVAL = 0.5;     // rebuild geometry every 0.5s for responsive trail updates
+const TRAIL_REBUILD_INTERVAL = 1.0;     // rebuild geometry every 1s — GPU upload is expensive
 const TRACK_REFRESH_INTERVAL = 45;      // re-check track API every 45s for followed/selected aircraft
 const TRACK_INITIAL_CHECK_INTERVAL = 0.2; // check every 200ms until track arrives
 const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
@@ -857,23 +857,23 @@ class AircraftObject {
     this.hitMesh.userData.icao24 = data.icao24;
     this.group.add(this.hitMesh);
 
-    // ── Navigation lights + strobes ──
-    // Use actual GLB bounding-box dimensions so lights sit precisely at each model's wingtips
+    // ── Navigation lights + tail strobe ──
+    // Real aircraft: red on port (left) wingtip, green on starboard (right) wingtip,
+    // white strobe on tail. Strobes are NOT co-located with nav lights.
     const navGlowTex = getGlowTexture();
     const modelPath = getModelPath(data.aircraftType);
     const dims = _modelDimensions[modelPath];
-    const halfSpan = dims ? dims.halfSpan : MODEL_SCALE * 0.4;
-    const tailX    = dims ? dims.tailX * 0.9 : -MODEL_SCALE * 0.4;
-    const wingY    = dims ? dims.wingY : 0.005;
+    const halfSpan = dims ? dims.halfSpan * 0.98 : MODEL_SCALE * 0.38; // slight inset from bbox edge
+    const tailX    = dims ? dims.tailX * 0.85 : -MODEL_SCALE * 0.35;
     this._navLights = [];
 
-    // Port (red) — left wingtip (+Z)
+    // Port (red) — left wingtip (+Z), at wing height (~center Y of model)
     const portLight = new THREE.Sprite(new THREE.SpriteMaterial({
       map: navGlowTex, color: 0xff2233, transparent: true, opacity: 0,
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
-    portLight.scale.set(0.045, 0.045, 1);
-    portLight.position.set(0, wingY, halfSpan);
+    portLight.scale.set(0.035, 0.035, 1);
+    portLight.position.set(0, 0, halfSpan);
     this.group.add(portLight);
     this._navLights.push(portLight);
 
@@ -882,53 +882,25 @@ class AircraftObject {
       map: navGlowTex, color: 0x22ff44, transparent: true, opacity: 0,
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
-    starboardLight.scale.set(0.045, 0.045, 1);
-    starboardLight.position.set(0, wingY, -halfSpan);
+    starboardLight.scale.set(0.035, 0.035, 1);
+    starboardLight.position.set(0, 0, -halfSpan);
     this.group.add(starboardLight);
     this._navLights.push(starboardLight);
 
-    // Tail strobe (white) — at actual tail position from model bounds
+    // Tail strobe (white) — at tail, flashes by manufacturer pattern
     const tailStrobe = new THREE.Sprite(new THREE.SpriteMaterial({
       map: navGlowTex, color: 0xffffff, transparent: true, opacity: 0,
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
-    tailStrobe.scale.set(0.035, 0.035, 1);
-    tailStrobe.position.set(tailX, 0.01, 0);
+    tailStrobe.scale.set(0.03, 0.03, 1);
+    tailStrobe.position.set(tailX, 0.008, 0);
     this.group.add(tailStrobe);
     this._navLights.push(tailStrobe);
     this._tailStrobe = tailStrobe;
 
-    // Wingtip strobes (white, high-intensity anti-collision)
-    // Co-located with nav lights; flash pattern differs by manufacturer
-    const _mkStrobeMat = () => new THREE.SpriteMaterial({
-      map: navGlowTex, color: 0xffffff, transparent: true, opacity: 0,
-      depthWrite: false, blending: THREE.AdditiveBlending,
-    });
-    const portStrobe = new THREE.Sprite(_mkStrobeMat());
-    portStrobe.scale.set(0.06, 0.06, 1);
-    portStrobe.position.set(0, wingY, halfSpan);
-    this.group.add(portStrobe);
-    const stbdStrobe = new THREE.Sprite(_mkStrobeMat());
-    stbdStrobe.scale.set(0.06, 0.06, 1);
-    stbdStrobe.position.set(0, wingY, -halfSpan);
-    this.group.add(stbdStrobe);
-    this._wingStrobes = [portStrobe, stbdStrobe];
-
     // Manufacturer for strobe pattern — Boeing: single flash, Airbus: double flash
     const _specs = getAircraftSpecs(data.aircraftType);
     this._isAirbus = _specs ? _specs.mfr === 'Airbus' : false;
-
-    // Body glow sprite — subtle halo around aircraft body, colored by speed
-    this._bodyGlowMat = new THREE.SpriteMaterial({
-      map: navGlowTex,
-      color: new THREE.Color(color.r, color.g, color.b),
-      transparent: true, opacity: 0,
-      depthWrite: false, blending: THREE.AdditiveBlending,
-    });
-    this._bodyGlow = new THREE.Sprite(this._bodyGlowMat);
-    this._bodyGlow.scale.set(0.25, 0.25, 1);
-    this._bodyGlow.position.set(0, 0.01, 0);
-    this.group.add(this._bodyGlow);
 
     if (data.trueTrack != null) {
       this.group.rotation.y = -Math.PI / 2 - data.trueTrack * DEG_TO_RAD;
@@ -1646,32 +1618,19 @@ class AircraftObject {
       this.dropMaterial.opacity = this.masterOpacity * 0.15;
       if (this._gapLine) this._gapLine.material.opacity = this.masterOpacity * 0.3;
       for (const nl of this._navLights) nl.material.opacity = this.masterOpacity * 0.8;
-      if (this._bodyGlow) this._bodyGlowMat.opacity = this.masterOpacity * 0.3;
     }
 
-    // Anti-collision strobes — Boeing: single flash, Airbus: double flash
-    // Phase offset per aircraft so they don't all flash in sync
+    // Tail strobe — Boeing: single flash, Airbus: double flash
     if (this._tailStrobe) {
       const strobePhase = (elapsed * 1.2 + this.data.icao24.charCodeAt(0) * 0.1) % 1;
-      let on;
-      if (this._isAirbus) {
-        // Airbus double flash: 50ms on, 100ms off, 50ms on, 800ms off
-        on = strobePhase < 0.05 || (strobePhase > 0.15 && strobePhase < 0.20);
-      } else {
-        // Boeing / others: single flash: 60ms on, 940ms off
-        on = strobePhase < 0.06;
-      }
-      const sOp = on ? this.masterOpacity : 0;
-      this._tailStrobe.material.opacity = sOp;
-      if (this._wingStrobes) {
-        for (const s of this._wingStrobes) s.material.opacity = sOp;
-      }
+      const on = this._isAirbus
+        ? (strobePhase < 0.05 || (strobePhase > 0.15 && strobePhase < 0.20))
+        : (strobePhase < 0.06);
+      this._tailStrobe.material.opacity = on ? this.masterOpacity : 0;
     }
 
-    // Sync model + glow color to current speed
-    const speedCol = getSpeedColor(this.data.velocity);
-    this._setModelColor(speedCol);
-    if (this._bodyGlow) this._bodyGlowMat.color.copy(speedCol);
+    // Sync model color to current speed
+    this._setModelColor(getSpeedColor(this.data.velocity));
 
     // Dead-reckoning — smooth lerp balances responsiveness with no snap-back.
     // With seen_pos-corrected API time, the extrapolation target is accurate
@@ -1756,10 +1715,6 @@ class AircraftObject {
     for (const nl of this._navLights) {
       nl.material.dispose();
     }
-    if (this._wingStrobes) {
-      for (const s of this._wingStrobes) s.material.dispose();
-    }
-    if (this._bodyGlowMat) this._bodyGlowMat.dispose();
     // T2-19: Clean up contrail particles
     this._disposeContrail();
     // Shadow cleanup — geometry is shared, only dispose cloned material
