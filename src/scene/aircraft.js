@@ -1238,7 +1238,11 @@ class AircraftObject {
     this._prevHeading = data.trueTrack;
 
     this.lastApiPos.copy(pos);
-    this.lastApiTime = now;
+    // Offset API time by data age (seen_pos) — the position was measured this many
+    // seconds AGO, not "now". Without this, dead-reckoning overshoots by seen_pos seconds
+    // and the aircraft snaps back when fresh data arrives.
+    const dataAge = data.seenPos || 0;
+    this.lastApiTime = now - dataAge;
     this.data = data;
 
     const color = getSpeedColor(data.velocity);
@@ -1248,7 +1252,9 @@ class AircraftObject {
 
   _getExtrapolatedTarget() {
     const now = performance.now() / 1000;
-    const dt = now - this.lastApiTime;
+    // Cap extrapolation to 2.5s — beyond that, hold position rather than overshoot.
+    // With 2s polls and ~1-2s data age, actual dt is usually 0-1s of true prediction.
+    const dt = Math.min(now - this.lastApiTime, 2.5);
     return extrapolatePosition(
       this.lastApiPos, this.data.velocity, this.data.trueTrack,
       this.data.verticalRate, dt, this._extrapolatedPos, this._headingRate
@@ -1658,9 +1664,11 @@ class AircraftObject {
     this._setModelColor(speedCol);
     if (this._bodyGlow) this._bodyGlowMat.color.copy(speedCol);
 
-    // Dead-reckoning — responsive lerp for accurate real-time tracking
+    // Dead-reckoning — smooth lerp balances responsiveness with no snap-back.
+    // With seen_pos-corrected API time, the extrapolation target is accurate
+    // and corrections between polls are small (< 0.5 units).
     const predictedTarget = this._getExtrapolatedTarget();
-    this.group.position.lerp(predictedTarget, Math.min(delta * 7, 0.5));
+    this.group.position.lerp(predictedTarget, Math.min(delta * 4, 0.35));
 
     // Heading — model nose is +X, north is -Z → offset by π/2
     if (this.data.trueTrack != null) {
@@ -1671,7 +1679,7 @@ class AircraftObject {
       if (Math.abs(diff) < 0.005) {
         this.group.rotation.y = targetRotY;
       } else {
-        this.group.rotation.y += diff * Math.min(delta * 6, 0.45);
+        this.group.rotation.y += diff * Math.min(delta * 3.5, 0.3);
       }
     }
 

@@ -126,6 +126,7 @@ function parseAircraft(ac) {
     mach: ac.mach != null ? ac.mach : null,
     emergency: ac.emergency || null,
     groundSpeed: ac.gs != null ? ac.gs : null,
+    seenPos: ac.seen_pos != null ? ac.seen_pos : null,
   };
 }
 
