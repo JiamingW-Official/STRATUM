@@ -1259,9 +1259,11 @@ class AircraftObject {
 
   _getExtrapolatedTarget() {
     const now = performance.now() / 1000;
-    // Cap extrapolation to 2.5s — beyond that, hold position rather than overshoot.
-    // With 2s polls and ~1-2s data age, actual dt is usually 0-1s of true prediction.
-    const dt = Math.min(now - this.lastApiTime, 2.5);
+    // No cap needed — the posChanged guard in setTarget() prevents snap-back.
+    // Between genuine position updates (every 3-5s due to Worker SWR cache),
+    // the aircraft glides forward continuously via velocity * dt.
+    // Safety: cap at 30s to handle aircraft that stop transmitting.
+    const dt = Math.min(now - this.lastApiTime, 30);
     return extrapolatePosition(
       this.lastApiPos, this.data.velocity, this.data.trueTrack,
       this.data.verticalRate, dt, this._extrapolatedPos, this._headingRate
