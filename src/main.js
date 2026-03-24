@@ -3123,6 +3123,7 @@ let _elapsed = 0;
 let _lastDayNightTime = 0;
 let _lastCompassDeg = -1;
 let _lastAtmosphereUpdate = 0;
+let _atmosphereFrame = 0;
 
 function animate() {
   requestAnimationFrame(animate);
