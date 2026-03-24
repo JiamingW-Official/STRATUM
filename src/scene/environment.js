@@ -59,8 +59,8 @@ export function createEnvironment(scene) {
     const x = fadeVerts.getX(i), z = fadeVerts.getZ(i);
     const dist = Math.sqrt(x * x + z * z);
     const t = Math.max(0, Math.min(1, (dist - fadeInner) / (fadeOuter - fadeInner)));
-    // Hits full opacity at ~45 units from center — everything past is solid fog
-    const a = Math.min(1, t * t * 50);
+    // Safety net: hides ground tile edges in world space (screen-space shader does main work)
+    const a = Math.min(1, t * t * 25);
     fadeCols[i * 4] = 0.008;
     fadeCols[i * 4 + 1] = 0.032;
     fadeCols[i * 4 + 2] = 0.068;

@@ -93,9 +93,17 @@ const CinematicShader = {
       // Saturation boost
       color = mix(vec3(lum), color, 1.15);
 
-      // Vignette
+      // Vignette — darken edges
       float vig = smoothstep(0.7, 0.2, d);
       color *= mix(0.55, 1.0, vig);
+
+      // Horizon fog vignette — fade to sky/fog color at screen edges
+      // Uses rectangular distance (max of x,y offset) for sharp corner fog
+      vec2 edgeDist = abs(uv - 0.5) * 2.0; // 0 at center, 1 at edge
+      float edgeMax = max(edgeDist.x, edgeDist.y);
+      float fogMask = smoothstep(0.55, 1.0, edgeMax);
+      vec3 fogColor = vec3(0.008, 0.032, 0.068);
+      color = mix(color, fogColor, fogMask * fogMask);
 
       // Film grain
       float grain = hash(uv * resolution + fract(time * 43.7) * 1000.0);
@@ -1761,8 +1769,8 @@ function updateWASD(delta) {
   camera.position.add(move);
   controls.target.add(move);
 
-  // Clamp camera to 70% of ground extent (30% margin on each side)
-  const LIMIT = 56; // GROUND_SIZE(160) * 0.5 * 0.7
+  // Clamp camera to 60% of ground extent (40% margin on each side)
+  const LIMIT = 48; // GROUND_SIZE(160) * 0.5 * 0.6
   camera.position.x = Math.max(-LIMIT, Math.min(LIMIT, camera.position.x));
   camera.position.z = Math.max(-LIMIT, Math.min(LIMIT, camera.position.z));
   controls.target.x = Math.max(-LIMIT, Math.min(LIMIT, controls.target.x));
@@ -3158,8 +3166,8 @@ function animate() {
       controls.autoRotateSpeed = 0.3;
     }
     controls.update();
-    // Clamp orbit panning to map bounds (30% margin)
-    const _LIM = 56;
+    // Clamp orbit panning to map bounds (40% margin)
+    const _LIM = 48;
     controls.target.x = Math.max(-_LIM, Math.min(_LIM, controls.target.x));
     controls.target.z = Math.max(-_LIM, Math.min(_LIM, controls.target.z));
     camera.position.x = Math.max(-_LIM, Math.min(_LIM, camera.position.x));
