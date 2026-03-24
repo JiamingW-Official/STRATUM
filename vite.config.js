@@ -91,6 +91,7 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/navaids/, ''),
       },
       // Worker smart endpoints — proxy to deployed Worker so dev mode uses real caching/aggregation
+      '/api/boot':      { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },
       '/api/positions': { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },
       '/api/airports':  { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },
       '/api/enrich':    { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },

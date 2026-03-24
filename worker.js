@@ -149,10 +149,10 @@ async function handleAirports(url, env) {
     const upstream = await Promise.any(racePromises);
     const responseBody = await upstream.text();
 
-    // Write to both PoP cache (24h) and KV (7 days) — airport geometry barely changes
+    // Write to both PoP cache (24h) and KV (30 days) — airport geometry almost never changes
     const toCache = new Response(responseBody, { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     cachePut(cacheKey, toCache, 86400, 3600);
-    if (env?.AIRPORT_CACHE) env.AIRPORT_CACHE.put(kvKey, responseBody, { expirationTtl: 86400 * 7 });
+    if (env?.AIRPORT_CACHE) env.AIRPORT_CACHE.put(kvKey, responseBody, { expirationTtl: 86400 * 30 });
 
     return addPerfHeaders(new Response(responseBody, {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'MISS' },
@@ -604,11 +604,11 @@ async function handlePositions(url) {
     }).then(res => res.ok ? res.json() : null).catch(() => null),
   ];
   sources.forEach((p, i) => p.then(v => { resolved[i] = v; settled++; }));
-  // Wait for all sources OR 1.2s — whichever comes first; was 2s but most sources settle
-  // well under 1s. Reducing saves latency on cold first loads without losing any data.
+  // Wait for all sources OR 0.9s — CF edge gets ADS-B responses in 200-500ms typically.
+  // Reducing from 1.2s saves 300ms on cold misses without dropping any meaningful data.
   await Promise.race([
     Promise.allSettled(sources),
-    new Promise(r => setTimeout(r, 1200)),
+    new Promise(r => setTimeout(r, 900)),
   ]);
   const results = resolved;
   const merged = new Map(); // hex → best aircraft data
@@ -682,12 +682,61 @@ async function handlePositions(url) {
   return addPerfHeaders(response);
 }
 
+// ── /api/boot — Single round-trip first-load payload ──
+// Replaces 2 parallel browser fetches (positions + airports) with 1 Worker call.
+// Worker fans out all 3 at the edge in parallel; each handler reads its own cache tier.
+// Net result: 1 HTTP request instead of 2 from the browser; airports+weather come for free
+// alongside positions since they're served from edge cache (24h / 15min respectively).
+async function handleBoot(url, env) {
+  const lat = parseFloat(url.searchParams.get('lat'));
+  const lon = parseFloat(url.searchParams.get('lon'));
+  const r   = url.searchParams.get('r')  || '100';
+  const ar  = parseFloat(url.searchParams.get('ar')) || 1.5;
+  if (isNaN(lat) || isNaN(lon)) return new Response('Missing lat/lon', { status: 400, headers: corsHeaders() });
+
+  // PoP cache — 5s+SWR10s (positions data is most volatile; determines TTL)
+  const rlat = lat.toFixed(2), rlon = lon.toFixed(2);
+  const cacheKey = new Request(`https://cache.internal/boot/v2/${rlat}/${rlon}/${r}`);
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    const res = corsResponse(cached);
+    res.headers.set('X-Cache', 'HIT');
+    return res;
+  }
+
+  // Fan out positions + airports + weather fully in parallel at the edge.
+  // Each handler reads its own PoP/KV cache tier — airports+weather hit cache instantly.
+  const [posRes, aptRes, wxRes] = await Promise.all([
+    handlePositions(new URL(`https://cache.internal/api/positions?lat=${lat}&lon=${lon}&r=${r}`)),
+    handleAirports(new URL(`https://cache.internal/api/airports?lat=${lat}&lon=${lon}&r=${ar}`), env),
+    handleWeather(new URL(`https://cache.internal/api/weather?lat=${lat}&lon=${lon}`)),
+  ]);
+
+  const [positions, airports, weather] = await Promise.all([
+    posRes.json().catch(() => null),
+    aptRes.json().catch(() => null),
+    wxRes.json().catch(() => null),
+  ]);
+
+  const body = JSON.stringify({ positions, airports, weather });
+  cachePut(
+    cacheKey,
+    new Response(body, { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }),
+    5, 10,
+  );
+
+  return addPerfHeaders(new Response(body, {
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'MISS' },
+  }));
+}
+
 // ── Cron: Pre-warm edge cache for top ~60 busiest airspaces worldwide ──
 // Paid plan includes cron triggers — run every 5 min to keep cache hot.
 // When a real user visits any of these cities, data is already cached = 0ms API latency.
 // Airport data has a 24h edge cache so handleAirports is a no-op after first warm.
 const WARM_CITIES = [
   // ── USA ──
+  { lat: 40.71, lon:  -74.01 },  // NYC center — matches speculative /api/boot cache key exactly
   { lat: 33.64, lon:  -84.43 },  // ATL Atlanta
   { lat: 41.97, lon:  -87.91 },  // ORD Chicago O'Hare
   { lat: 32.90, lon:  -97.04 },  // DFW Dallas/Fort Worth
@@ -811,13 +860,17 @@ export default {
   // Cron trigger: pre-warm cache every 5 min (paid plan feature)
   // Positions + weather refresh every 5 min; airports refresh daily (24h cache)
   async scheduled(event, env, ctx) {
-    // Run all cities fully in parallel — edge workers have ample CPU headroom.
-    // Airport data has 24h TTL so handleAirports is nearly instant after first warm.
-    await Promise.allSettled(WARM_CITIES.flatMap(c => [
-      handlePositions(new URL(`https://cache.internal/api/positions?lat=${c.lat}&lon=${c.lon}&r=100`)).catch(() => null),
-      handleWeather(new URL(`https://cache.internal/api/weather?lat=${c.lat}&lon=${c.lon}`)).catch(() => null),
-      handleAirports(new URL(`https://cache.internal/api/airports?lat=${c.lat}&lon=${c.lon}&r=1.2`), env).catch(() => null),
-    ]));
+    // One handleBoot call per city replaces 3 individual calls — cleaner and equivalent.
+    // handleBoot fans out positions + airports + weather internally in parallel,
+    // each handler writes its own PoP/KV cache tier so individual endpoints also benefit.
+    await Promise.allSettled(
+      WARM_CITIES.map(c =>
+        handleBoot(
+          new URL(`https://cache.internal/api/boot?lat=${c.lat}&lon=${c.lon}&r=100&ar=1.2`),
+          env,
+        ).catch(() => null),
+      ),
+    );
   },
 
   async fetch(request, env) {
@@ -829,6 +882,7 @@ export default {
     }
 
     // Smart endpoints
+    if (url.pathname === '/api/boot')             return handleBoot(url, env);
     if (url.pathname === '/api/positions')        return handlePositions(url);
     if (url.pathname === '/api/airports')         return handleAirports(url, env);
     if (url.pathname === '/api/airports/batch')   return handleAirportsBatch(url, env);

@@ -16,6 +16,12 @@
   <link rel="dns-prefetch" href="https://api.adsbdb.com" />
   <link href="/fonts/css/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" fetchpriority="high" />
+  <!-- Speculative boot fetch — one Worker request returns positions+airports+weather
+       before JS bundle even parses (~300-500ms head start, 1 HTTP request instead of 2) -->
+  <script>
+    window._earlyBoot = fetch('/api/boot?lat=40.7128&lon=-74.0060&r=100&ar=1.5')
+      .then(r => r.ok ? r.json() : null).catch(() => null);
+  </script>
 </head>
 <body>
   <canvas id="scene"></canvas>

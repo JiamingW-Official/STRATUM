@@ -18,15 +18,24 @@ export async function fetchWeather(lat, lon) {
       + `&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,precipitation,precipitation_probability&forecast_hours=24`
       + `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset&forecast_days=7`
       + `&timezone=auto`;
-    let res;
-    try {
-      res = await fetch(workerUrl, { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) throw new Error('Worker weather failed');
-    } catch {
-      res = await fetch(directUrl, { signal: AbortSignal.timeout(8000) });
+
+    // Try boot payload first — weather arrives for free in the /api/boot response
+    let data = null;
+    const earlyP = window._earlyBoot;
+    if (earlyP && Math.abs(lat - 40.7128) < 0.5 && Math.abs(lon - (-74.006)) < 0.5) {
+      try { const boot = await earlyP; if (boot?.weather?.current) data = boot.weather; } catch { /* fall through */ }
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    if (!data) {
+      let res;
+      try {
+        res = await fetch(workerUrl, { signal: AbortSignal.timeout(6000) });
+        if (!res.ok) throw new Error('Worker weather failed');
+      } catch {
+        res = await fetch(directUrl, { signal: AbortSignal.timeout(8000) });
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+    }
     const c = data.current;
     const KMH_TO_KT = 0.539957;
     const hourly = [];

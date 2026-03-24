@@ -180,8 +180,14 @@ async function fetchStates() {
   const lat = userLat.toFixed(4);
   const lon = userLon.toFixed(4);
 
-  // Primary: Worker multi-source aggregation (no cache: 'no-store' — let CDN edge cache work)
+  // Primary: Worker multi-source aggregation
+  // Reuse speculative boot fetch from index.html — positions+airports+weather in one request
   try {
+    const earlyP = window._earlyBoot;
+    if (earlyP) {
+      const boot = await earlyP;
+      if (boot?.positions) return parseAdsbResponse(boot.positions);
+    }
     const r = await fetch(`/api/positions?lat=${lat}&lon=${lon}&r=${BBOX_RADIUS_NM}`, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
