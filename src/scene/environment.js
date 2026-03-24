@@ -22,13 +22,17 @@ export function createEnvironment(scene) {
   // Horizon fog — fades map edges into sky for infinity/depth-of-field effect
   scene.fog = new THREE.FogExp2(new THREE.Color(0.008, 0.032, 0.068), 0.013);
 
-  const ambient = new THREE.AmbientLight(0x3a5577, 0.7);
+  const ambient = new THREE.AmbientLight(0x3a5577, 0.5);
   ambient.name = 'ambientLight';
   _ambientLightRef = ambient;
   scene.add(ambient);
 
-  const dirLight = new THREE.DirectionalLight(0x99bbdd, 0.35);
-  dirLight.position.set(20, 60, 30);
+  // Hemisphere light — sky/ground color split for richer aircraft shading
+  const hemi = new THREE.HemisphereLight(0x8899bb, 0x222233, 0.4);
+  scene.add(hemi);
+
+  const dirLight = new THREE.DirectionalLight(0xaaccee, 0.45);
+  dirLight.position.set(15, 50, 25);
   scene.add(dirLight);
 
   const groundGeo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);

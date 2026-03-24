@@ -23,12 +23,12 @@ const COLOR_DESCEND = new THREE.Color(0x4db8ff);
 // Speed-based trail colors (m/s thresholds) — smooth gradient, aviation-inspired
 // Taxi/slow → approach → cruise → fast cruise → overspeed
 const SPEED_STOPS = [
-  { speed: 0,   color: new THREE.Color(0x4a7fff) },  // calm blue — ground/slow
-  { speed: 80,  color: new THREE.Color(0x44ddbb) },  // teal — approach ~155 kts
-  { speed: 140, color: new THREE.Color(0x66eea0) },  // soft green — climb ~270 kts
-  { speed: 200, color: new THREE.Color(0xeedd55) },  // warm gold — cruise ~390 kts
-  { speed: 260, color: new THREE.Color(0xee8833) },  // deep orange — fast cruise ~505 kts
-  { speed: 310, color: new THREE.Color(0xdd4455) },  // muted red — overspeed ~600 kts
+  { speed: 0,   color: new THREE.Color(0x5588ff) },  // soft blue — ground/slow
+  { speed: 80,  color: new THREE.Color(0x40d4c0) },  // teal — approach ~155 kts
+  { speed: 140, color: new THREE.Color(0x5ce8a0) },  // bright green — climb ~270 kts
+  { speed: 200, color: new THREE.Color(0xe8d050) },  // warm amber — cruise ~390 kts
+  { speed: 260, color: new THREE.Color(0xf08030) },  // vivid orange — fast cruise ~505 kts
+  { speed: 310, color: new THREE.Color(0xe04050) },  // bright red — overspeed ~600 kts
 ];
 
 const VS_THRESHOLD = 1.5;
@@ -45,11 +45,11 @@ const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
 
 // T2-11: Speed-based trail width (m/s → linewidth) — thin, precise lines
 function getSpeedLineWidth(speed) {
-  if (speed == null || speed < 30) return 0.6;
-  if (speed < 80)  return 0.6 + (speed - 30) / (80 - 30) * 0.3;   // 0.6 → 0.9
-  if (speed < 200) return 0.9 + (speed - 80) / (200 - 80) * 0.5;  // 0.9 → 1.4
-  if (speed < 260) return 1.4 + (speed - 200) / (260 - 200) * 0.3; // 1.4 → 1.7
-  return 1.7;
+  if (speed == null || speed < 30) return 0.5;
+  if (speed < 80)  return 0.5 + (speed - 30) / (80 - 30) * 0.3;   // 0.5 → 0.8
+  if (speed < 200) return 0.8 + (speed - 80) / (200 - 80) * 0.5;  // 0.8 → 1.3
+  if (speed < 260) return 1.3 + (speed - 200) / (260 - 200) * 0.3; // 1.3 → 1.6
+  return 1.6;
 }
 
 // T2-19: Contrail constants
@@ -268,13 +268,17 @@ function cloneModelForAircraft(typeCode) {
   if (!template) return null;
 
   const clone = template.clone();
-  // Deep clone materials so each aircraft can have its own color/opacity
+  // Deep clone materials with enhanced PBR properties
   clone.traverse((child) => {
     if (child.isMesh) {
       child.material = child.material.clone();
       child.material.transparent = true;
       child.material.opacity = 0;
-      // Pre-init emissive to avoid per-frame allocation check in _setModelColor
+      // PBR enhancement: slight metallic sheen for aircraft fuselage
+      if (child.material.metalness !== undefined) {
+        child.material.metalness = 0.15;
+        child.material.roughness = 0.55;
+      }
       if (!child.material.emissive) child.material.emissive = new THREE.Color();
     }
   });
@@ -625,9 +629,9 @@ export class AircraftManager {
     if (!ac) return;
     this._selectedAc = ac;
     // Glowing ring that follows the aircraft
-    const ringGeo = new THREE.RingGeometry(0.18, 0.22, 48);
+    const ringGeo = new THREE.RingGeometry(0.20, 0.23, 64);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x5aacff, transparent: true, opacity: 0.7,
+      color: 0x60b0ff, transparent: true, opacity: 0.65,
       side: THREE.DoubleSide, depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
@@ -818,7 +822,7 @@ class AircraftObject {
     } else {
       // Fallback: small procedural cone until GLB loads
       this.bodyMat = new THREE.MeshPhongMaterial({
-        color, emissive: color, emissiveIntensity: 0.85,
+        color, emissive: color, emissiveIntensity: 0.6,
         transparent: true, opacity: 0,
       });
       this.bodyMesh = new THREE.Mesh(getFallbackGeometry(), this.bodyMat);
@@ -1110,24 +1114,42 @@ class AircraftObject {
     const h = this._labelCanvas.height;
     ctx.clearRect(0, 0, w, h);
 
+    // Subtle backdrop for readability against any background
+    ctx.fillStyle = 'rgba(4,6,12,0.35)';
+    const rx = 10, ry = 6, rw = w - 20, rh = 180, cr = 12;
+    ctx.beginPath();
+    ctx.moveTo(rx + cr, ry); ctx.lineTo(rx + rw - cr, ry);
+    ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + cr);
+    ctx.lineTo(rx + rw, ry + rh - cr);
+    ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - cr, ry + rh);
+    ctx.lineTo(rx + cr, ry + rh);
+    ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - cr);
+    ctx.lineTo(rx, ry + cr);
+    ctx.quadraticCurveTo(rx, ry, rx + cr, ry);
+    ctx.fill();
+
     const altM = bestAlt(data);
     const altFt = altM ? Math.round(altM * METERS_TO_FEET) : null;
     const speedKts = data.velocity != null ? Math.round(data.velocity * 1.94384) : null;
     const hdg = data.trueTrack != null ? Math.round(data.trueTrack) : null;
     const vsFtMin = data.verticalRate != null ? Math.round(data.verticalRate * METERS_TO_FEET * 60) : null;
 
-    // Line 1: Callsign + Registration + Type
+    // Text shadow for all text
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
+
+    // Line 1: Callsign + Type
     ctx.font = 'bold 44px JetBrains Mono, monospace';
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#f0f0f0';
     ctx.textAlign = 'left';
     let line1 = data.callsign || data.icao24;
-    if (data.registration && data.registration !== line1) line1 += ` ${data.registration}`;
-    if (data.aircraftType) line1 += ` ${data.aircraftType}`;
-    ctx.fillText(line1, 16, 52);
+    if (data.aircraftType) line1 += `  ${data.aircraftType}`;
+    ctx.fillText(line1, 22, 52);
 
-    // Line 2: Route (if available) + Alt + Speed + Heading
-    ctx.font = '38px JetBrains Mono, monospace';
-    ctx.fillStyle = 'rgba(180,210,255,0.9)';
+    // Line 2: Route + Alt + Speed + Heading
+    ctx.font = '36px JetBrains Mono, monospace';
+    ctx.fillStyle = 'rgba(170,205,255,0.92)';
     let line2 = '';
     const route = getRoute(data.callsign);
     const labelOrigin = data.origin || (route && route.origin) || null;
@@ -1140,15 +1162,19 @@ class AircraftObject {
     }
     if (speedKts != null) line2 += ` ${speedKts}kt`;
     if (hdg != null) line2 += ` ${String(hdg).padStart(3, '0')}\u00b0`;
-    ctx.fillText(line2, 16, 112);
+    ctx.fillText(line2, 22, 108);
 
-    // Line 3: Vertical speed (colored by direction)
+    // Line 3: Vertical speed
     if (vsFtMin != null && Math.abs(vsFtMin) > 100) {
-      ctx.font = '38px JetBrains Mono, monospace';
+      ctx.font = '34px JetBrains Mono, monospace';
       const arrow = vsFtMin > 0 ? '\u2191' : '\u2193';
-      ctx.fillStyle = vsFtMin > 0 ? '#ff9d4d' : '#4db8ff';
-      ctx.fillText(`${arrow}${Math.abs(vsFtMin).toLocaleString()} fpm`, 16, 168);
+      ctx.fillStyle = vsFtMin > 0 ? '#ffaa55' : '#55bbff';
+      ctx.fillText(`${arrow}${Math.abs(vsFtMin).toLocaleString()} fpm`, 22, 160);
     }
+
+    // Reset shadow
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
   }
 
   _refreshInfoLabel() {
@@ -1175,13 +1201,16 @@ class AircraftObject {
     if (this._useGLB && this._modelMeshes.length > 0) {
       for (const m of this._modelMeshes) {
         if (!m.material.emissive) m.material.emissive = new THREE.Color();
+        // Diffuse color at 70% brightness for body definition;
+        // emissive at full color but lower intensity for subtle glow
+        m.material.color.setRGB(color.r * 0.7, color.g * 0.7, color.b * 0.7);
         m.material.emissive.copy(color);
-        m.material.emissiveIntensity = 0.85;
-        m.material.color.copy(color);
+        m.material.emissiveIntensity = 0.6;
       }
     } else if (this.bodyMat) {
-      this.bodyMat.color.copy(color);
+      this.bodyMat.color.setRGB(color.r * 0.7, color.g * 0.7, color.b * 0.7);
       this.bodyMat.emissive.copy(color);
+      this.bodyMat.emissiveIntensity = 0.6;
     }
   }
 
