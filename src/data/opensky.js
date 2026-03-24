@@ -182,10 +182,11 @@ async function fetchStates() {
   const lon = userLon.toFixed(4);
 
   // Primary: Worker multi-source aggregation
-  // Reuse speculative boot fetch from index.html — positions+airports+weather in one request
+  // Reuse speculative boot fetch from index.html — consume ONCE then clear
   try {
     const earlyP = window._earlyBoot;
     if (earlyP) {
+      window._earlyBoot = null; // consume once — don't reuse stale NYC data on city switch
       const boot = await earlyP;
       if (boot?.positions) return parseAdsbResponse(boot.positions);
     }
