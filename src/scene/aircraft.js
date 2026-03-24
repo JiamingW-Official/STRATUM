@@ -54,7 +54,7 @@ function getSpeedLineWidth(speed) {
 
 // T2-19: Contrail constants
 const CONTRAIL_ALT_THRESHOLD = 9144; // FL300 in meters
-const CONTRAIL_MAX_PARTICLES = 50;
+const CONTRAIL_MAX_PARTICLES = 30;
 const CONTRAIL_LIFETIME = 8.0; // seconds
 
 // Aircraft shadow projection — sun-aware ground shadows
@@ -526,8 +526,13 @@ export class AircraftManager {
   }
 
   animate(delta, elapsed, camera) {
+    // Frame counter for throttled per-aircraft operations
+    this._frameCount = (this._frameCount || 0) + 1;
+    const camPos = camera ? camera.position : null;
     for (const ac of this.aircraft.values()) {
       ac._trailOpacityMult = this.trailOpacityMult; // T1-11
+      ac._frameCount = this._frameCount;
+      ac._camPos = camPos;
       ac.animate(delta, elapsed, this._highlightSet, this._filterSet);
     }
     // T2-13: Smart label density culling — every ~0.5s
@@ -1679,11 +1684,21 @@ class AircraftObject {
 
     this.updateDropLine(this.group.position);
 
-    // T2-19: Contrail particles
-    this._updateContrail(delta);
+    // Distance-based LOD: skip expensive effects for far aircraft
+    const fc = this._frameCount || 0;
+    const cp = this._camPos;
+    const dist2 = cp ? this.group.position.distanceToSquared(cp) : 0;
+    const isNear = dist2 < 400; // ~20 units = ~55km
 
-    // Shadow projection on ground
-    this._updateShadow();
+    // Contrails: only near aircraft, throttle to every 2nd frame for far
+    if (isNear || (fc & 1) === 0) {
+      this._updateContrail(delta);
+    }
+
+    // Shadow: throttle to every 3rd frame (sun moves slowly)
+    if ((fc % 3) === 0) {
+      this._updateShadow();
+    }
   }
 
   dispose(scene) {

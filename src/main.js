@@ -141,7 +141,7 @@ async function _initPostProcessing() {
   const renderPass = new RenderPass(scene, camera);
   composer.addPass(renderPass);
   bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
+    new THREE.Vector2(window.innerWidth * 0.4, window.innerHeight * 0.4),
     0.55, 0.35, 0.85,
   );
   composer.addPass(bloomPass);
@@ -321,7 +321,7 @@ function updateCompass(elapsed) {
 createEnvironment(scene);
 
 // --- Ambient particles ---
-const PARTICLE_COUNT = 400;
+const PARTICLE_COUNT = 200;
 const particleGeo = new THREE.BufferGeometry();
 const particlePositions = new Float32Array(PARTICLE_COUNT * 3);
 const particleSpeeds = new Float32Array(PARTICLE_COUNT);
@@ -341,7 +341,7 @@ particles.renderOrder = 2000;
 scene.add(particles);
 
 // --- Starfield ---
-const STAR_COUNT = 1200;
+const STAR_COUNT = 600;
 const starGeo = new THREE.BufferGeometry();
 const starPositions = new Float32Array(STAR_COUNT * 3);
 const starSizes = new Float32Array(STAR_COUNT);
