@@ -1215,38 +1215,45 @@ class AircraftObject {
 
   setTarget(pos, data) {
     // EMA altitude smoothing — reduces jitter from ADS-B altitude quantization
-    // (barometric reports in 25ft steps, geometric in ~10ft steps).
-    // α=0.35 balances responsiveness with smoothness (like FR24).
     if (this._smoothY == null) {
-      this._smoothY = pos.y; // first update: no smoothing
+      this._smoothY = pos.y;
     } else {
       this._smoothY += 0.35 * (pos.y - this._smoothY);
     }
     pos.y = this._smoothY;
 
-    // Track heading rate of change for curved extrapolation during turns
     const now = performance.now() / 1000;
-    if (data.trueTrack != null && this._prevHeading != null && this.lastApiTime) {
-      let dh = data.trueTrack - this._prevHeading;
-      if (dh > 180) dh -= 360;
-      if (dh < -180) dh += 360;
-      const dt = now - this.lastApiTime;
-      if (dt > 0.5 && dt < 15) {
-        this._headingRate = dh / dt; // deg/s — positive = turning right
+
+    // Detect if position actually changed — Worker SWR cache often re-serves
+    // identical positions. Resetting lastApiTime with unchanged position causes
+    // the extrapolation anchor to jump forward, snapping the aircraft backward.
+    const dx = pos.x - this.lastApiPos.x;
+    const dz = pos.z - this.lastApiPos.z;
+    const dy = pos.y - this.lastApiPos.y;
+    const posChanged = (dx * dx + dz * dz + dy * dy) > 0.000001;
+
+    if (posChanged) {
+      // Track heading rate for curved extrapolation during turns
+      if (data.trueTrack != null && this._prevHeading != null) {
+        let dh = data.trueTrack - this._prevHeading;
+        if (dh > 180) dh -= 360;
+        if (dh < -180) dh += 360;
+        const dt = now - this.lastApiTime;
+        if (dt > 0.3 && dt < 15) {
+          this._headingRate = dh / dt;
+        }
       }
+      this._prevHeading = data.trueTrack;
+
+      this.lastApiPos.copy(pos);
+      // Offset by data age so extrapolation starts from the true measurement time
+      const dataAge = data.seenPos || 0;
+      this.lastApiTime = now - dataAge;
     }
-    this._prevHeading = data.trueTrack;
 
-    this.lastApiPos.copy(pos);
-    // Offset API time by data age (seen_pos) — the position was measured this many
-    // seconds AGO, not "now". Without this, dead-reckoning overshoots by seen_pos seconds
-    // and the aircraft snaps back when fresh data arrives.
-    const dataAge = data.seenPos || 0;
-    this.lastApiTime = now - dataAge;
+    // Always update flight data — velocity/heading/type can change even with same position
     this.data = data;
-
-    const color = getSpeedColor(data.velocity);
-    this._setModelColor(color);
+    this._setModelColor(getSpeedColor(data.velocity));
     this._labelDirty = true;
   }
 
