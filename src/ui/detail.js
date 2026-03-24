@@ -1336,9 +1336,9 @@ export function showDetail(aircraftObj, userLat, userLon) {
   const hasExtData = d.ias != null || d.tas != null || d.mach != null || d.geoAltFt != null;
   if (hasExtData && elExtGrid) {
     elExtGrid.classList.remove('hidden');
-    flashUpdate(elIas, d.ias != null ? `${d.ias}` : '--');
-    flashUpdate(elTas, d.tas != null ? `${d.tas}` : '--');
-    flashUpdate(elMach, d.mach != null ? `${d.mach}` : '--');
+    flashUpdate(elIas, d.ias != null ? `${d.ias} kts` : '--');
+    flashUpdate(elTas, d.tas != null ? `${d.tas} kts` : '--');
+    flashUpdate(elMach, d.mach != null ? `M ${d.mach}` : '--');
     // Educational tooltips for airspeed types
     const iasCell = elIas?.closest('.detail-cell');
     if (iasCell) iasCell.setAttribute('data-tip', 'Indicated Airspeed — raw cockpit reading, uncorrected for altitude. Governs aircraft limits: approach speed Vref, max structural speed Vmo. Stays roughly constant across altitudes for the same maneuver.');
@@ -1361,7 +1361,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
     // C-4: Mach education strip
     _renderMachStrip(d);
     if (d.geoAltFt != null) {
-      const geoStr = d.geoAltFt >= 18000 ? `FL${Math.round(d.geoAltFt / 100)}` : `${d.geoAltFt.toLocaleString()}`;
+      const geoStr = d.geoAltFt >= 18000 ? `FL${Math.round(d.geoAltFt / 100)}` : `${d.geoAltFt.toLocaleString()} ft`;
       const altFtBaro = d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null;
       if (altFtBaro != null) {
         const delta = d.geoAltFt - altFtBaro;

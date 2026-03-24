@@ -1,4 +1,4 @@
-import { getLastFetchTime, getPollInterval, isDemo } from '../data/opensky.js';
+import { getLastFetchTime, getPollInterval, isDemo, forcePoll } from '../data/opensky.js';
 
 const hudCount = document.getElementById('hud-count');
 const hudLocation = document.getElementById('hud-location');
@@ -142,7 +142,18 @@ export function showSignalLost(show) {
     el.classList.remove('hidden');
     const retryEl = document.getElementById('signal-lost-retry');
     const interval = getPollInterval();
-    retryEl.textContent = `Retrying every ${Math.ceil(interval / 1000)}s...`;
+    retryEl.textContent = `Auto-retrying every ${Math.ceil(interval / 1000)}s...`;
+    // Wire retry button once
+    const btn = document.getElementById('signal-lost-btn');
+    if (btn && !btn._wired) {
+      btn._wired = true;
+      btn.addEventListener('click', () => {
+        btn.textContent = 'Retrying…';
+        btn.disabled = true;
+        forcePoll();
+        setTimeout(() => { btn.textContent = 'Retry Now'; btn.disabled = false; }, 3000);
+      });
+    }
   } else {
     el.classList.add('hidden');
   }

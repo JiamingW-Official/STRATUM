@@ -484,6 +484,10 @@ export function getPollInterval() {
   return POLL_INTERVAL;
 }
 
+export function forcePoll() {
+  poll();
+}
+
 // --- Route fetching ---
 // Primary: adsbdb.com — public flight route database, returns origin/dest/airline/city
 // in a single callsign lookup. No API key required.

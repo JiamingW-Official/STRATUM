@@ -1994,7 +1994,7 @@ class AircraftObject {
       destCity,
       altitude: altFt != null ? `${altFt.toLocaleString()} ft` : '--',
       speed: speedKmh != null ? `${speedKmh} km/h` : '--',
-      heading: heading != null ? `${String(heading).padStart(3, '0')}  ${headingToCardinal(heading)}` : '--',
+      heading: heading != null ? `${String(heading).padStart(3, '0')}° ${headingToCardinal(heading)}` : '--',
       verticalSpeed: vsFtMin != null ? `${vsFtMin > 0 ? '+' : ''}${vsFtMin} ft/min` : '--',
       status: getStatusLabel(this.data.verticalRate),
       latitude: this.data.latitude,
