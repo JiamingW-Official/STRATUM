@@ -1760,6 +1760,13 @@ function updateWASD(delta) {
   const move = input.multiplyScalar(speed * factor * delta);
   camera.position.add(move);
   controls.target.add(move);
+
+  // Clamp camera to 70% of ground extent (30% margin on each side)
+  const LIMIT = 56; // GROUND_SIZE(160) * 0.5 * 0.7
+  camera.position.x = Math.max(-LIMIT, Math.min(LIMIT, camera.position.x));
+  camera.position.z = Math.max(-LIMIT, Math.min(LIMIT, camera.position.z));
+  controls.target.x = Math.max(-LIMIT, Math.min(LIMIT, controls.target.x));
+  controls.target.z = Math.max(-LIMIT, Math.min(LIMIT, controls.target.z));
 }
 
 const _fwOrbitOff = new THREE.Vector3();
@@ -3151,6 +3158,12 @@ function animate() {
       controls.autoRotateSpeed = 0.3;
     }
     controls.update();
+    // Clamp orbit panning to map bounds (30% margin)
+    const _LIM = 56;
+    controls.target.x = Math.max(-_LIM, Math.min(_LIM, controls.target.x));
+    controls.target.z = Math.max(-_LIM, Math.min(_LIM, controls.target.z));
+    camera.position.x = Math.max(-_LIM, Math.min(_LIM, camera.position.x));
+    camera.position.z = Math.max(-_LIM, Math.min(_LIM, camera.position.z));
   }
 
   updatePulse(scene, _elapsed);
