@@ -374,7 +374,6 @@ const IDLE_TIMEOUT = 30000;
 function resetIdleTimer() {
   lastInteractionTime = Date.now();
   controls.autoRotate = false;
-  if (autoTour) stopAutoTour();
 }
 
 let pointerDownX = 0;
@@ -1525,42 +1524,6 @@ function _clearHoldingOval() {
   }
 }
 
-// --- Auto-tour mode ---
-let autoTour = false;
-let autoTourTimer = null;
-const AUTO_TOUR_INTERVAL = 6000;
-
-function startAutoTour() {
-  autoTour = true;
-  stopFollow();
-  advanceTour();
-}
-
-function stopAutoTour() {
-  autoTour = false;
-  if (autoTourTimer) { clearTimeout(autoTourTimer); autoTourTimer = null; }
-  if (followIndicator) followIndicator.classList.add('hidden');
-}
-
-function advanceTour() {
-  if (!autoTour || !aircraftManager) return;
-  let all = [...aircraftManager.aircraft.values()].filter(ac => !ac.fadingOut);
-  // T2-16: Apply type filter
-  if (autoTourTypeFilter) {
-    all = all.filter(ac => {
-      const cat = classifyAircraftType(ac.data.aircraftType);
-      return cat === autoTourTypeFilter;
-    });
-  }
-  if (all.length === 0) { stopAutoTour(); return; }
-  const ac = all[Math.floor(Math.random() * all.length)];
-  const { lat, lon } = getUserLocation();
-  showDetail(ac, lat, lon);
-  aircraftManager.selectAircraft(ac);
-  flyToThenFollow(ac);
-  autoTourTimer = setTimeout(advanceTour, AUTO_TOUR_INTERVAL);
-}
-
 // --- Help panel (slide-in) ---
 const helpPanel = document.getElementById('help-panel');
 function toggleHelp() {
@@ -1595,7 +1558,6 @@ document.addEventListener('keydown', (e) => {
 
   const k = e.key.toLowerCase();
   if (e.ctrlKey || e.metaKey) { /* skip custom shortcuts when modifier held */ }
-  else if (k === 't') { if (autoTour) stopAutoTour(); else startAutoTour(); return; }
   else if (k === 'c') { e.preventDefault(); openCityPicker(); return; }
 
   // T1-07: Next/prev aircraft with [ and ]
@@ -1696,12 +1658,9 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // T2-16: Auto-tour type filter (1-6 during tour mode)
-  // T1-11: Trail opacity presets (1-5 when NOT in tour mode)
-  else if (e.key >= '1' && e.key <= '6') {
-    if (autoTour) {
-      setAutoTourFilter(parseInt(e.key) - 1);
-    } else if (e.key <= '5' && aircraftManager) {
+  // T1-11: Trail opacity presets (1-5)
+  else if (e.key >= '1' && e.key <= '5') {
+    if (aircraftManager) {
       const level = parseInt(e.key) * 0.2; // 0.2, 0.4, 0.6, 0.8, 1.0
       aircraftManager.setTrailOpacity(level);
       const lbl = document.getElementById('bloom-label') || document.createElement('div');
@@ -2870,20 +2829,6 @@ function initFilterPanel() {
   window._filterPanelRender = render;
 }
 
-// ── T2-16: Auto-tour type filter ──
-let autoTourTypeFilter = null; // null = all, or one of the type constants
-const TOUR_FILTER_TYPES = ['ALL', 'narrow', 'wideTwin', 'wideQuad', 'regional', 'bizjet'];
-const TOUR_FILTER_LABELS = ['ALL', 'NARROW', 'WIDEBODY', 'QUAD', 'REGIONAL', 'BIZJET'];
-function setAutoTourFilter(idx) {
-  autoTourTypeFilter = idx === 0 ? null : TOUR_FILTER_TYPES[idx];
-  const lbl = document.getElementById('bloom-label') || document.createElement('div');
-  if (!lbl.id) { lbl.id = 'bloom-label'; lbl.className = 'bloom-label'; document.body.appendChild(lbl); }
-  lbl.textContent = `TOUR FILTER: ${TOUR_FILTER_LABELS[idx]}`;
-  lbl.classList.remove('hidden');
-  clearTimeout(lbl._timer);
-  lbl._timer = setTimeout(() => lbl.classList.add('hidden'), 1500);
-}
-
 // ── T3-14: Mobile touch controls ──
 function initMobileTouch() {
   if (!('ontouchstart' in window)) return;
@@ -3983,7 +3928,6 @@ async function switchCity(city) {
   // 3. Clear old scene while screen is dark
   closeDetail();
   stopFollow();
-  if (autoTour) stopAutoTour();
   if (selectedAirportState) {
     deselectAirport(scene);
     if (aircraftManager) aircraftManager.clearHighlight();
@@ -5619,8 +5563,7 @@ function initSearch() {
         _clearHoldingOval(); // A-3
         return;
       }
-      // Stop tour/follow
-      if (autoTour) stopAutoTour();
+      // Stop follow
       if (followTarget) stopFollow();
     }
   });
@@ -5653,9 +5596,6 @@ function initToolbar() {
   });
   document.getElementById('fab-airspace')?.addEventListener('click', () => {
     openCityPicker();
-  });
-  document.getElementById('fab-tour')?.addEventListener('click', () => {
-    if (autoTour) stopAutoTour(); else startAutoTour();
   });
   document.getElementById('fab-filter')?.addEventListener('click', () => {
     const panel = document.getElementById('filter-panel');
