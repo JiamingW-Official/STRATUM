@@ -5579,14 +5579,18 @@ function initSearch() {
 
   input.addEventListener('focus', () => input.select());
   input.addEventListener('blur', () => {
-    setTimeout(() => clearResults(), 200);
+    setTimeout(() => {
+      clearResults();
+      // Hide search bar when focus leaves and input is empty
+      if (!input.value.trim()) _toggleSearchBar(false);
+    }, 250);
   });
 
   // Global shortcuts
   document.addEventListener('keydown', (e) => {
     if (e.key === '/' && document.activeElement !== input) {
       e.preventDefault();
-      input.focus();
+      _toggleSearchBar(true);
     }
     if (e.key === 'Escape') {
       // Close overlays/panels in priority order (highest z-index first)
@@ -5600,9 +5604,10 @@ function initSearch() {
       // Close help panel
       const hp = document.getElementById('help-panel');
       if (hp && !hp.classList.contains('hidden')) { hp.classList.add('hidden'); return; }
-      // Close search
-      if (document.activeElement === input) {
-        input.blur(); input.value = ''; clearResults(); return;
+      // Close search bar
+      const searchBar = document.getElementById('search-bar');
+      if (searchBar && searchBar.classList.contains('visible')) {
+        _toggleSearchBar(false); return;
       }
       // Close detail panel
       const dp = document.getElementById('detail-panel');
@@ -5622,9 +5627,26 @@ function initSearch() {
 }
 
 // --- Floating action toolbar — wire button clicks to existing keyboard actions ---
+function _toggleSearchBar(forceShow) {
+  const bar = document.getElementById('search-bar');
+  const input = document.getElementById('search-input');
+  if (!bar || !input) return;
+  const show = forceShow != null ? forceShow : !bar.classList.contains('visible');
+  if (show) {
+    bar.classList.add('visible');
+    input.focus();
+  } else {
+    bar.classList.remove('visible');
+    input.blur();
+    input.value = '';
+    const results = document.getElementById('search-results');
+    if (results) { results.innerHTML = ''; results.classList.remove('open'); }
+  }
+}
+
 function initToolbar() {
   document.getElementById('fab-search')?.addEventListener('click', () => {
-    document.getElementById('search-input')?.focus();
+    _toggleSearchBar();
   });
   document.getElementById('fab-help')?.addEventListener('click', () => {
     toggleHelp();

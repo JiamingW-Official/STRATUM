@@ -1313,13 +1313,17 @@ html, body {
 .search-bar {
   position: fixed;
   bottom: var(--edge); left: 54%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(16px);
   z-index: 15;
   width: 460px; overflow: hidden;
-  animation: fadein 1s var(--ease) 0.5s both;
+  opacity: 0; pointer-events: none;
   border-radius: var(--r);
   padding: 0;
-  transition: border-color 0.3s ease, box-shadow 0.35s ease, width 0.4s var(--ease);
+  transition: opacity 0.25s ease, transform 0.25s ease, border-color 0.3s ease, box-shadow 0.35s ease, width 0.4s var(--ease);
+}
+.search-bar.visible {
+  opacity: 1; pointer-events: all;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* Search icon element */
@@ -1353,6 +1357,7 @@ html, body {
   border-color: rgba(196, 160, 88, 0.25);
   box-shadow: 0 0 0 1px rgba(196,160,88,0.14), 0 16px 56px rgba(0,0,0,0.6), 0 0 40px rgba(196,160,88,0.04);
   width: 520px;
+  transform: translateX(-50%) translateY(0);
 }
 /* Scan line on focus — subtle golden sweep across bottom */
 .search-bar::after {
@@ -1529,15 +1534,7 @@ html, body {
 
 /* Search hint line */
 .search-hint {
-  position: fixed;
-  bottom: 62px; left: 50%;
-  transform: translateX(-50%);
-  font-family: var(--font-sans);
-  font-size: 8px; color: var(--text-3);
-  letter-spacing: 0.5px;
-  opacity: 0;
-  animation: hint-fade 4s ease 3s both;
-  pointer-events: none; z-index: 14;
+  display: none; /* replaced by floating toolbar */
 }
 
 @keyframes hint-fade {
