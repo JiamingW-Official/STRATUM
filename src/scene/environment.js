@@ -46,20 +46,19 @@ export function createEnvironment(scene) {
   groundMaterial.__scene = scene;
   scene.add(groundMesh);
 
-  // Horizon fade ring — radial gradient from transparent (inner, at ground edge)
-  // to sky/fog color (outer). Creates the Cities Skylines-style smooth horizon
-  // so the map edge dissolves into the sky rather than cutting sharply.
-  const fadeInner = GROUND_SIZE * 0.42;
-  const fadeOuter = GROUND_SIZE * 0.85;
-  const fadeGeo = new THREE.RingGeometry(fadeInner, fadeOuter, 96, 1);
-  // Vertex colors: inner ring = transparent, outer ring = fog color
+  // Horizon fade ring — wide radial gradient that starts close to center
+  // and extends well past the ground edge. Long, soft transition like Cities Skylines.
+  const fadeInner = GROUND_SIZE * 0.22;  // starts fading at 22% from center
+  const fadeOuter = GROUND_SIZE * 1.1;   // extends past ground edge
+  const fadeGeo = new THREE.RingGeometry(fadeInner, fadeOuter, 96, 8);
   const fadeVerts = fadeGeo.attributes.position;
-  const fadeCols = new Float32Array(fadeVerts.count * 4); // RGBA
+  const fadeCols = new Float32Array(fadeVerts.count * 4);
   for (let i = 0; i < fadeVerts.count; i++) {
     const x = fadeVerts.getX(i), z = fadeVerts.getZ(i);
     const dist = Math.sqrt(x * x + z * z);
     const t = Math.max(0, Math.min(1, (dist - fadeInner) / (fadeOuter - fadeInner)));
-    const a = t * t; // quadratic ease-in for softer inner edge
+    // Cubic ease for very gentle start, aggressive end
+    const a = t * t * t;
     fadeCols[i * 4] = 0.008;
     fadeCols[i * 4 + 1] = 0.032;
     fadeCols[i * 4 + 2] = 0.068;
