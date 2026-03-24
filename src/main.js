@@ -5621,6 +5621,38 @@ function initSearch() {
   });
 }
 
+// --- Floating action toolbar — wire button clicks to existing keyboard actions ---
+function initToolbar() {
+  document.getElementById('fab-search')?.addEventListener('click', () => {
+    document.getElementById('search-input')?.focus();
+  });
+  document.getElementById('fab-help')?.addEventListener('click', () => {
+    toggleHelp();
+  });
+  document.getElementById('fab-airspace')?.addEventListener('click', () => {
+    openCityPicker();
+  });
+  document.getElementById('fab-tour')?.addEventListener('click', () => {
+    if (autoTour) stopAutoTour(); else startAutoTour();
+  });
+  document.getElementById('fab-filter')?.addEventListener('click', () => {
+    const panel = document.getElementById('filter-panel');
+    if (!panel) return;
+    filterState.active = !filterState.active;
+    panel.classList.toggle('hidden', !filterState.active);
+    if (filterState.active) {
+      if (window._filterPanelRender) window._filterPanelRender();
+      requestAnimationFrame(() => panel.classList.add('visible'));
+    } else {
+      panel.classList.remove('visible');
+      filterState.altPreset = 'ALL';
+      filterState.isolate = false;
+      filterState.airportMode = 'ALL';
+      aircraftManager?.clearFilter();
+    }
+  });
+}
+
 // --- Init ---
 // ── My Location: find nearest CITIES entry by haversine ──────────────────────
 function _findNearestCity(lat, lon) {
@@ -5804,6 +5836,7 @@ async function init() {
     initSearch();
     initCityPicker();
     initFilterPanel();
+    initToolbar();
     initMobileTouch();
     initWeatherPanel();
     updateWeatherWidget();

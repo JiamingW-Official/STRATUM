@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>STRATUM</title>
+  <meta name="description" content="STRATUM — Real-time ADS-B flight tracker with 3D visualization, live aircraft positions, weather overlays, and global airspace data." />
   <link rel="preconnect" href="https://a.basemaps.cartocdn.com" crossorigin />
   <link rel="preconnect" href="https://b.basemaps.cartocdn.com" crossorigin />
   <link rel="preconnect" href="https://c.basemaps.cartocdn.com" crossorigin />
@@ -24,7 +25,8 @@
   </script>
 </head>
 <body>
-  <canvas id="scene"></canvas>
+  <a href="#scene" class="skip-link">Skip to map</a>
+  <canvas id="scene" role="img" aria-label="3D flight tracking map showing live aircraft positions, airports, and airspace"></canvas>
   <div id="vignette" class="vignette"></div>
   <div id="speed-lines" class="speed-lines"></div>
   <div id="scene-transition" class="scene-transition scene-transition--boot" style="opacity:1;pointer-events:all">
@@ -72,7 +74,7 @@
   </div>
 
   <!-- HUD — top left, compact glass panel -->
-  <div id="hud" class="glass-panel">
+  <header id="hud" class="glass-panel" role="banner" aria-label="Flight status">
     <div class="hud-title">
       <span class="hud-brand">STRATUM</span>
       <div class="hud-status">
@@ -148,10 +150,10 @@
       </button>
       <span id="hud-updated" class="hud-time">Waiting...</span>
     </div>
-  </div>
+  </header>
 
   <!-- Detail Panel — top right, slides in on aircraft select -->
-  <div id="detail-panel" class="glass-panel detail-panel hidden">
+  <aside id="detail-panel" class="glass-panel detail-panel hidden" role="complementary" aria-label="Aircraft details">
 
     <!-- ── HEADER: callsign · type badge · status pill · close ── -->
     <div class="detail-header">
@@ -350,7 +352,7 @@
       <div id="detail-status" class="detail-status"></div>
     </div>
 
-  </div>
+  </aside>
 
   <!-- Compass Rose — bottom right -->
   <div id="compass" class="compass">
@@ -373,7 +375,7 @@
   </div>
 
   <!-- Search bar — bottom center -->
-  <div id="search-bar" class="glass-panel search-bar">
+  <div id="search-bar" class="glass-panel search-bar" role="search">
     <span class="search-icon" aria-hidden="true">⌕</span>
     <input id="search-input" type="text"
       placeholder="Flight, route, airport, type..."
@@ -384,6 +386,25 @@
   </div>
 
   <div class="search-hint">? CONTROLS &nbsp;·&nbsp; / SEARCH &nbsp;·&nbsp; CLICK IDENT &nbsp;·&nbsp; T TOUR &nbsp;·&nbsp; C FIR</div>
+
+  <!-- Floating action toolbar — visible buttons for key actions hidden behind shortcuts -->
+  <nav class="fab-toolbar" aria-label="Quick actions">
+    <button type="button" class="fab-btn" id="fab-search" aria-label="Search" title="Search (/)">
+      <span aria-hidden="true">⌕</span><span class="fab-label">SEARCH</span>
+    </button>
+    <button type="button" class="fab-btn" id="fab-filter" aria-label="Filter" title="Filter aircraft (F)">
+      <span aria-hidden="true">☰</span><span class="fab-label">FILTER</span>
+    </button>
+    <button type="button" class="fab-btn" id="fab-airspace" aria-label="Airspace" title="Select airspace (C)">
+      <span aria-hidden="true">◎</span><span class="fab-label">AIRSPACE</span>
+    </button>
+    <button type="button" class="fab-btn" id="fab-tour" aria-label="Auto tour" title="Auto tour (T)">
+      <span aria-hidden="true">▶</span><span class="fab-label">TOUR</span>
+    </button>
+    <button type="button" class="fab-btn" id="fab-help" aria-label="Controls" title="Keyboard guide (?)">
+      <span aria-hidden="true">?</span><span class="fab-label">HELP</span>
+    </button>
+  </nav>
 
   <!-- City picker overlay -->
   <div id="city-overlay" class="city-overlay hidden" role="dialog" aria-label="Select airspace">
