@@ -672,12 +672,12 @@ async function handlePositions(url) {
     },
   });
 
-  // Cache 5s at edge + stale-while-revalidate 10s — browser serves stale instantly
-  // while refreshing in background. Aircraft move ~1.2km in 5s — negligible.
+  // Cache 3s at edge + stale-while-revalidate 5s — 2s client poll gets fresh data
+  // every ~3-4s while stale-while-revalidate serves instantly in between.
   const toCache = new Response(body, {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   });
-  cachePut(cacheKey, toCache, 5, 10);
+  cachePut(cacheKey, toCache, 3, 5);
 
   return addPerfHeaders(response);
 }
@@ -694,7 +694,7 @@ async function handleBoot(url, env) {
   const ar  = parseFloat(url.searchParams.get('ar')) || 1.5;
   if (isNaN(lat) || isNaN(lon)) return new Response('Missing lat/lon', { status: 400, headers: corsHeaders() });
 
-  // PoP cache — 5s+SWR10s (positions data is most volatile; determines TTL)
+  // PoP cache — 3s+SWR5s (positions data is most volatile; determines TTL)
   const rlat = lat.toFixed(2), rlon = lon.toFixed(2);
   const cacheKey = new Request(`https://cache.internal/boot/v2/${rlat}/${rlon}/${r}`);
   const cached = await cacheGet(cacheKey);
@@ -722,7 +722,7 @@ async function handleBoot(url, env) {
   cachePut(
     cacheKey,
     new Response(body, { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }),
-    5, 10,
+    3, 5,
   );
 
   return addPerfHeaders(new Response(body, {

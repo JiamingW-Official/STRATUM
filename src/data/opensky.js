@@ -9,8 +9,8 @@ const OPENSKY_BASE   = '/api/opensky';
 const ADSBDB_BASE    = '/api/adsbdb/v0';
 const TRACE_BASE     = '/api/trace/data/traces';
 const FETCH_TIMEOUT_MS = 6000;
-const POLL_INTERVAL  = 3000;   // 3s — paid plan has 10M/day headroom
-const POLL_INTERVAL_BG = 10000; // 10s when tab hidden — still saves 70%
+const POLL_INTERVAL  = 2000;   // 2s — fresher positions for smoother trails
+const POLL_INTERVAL_BG = 8000;  // 8s when tab hidden
 const BBOX_RADIUS_NM = 100;
 
 let userLat = 40.7128;

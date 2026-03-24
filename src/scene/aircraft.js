@@ -34,12 +34,12 @@ const SPEED_STOPS = [
 const VS_THRESHOLD = 1.5;
 
 // Trail config — 30 min
-const TRAIL_SAMPLE_INTERVAL = 0.25;     // 4Hz live sampling (smoother, more accurate trails)
-const TRAIL_MAX_POINTS = 7200;          // 30 min at 4Hz
+const TRAIL_SAMPLE_INTERVAL = 0.125;    // 8Hz live sampling — smoother curves between 2s polls
+const TRAIL_MAX_POINTS = 14400;         // 30 min at 8Hz
 const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real track
 const SYNTHETIC_TRAIL_STEP = 0.5;
-const TRAIL_REBUILD_INTERVAL = 1.0;     // rebuild geometry every 1s (responsive updates)
-const TRACK_REFRESH_INTERVAL = 180;     // re-check track API every 3 min (fresher trails)
+const TRAIL_REBUILD_INTERVAL = 0.5;     // rebuild geometry every 0.5s for responsive trail updates
+const TRACK_REFRESH_INTERVAL = 45;      // re-check track API every 45s for followed/selected aircraft
 const TRACK_INITIAL_CHECK_INTERVAL = 0.2; // check every 200ms until track arrives
 const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
 
@@ -383,10 +383,14 @@ function catmullRomInterpolate(points, segmentsPerSpan) {
   return result;
 }
 
-function extrapolatePosition(pos, velocity, heading, verticalRate, dt, out) {
+function extrapolatePosition(pos, velocity, heading, verticalRate, dt, out, headingRate) {
   if (velocity == null || heading == null) { out.copy(pos); return out; }
-  const headRad = heading * DEG_TO_RAD;
   const speedUnits = velocity / METERS_PER_UNIT;
+  // If aircraft is turning, extrapolate along the arc using average heading
+  const avgHeading = (headingRate && Math.abs(headingRate) > 0.3)
+    ? heading + headingRate * dt * 0.5
+    : heading;
+  const headRad = avgHeading * DEG_TO_RAD;
   out.set(
     pos.x + Math.sin(headRad) * speedUnits * dt,
     pos.y + ((verticalRate || 0) * METERS_TO_FEET) / 1000 * ALT_SCALE * dt,
@@ -777,6 +781,8 @@ class AircraftObject {
     this.lastApiPos = position.clone();
     this.lastApiTime = performance.now() / 1000;
     this._extrapolatedPos = new THREE.Vector3();
+    this._headingRate = 0;       // deg/s turn rate for curved extrapolation
+    this._prevHeading = null;
     this.fadingIn = true;
     this.fadingOut = false;
     this.removed = false;
@@ -1218,8 +1224,21 @@ class AircraftObject {
     }
     pos.y = this._smoothY;
 
+    // Track heading rate of change for curved extrapolation during turns
+    const now = performance.now() / 1000;
+    if (data.trueTrack != null && this._prevHeading != null && this.lastApiTime) {
+      let dh = data.trueTrack - this._prevHeading;
+      if (dh > 180) dh -= 360;
+      if (dh < -180) dh += 360;
+      const dt = now - this.lastApiTime;
+      if (dt > 0.5 && dt < 15) {
+        this._headingRate = dh / dt; // deg/s — positive = turning right
+      }
+    }
+    this._prevHeading = data.trueTrack;
+
     this.lastApiPos.copy(pos);
-    this.lastApiTime = performance.now() / 1000;
+    this.lastApiTime = now;
     this.data = data;
 
     const color = getSpeedColor(data.velocity);
@@ -1232,7 +1251,7 @@ class AircraftObject {
     const dt = now - this.lastApiTime;
     return extrapolatePosition(
       this.lastApiPos, this.data.velocity, this.data.trueTrack,
-      this.data.verticalRate, dt, this._extrapolatedPos
+      this.data.verticalRate, dt, this._extrapolatedPos, this._headingRate
     );
   }
 
@@ -1641,7 +1660,7 @@ class AircraftObject {
 
     // Dead-reckoning — responsive lerp for accurate real-time tracking
     const predictedTarget = this._getExtrapolatedTarget();
-    this.group.position.lerp(predictedTarget, Math.min(delta * 5, 0.45));
+    this.group.position.lerp(predictedTarget, Math.min(delta * 7, 0.5));
 
     // Heading — model nose is +X, north is -Z → offset by π/2
     if (this.data.trueTrack != null) {
@@ -1652,7 +1671,7 @@ class AircraftObject {
       if (Math.abs(diff) < 0.005) {
         this.group.rotation.y = targetRotY;
       } else {
-        this.group.rotation.y += diff * Math.min(delta * 4.5, 0.35);
+        this.group.rotation.y += diff * Math.min(delta * 6, 0.45);
       }
     }
 
