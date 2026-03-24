@@ -8,6 +8,12 @@
   <link rel="preconnect" href="https://b.basemaps.cartocdn.com" crossorigin />
   <link rel="preconnect" href="https://c.basemaps.cartocdn.com" crossorigin />
   <link rel="preconnect" href="https://d.basemaps.cartocdn.com" crossorigin />
+  <!-- Worker + ADS-B sources: warm DNS+TLS before JS runs -->
+  <link rel="preconnect" href="https://stratum.jiamingwofficial.workers.dev" crossorigin />
+  <link rel="dns-prefetch" href="https://api.adsb.one" />
+  <link rel="dns-prefetch" href="https://opendata.adsb.fi" />
+  <link rel="dns-prefetch" href="https://globe.airplanes.live" />
+  <link rel="dns-prefetch" href="https://api.adsbdb.com" />
   <link href="/fonts/css/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" fetchpriority="high" />
 </head>

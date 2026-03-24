@@ -2,7 +2,6 @@
 // Works for any location worldwide — no hardcoded data needed.
 
 const OVERPASS_ENDPOINTS = [
-  '/api/ovp-ru/api/interpreter',
   '/api/ovp-de/api/interpreter',
   '/api/ovp-kumi/api/interpreter',
 ];
@@ -330,7 +329,7 @@ export function prefetchAirportData(cities) {
   if (uncached.length === 0) return;
   console.log(`[STRATUM] Prefetching airport data for ${uncached.length} cities`);
   let i = 0;
-  const BATCH = 20;  // Worker runs all in parallel — one HTTP call covers 20 cities
+  const BATCH = 25;  // Worker runs all in parallel — one HTTP call covers 25 cities
   const nextBatch = () => {
     if (i >= uncached.length) return;
     const batch = uncached.slice(i, i + BATCH);

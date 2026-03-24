@@ -78,6 +78,9 @@ self.addEventListener('fetch', e => {
         caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
       }
       return res;
-    }).catch(() => caches.match(e.request))
+    }).catch(async () => {
+      const cached = await caches.match(e.request);
+      return cached || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+    })
   );
 });

@@ -689,7 +689,7 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
 
   // Core bright lights
   _runwayEdgeLightMesh = new THREE.Points(geo, new THREE.PointsMaterial({
-    size: 0.008, transparent: true, opacity: 0.90,
+    size: 0.002, transparent: true, opacity: 0.85,
     vertexColors: true, sizeAttenuation: true,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
@@ -699,7 +699,7 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
   // Bloom glow halo layer (larger, softer, same colors)
   const glowGeo = geo.clone();
   const glowMesh = new THREE.Points(glowGeo, new THREE.PointsMaterial({
-    size: 0.032, transparent: true, opacity: 0.10,
+    size: 0.007, transparent: true, opacity: 0.08,
     vertexColors: true, sizeAttenuation: true,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
@@ -761,7 +761,7 @@ function renderThresholdAndEndLights(runways) {
 
   // Core lights
   _thresholdBarMesh = new THREE.Points(geo, new THREE.PointsMaterial({
-    size: 0.009, transparent: true, opacity: 0.92,
+    size: 0.0025, transparent: true, opacity: 0.88,
     vertexColors: true, sizeAttenuation: true,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
@@ -771,7 +771,7 @@ function renderThresholdAndEndLights(runways) {
   // Glow halo for threshold/REIL
   const threshGlowGeo = geo.clone();
   const threshGlow = new THREE.Points(threshGlowGeo, new THREE.PointsMaterial({
-    size: 0.036, transparent: true, opacity: 0.10,
+    size: 0.008, transparent: true, opacity: 0.08,
     vertexColors: true, sizeAttenuation: true,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
@@ -817,7 +817,6 @@ function renderTaxiwaysBatched(taxiways, userLat, userLon) {
 
   const surfPositions = [];
   const surfColors = [];
-  const edgePositions = []; // yellow edge lines
 
   for (const twy of taxiways) {
     if (twy.geometry.length < 2) continue;
@@ -845,13 +844,6 @@ function renderTaxiwaysBatched(taxiways, userLat, userLon) {
       );
       for (let j = 0; j < 6; j++) surfColors.push(0.04, 0.06, 0.10); // darker asphalt
 
-      // Yellow edge lines
-      edgePositions.push(
-        a.x + perpX, 0.027, a.z + perpZ,
-        b.x + perpX, 0.027, b.z + perpZ,
-        a.x - perpX, 0.027, a.z - perpZ,
-        b.x - perpX, 0.027, b.z - perpZ,
-      );
     }
   }
 
@@ -865,14 +857,6 @@ function renderTaxiwaysBatched(taxiways, userLat, userLon) {
     })));
   }
 
-  // Yellow edge lines — brighter, more visible
-  if (edgePositions.length > 0) {
-    const edgeGeo = new THREE.BufferGeometry();
-    edgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePositions, 3));
-    airportGroup.add(new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({
-      color: 0xddcc00, transparent: true, opacity: 0.50, depthWrite: false,
-    })));
-  }
 
   // Green centerline + blue edge lights
   renderTaxiwayLights(taxiways, userLat, userLon);
@@ -927,7 +911,7 @@ function renderTaxiwayLights(taxiways, userLat, userLon) {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(centerPositions, 3));
     // Core
     _taxiwayLightMesh = new THREE.Points(geo, new THREE.PointsMaterial({
-      color: 0x22ee66, size: 0.006, transparent: true, opacity: 0.70,
+      color: 0x22ee66, size: 0.0015, transparent: true, opacity: 0.65,
       sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     _taxiwayLightMesh.name = 'taxiwayLights';
@@ -935,7 +919,7 @@ function renderTaxiwayLights(taxiways, userLat, userLon) {
     // Glow halo
     const clGlowGeo = geo.clone();
     const clGlow = new THREE.Points(clGlowGeo, new THREE.PointsMaterial({
-      color: 0x22ee66, size: 0.022, transparent: true, opacity: 0.12,
+      color: 0x22ee66, size: 0.005, transparent: true, opacity: 0.09,
       sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     clGlow.name = 'taxiwayLightsGlow';
@@ -949,7 +933,7 @@ function renderTaxiwayLights(taxiways, userLat, userLon) {
     geo.setAttribute('color', new THREE.Float32BufferAttribute(edgeLightColors, 3));
     // Core
     const mesh = new THREE.Points(geo, new THREE.PointsMaterial({
-      size: 0.006, transparent: true, opacity: 0.70,
+      size: 0.0015, transparent: true, opacity: 0.65,
       vertexColors: true, sizeAttenuation: true,
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
@@ -958,7 +942,7 @@ function renderTaxiwayLights(taxiways, userLat, userLon) {
     // Glow halo
     const edgeGlowGeo = geo.clone();
     const edgeGlow = new THREE.Points(edgeGlowGeo, new THREE.PointsMaterial({
-      size: 0.022, transparent: true, opacity: 0.11,
+      size: 0.005, transparent: true, opacity: 0.08,
       vertexColors: true, sizeAttenuation: true,
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));

@@ -5730,14 +5730,14 @@ async function init() {
   // ── 1. Start render loop IMMEDIATELY — intro camera animation plays while data loads ──
   animate();
 
-  // ── 2. Detect user location (max 3.5s wait; falls back to JFK coords) ──
+  // ── 2. Detect user location (max 1.2s wait; falls back to JFK coords) ──
   _setBootStep('sts-loc', 'active');
   if (sceneTransName) sceneTransName.textContent = 'Detecting location…';
   let geoCoords = { lat: 40.7128, lon: -74.0060 };
   try {
     geoCoords = await Promise.race([
       initLocation(),
-      new Promise(r => setTimeout(() => r({ lat: 40.7128, lon: -74.0060 }), 3500)),
+      new Promise(r => setTimeout(() => r({ lat: 40.7128, lon: -74.0060 }), 1200)),
     ]);
   } catch { /* use NYC default */ }
   _setBootStep('sts-loc', 'done');
@@ -5774,8 +5774,8 @@ async function init() {
   _setBootStep('sts-acft', 'active');
   startPolling(handleData, handleError);
 
-  // ── 7. Wait for map, then reveal scene ──
-  await mapP;
+  // ── 7. Wait for map (max 1.5s), then reveal scene regardless ──
+  await Promise.race([mapP, new Promise(r => setTimeout(r, 1500))]);
   _setBootStep('sts-map', 'done');
   if (sceneTransName) sceneTransName.textContent = `${defaultCity.name}  ·  Loading airports…`;
   await Promise.race([aptP, new Promise(r => setTimeout(r, 1500))]);
@@ -5824,7 +5824,15 @@ async function init() {
   // ── 9. Deferred data loads ──
   setTimeout(() => reloadFIRForLocation(scene, defaultCity.lat, defaultCity.lon), 1500);
   aptP.then(() => reloadNavChart(scene, defaultCity.lat, defaultCity.lon));
-  aptP.then(() => prefetchAirportData(CITIES));
+  // Prefetch only nearest 30 cities — Worker cron pre-warms top 65 globally already.
+  // Prefetching 600+ cities floods the network with 30+ batch requests on startup.
+  aptP.then(() => {
+    const nearest = [...CITIES]
+      .map(c => ({ ...c, _d: Math.hypot(c.lat - defaultCity.lat, c.lon - defaultCity.lon) }))
+      .sort((a, b) => a._d - b._d)
+      .slice(0, 30);
+    prefetchAirportData(nearest);
+  });
 
   // ── 10. Check low-coverage zone after 12s ──
   setTimeout(() => _checkLowCoverage(defaultCity), 12000);

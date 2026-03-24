@@ -90,6 +90,14 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/navaids/, ''),
       },
+      // Worker smart endpoints — proxy to deployed Worker so dev mode uses real caching/aggregation
+      '/api/positions': { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },
+      '/api/airports':  { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },
+      '/api/enrich':    { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },
+      '/api/weather':   { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },
+      '/api/atlas':     { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },
+      '/api/routes':    { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },
+      '/api/liveatc':   { target: 'https://stratum.jiamingwofficial.workers.dev', changeOrigin: true },
     },
   },
 });
