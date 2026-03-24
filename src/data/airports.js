@@ -58,6 +58,21 @@ function _saveToCache(lat, lon, data) {
 }
 
 async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
+  // 0. Consume speculative early fetch if coords are near the NYC default pre-warmed in index.html
+  const earlyP = window._earlyAirports;
+  if (earlyP && Math.abs(centerLat - 40.7128) < 0.5 && Math.abs(centerLon - (-74.006)) < 0.5) {
+    window._earlyAirports = null;
+    try {
+      const earlyData = await earlyP;
+      if (earlyData) {
+        console.log('[STRATUM] Airport data from speculative early fetch');
+        const result = parseOverpassData(earlyData);
+        _saveToCache(centerLat, centerLon, result);
+        return result;
+      }
+    } catch { /* fall through */ }
+  }
+
   // 1. Check localStorage cache first — instant
   const cached = _loadFromCache(centerLat, centerLon);
   if (cached) {
