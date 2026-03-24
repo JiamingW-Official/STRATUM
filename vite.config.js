@@ -60,11 +60,6 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/ovp-kumi/, ''),
       },
-      '/api/ovp-ru': {
-        target: 'https://maps.mail.ru/osm/tools/overpass',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/ovp-ru/, ''),
-      },
       '/api/hexdb': {
         target: 'https://hexdb.io',
         changeOrigin: true,

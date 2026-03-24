@@ -11,7 +11,7 @@ const PROXY_ROUTES = {
   '/api/opensky/':  'https://opensky-network.org/',
   '/api/ovp-de/':   'https://overpass-api.de/',
   '/api/ovp-kumi/': 'https://overpass.kumi.systems/',
-  '/api/ovp-ru/':   'https://maps.mail.ru/osm/tools/overpass/',
+  // '/api/ovp-ru/' removed — consistent 403 errors
   '/api/adsbdb/':   'https://api.adsbdb.com/',
   '/api/fir/':      'https://raw.githubusercontent.com/maiuswong/simaware-express/main/public/livedata/',
   '/api/navaids/':  'https://davidmegginson.github.io/',
@@ -27,7 +27,6 @@ const CACHE_TTLS = {
   '/api/opensky/':  60,      // OpenSky — 1 min
   '/api/ovp-de/':   86400,   // Airport data — 24 hours
   '/api/ovp-kumi/': 86400,
-  '/api/ovp-ru/':   86400,
   '/api/adsbdb/':   3600,    // Route data — 1 hour
   '/api/fir/':      604800,  // FIR boundaries — 7 days
   '/api/navaids/':  604800,  // Navaids — 7 days
@@ -37,7 +36,6 @@ const CACHE_TTLS = {
 const OVERPASS_URLS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
 
 // ── Helpers ──
@@ -937,6 +935,7 @@ export default {
 
     // Static assets — immutable hashed files get long cache, HTML gets revalidation
     const response = await env.ASSETS.fetch(request);
+    if (!response.ok && response.status >= 400) return addPerfHeaders(response);
     const path = url.pathname;
 
     // Radio MP3 files — long cache + correct MIME + CORS + range support
