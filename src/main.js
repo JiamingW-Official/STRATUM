@@ -1697,7 +1697,7 @@ document.addEventListener('keydown', (e) => {
     _cinematicMode = !_cinematicMode;
     if (bloomPass) bloomPass.strength = _cinematicMode ? 1.1 : BLOOM_PRESETS[bloomLevel];
     renderer.toneMappingExposure = _cinematicMode ? 1.8 : 1.4;
-    scene.fog.density = _cinematicMode ? 0.008 : 0.022;
+    scene.fog.density = _cinematicMode ? 0.010 : 0.025;
     const lbl = document.getElementById('bloom-label') || document.createElement('div');
     if (!lbl.id) { lbl.id = 'bloom-label'; lbl.className = 'bloom-label'; document.body.appendChild(lbl); }
     lbl.textContent = _cinematicMode ? 'CINEMATIC MODE' : 'STANDARD MODE';

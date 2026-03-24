@@ -19,8 +19,8 @@ let _skyBaseColors = null;   // Float32Array — night baseline vertex colors
 let _ambientLightRef = null;
 
 export function createEnvironment(scene) {
-  // Horizon fog — strong exponential fog blurs everything at distance
-  scene.fog = new THREE.FogExp2(new THREE.Color(0.008, 0.032, 0.068), 0.022);
+  // Horizon fog — heavy exponential fog buries map edges
+  scene.fog = new THREE.FogExp2(new THREE.Color(0.008, 0.032, 0.068), 0.025);
 
   const ambient = new THREE.AmbientLight(0x3a5577, 0.5);
   ambient.name = 'ambientLight';
@@ -59,8 +59,8 @@ export function createEnvironment(scene) {
     const x = fadeVerts.getX(i), z = fadeVerts.getZ(i);
     const dist = Math.sqrt(x * x + z * z);
     const t = Math.max(0, Math.min(1, (dist - fadeInner) / (fadeOuter - fadeInner)));
-    // Very aggressive: fully opaque well before ground edge (~25% of range)
-    const a = Math.min(1, t * t * 18);
+    // Hits full opacity at ~45 units from center — everything past is solid fog
+    const a = Math.min(1, t * t * 50);
     fadeCols[i * 4] = 0.008;
     fadeCols[i * 4 + 1] = 0.032;
     fadeCols[i * 4 + 2] = 0.068;
