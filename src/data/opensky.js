@@ -72,8 +72,8 @@ const routeFetchQueue = new Set();
 
 // Track cache — stores full trace history per aircraft
 const trackCache = new Map();
-const TRACK_CACHE_TTL = 300000;    // re-fetch trace every 5 min (fresher trails)
-const TRACK_RETAIN_TTL = 1200000;  // keep in cache 20 min
+const TRACK_CACHE_TTL = 120000;    // re-fetch trace every 2 min for accurate trajectories
+const TRACK_RETAIN_TTL = 600000;   // keep in cache 10 min
 const trackFetchQueue = new Set();
 
 export function setUserLocation(lat, lon) {
@@ -290,9 +290,9 @@ function queueTraceFetch(icao24) {
   traceQueueBatch.push(icao24);
 
   if (!traceBatchTimer) {
-    // Fire first batch immediately, then continue every 500ms — 4 per batch
+    // Fire first batch immediately, then continue every 400ms — 8 per batch
     const processBatch = () => {
-      const batch = traceQueueBatch.splice(0, 4);
+      const batch = traceQueueBatch.splice(0, 8);
       if (batch.length === 0) {
         clearInterval(traceBatchTimer);
         traceBatchTimer = null;
@@ -301,7 +301,7 @@ function queueTraceFetch(icao24) {
       for (const hex of batch) fetchTraceAsync(hex);
     };
     processBatch();
-    traceBatchTimer = setInterval(processBatch, 500);
+    traceBatchTimer = setInterval(processBatch, 400);
   }
 }
 

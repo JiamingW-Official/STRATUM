@@ -783,6 +783,8 @@ class AircraftObject {
     this._extrapolatedPos = new THREE.Vector3();
     this._headingRate = 0;       // deg/s turn rate for curved extrapolation
     this._prevHeading = null;
+    this._lastVelocity = data.velocity;  // fallback for null velocity in extrapolation
+    this._lastTrack = data.trueTrack;    // fallback for null heading in extrapolation
     this.fadingIn = true;
     this.fadingOut = false;
     this.removed = false;
@@ -1224,6 +1226,9 @@ class AircraftObject {
     }
 
     // Always update flight data — velocity/heading/type can change even with same position
+    // Preserve last known velocity/heading for extrapolation when current data has nulls
+    if (data.velocity != null) this._lastVelocity = data.velocity;
+    if (data.trueTrack != null) this._lastTrack = data.trueTrack;
     this.data = data;
     this._setModelColor(getSpeedColor(data.velocity));
     this._labelDirty = true;
@@ -1231,13 +1236,12 @@ class AircraftObject {
 
   _getExtrapolatedTarget() {
     const now = performance.now() / 1000;
-    // No cap needed — the posChanged guard in setTarget() prevents snap-back.
-    // Between genuine position updates (every 3-5s due to Worker SWR cache),
-    // the aircraft glides forward continuously via velocity * dt.
-    // Safety: cap at 30s to handle aircraft that stop transmitting.
     const dt = Math.min(now - this.lastApiTime, 30);
+    // Use last known velocity/heading if current data has nulls
+    const vel = this.data.velocity ?? this._lastVelocity ?? 0;
+    const trk = this.data.trueTrack ?? this._lastTrack;
     return extrapolatePosition(
-      this.lastApiPos, this.data.velocity, this.data.trueTrack,
+      this.lastApiPos, vel, trk,
       this.data.verticalRate, dt, this._extrapolatedPos, this._headingRate
     );
   }

@@ -604,11 +604,11 @@ async function handlePositions(url) {
     }).then(res => res.ok ? res.json() : null).catch(() => null),
   ];
   sources.forEach((p, i) => p.then(v => { resolved[i] = v; settled++; }));
-  // Wait for all sources OR 0.9s — CF edge gets ADS-B responses in 200-500ms typically.
-  // Reducing from 1.2s saves 300ms on cold misses without dropping any meaningful data.
+  // Wait for all sources OR 1.2s — gives time for 2-3 sources to respond
+  // for richer merged data (more aircraft, richer fields per aircraft).
   await Promise.race([
     Promise.allSettled(sources),
-    new Promise(r => setTimeout(r, 900)),
+    new Promise(r => setTimeout(r, 1200)),
   ]);
   const results = resolved;
   const merged = new Map(); // hex → best aircraft data
@@ -672,12 +672,11 @@ async function handlePositions(url) {
     },
   });
 
-  // Cache 3s at edge + stale-while-revalidate 5s — 2s client poll gets fresh data
-  // every ~3-4s while stale-while-revalidate serves instantly in between.
+  // Cache 2s + SWR 3s — fresh data every ~2-3s with instant stale serves in between.
   const toCache = new Response(body, {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   });
-  cachePut(cacheKey, toCache, 3, 5);
+  cachePut(cacheKey, toCache, 2, 3);
 
   return addPerfHeaders(response);
 }
@@ -694,7 +693,7 @@ async function handleBoot(url, env) {
   const ar  = parseFloat(url.searchParams.get('ar')) || 1.5;
   if (isNaN(lat) || isNaN(lon)) return new Response('Missing lat/lon', { status: 400, headers: corsHeaders() });
 
-  // PoP cache — 3s+SWR5s (positions data is most volatile; determines TTL)
+  // PoP cache — 2s+SWR3s (positions data is most volatile; determines TTL)
   const rlat = lat.toFixed(2), rlon = lon.toFixed(2);
   const cacheKey = new Request(`https://cache.internal/boot/v2/${rlat}/${rlon}/${r}`);
   const cached = await cacheGet(cacheKey);
@@ -722,7 +721,7 @@ async function handleBoot(url, env) {
   cachePut(
     cacheKey,
     new Response(body, { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }),
-    3, 5,
+    2, 3,
   );
 
   return addPerfHeaders(new Response(body, {
