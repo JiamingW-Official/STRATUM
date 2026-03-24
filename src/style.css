@@ -2207,8 +2207,7 @@ html, body {
 .city-globe-canvas {
   width: 100%; aspect-ratio: 1; height: auto; max-width: 700px;
   cursor: grab; display: block;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(196,160,88,0.08), 0 8px 48px rgba(0,0,0,0.6), 0 0 60px rgba(30,80,160,0.08);
+  border-radius: var(--r);
 }
 .city-globe-canvas:active { cursor: grabbing; }
 

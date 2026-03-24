@@ -4145,11 +4145,9 @@ class GlobeView {
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.fillStyle = spec; ctx.fill();
 
-    // Border ring — double ring for premium feel
+    // Thin subtle edge — no heavy ring frame
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(196,160,88,0.12)'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, R + 2, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(196,160,88,0.06)'; ctx.lineWidth = 0.5; ctx.stroke();
+    ctx.strokeStyle = 'rgba(196,160,88,0.08)'; ctx.lineWidth = 0.5; ctx.stroke();
   }
 
   _drawGrid() {
@@ -4334,7 +4332,7 @@ class GlobeView {
             // Outer stroke ring
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1.5, 0, Math.PI * 2);
             ctx.strokeStyle = `rgba(255,235,160,${0.50 * d})`; ctx.lineWidth = 0.7; ctx.stroke();
-            if (zoom > 0.9) {
+            if (zoom > 0.7) {
               this._label(ctx, p, c.code, `rgba(255,225,120,${0.75 * d})`, false);
             }
           } else if (tier === 1) {
@@ -4348,26 +4346,29 @@ class GlobeView {
             ctx.fillStyle = `rgba(255,235,175,${0.55 * d})`; ctx.fill();
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1.2, 0, Math.PI * 2);
             ctx.strokeStyle = `rgba(220,200,130,${0.35 * d})`; ctx.lineWidth = 0.5; ctx.stroke();
-            if (zoom > 1.2) {
+            if (zoom > 0.9) {
               this._label(ctx, p, c.code, `rgba(225,200,130,${0.60 * d})`, false);
             }
           } else {
             // REGIONAL — dot with soft halo
-            const coreR = 1.6 + zoom * 0.25;
-            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 1.5, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(200,175,110,${0.10 * d})`; ctx.fill();
+            const coreR = 1.8 + zoom * 0.3;
+            ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 2, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(200,175,110,${0.12 * d})`; ctx.fill();
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(210,185,120,${0.55 * d + 0.10})`; ctx.fill();
+            ctx.fillStyle = `rgba(210,185,120,${0.60 * d + 0.12})`; ctx.fill();
             ctx.beginPath(); ctx.arc(p.x, p.y, coreR + 0.8, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(210,185,120,${0.22 * d})`; ctx.lineWidth = 0.45; ctx.stroke();
+            ctx.strokeStyle = `rgba(210,185,120,${0.25 * d})`; ctx.lineWidth = 0.45; ctx.stroke();
+            if (zoom > 1.8) {
+              this._label(ctx, p, c.code, `rgba(210,190,140,${0.45 * d})`, false);
+            }
           }
         } else {
-          // Unmatched — star-field style: vary size by index hash for texture
-          const tiny = ((i * 7 + 3) % 3 === 0);
-          const r = tiny ? 0.7 : 1.0;
-          const a = tiny ? 0.18 * d + 0.04 : 0.28 * d + 0.06;
+          // Unmatched — denser star-field: brighter, larger dots
+          const hash = (i * 7 + 3) % 4;
+          const r = hash === 0 ? 0.8 : hash === 1 ? 1.1 : 1.3;
+          const a = hash === 0 ? 0.22 * d + 0.06 : 0.35 * d + 0.08;
           ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(55,85,130,${a})`; ctx.fill();
+          ctx.fillStyle = `rgba(70,100,150,${a})`; ctx.fill();
         }
       }
     }
@@ -4647,24 +4648,27 @@ class GlobeView {
       if (!this._dragging) return;
       const dx = e.touches[0].clientX - this._lastX;
       const dy = e.touches[0].clientY - this._lastY;
-      this.viewLon -= dx * 0.5; this._tLon = this.viewLon;
-      this.viewLat = Math.max(-85, Math.min(85, this.viewLat + dy * 0.3)); this._tLat = this.viewLat;
+      const sens = 0.5 / Math.max(this._zoom, 1);
+      this.viewLon -= dx * sens; this._tLon = this.viewLon;
+      this.viewLat = Math.max(-85, Math.min(85, this.viewLat + dy * sens * 0.6)); this._tLat = this.viewLat;
       this._lastX = e.touches[0].clientX; this._lastY = e.touches[0].clientY;
       e.preventDefault();
     }, { passive: false });
     c.addEventListener('touchend', () => { this._dragging = false; });
     c.addEventListener('wheel', e => {
       e.preventDefault();
-      const factor = e.deltaY > 0 ? 0.9 : 1.11;
-      this._targetZoom = Math.max(0.6, Math.min(3.0, this._targetZoom * factor));
+      const factor = e.deltaY > 0 ? 0.88 : 1.14;
+      this._targetZoom = Math.max(0.6, Math.min(6.0, this._targetZoom * factor));
     }, { passive: false });
   }
 
   _onMove(e) {
     if (this._dragging) {
       const dx = e.clientX - this._lastX, dy = e.clientY - this._lastY;
-      this.viewLon -= dx * 0.5; this._tLon = this.viewLon;
-      this.viewLat = Math.max(-85, Math.min(85, this.viewLat + dy * 0.3)); this._tLat = this.viewLat;
+      // Drag sensitivity scales inversely with zoom — zoomed in = finer control
+      const sens = 0.5 / Math.max(this._zoom, 1);
+      this.viewLon -= dx * sens; this._tLon = this.viewLon;
+      this.viewLat = Math.max(-85, Math.min(85, this.viewLat + dy * sens * 0.6)); this._tLat = this.viewLat;
       this._lastX = e.clientX; this._lastY = e.clientY;
       this.hoveredIdx = -1;
     } else {
