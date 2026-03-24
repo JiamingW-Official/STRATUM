@@ -19,8 +19,8 @@ let _skyBaseColors = null;   // Float32Array — night baseline vertex colors
 let _ambientLightRef = null;
 
 export function createEnvironment(scene) {
-  // Horizon fog — fades map edges into sky for seamless ground→sky transition
-  scene.fog = new THREE.FogExp2(new THREE.Color(0.008, 0.032, 0.068), 0.018);
+  // Horizon fog — strong exponential fog blurs everything at distance
+  scene.fog = new THREE.FogExp2(new THREE.Color(0.008, 0.032, 0.068), 0.022);
 
   const ambient = new THREE.AmbientLight(0x3a5577, 0.5);
   ambient.name = 'ambientLight';
@@ -49,18 +49,18 @@ export function createEnvironment(scene) {
   // Horizon fade ring — gentle inner start, fully opaque BEFORE ground edge.
   // Ground extends ±GROUND_SIZE/2 from center; the ring must completely hide
   // the map tile boundary so it's never visible at any zoom.
-  const fadeInner = GROUND_SIZE * 0.22;
-  const fadeOuter = GROUND_SIZE * 1.1;
-  const fadeGeo = new THREE.RingGeometry(fadeInner, fadeOuter, 96, 12);
+  // Start fog much closer to center so edges are deeply buried
+  const fadeInner = GROUND_SIZE * 0.12;
+  const fadeOuter = GROUND_SIZE * 1.2;
+  const fadeGeo = new THREE.RingGeometry(fadeInner, fadeOuter, 96, 16);
   const fadeVerts = fadeGeo.attributes.position;
   const fadeCols = new Float32Array(fadeVerts.count * 4);
   for (let i = 0; i < fadeVerts.count; i++) {
     const x = fadeVerts.getX(i), z = fadeVerts.getZ(i);
     const dist = Math.sqrt(x * x + z * z);
     const t = Math.max(0, Math.min(1, (dist - fadeInner) / (fadeOuter - fadeInner)));
-    // Scaled quadratic: reaches 1.0 at ~31% of range (≈ ground edge),
-    // then stays fully opaque past the edge. Inner fade is still gentle.
-    const a = Math.min(1, t * t * 10);
+    // Very aggressive: fully opaque well before ground edge (~25% of range)
+    const a = Math.min(1, t * t * 18);
     fadeCols[i * 4] = 0.008;
     fadeCols[i * 4 + 1] = 0.032;
     fadeCols[i * 4 + 2] = 0.068;
