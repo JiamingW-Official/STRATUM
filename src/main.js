@@ -142,7 +142,7 @@ async function _initPostProcessing() {
   composer.addPass(renderPass);
   bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
-    0.65, 0.4, 0.82,
+    0.55, 0.35, 0.85,
   );
   composer.addPass(bloomPass);
   colorGradePass = new ShaderPass(CinematicShader);
@@ -1284,7 +1284,7 @@ let shiftHeld = false;
 // --- Feature state ---
 let screenshotMode = false;
 let bloomLevel = 1; // 0=subtle(0.35), 1=normal(0.65), 2=cinematic(1.2)
-const BLOOM_PRESETS = [0.35, 0.65, 1.2];
+const BLOOM_PRESETS = [0.3, 0.55, 1.0];
 const BLOOM_LABELS = ['SUBTLE', 'NORMAL', 'CINEMATIC'];
 let distanceRingsVisible = false;
 let distanceRingsGroup = null;
@@ -1736,7 +1736,7 @@ document.addEventListener('keydown', (e) => {
   if (_konamiBuffer.join(',') === 'ArrowUp,ArrowUp,ArrowDown,ArrowDown,ArrowLeft,ArrowRight,ArrowLeft,ArrowRight,b,a') {
     _konamiBuffer.length = 0;
     _cinematicMode = !_cinematicMode;
-    if (bloomPass) bloomPass.strength = _cinematicMode ? 1.4 : BLOOM_PRESETS[bloomLevel];
+    if (bloomPass) bloomPass.strength = _cinematicMode ? 1.1 : BLOOM_PRESETS[bloomLevel];
     renderer.toneMappingExposure = _cinematicMode ? 1.8 : 1.4;
     scene.fog.density = _cinematicMode ? 0.004 : 0.008;
     const lbl = document.getElementById('bloom-label') || document.createElement('div');
@@ -5726,26 +5726,23 @@ function _checkLowCoverage(city) {
 async function init() {
   // T3-15: Check for shared view link
   const urlCity = restoreViewFromURL();
+  const _NYC = { lat: 40.7128, lon: -74.0060 };
 
-  // ── 1. Start render loop IMMEDIATELY — intro camera animation plays while data loads ──
+  // ── 1. Start render loop IMMEDIATELY ──
   animate();
 
-  // ── 2. Detect user location (max 1.2s wait; falls back to JFK coords) ──
+  // ── 2. Kick off geo detection in the background — don't block anything ──
   _setBootStep('sts-loc', 'active');
   if (sceneTransName) sceneTransName.textContent = 'Detecting location…';
-  let geoCoords = { lat: 40.7128, lon: -74.0060 };
-  try {
-    geoCoords = await Promise.race([
-      initLocation(),
-      new Promise(r => setTimeout(() => r({ lat: 40.7128, lon: -74.0060 }), 1200)),
-    ]);
-  } catch { /* use NYC default */ }
-  _setBootStep('sts-loc', 'done');
+  const geoPromise = Promise.race([
+    initLocation().catch(() => _NYC),
+    new Promise(r => setTimeout(() => r(_NYC), 1200)),
+  ]);
 
-  // ── 3. Resolve starting city ──
+  // ── 3. Resolve start city from URL or NYC default (no geo wait) ──
   const defaultCity = urlCity
-    ? (CITIES.find(c => c.code === urlCity) || _findNearestCity(geoCoords.lat, geoCoords.lon))
-    : _findNearestCity(geoCoords.lat, geoCoords.lon);
+    ? (CITIES.find(c => c.code === urlCity) || _findNearestCity(_NYC.lat, _NYC.lon))
+    : _findNearestCity(_NYC.lat, _NYC.lon);
 
   activeCity = defaultCity;
   setUserLocation(defaultCity.lat, defaultCity.lon);
@@ -5756,31 +5753,39 @@ async function init() {
   aircraftManager = new AircraftManager(scene, defaultCity.lat, defaultCity.lon);
   window._aircraftManager = aircraftManager;
 
-  // ── 4. Boot splash — show resolved city ──
   if (sceneTransCode) sceneTransCode.textContent = defaultCity.code;
   if (sceneTransName) sceneTransName.textContent = defaultCity.name;
 
-  // ── 5. Kick off map + airports in parallel ──
+  // ── 4. Start ALL data loads immediately — parallel with geo ──
   _setBootStep('sts-map', 'active');
   _setBootStep('sts-apt', 'active');
+  _setBootStep('sts-acft', 'active');
   const mapP = loadGroundMap(defaultCity.lat, defaultCity.lon);
   const aptP = loadAirports(scene, defaultCity.lat, defaultCity.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
     _onAptLoaded();
   });
-
-  // ── 6. Start live data polling immediately (doesn't block rendering) ──
-  _setBootStep('sts-acft', 'active');
   startPolling(handleData, handleError);
 
-  // ── 7. Wait for map (max 1.5s), then reveal scene regardless ──
-  await Promise.race([mapP, new Promise(r => setTimeout(r, 1500))]);
+  // ── 5. Await geo + first data arrival in parallel ──
+  // Data loads from Worker cache (~200ms); geo runs concurrently — no sequential stall.
+  const [geoCoords] = await Promise.all([
+    geoPromise,
+    Promise.race([aptP, new Promise(r => setTimeout(r, 800))]),
+  ]);
+  _setBootStep('sts-loc', 'done');
   _setBootStep('sts-map', 'done');
-  if (sceneTransName) sceneTransName.textContent = `${defaultCity.name}  ·  Loading airports…`;
-  await Promise.race([aptP, new Promise(r => setTimeout(r, 1500))]);
 
-  // Fade out boot splash
+  // ── 6. If real location differs from NYC default, switch city (fire-and-forget) ──
+  if (!urlCity) {
+    const realCity = _findNearestCity(geoCoords.lat, geoCoords.lon);
+    if (realCity.code !== defaultCity.code) {
+      switchCity(realCity);
+    }
+  }
+
+  // ── 7. Fade out boot splash ──
   if (sceneTrans) {
     sceneTrans.classList.remove('scene-transition--boot');
     sceneTrans.classList.remove('loading');
