@@ -19,8 +19,8 @@ let _skyBaseColors = null;   // Float32Array — night baseline vertex colors
 let _ambientLightRef = null;
 
 export function createEnvironment(scene) {
-  // Horizon fog — fades map edges into sky for infinity/depth-of-field effect
-  scene.fog = new THREE.FogExp2(new THREE.Color(0.008, 0.032, 0.068), 0.013);
+  // Horizon fog — fades map edges into sky for seamless ground→sky transition
+  scene.fog = new THREE.FogExp2(new THREE.Color(0.008, 0.032, 0.068), 0.018);
 
   const ambient = new THREE.AmbientLight(0x3a5577, 0.5);
   ambient.name = 'ambientLight';
@@ -46,17 +46,49 @@ export function createEnvironment(scene) {
   groundMaterial.__scene = scene;
   scene.add(groundMesh);
 
+  // Horizon fade ring — radial gradient from transparent (inner, at ground edge)
+  // to sky/fog color (outer). Creates the Cities Skylines-style smooth horizon
+  // so the map edge dissolves into the sky rather than cutting sharply.
+  const fadeInner = GROUND_SIZE * 0.42;
+  const fadeOuter = GROUND_SIZE * 0.85;
+  const fadeGeo = new THREE.RingGeometry(fadeInner, fadeOuter, 96, 1);
+  // Vertex colors: inner ring = transparent, outer ring = fog color
+  const fadeVerts = fadeGeo.attributes.position;
+  const fadeCols = new Float32Array(fadeVerts.count * 4); // RGBA
+  for (let i = 0; i < fadeVerts.count; i++) {
+    const x = fadeVerts.getX(i), z = fadeVerts.getZ(i);
+    const dist = Math.sqrt(x * x + z * z);
+    const t = Math.max(0, Math.min(1, (dist - fadeInner) / (fadeOuter - fadeInner)));
+    const a = t * t; // quadratic ease-in for softer inner edge
+    fadeCols[i * 4] = 0.008;
+    fadeCols[i * 4 + 1] = 0.032;
+    fadeCols[i * 4 + 2] = 0.068;
+    fadeCols[i * 4 + 3] = a;
+  }
+  fadeGeo.setAttribute('color', new THREE.Float32BufferAttribute(fadeCols, 4));
+  const fadeMat = new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, depthWrite: false,
+    side: THREE.DoubleSide, fog: false,
+  });
+  const fadeRing = new THREE.Mesh(fadeGeo, fadeMat);
+  fadeRing.rotation.x = -Math.PI / 2;
+  fadeRing.position.y = 0.001; // just above ground to overlay
+  fadeRing.renderOrder = -50;
+  scene.add(fadeRing);
 
-  // Gradient sky dome
-  const skyGeo = new THREE.SphereGeometry(185, 64, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  // Full sky sphere — radius 500 ensures edge is never visible at any zoom level
+  const skyGeo = new THREE.SphereGeometry(500, 64, 32);
   const skyVerts = skyGeo.attributes.position;
   const skyColors = new Float32Array(skyVerts.count * 3);
   for (let i = 0; i < skyVerts.count; i++) {
     const y = skyVerts.getY(i);
-    const t = Math.max(0, y / 95);
-    skyColors[i * 3] = 0.008 + t * 0.012;
-    skyColors[i * 3 + 1] = 0.035 + t * 0.03;
-    skyColors[i * 3 + 2] = 0.07 + t * 0.06;
+    // Gradient from horizon color at y=0 to deeper sky at top
+    const t = Math.max(0, y / 250);
+    // Below horizon: slightly darker to avoid bright floor
+    const b = y < 0 ? 0.7 : 1.0;
+    skyColors[i * 3] = (0.008 + t * 0.012) * b;
+    skyColors[i * 3 + 1] = (0.032 + t * 0.03) * b;
+    skyColors[i * 3 + 2] = (0.065 + t * 0.06) * b;
   }
   skyGeo.setAttribute('color', new THREE.Float32BufferAttribute(skyColors, 3));
   const skyMat = new THREE.MeshBasicMaterial({
