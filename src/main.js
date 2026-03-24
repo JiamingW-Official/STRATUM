@@ -3177,18 +3177,22 @@ function animate() {
     setSunState(sunAz, sunElev, dayF);
   }
 
-  // Animate particles — position updates every frame, opacity throttled to ~4 Hz
-  const posArr = particles.geometry.attributes.position.array;
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    posArr[i * 3 + 1] += particleSpeeds[i] * delta;
-    if (posArr[i * 3 + 1] > 5) {
-      posArr[i * 3 + 1] = 0;
-      posArr[i * 3] = (Math.random() - 0.5) * 60;
-      posArr[i * 3 + 2] = (Math.random() - 0.5) * 60;
+  // Animate particles + stars — throttle GPU uploads to every 3rd frame
+  _atmosphereFrame = (_atmosphereFrame || 0) + 1;
+  if ((_atmosphereFrame % 3) === 0) {
+    const posArr = particles.geometry.attributes.position.array;
+    const dt3 = delta * 3; // compensate for 3-frame skip
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      posArr[i * 3 + 1] += particleSpeeds[i] * dt3;
+      if (posArr[i * 3 + 1] > 5) {
+        posArr[i * 3 + 1] = 0;
+        posArr[i * 3] = (Math.random() - 0.5) * 60;
+        posArr[i * 3 + 2] = (Math.random() - 0.5) * 60;
+      }
     }
+    particles.geometry.attributes.position.needsUpdate = true;
   }
-  particles.geometry.attributes.position.needsUpdate = true;
-  if (_elapsed - _lastAtmosphereUpdate >= 0.25) {
+  if (_elapsed - _lastAtmosphereUpdate >= 0.3) {
     _lastAtmosphereUpdate = _elapsed;
     particleMat.opacity = 0.06 + 0.04 * Math.sin(_elapsed * 0.4);
     starMat.opacity = 0.3 + 0.14 * Math.sin(_elapsed * 0.3);

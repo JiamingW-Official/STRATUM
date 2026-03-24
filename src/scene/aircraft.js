@@ -535,51 +535,44 @@ export class AircraftManager {
       ac._camPos = camPos;
       ac.animate(delta, elapsed, this._highlightSet, this._filterSet);
     }
-    // T2-13: Smart label density culling — every ~0.5s
-    if (camera && elapsed - this._lastLabelCullTime >= 0.5) {
+    // T2-13: Smart label density culling — interval scales with aircraft count
+    const cullInterval = this.aircraft.size > 200 ? 1.0 : 0.5;
+    if (camera && elapsed - this._lastLabelCullTime >= cullInterval) {
       this._lastLabelCullTime = elapsed;
-      this.cullOverlappingLabels(camera);
+      this._cullLabels(camera);
     }
   }
 
   // T2-13: Hide labels that overlap nearer aircraft labels in screen space
-  cullOverlappingLabels(camera) {
-    const entries = [];
+  _cullLabels(camera) {
+    // Reuse arrays to avoid GC pressure
+    const entries = this._cullEntries || (this._cullEntries = []);
+    entries.length = 0;
     const _projVec = this._cullProjVec || (this._cullProjVec = new THREE.Vector3());
     const w = this._viewW, h = this._viewH;
     for (const ac of this.aircraft.values()) {
-      if (ac.fadingOut || ac.removed) continue;
-      if (!ac.labelSprite) continue;
+      if (ac.fadingOut || ac.removed || !ac.labelSprite) continue;
       _projVec.setFromMatrixPosition(ac.group.matrixWorld);
       const dist = _projVec.distanceTo(camera.position);
       _projVec.project(camera);
-      if (_projVec.z > 1) { ac.labelSprite.visible = false; continue; }
-      const sx = (_projVec.x * 0.5 + 0.5) * w;
-      const sy = (-_projVec.y * 0.5 + 0.5) * h;
-      // Frustum cull — skip labels clearly off-screen
-      if (sx < -50 || sx > w + 50 || sy < -50 || sy > h + 50) {
+      if (_projVec.z > 1 || _projVec.x < -1.1 || _projVec.x > 1.1 || _projVec.y < -1.1 || _projVec.y > 1.1) {
         ac.labelSprite.visible = false; continue;
       }
-      entries.push({ ac, sx, sy, dist });
+      entries.push({ ac, sx: (_projVec.x * 0.5 + 0.5) * w, sy: (-_projVec.y * 0.5 + 0.5) * h, dist });
     }
     entries.sort((a, b) => a.dist - b.dist);
-    const MAX_VISIBLE = 60; // cap visible labels to bound O(n²)
-    const occupied = [];
-    const MIN_DIST_SQ = 30 * 30;
+    const occupied = this._cullOccupied || (this._cullOccupied = []);
+    occupied.length = 0;
+    const MAX_VIS = 50, MIN_D2 = 900; // 30px² min distance
     for (const e of entries) {
-      if (occupied.length >= MAX_VISIBLE) { e.ac.labelSprite.visible = false; continue; }
+      if (occupied.length >= MAX_VIS) { e.ac.labelSprite.visible = false; continue; }
       let blocked = false;
-      for (let i = 0, len = occupied.length; i < len; i++) {
-        const dx = e.sx - occupied[i].sx;
-        const dy = e.sy - occupied[i].sy;
-        if (dx * dx + dy * dy < MIN_DIST_SQ) { blocked = true; break; }
+      for (let i = 0, n = occupied.length; i < n; i++) {
+        const dx = e.sx - occupied[i][0], dy = e.sy - occupied[i][1];
+        if (dx * dx + dy * dy < MIN_D2) { blocked = true; break; }
       }
-      if (blocked) {
-        e.ac.labelSprite.visible = false;
-      } else {
-        e.ac.labelSprite.visible = true;
-        occupied.push(e);
-      }
+      if (blocked) { e.ac.labelSprite.visible = false; }
+      else { e.ac.labelSprite.visible = true; occupied.push([e.sx, e.sy]); }
     }
   }
 
@@ -1453,8 +1446,10 @@ class AircraftObject {
   }
 
   updateDropLine(pos) {
-    // Reuse pre-allocated buffer — no GC pressure per frame
+    // Only upload to GPU if position moved enough to matter visually (~1m)
     const arr = this._dropPosArray;
+    const dx = pos.x - arr[0], dz = pos.z - arr[2], dy = pos.y - arr[1];
+    if (dx * dx + dz * dz + dy * dy < 0.000004) return;
     arr[0] = pos.x; arr[1] = pos.y; arr[2] = pos.z;
     arr[3] = pos.x; arr[4] = 0;     arr[5] = pos.z;
     this.dropGeometry.getAttribute('position').needsUpdate = true;

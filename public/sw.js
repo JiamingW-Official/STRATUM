@@ -5,7 +5,14 @@ const RADIO_CACHE = 'stratum-radio-v1';
 
 const MAX_TILE_ENTRIES = 4000;
 
-self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('install', e => {
+  // Pre-cache the HTML shell and favicon for instant repeat visits
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(cache =>
+      cache.addAll(['/', '/favicon.svg']).catch(() => {})
+    ).then(() => self.skipWaiting())
+  );
+});
 self.addEventListener('activate', e => {
   const keep = new Set([CACHE_NAME, TILE_CACHE, RADIO_CACHE]);
   e.waitUntil(
