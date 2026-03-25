@@ -4,8 +4,8 @@
   --surface: rgba(10, 11, 16, 0.92);
   --surface-deep: rgba(6, 7, 11, 0.96);
   --surface-elevated: rgba(14, 16, 22, 0.94);
-  --border: rgba(255, 255, 255, 0.045);
-  --border-mid: rgba(255, 255, 255, 0.09);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-mid: rgba(255, 255, 255, 0.1);
   --border-accent: rgba(196, 160, 88, 0.12);
   --text: rgba(240, 236, 226, 0.93);
   --text-2: rgba(240, 236, 226, 0.58);
@@ -28,7 +28,7 @@
   --panel-gap: 10px;
   --shadow: 0 16px 64px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.018);
   --shadow-sm: 0 8px 28px rgba(0, 0, 0, 0.55);
-  --shadow-glow: 0 0 48px rgba(196, 160, 88, 0.03);
+  --shadow-glow: 0 0 48px rgba(196, 160, 88, 0.06);
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-out: cubic-bezier(0, 0, 0.35, 1);
@@ -439,11 +439,11 @@ html, body {
   width: 300px;
   z-index: 20; pointer-events: auto;
   transition: transform 0.4s var(--ease), opacity 0.4s ease;
-  border-top: 2px solid rgba(196, 160, 88, 0.65);
+  border-top: 2px solid rgba(196, 160, 88, 0.8);
   border-radius: 0 0 var(--r) var(--r);
-  border-left: 1px solid rgba(255, 255, 255, 0.045);
-  border-right: 1px solid rgba(255, 255, 255, 0.045);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   background: linear-gradient(180deg, rgba(8, 10, 14, 0.97) 0%, rgba(6, 7, 11, 0.96) 100%);
   -webkit-backdrop-filter: blur(28px) saturate(1.3);
   backdrop-filter: blur(28px) saturate(1.3);
@@ -499,16 +499,16 @@ html, body {
 /* Route banner */
 .detail-route {
   display: flex; align-items: center; justify-content: center;
-  gap: 12px; padding: 10px 16px 12px;
-  background: linear-gradient(135deg, rgba(196,160,88,0.05) 0%, rgba(196,160,88,0.015) 50%, rgba(196,160,88,0.04) 100%);
-  border-top: 1px solid rgba(255,255,255,0.03);
+  gap: 14px; padding: 12px 16px 14px;
+  background: linear-gradient(135deg, rgba(196,160,88,0.07) 0%, rgba(196,160,88,0.025) 50%, rgba(196,160,88,0.06) 100%);
+  border-top: 1px solid rgba(196,160,88,0.08);
   position: relative;
 }
 .detail-route::after {
   content: '';
-  position: absolute; bottom: 0; left: 18px; right: 18px;
+  position: absolute; bottom: 0; left: 16px; right: 16px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(196,160,88,0.08), transparent);
+  background: linear-gradient(90deg, transparent, rgba(196,160,88,0.12), transparent);
 }
 .detail-route.hidden { display: none; }
 .detail-route-from, .detail-route-to {
@@ -516,9 +516,9 @@ html, body {
   min-width: 50px;
 }
 .detail-route-code {
-  font-family: var(--font-mono); font-size: 20px; font-weight: 500;
+  font-family: var(--font-mono); font-size: 20px; font-weight: 600;
   letter-spacing: 2.5px; color: var(--accent); line-height: 1;
-  text-shadow: 0 0 24px rgba(196,160,88,0.08);
+  text-shadow: 0 0 20px rgba(196,160,88,0.15);
 }
 .detail-route-city {
   font-family: var(--font-sans); font-size: 7.5px;
@@ -539,8 +539,8 @@ html, body {
   100% { background-position: -200% 0; }
 }
 .detail-route-arrow {
-  flex-shrink: 0; opacity: 0.35; margin: 0 6px;
-  filter: drop-shadow(0 0 4px rgba(196,160,88,0.1));
+  flex-shrink: 0; opacity: 0.55; margin: 0 8px;
+  filter: drop-shadow(0 0 6px rgba(196,160,88,0.15));
 }
 /* Estimated route indicator — subtle dashed border */
 .detail-route.estimated {
@@ -575,19 +575,19 @@ html, body {
 }
 .detail-progress.hidden { display: none; }
 .detail-progress-track {
-  height: 2px;
-  background: rgba(196,160,88,0.08);
-  border-radius: 2px;
+  height: 3px;
+  background: rgba(196,160,88,0.1);
+  border-radius: 3px;
   overflow: hidden;
   position: relative;
 }
 .detail-progress-bar {
   width: 0;
   height: 100%;
-  background: linear-gradient(90deg, rgba(196,160,88,0.3), rgba(212,176,104,0.7), rgba(196,160,88,0.9));
-  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(196,160,88,0.35), rgba(212,176,104,0.75), rgba(196,160,88,0.95));
+  border-radius: 3px;
   transition: width 0.8s var(--ease);
-  box-shadow: 0 0 10px rgba(196,160,88,0.2), 0 0 3px rgba(196,160,88,0.35);
+  box-shadow: 0 0 12px rgba(196,160,88,0.3), 0 0 4px rgba(196,160,88,0.45);
   position: relative;
 }
 .detail-progress-bar::after {
@@ -602,9 +602,9 @@ html, body {
 .detail-progress-text {
   margin-top: 5px;
   font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 1.2px;
-  color: var(--text-3);
+  font-size: 8.5px;
+  letter-spacing: 1px;
+  color: var(--text-2);
   text-align: right;
   opacity: 0.7;
 }
@@ -766,15 +766,15 @@ html, body {
 
 .detail-callsign {
   font-family: var(--font-mono);
-  font-size: 22px; font-weight: 500;
-  letter-spacing: 1.5px; color: var(--text);
+  font-size: 22px; font-weight: 600;
+  letter-spacing: 2px; color: var(--text);
   line-height: 1;
   transition: text-shadow 0.3s ease;
-  text-shadow: 0 0 24px rgba(196,160,88,0.04);
+  text-shadow: 0 0 20px rgba(196,160,88,0.1);
   position: relative;
 }
 .detail-callsign:hover {
-  text-shadow: 0 0 24px rgba(196,160,88,0.12);
+  text-shadow: 0 0 24px rgba(196,160,88,0.2);
 }
 /* Phonetic callsign tooltip */
 .detail-callsign.has-tip[data-tip]::after {
@@ -813,9 +813,9 @@ html, body {
   border: 1px solid transparent;
   display: none;
 }
-.detail-status-badge.climb   { color: #d0f0d8; border-color: rgba(110,200,122,0.25); background: rgba(110,200,122,0.12); display: inline-block; box-shadow: 0 0 10px rgba(110,200,122,0.06); }
-.detail-status-badge.cruise  { color: rgba(255,240,200,0.9); border-color: rgba(196,160,88,0.25); background: rgba(196,160,88,0.1); display: inline-block; box-shadow: 0 0 10px rgba(196,160,88,0.05); }
-.detail-status-badge.descent { color: #ffd8d0; border-color: rgba(232,131,106,0.25); background: rgba(232,131,106,0.12); display: inline-block; box-shadow: 0 0 10px rgba(232,131,106,0.06); }
+.detail-status-badge.climb   { color: #d0f0d8; border-color: rgba(110,200,122,0.3); background: rgba(110,200,122,0.14); display: inline-block; box-shadow: 0 0 14px rgba(110,200,122,0.1); }
+.detail-status-badge.cruise  { color: rgba(255,240,200,0.92); border-color: rgba(196,160,88,0.3); background: rgba(196,160,88,0.12); display: inline-block; box-shadow: 0 0 14px rgba(196,160,88,0.08); }
+.detail-status-badge.descent { color: #ffd8d0; border-color: rgba(232,131,106,0.3); background: rgba(232,131,106,0.14); display: inline-block; box-shadow: 0 0 14px rgba(232,131,106,0.1); }
 
 /* Section header labels */
 .detail-section-header {
