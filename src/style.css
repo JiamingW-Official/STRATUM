@@ -852,10 +852,10 @@ html, body {
 .airline-logo {
   width: 42px; height: 42px;
   border-radius: 7px;
-  object-fit: cover;
+  object-fit: contain;
   background: rgba(255,255,255,0.88);
   border: 1px solid rgba(255,255,255,0.2);
-  padding: 2px;
+  padding: 0;
   flex-shrink: 0;
 }
 .airline-logo.hidden { display: none; }

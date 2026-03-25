@@ -174,8 +174,23 @@ const elAirlineDeep = document.getElementById('detail-airline-deep');
 if (elAirlineRow) {
   elAirlineRow.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!elAirlineDeep || elAirlineDeep.classList.contains('hidden')) return;
-    elAirlineDeep.classList.toggle('show');
+    if (!elAirlineDeep) return;
+    // If popover already visible, close it
+    if (elAirlineDeep.classList.contains('show')) {
+      elAirlineDeep.classList.remove('show');
+      return;
+    }
+    // If data not loaded yet, force load then show
+    if (elAirlineDeep.classList.contains('hidden')) {
+      const icao = elAirlineRow._icao;
+      if (!icao) return;
+      _lastDeepIcao = ''; // reset cache to force reload
+      _loadAirlineDeep(icao, elAirlineRow._typeCode || '').then(() => {
+        elAirlineDeep.classList.add('show');
+      });
+    } else {
+      elAirlineDeep.classList.add('show');
+    }
   });
   // Close popover when clicking outside
   document.addEventListener('click', () => {
@@ -1278,6 +1293,8 @@ export function showDetail(aircraftObj, userLat, userLon) {
     }
     // Deep info: fleet match + financials + route network (async, lazy-loaded)
     if (icaoPrefix && elAirlineDeep) {
+      elAirlineRow._icao = icaoPrefix;
+      elAirlineRow._typeCode = d.typeCode || '';
       _loadAirlineDeep(icaoPrefix, d.typeCode || '');
     }
   } else if (elAirlineRow) {
