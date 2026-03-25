@@ -1749,7 +1749,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
   const hasXpdr = d.squawk || d.wakeCat || d.flightPhase || d.navAlt != null || d.rssi != null;
   if (hasXpdr && elXpdr) {
     elXpdr.classList.remove('hidden');
-    elXpdrDivider.classList.remove('hidden');
+    if (elXpdrDivider) elXpdrDivider.classList.remove('hidden');
 
     if (d.squawk) {
       // T1-01: Squawk code alert styling
@@ -1927,7 +1927,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
     }
   } else if (elXpdr) {
     elXpdr.classList.add('hidden');
-    elXpdrDivider.classList.add('hidden');
+    if (elXpdrDivider) elXpdrDivider.classList.add('hidden');
   }
 
   // ── PERFORMANCE SECTION (P2 TOD, P5 Efficiency) ──
