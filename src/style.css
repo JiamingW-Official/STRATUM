@@ -842,15 +842,21 @@ html, body {
 .detail-airline-row {
   display: flex; align-items: center; gap: 10px;
   padding: 6px 16px 8px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.detail-airline-row:hover {
+  background: rgba(196,160,88,0.03);
 }
 .detail-airline-row.hidden { display: none; }
 .airline-logo {
-  width: 32px; height: 32px;
+  width: 30px; height: 30px;
   border-radius: 5px;
   object-fit: contain;
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.06);
-  padding: 2px;
+  background: rgba(255,255,255,0.82);
+  border: 1px solid rgba(255,255,255,0.15);
+  padding: 3px;
   flex-shrink: 0;
 }
 .airline-logo.hidden { display: none; }
@@ -871,18 +877,35 @@ html, body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .airline-meta.hidden { display: none; }
-/* Airline deep info (fleet, financials, routes) */
+/* Airline deep info — floating popover to the left of sidebar */
 .airline-deep {
-  margin: 4px 14px 0;
-  padding: 8px 12px 10px;
+  position: absolute;
+  right: calc(100% + 10px);
+  top: -8px;
+  width: 280px;
+  padding: 12px 14px 14px;
   font-family: var(--font-mono);
   font-size: 9.5px;
-  color: rgba(255,255,255,0.55);
+  color: rgba(255,255,255,0.6);
   letter-spacing: 0.3px;
   line-height: 1.6;
-  background: rgba(196,160,88,0.02);
-  border-radius: var(--r);
-  border: 1px solid rgba(196,160,88,0.06);
+  background: rgba(12, 18, 28, 0.95);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border-radius: 8px;
+  border: 1px solid rgba(196,160,88,0.12);
+  box-shadow: 0 12px 48px rgba(0,0,0,0.6), 0 0 1px rgba(255,255,255,0.05);
+  z-index: 100;
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+.detail-airline-row:hover .airline-deep,
+.airline-deep.pinned {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 .airline-deep.hidden { display: none; }
 .airline-deep-section {
