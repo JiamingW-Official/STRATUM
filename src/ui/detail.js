@@ -170,6 +170,18 @@ const elAirline = document.getElementById('detail-airline');
 const elAirlineLogo = document.getElementById('detail-airline-logo');
 const elAirlineMeta = document.getElementById('detail-airline-meta');
 const elAirlineDeep = document.getElementById('detail-airline-deep');
+// Click airline row to toggle deep info popover
+if (elAirlineRow) {
+  elAirlineRow.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!elAirlineDeep || elAirlineDeep.classList.contains('hidden')) return;
+    elAirlineDeep.classList.toggle('show');
+  });
+  // Close popover when clicking outside
+  document.addEventListener('click', () => {
+    if (elAirlineDeep) elAirlineDeep.classList.remove('show');
+  });
+}
 const elEnrichLoader = document.getElementById('detail-enrich-loader');
 const elAlt = document.getElementById('detail-alt');
 const elSpd = document.getElementById('detail-spd');
@@ -2017,6 +2029,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
 export function closeDetail() {
   selectedAircraft = null;
   _lastDeepIcao = '';
+  if (elAirlineDeep) elAirlineDeep.classList.remove('show');
   _lastEduPhase = null; // C-2: Reset so card shows again on next selection
   _lastRenderedType = null; // reset silhouette cache
   if (_phaseEduTimer) { clearTimeout(_phaseEduTimer); _phaseEduTimer = null; }

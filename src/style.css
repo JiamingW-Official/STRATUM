@@ -850,11 +850,11 @@ html, body {
 }
 .detail-airline-row.hidden { display: none; }
 .airline-logo {
-  width: 36px; height: 36px;
-  border-radius: 6px;
+  width: 42px; height: 42px;
+  border-radius: 7px;
   object-fit: cover;
-  background: rgba(255,255,255,0.85);
-  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(255,255,255,0.2);
   padding: 2px;
   flex-shrink: 0;
 }
@@ -900,8 +900,7 @@ html, body {
   transition: opacity 0.25s ease, transform 0.25s ease;
   pointer-events: none;
 }
-.detail-airline-row:hover .airline-deep,
-.airline-deep.pinned {
+.airline-deep.show {
   opacity: 1;
   transform: translateX(0);
   pointer-events: auto;
