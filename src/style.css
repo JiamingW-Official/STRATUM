@@ -910,36 +910,53 @@ html, body {
 }
 .airline-meta.hidden { display: none; }
 /* Airline deep info — floating popover to the left of sidebar */
+/* Airline deep info — standalone centered overlay */
 .airline-deep {
   position: fixed;
   left: 50%;
-  bottom: 80px;
-  transform: translateX(-50%) translateY(12px);
-  width: 360px;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  width: 380px;
   max-width: calc(100vw - 40px);
-  padding: 14px 16px 16px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  padding: 20px 22px 24px;
   font-family: var(--font-mono);
-  font-size: 9.5px;
-  color: rgba(255,255,255,0.6);
+  font-size: 10px;
+  color: rgba(255,255,255,0.65);
   letter-spacing: 0.3px;
   line-height: 1.6;
-  background: rgba(10, 14, 22, 0.96);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  backdrop-filter: blur(24px) saturate(1.2);
-  border-radius: 10px;
-  border: 1px solid rgba(196,160,88,0.15);
-  box-shadow: 0 16px 56px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.03), 0 0 40px rgba(196,160,88,0.04);
-  z-index: 200;
+  background: rgba(8, 12, 20, 0.97);
+  -webkit-backdrop-filter: blur(32px) saturate(1.3);
+  backdrop-filter: blur(32px) saturate(1.3);
+  border-radius: 12px;
+  border: 1px solid rgba(196,160,88,0.18);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04), 0 0 60px rgba(196,160,88,0.05);
+  z-index: 500;
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s var(--ease);
   pointer-events: none;
 }
 .airline-deep.show {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translate(-50%, -50%) scale(1);
   pointer-events: auto;
 }
 .airline-deep.hidden { display: none; }
+/* Backdrop dimming */
+.airline-deep-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 499;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.airline-deep-backdrop.show {
+  opacity: 1;
+  pointer-events: auto;
+}
 .airline-deep-section {
   margin-bottom: 8px;
 }

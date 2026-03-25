@@ -172,30 +172,42 @@ const elAirlineMeta = document.getElementById('detail-airline-meta');
 const elAirlineDeep = document.getElementById('detail-airline-deep');
 // Click airline row to toggle deep info popover
 if (elAirlineRow) {
+  // Backdrop element for dimming
+  const _backdrop = document.createElement('div');
+  _backdrop.className = 'airline-deep-backdrop';
+  document.body.appendChild(_backdrop);
+
+  function _closeAirlinePopover() {
+    if (elAirlineDeep) elAirlineDeep.classList.remove('show');
+    _backdrop.classList.remove('show');
+  }
+  function _openAirlinePopover() {
+    elAirlineDeep.classList.add('show');
+    _backdrop.classList.add('show');
+  }
+
   elAirlineRow.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!elAirlineDeep) return;
-    // If popover already visible, close it
+    // Toggle off if already open
     if (elAirlineDeep.classList.contains('show')) {
-      elAirlineDeep.classList.remove('show');
+      _closeAirlinePopover();
       return;
     }
     // If data not loaded yet, force load then show
     if (elAirlineDeep.classList.contains('hidden')) {
       const icao = elAirlineRow._icao;
       if (!icao) return;
-      _lastDeepIcao = ''; // reset cache to force reload
+      _lastDeepIcao = '';
       _loadAirlineDeep(icao, elAirlineRow._typeCode || '').then(() => {
-        elAirlineDeep.classList.add('show');
+        _openAirlinePopover();
       });
     } else {
-      elAirlineDeep.classList.add('show');
+      _openAirlinePopover();
     }
   });
-  // Close popover when clicking outside
-  document.addEventListener('click', () => {
-    if (elAirlineDeep) elAirlineDeep.classList.remove('show');
-  });
+  // Close on backdrop click
+  _backdrop.addEventListener('click', _closeAirlinePopover);
 }
 // Collapsible section headers — click to toggle body visibility
 document.querySelectorAll('.detail-section-header[data-section]').forEach(header => {
@@ -492,14 +504,21 @@ function renderAltChart() {
     canvas.addEventListener('touchend', () => setH(null));
   }
 
-  // Need meaningful history before showing chart — avoid giant bars with 2-3 seeded points
+  // Always show chart once created — draw empty state if not enough data
+  canvas.style.display = 'block';
   const validAlts = altHistory.filter(e => e.alt != null && isFinite(e.alt));
   if (altHistory.length < 2 || validAlts.length < 5) {
-    canvas.style.display = 'none';
+    const _ctx = canvas.getContext('2d');
+    const _w = Math.round(canvas.getBoundingClientRect().width) || 260;
+    canvas.width = _w * 2; canvas.height = 260;
+    _ctx.scale(2, 2);
+    _ctx.clearRect(0, 0, _w, 130);
+    _ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    _ctx.font = '9px JetBrains Mono, monospace';
+    _ctx.textAlign = 'center';
+    _ctx.fillText('Collecting altitude data...', _w / 2, 65);
     return;
   }
-
-  canvas.style.display = 'block';
   let w = Math.round(canvas.getBoundingClientRect().width);
   if (!w) { void canvas.offsetWidth; w = Math.round(canvas.getBoundingClientRect().width) || 260; }
   const H = 130;
@@ -826,10 +845,20 @@ function renderSpeedChart() {
     canvas.addEventListener('touchend', () => setH(null));
   }
 
-  const speedEntries = altHistory.filter(e => e.gsKts != null && isFinite(e.gsKts));
-  if (speedEntries.length < 5) { canvas.style.display = 'none'; return; }
-
   canvas.style.display = 'block';
+  const speedEntries = altHistory.filter(e => e.gsKts != null && isFinite(e.gsKts));
+  if (speedEntries.length < 5) {
+    const _ctx = canvas.getContext('2d');
+    const _w = Math.round(canvas.getBoundingClientRect().width) || 260;
+    canvas.width = _w * 2; canvas.height = 260;
+    _ctx.scale(2, 2);
+    _ctx.clearRect(0, 0, _w, 130);
+    _ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    _ctx.font = '9px JetBrains Mono, monospace';
+    _ctx.textAlign = 'center';
+    _ctx.fillText('Collecting speed data...', _w / 2, 65);
+    return;
+  }
   let w = Math.round(canvas.getBoundingClientRect().width);
   if (!w) { void canvas.offsetWidth; w = Math.round(canvas.getBoundingClientRect().width) || 260; }
   const H = 130;
@@ -2056,7 +2085,8 @@ export function showDetail(aircraftObj, userLat, userLon) {
 export function closeDetail() {
   selectedAircraft = null;
   _lastDeepIcao = '';
-  if (elAirlineDeep) elAirlineDeep.classList.remove('show');
+  if (elAirlineDeep) { elAirlineDeep.classList.remove('show'); }
+  document.querySelector('.airline-deep-backdrop')?.classList.remove('show');
   _lastEduPhase = null; // C-2: Reset so card shows again on next selection
   _lastRenderedType = null; // reset silhouette cache
   if (_phaseEduTimer) { clearTimeout(_phaseEduTimer); _phaseEduTimer = null; }

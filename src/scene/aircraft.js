@@ -1104,7 +1104,7 @@ class AircraftObject {
     });
     this._labelMat = mat;
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(1.5, 0.375, 1);
+    sprite.scale.set(1.1, 0.275, 1);
     return sprite;
   }
 

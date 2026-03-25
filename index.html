@@ -172,7 +172,7 @@
     <!-- ── PHONETIC CALLSIGN ── -->
     <div id="detail-phonetic" class="detail-phonetic hidden"></div>
 
-    <!-- ── AIRLINE ROW (hover shows floating popover with deep info) ── -->
+    <!-- ── AIRLINE ROW ── -->
     <div id="detail-airline-row" class="detail-airline-row hidden">
       <img id="detail-airline-logo" class="airline-logo hidden" alt="" />
       <div class="airline-text">
@@ -180,8 +180,6 @@
         <span id="detail-airline-meta" class="airline-meta hidden"></span>
       </div>
       <span id="detail-enrich-loader" class="detail-loader hidden"></span>
-      <!-- Deep info popover — floats left of sidebar on hover -->
-      <div id="detail-airline-deep" class="airline-deep hidden"></div>
     </div>
 
     <!-- ── ROUTE BANNER + PROGRESS ── -->
@@ -690,6 +688,9 @@
       <path d="M17 15.5a2.5 2.5 0 015 0v2a2.5 2.5 0 01-5 0v-2z"/>
     </svg>
   </button>
+
+  <!-- ── Airline deep info — standalone overlay ── -->
+  <div id="detail-airline-deep" class="airline-deep hidden"></div>
 
   <script type="module" src="/src/main.js"></script>
   <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')</script>
