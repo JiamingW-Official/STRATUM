@@ -439,7 +439,6 @@ html, body {
   width: 300px;
   z-index: 20; pointer-events: auto;
   transition: transform 0.4s var(--ease), opacity 0.4s ease;
-  will-change: transform, opacity;
   border-top: 2px solid rgba(196, 160, 88, 0.65);
   border-radius: 0 0 var(--r) var(--r);
   border-left: 1px solid rgba(255, 255, 255, 0.045);
@@ -682,7 +681,6 @@ html, body {
   overflow: hidden;
   max-height: 0;
   opacity: 0;
-  will-change: max-height, opacity;
   transition: max-height 0.4s var(--ease), opacity 0.4s var(--ease), margin 0.4s var(--ease);
 }
 .phase-edu-card--visible { max-height: 120px; opacity: 1; }
@@ -2026,7 +2024,6 @@ html, body {
   background: #09090c;
   opacity: 0; pointer-events: none;
   display: flex; align-items: center; justify-content: center;
-  will-change: opacity;
   transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 /* Boot splash — visible immediately on page load, before JS runs */

@@ -77,8 +77,8 @@ export function createEnvironment(scene) {
   fadeRing.renderOrder = -50;
   scene.add(fadeRing);
 
-  // Full sky sphere — radius 500 ensures edge is never visible at any zoom level
-  const skyGeo = new THREE.SphereGeometry(500, 64, 32);
+  // Sky sphere — 32×16 segments (512 verts vs 2048) sufficient for smooth gradient
+  const skyGeo = new THREE.SphereGeometry(500, 32, 16);
   const skyVerts = skyGeo.attributes.position;
   const skyColors = new Float32Array(skyVerts.count * 3);
   for (let i = 0; i < skyVerts.count; i++) {

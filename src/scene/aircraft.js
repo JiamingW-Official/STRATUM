@@ -38,7 +38,7 @@ const TRAIL_SAMPLE_INTERVAL = 0.25;     // 4Hz live sampling — good balance of
 const TRAIL_MAX_POINTS = 7200;          // 30 min at 4Hz
 const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real track
 const SYNTHETIC_TRAIL_STEP = 0.5;
-const TRAIL_REBUILD_INTERVAL = 1.0;     // rebuild geometry every 1s — GPU upload is expensive
+const TRAIL_REBUILD_INTERVAL = 2.0;     // rebuild geometry every 2s — reduces GPU uploads by 50%
 const TRACK_REFRESH_INTERVAL = 45;      // re-check track API every 45s for followed/selected aircraft
 const TRACK_INITIAL_CHECK_INTERVAL = 0.2; // check every 200ms until track arrives
 const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
@@ -1509,6 +1509,12 @@ class AircraftObject {
   }
 
   _updateContrail(delta) {
+    // Throttle contrail updates to every other frame (~30Hz) — visually identical
+    this._contrailSkip = (this._contrailSkip || 0) + 1;
+    if (this._contrailSkip < 2) return;
+    this._contrailSkip = 0;
+    const dt2 = delta * 2; // compensate for skipped frame
+
     const alt = this.data.baroAltitude;
     const aboveFL300 = alt != null && alt > CONTRAIL_ALT_THRESHOLD;
 
@@ -1541,7 +1547,7 @@ class AircraftObject {
     let writeIdx = 0;
     for (let i = 0; i < this._contrailParticles.length; i++) {
       const p = this._contrailParticles[i];
-      p.age += delta;
+      p.age += dt2;
       if (p.age >= CONTRAIL_LIFETIME) continue;
       this._contrailParticles[writeIdx] = p;
       const i3 = writeIdx * 3;
