@@ -215,6 +215,9 @@ async function _loadAirlineDeep(icaoPrefix, typeCode) {
   html += '<div class="adp-close" id="adp-close-btn">✕</div>';
   html += '</div>';
 
+  // ── Body wrapper ──
+  html += '<div class="adp-body">';
+
   // ── Route map canvas ──
   html += '<canvas id="adp-route-map" class="adp-map" width="700" height="350"></canvas>';
 
@@ -325,6 +328,8 @@ async function _loadAirlineDeep(icaoPrefix, typeCode) {
   if (airline?.website) {
     html += `<div class="adp-website"><a href="https://${airline.website}" target="_blank" rel="noopener">${airline.website}</a></div>`;
   }
+
+  html += '</div>'; // close adp-body
 
   el.innerHTML = html;
   el.classList.remove('hidden');
