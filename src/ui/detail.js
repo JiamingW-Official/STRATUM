@@ -81,15 +81,17 @@ function _drawRouteMap(canvas, hubs, routes, aptCoords, coastline) {
     ctx.stroke();
   }
 
-  // Draw route arcs
-  ctx.strokeStyle = 'rgba(196,160,88,0.12)';
-  ctx.lineWidth = 0.6;
+  // Draw route arcs — thickness and opacity scale with daily frequency
+  const maxFreq = Math.max(1, ...routes.map(r => r.d || 1));
   for (const r of routes) {
     const from = aptCoords[r.f], to = aptCoords[r.t];
     if (!from || !to) continue;
     const [x1, y1] = proj(from[0], from[1]);
     const [x2, y2] = proj(to[0], to[1]);
     const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - Math.abs(x2 - x1) * 0.15;
+    const intensity = 0.06 + 0.18 * ((r.d || 1) / maxFreq);
+    ctx.strokeStyle = `rgba(196,160,88,${intensity.toFixed(2)})`;
+    ctx.lineWidth = 0.4 + 1.2 * ((r.d || 1) / maxFreq);
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.quadraticCurveTo(mx, my, x2, y2);
@@ -129,6 +131,45 @@ function _drawRouteMap(canvas, hubs, routes, aptCoords, coastline) {
   }
 }
 
+function _drawFleetChart(canvas, types) {
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  const sorted = [...types].sort((a, b) => b.c - a.c).slice(0, 8);
+  if (!sorted.length) return;
+  const maxCount = sorted[0].c;
+  const barH = Math.min(16, (H - 20) / sorted.length - 2);
+  const labelW = 200;
+  const barArea = W - labelW - 60;
+  const startY = 10;
+
+  for (let i = 0; i < sorted.length; i++) {
+    const t = sorted[i];
+    const y = startY + i * (barH + 3);
+    const bw = (t.c / maxCount) * barArea;
+
+    // Bar
+    const grad = ctx.createLinearGradient(labelW, 0, labelW + bw, 0);
+    grad.addColorStop(0, 'rgba(196,160,88,0.6)');
+    grad.addColorStop(1, 'rgba(196,160,88,0.25)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(labelW, y, bw, barH, 3);
+    ctx.fill();
+
+    // Label
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(t.t, labelW - 8, y + barH - 3);
+
+    // Count
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${t.c}`, labelW + bw + 6, y + barH - 3);
+  }
+}
+
 async function _loadAirlineDeep(icaoPrefix, typeCode) {
   const code = icaoPrefix.slice(0, 3).toUpperCase();
   if (code === _lastDeepIcao) return;
@@ -146,19 +187,30 @@ async function _loadAirlineDeep(icaoPrefix, typeCode) {
   const logoUrl = airline?.logoUrl || '';
   const name = airline?.name || code;
   const hubs = airline?.hubs || [];
-
+  const focusCities = airline?.focusCities || [];
   let html = '';
 
-  // ── Header: logo + name + key stats ──
+  // ── Header: logo + name + business model badge + meta ──
   html += '<div class="adp-header">';
   if (logoUrl) html += `<img class="adp-logo" src="${logoUrl}" alt="${name}" />`;
   html += '<div class="adp-header-text">';
-  html += `<div class="adp-name">${name}</div>`;
+  html += `<div class="adp-name">${name}`;
+  if (airline?.businessModel) {
+    const bmLabel = {'full-service':'Full-Service','low-cost':'Low-Cost','regional':'Regional','cargo':'Cargo','charter':'Charter'}[airline.businessModel] || airline.businessModel;
+    html += ` <span class="adp-bm-badge">${bmLabel}</span>`;
+  }
+  html += '</div>';
   const tags = [];
-  if (airline?.iata) tags.push(airline.iata);
+  if (airline?.iata) tags.push(airline.iata + '/' + code);
   if (airline?.alliance) tags.push(airline.alliance);
   if (airline?.country) tags.push(airline.country);
+  if (airline?.founded) tags.push('Est. ' + airline.founded);
   if (tags.length) html += `<div class="adp-tags">${tags.join(' · ')}</div>`;
+  // CEO + HQ sub-line
+  const info2 = [];
+  if (airline?.ceo) info2.push(airline.ceo);
+  if (airline?.hq) info2.push(airline.hq);
+  if (info2.length) html += `<div class="adp-sub">${info2.join(' · ')}</div>`;
   html += '</div>';
   html += '<div class="adp-close" id="adp-close-btn">✕</div>';
   html += '</div>';
@@ -166,15 +218,22 @@ async function _loadAirlineDeep(icaoPrefix, typeCode) {
   // ── Route map canvas ──
   html += '<canvas id="adp-route-map" class="adp-map" width="700" height="350"></canvas>';
 
-  // ── Hub airports ──
-  if (hubs.length > 0) {
+  // ── Hub + Focus cities row ──
+  if (hubs.length > 0 || focusCities.length > 0) {
     html += '<div class="adp-section">';
-    html += '<div class="adp-section-title">HUBS</div>';
-    html += '<div class="adp-hub-list">';
-    for (const h of hubs) {
-      html += `<span class="adp-hub">${h}</span>`;
+    if (hubs.length) {
+      html += '<div class="adp-section-title">HUBS</div>';
+      html += '<div class="adp-hub-list">';
+      for (const h of hubs) html += `<span class="adp-hub">${h}</span>`;
+      html += '</div>';
     }
-    html += '</div></div>';
+    if (focusCities.length) {
+      html += '<div class="adp-section-title" style="margin-top:6px">FOCUS CITIES</div>';
+      html += '<div class="adp-hub-list">';
+      for (const c of focusCities) html += `<span class="adp-hub adp-focus">${c}</span>`;
+      html += '</div>';
+    }
+    html += '</div>';
   }
 
   // ── Stats grid ──
@@ -189,50 +248,97 @@ async function _loadAirlineDeep(icaoPrefix, typeCode) {
     html += `<div class="adp-stat"><div class="adp-stat-val">${routes.countries}</div><div class="adp-stat-label">Countries</div></div>`;
   }
   if (fin?.pax) html += `<div class="adp-stat"><div class="adp-stat-val">${fin.pax}M</div><div class="adp-stat-label">Pax/Year</div></div>`;
+  if (fin?.lf) html += `<div class="adp-stat"><div class="adp-stat-val">${fin.lf}%</div><div class="adp-stat-label">Load Factor</div></div>`;
+  if (fin?.rev) html += `<div class="adp-stat"><div class="adp-stat-val">${_fmtNum(fin.rev)}</div><div class="adp-stat-label">Revenue</div></div>`;
   html += '</div>';
 
-  // ── Fleet match ──
-  if (fleet) {
+  // ── Fleet breakdown chart (canvas) + match ──
+  if (fleet && fleet.types.length > 0) {
+    html += '<div class="adp-section">';
+    html += '<div class="adp-section-title">FLEET COMPOSITION</div>';
+    html += '<canvas id="adp-fleet-chart" class="adp-fleet-chart" width="700" height="160"></canvas>';
+    // Fleet match for current aircraft
     const tc = (typeCode || '').toUpperCase();
-    const match = tc ? fleet.types.find(t => t.t.toUpperCase().includes(tc) || tc.includes(t.t.replace(/[- ]/g, '').slice(0, 4).toUpperCase())) : null;
+    const match = tc ? fleet.types.find(t => t.t.toUpperCase().includes(tc) || tc.includes(t.t.replace(/[- ]/g,'').slice(0,4).toUpperCase())) : null;
     if (match) {
-      html += `<div class="adp-fleet-match">${match.t}: ${match.c} in fleet · ${match.s} seats · ${(match.r/1000).toFixed(1)}K km</div>`;
+      html += `<div class="adp-fleet-match">✈ This aircraft: ${match.t} — ${match.c} in fleet · ${match.s} seats · ${(match.r/1000).toFixed(1)}K km range · avg ${match.a}yr</div>`;
     }
+    // Orders
+    if (fleet.orders && fleet.orders.length > 0) {
+      html += '<div class="adp-orders">On order: ';
+      html += fleet.orders.map(o => `${o.c}× ${o.t}`).join(', ');
+      html += '</div>';
+    }
+    // Strategy
+    if (fleet.strat) html += `<div class="adp-strategy">${fleet.strat}</div>`;
+    html += '</div>';
   }
 
-  // ── Route search + list ──
-  if (routes?.top) {
+  // ── Network: dom/intl split + routes ──
+  if (routes) {
     html += '<div class="adp-section">';
-    html += '<div class="adp-section-title">TOP ROUTES</div>';
-    html += '<input id="adp-route-search" class="adp-search" placeholder="Search routes..." />';
-    html += '<div id="adp-route-list" class="adp-route-list">';
-    for (const r of routes.top) {
-      html += `<div class="adp-route-item" data-from="${r.f}" data-to="${r.t}">`
-        + `<span class="adp-route-pair">${r.f} → ${r.t}</span>`
-        + `<span class="adp-route-freq">${r.d}×/day</span></div>`;
+    html += '<div class="adp-section-title">NETWORK</div>';
+    // Dom/intl bar
+    if (routes.dom && routes.intl) {
+      const domPct = Math.round(routes.dom / (routes.dom + routes.intl) * 100);
+      html += '<div class="adp-split-bar">';
+      html += `<div class="adp-split-dom" style="width:${domPct}%">${domPct}% Domestic</div>`;
+      html += `<div class="adp-split-intl" style="width:${100-domPct}%">${100-domPct}% Int'l</div>`;
+      html += '</div>';
     }
-    html += '</div></div>';
+    // Route search + list
+    if (routes.top) {
+      html += '<input id="adp-route-search" class="adp-search" placeholder="Search routes..." />';
+      html += '<div id="adp-route-list" class="adp-route-list">';
+      for (const r of routes.top) {
+        html += `<div class="adp-route-item" data-from="${r.f}" data-to="${r.t}">`
+          + `<span class="adp-route-pair">${r.f} → ${r.t}</span>`
+          + `<span class="adp-route-freq">${r.d}×/day</span></div>`;
+      }
+      html += '</div>';
+    }
+    html += '</div>';
   }
 
-  // ── Financials ──
-  if (fin) {
+  // ── Financial details ──
+  if (fin && (fin.net || fin.oi || fin.mc || fin.debt)) {
     html += '<div class="adp-section">';
-    html += `<div class="adp-section-title">FINANCIALS${fin.yr ? ` (${fin.yr})` : ''}</div>`;
+    html += `<div class="adp-section-title">FINANCIAL DETAILS${fin.yr ? ` (${fin.yr})` : ''}</div>`;
     html += '<div class="adp-fin-grid">';
-    if (fin.rev) html += `<span>Revenue</span><span>${_fmtNum(fin.rev)}</span>`;
-    if (fin.lf) html += `<span>Load Factor</span><span>${fin.lf}%</span>`;
+    if (fin.oi) html += `<span>Operating Income</span><span>${_fmtNum(fin.oi)}</span>`;
+    if (fin.net) html += `<span>Net Income</span><span class="${fin.net < 0 ? 'adp-neg' : ''}">${_fmtNum(fin.net)}</span>`;
+    if (fin.mc) html += `<span>Market Cap</span><span>${_fmtNum(fin.mc)}</span>`;
+    if (fin.debt) html += `<span>Debt</span><span>${_fmtNum(fin.debt)}</span>`;
+    if (fin.cash) html += `<span>Cash</span><span>${_fmtNum(fin.cash)}</span>`;
     if (fin.emp) html += `<span>Employees</span><span>${(fin.emp/1000).toFixed(0)}K</span>`;
+    if (fin.casm && fin.rasm) html += `<span>CASM/RASM</span><span>${fin.casm}¢ / ${fin.rasm}¢</span>`;
+    if (fin.cargo) html += `<span>Cargo Revenue</span><span>${_fmtNum(fin.cargo)}</span>`;
     if (fin.tk) html += `<span>Ticker</span><span>${fin.tk} · ${fin.ex || ''}</span>`;
-    html += '</div></div>';
+    html += '</div>';
+    if (fin.subs && fin.subs.length) {
+      html += `<div class="adp-subs">Subsidiaries: ${fin.subs.join(', ')}</div>`;
+    }
+    html += '</div>';
+  }
+
+  // ── Website link ──
+  if (airline?.website) {
+    html += `<div class="adp-website"><a href="https://${airline.website}" target="_blank" rel="noopener">${airline.website}</a></div>`;
   }
 
   el.innerHTML = html;
   el.classList.remove('hidden');
 
-  // Draw route map
+  // Draw route map with frequency-based arc thickness
   const mapCanvas = document.getElementById('adp-route-map');
   if (mapCanvas && aptCoords && coastline) {
     _drawRouteMap(mapCanvas, hubs, routes?.top || [], aptCoords, coastline);
+  }
+
+  // Draw fleet breakdown chart
+  const fleetCanvas = document.getElementById('adp-fleet-chart');
+  if (fleetCanvas && fleet?.types?.length) {
+    _drawFleetChart(fleetCanvas, fleet.types);
   }
 
   // Close button

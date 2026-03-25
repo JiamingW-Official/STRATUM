@@ -30,6 +30,8 @@ function _buildAirlineObj(code, e) {
     alliance: e.al, founded: e.f, hq: e.hq, fleet: e.ft,
     businessModel: e.bm, destinations: e.dst, hubs: e.hubs || [],
     logoUrl: e.l ? `/airlines/${code}.webp` : null,
+    ceo: e.ceo || null, website: e.web || null,
+    focusCities: e.fc || [],
   };
 }
 

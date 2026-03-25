@@ -1065,6 +1065,70 @@ html, body {
 }
 .adp-fin-grid span:nth-child(odd) { color: rgba(255,255,255,0.4); }
 .adp-fin-grid span:nth-child(even) { color: rgba(255,255,255,0.75); text-align: right; }
+.adp-neg { color: rgba(220,80,80,0.85) !important; }
+
+/* Business model badge */
+.adp-bm-badge {
+  font-size: 8px; font-weight: 600; letter-spacing: 0.8px;
+  padding: 2px 6px; border-radius: 3px; vertical-align: middle;
+  background: rgba(196,160,88,0.1); border: 1px solid rgba(196,160,88,0.2);
+  color: rgba(196,160,88,0.8); margin-left: 6px;
+  text-transform: uppercase;
+}
+.adp-sub {
+  font-size: 9px; color: rgba(255,255,255,0.35); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.adp-focus {
+  background: rgba(106,173,204,0.1); border-color: rgba(106,173,204,0.2);
+  color: rgba(106,173,204,0.85);
+}
+
+/* Fleet chart */
+.adp-fleet-chart {
+  width: 100%; height: auto; border-radius: 6px;
+  background: rgba(0,0,0,0.2); margin-bottom: 8px;
+}
+.adp-orders {
+  font-size: 9px; color: rgba(110,200,122,0.7); margin-top: 6px;
+  padding: 4px 8px; border-radius: 4px;
+  background: rgba(110,200,122,0.06); border: 1px solid rgba(110,200,122,0.1);
+}
+.adp-strategy {
+  font-size: 9px; color: rgba(255,255,255,0.35); margin-top: 6px;
+  font-style: italic; line-height: 1.5;
+}
+.adp-subs {
+  font-size: 9px; color: rgba(255,255,255,0.35); margin-top: 6px;
+}
+
+/* Domestic/International split bar */
+.adp-split-bar {
+  display: flex; height: 22px; border-radius: 5px; overflow: hidden;
+  margin-bottom: 10px; font-size: 8px; font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.adp-split-dom {
+  background: rgba(196,160,88,0.15); color: rgba(196,160,88,0.85);
+  display: flex; align-items: center; justify-content: center;
+  min-width: 50px;
+}
+.adp-split-intl {
+  background: rgba(106,173,204,0.12); color: rgba(106,173,204,0.8);
+  display: flex; align-items: center; justify-content: center;
+  min-width: 50px;
+}
+
+/* Website link */
+.adp-website {
+  text-align: center; margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.adp-website a {
+  color: rgba(196,160,88,0.6); font-size: 9.5px; text-decoration: none;
+  letter-spacing: 0.3px; transition: color 0.2s;
+}
+.adp-website a:hover { color: rgba(196,160,88,0.9); }
 
 /* Loading spinner */
 .detail-loader {
