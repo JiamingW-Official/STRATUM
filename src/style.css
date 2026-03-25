@@ -448,10 +448,9 @@ html, body {
   -webkit-backdrop-filter: blur(28px) saturate(1.3);
   backdrop-filter: blur(28px) saturate(1.3);
   box-shadow: var(--shadow), var(--shadow-glow);
-  overflow-y: auto; overflow-x: hidden;
+  overflow-y: auto; overflow-x: visible;
   max-height: calc(100vh - 40px);
   padding: 0;
-  contain: layout style;
   scrollbar-width: thin;
   scrollbar-color: rgba(196,160,88,0.08) transparent;
 }
@@ -851,12 +850,12 @@ html, body {
 }
 .detail-airline-row.hidden { display: none; }
 .airline-logo {
-  width: 30px; height: 30px;
-  border-radius: 5px;
-  object-fit: contain;
-  background: rgba(255,255,255,0.82);
-  border: 1px solid rgba(255,255,255,0.15);
-  padding: 3px;
+  width: 36px; height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 2px;
   flex-shrink: 0;
 }
 .airline-logo.hidden { display: none; }
