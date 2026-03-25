@@ -1,5 +1,6 @@
 import { haversineDistance } from '../scene/aircraft.js';
 import { getAirlineName } from '../data/airlineDb.js';
+import { getAirlineSync, getAirline } from '../data/airlines.js';
 import { computeDensityAltitude, fetchDestinationWeather, estimateTurbulence } from '../data/weather.js';
 
 // ── T2-02: Aircraft type silhouette SVG paths ──
@@ -87,6 +88,8 @@ const elType = document.getElementById('detail-type');
 const elStatusBadge = document.getElementById('detail-status-badge');
 const elAirlineRow = document.getElementById('detail-airline-row');
 const elAirline = document.getElementById('detail-airline');
+const elAirlineLogo = document.getElementById('detail-airline-logo');
+const elAirlineMeta = document.getElementById('detail-airline-meta');
 const elEnrichLoader = document.getElementById('detail-enrich-loader');
 const elAlt = document.getElementById('detail-alt');
 const elSpd = document.getElementById('detail-spd');
@@ -1137,15 +1140,54 @@ export function showDetail(aircraftObj, userLat, userLon) {
   if (d.isHolding) holdBadge.classList.add('active');
   else holdBadge.classList.remove('active');
 
-  // ── AIRLINE ──
+  // ── AIRLINE (with logo + meta from 660-airline database) ──
   const cs = d.callsign || '';
   const airlineMatch = cs.match(/^([A-Z]{2,3})\d/);
-  const airlineName = d.routeAirline || d.operator || (airlineMatch ? getAirlineName(airlineMatch[1]) : null);
+  const icaoPrefix = airlineMatch ? airlineMatch[1] : null;
+  const richAirline = icaoPrefix ? getAirlineSync(icaoPrefix) : null;
+  const airlineName = richAirline?.name || d.routeAirline || d.operator || (icaoPrefix ? getAirlineName(icaoPrefix) : null);
   if (airlineName && elAirlineRow) {
     elAirlineRow.classList.remove('hidden');
     elAirline.textContent = airlineName;
+    // Logo
+    if (richAirline?.logoUrl) {
+      elAirlineLogo.src = richAirline.logoUrl;
+      elAirlineLogo.alt = richAirline.name;
+      elAirlineLogo.classList.remove('hidden');
+    } else {
+      elAirlineLogo.classList.add('hidden');
+    }
+    // Meta line: IATA · Alliance · Country · Fleet
+    if (richAirline) {
+      const parts = [];
+      if (richAirline.iata) parts.push(richAirline.iata);
+      if (richAirline.alliance) parts.push(richAirline.alliance.toUpperCase());
+      if (richAirline.country) parts.push(richAirline.country);
+      if (richAirline.fleet) parts.push(`${richAirline.fleet} aircraft`);
+      elAirlineMeta.textContent = parts.join(' · ');
+      elAirlineMeta.classList.remove('hidden');
+    } else {
+      elAirlineMeta.classList.add('hidden');
+    }
+    // Async fallback: if sync returned null but we have an ICAO prefix, load async
+    if (!richAirline && icaoPrefix) {
+      getAirline(icaoPrefix).then(a => {
+        if (!a) return;
+        elAirline.textContent = a.name;
+        if (a.logoUrl) { elAirlineLogo.src = a.logoUrl; elAirlineLogo.alt = a.name; elAirlineLogo.classList.remove('hidden'); }
+        const parts = [];
+        if (a.iata) parts.push(a.iata);
+        if (a.alliance) parts.push(a.alliance.toUpperCase());
+        if (a.country) parts.push(a.country);
+        if (a.fleet) parts.push(`${a.fleet} aircraft`);
+        elAirlineMeta.textContent = parts.join(' · ');
+        elAirlineMeta.classList.remove('hidden');
+      });
+    }
   } else if (elAirlineRow) {
     elAirlineRow.classList.add('hidden');
+    elAirlineLogo.classList.add('hidden');
+    elAirlineMeta.classList.add('hidden');
   }
 
   // ── ROUTE BANNER ──
