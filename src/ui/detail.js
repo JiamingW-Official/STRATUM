@@ -197,6 +197,16 @@ if (elAirlineRow) {
     if (elAirlineDeep) elAirlineDeep.classList.remove('show');
   });
 }
+// Collapsible section headers — click to toggle body visibility
+document.querySelectorAll('.detail-section-header[data-section]').forEach(header => {
+  header.addEventListener('click', () => {
+    const sec = header.dataset.section;
+    const body = document.querySelector(`.detail-section-body[data-section="${sec}"]`);
+    if (!body) return;
+    header.classList.toggle('collapsed');
+    body.classList.toggle('collapsed');
+  });
+});
 const elEnrichLoader = document.getElementById('detail-enrich-loader');
 const elAlt = document.getElementById('detail-alt');
 const elSpd = document.getElementById('detail-spd');

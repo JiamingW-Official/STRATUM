@@ -209,42 +209,44 @@
     <div id="detail-phase-timeline" class="phase-timeline hidden"></div>
 
     <!-- ── SECTION: FLIGHT DATA ── -->
-    <div class="detail-section-header">FLIGHT DATA</div>
-    <div class="detail-grid">
-      <div class="detail-cell">
-        <div class="detail-label">ALT</div>
-        <div id="detail-alt" class="detail-value">--</div>
+    <div class="detail-section-header" data-section="flight">FLIGHT DATA</div>
+    <div class="detail-section-body" data-section="flight">
+      <div class="detail-grid">
+        <div class="detail-cell">
+          <div class="detail-label">ALT</div>
+          <div id="detail-alt" class="detail-value">--</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-label">GS</div>
+          <div id="detail-spd" class="detail-value">--</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-label">HDG</div>
+          <div id="detail-hdg" class="detail-value">--</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-label">V/S</div>
+          <div id="detail-vs" class="detail-value">--</div>
+        </div>
       </div>
-      <div class="detail-cell">
-        <div class="detail-label">GS</div>
-        <div id="detail-spd" class="detail-value">--</div>
-      </div>
-      <div class="detail-cell">
-        <div class="detail-label">HDG</div>
-        <div id="detail-hdg" class="detail-value">--</div>
-      </div>
-      <div class="detail-cell">
-        <div class="detail-label">V/S</div>
-        <div id="detail-vs" class="detail-value">--</div>
-      </div>
-    </div>
-    <!-- Extended flight data -->
-    <div id="detail-ext-grid" class="detail-grid detail-grid-ext hidden">
-      <div class="detail-cell">
-        <div class="detail-label">IAS KTS</div>
-        <div id="detail-ias" class="detail-value">--</div>
-      </div>
-      <div class="detail-cell">
-        <div class="detail-label">TAS KTS</div>
-        <div id="detail-tas" class="detail-value">--</div>
-      </div>
-      <div class="detail-cell">
-        <div class="detail-label">MACH</div>
-        <div id="detail-mach" class="detail-value">--</div>
-      </div>
-      <div class="detail-cell">
-        <div class="detail-label">GEO ALT</div>
-        <div id="detail-geoalt" class="detail-value">--</div>
+      <!-- Extended flight data -->
+      <div id="detail-ext-grid" class="detail-grid detail-grid-ext hidden">
+        <div class="detail-cell">
+          <div class="detail-label">IAS KTS</div>
+          <div id="detail-ias" class="detail-value">--</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-label">TAS KTS</div>
+          <div id="detail-tas" class="detail-value">--</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-label">MACH</div>
+          <div id="detail-mach" class="detail-value">--</div>
+        </div>
+        <div class="detail-cell">
+          <div class="detail-label">GEO ALT</div>
+          <div id="detail-geoalt" class="detail-value">--</div>
+        </div>
       </div>
     </div>
 
@@ -255,41 +257,43 @@
     </div>
 
     <!-- ── SECTION: AIRCRAFT ── -->
-    <div class="detail-section-header">AIRCRAFT</div>
-    <div id="detail-specs" class="detail-specs hidden">
-      <div class="detail-specs-row">
-        <span id="detail-aircraft-name" class="detail-specs-name"></span>
-        <span id="detail-mfr" class="detail-specs-mfr"></span>
+    <div class="detail-section-header" data-section="aircraft">AIRCRAFT</div>
+    <div class="detail-section-body" data-section="aircraft">
+      <div id="detail-specs" class="detail-specs hidden">
+        <div class="detail-specs-row">
+          <span id="detail-aircraft-name" class="detail-specs-name"></span>
+          <span id="detail-mfr" class="detail-specs-mfr"></span>
+        </div>
+        <div class="detail-specs-badges">
+          <span id="detail-pax" class="detail-badge"></span>
+          <span id="detail-range" class="detail-badge"></span>
+          <span id="detail-tracked" class="detail-badge"></span>
+        </div>
       </div>
-      <div class="detail-specs-badges">
-        <span id="detail-pax" class="detail-badge"></span>
-        <span id="detail-range" class="detail-badge"></span>
-        <span id="detail-tracked" class="detail-badge"></span>
+      <div class="detail-meta">
+        <div class="detail-meta-row">
+          <span class="detail-meta-label">ICAO</span>
+          <span id="detail-icao" class="detail-meta-value">--</span>
+        </div>
+        <div class="detail-meta-row">
+          <span class="detail-meta-label">REG</span>
+          <span id="detail-reg" class="detail-meta-value">--</span>
+        </div>
+        <div id="detail-operator-row" class="detail-meta-row hidden">
+          <span class="detail-meta-label">OPR</span>
+          <span id="detail-operator" class="detail-meta-value">--</span>
+        </div>
+        <div id="detail-age-row" class="detail-meta-row hidden">
+          <span class="detail-meta-label">AGE</span>
+          <span id="detail-age" class="detail-meta-value">--</span>
+        </div>
       </div>
     </div>
-    <div class="detail-meta">
-      <div class="detail-meta-row">
-        <span class="detail-meta-label">ICAO</span>
-        <span id="detail-icao" class="detail-meta-value">--</span>
-      </div>
-      <div class="detail-meta-row">
-        <span class="detail-meta-label">REG</span>
-        <span id="detail-reg" class="detail-meta-value">--</span>
-      </div>
-      <div id="detail-operator-row" class="detail-meta-row hidden">
-        <span class="detail-meta-label">OPR</span>
-        <span id="detail-operator" class="detail-meta-value">--</span>
-      </div>
-      <div id="detail-age-row" class="detail-meta-row hidden">
-        <span class="detail-meta-label">AGE</span>
-        <span id="detail-age" class="detail-meta-value">--</span>
-      </div>
-    </div>
-    <div id="detail-specs-divider" class="hud-divider"></div>
 
     <!-- ── SECTION: NAVIGATION ── -->
     <div id="detail-xpdr" class="detail-xpdr hidden">
-      <div class="detail-section-header">NAVIGATION</div>
+      <div class="detail-section-header" data-section="nav">NAVIGATION</div>
+      <div class="detail-section-body" data-section="nav">
       <div class="detail-meta">
         <div class="detail-meta-row" data-tip="Transponder code — 4-digit octal number broadcast to ATC radar. Emergency codes: 7500 hijack · 7600 radio failure · 7700 general emergency · 1200 VFR flight">
           <span class="detail-meta-label">SQUAWK</span>
@@ -316,18 +320,21 @@
           <span id="detail-rssi" class="detail-meta-value">--</span>
         </div>
       </div>
+      </div>
     </div>
-    <div id="detail-xpdr-divider" class="hud-divider hidden"></div>
 
     <!-- ── SECTION: PERFORMANCE (P2 TOD, P5 Efficiency) ── -->
     <div id="detail-performance" class="detail-performance hidden">
-      <div class="detail-section-header">PERFORMANCE</div>
-      <div class="detail-meta" id="detail-perf-meta"></div>
+      <div class="detail-section-header" data-section="perf">PERFORMANCE</div>
+      <div class="detail-section-body" data-section="perf">
+        <div class="detail-meta" id="detail-perf-meta"></div>
+      </div>
     </div>
 
     <!-- ── SECTION: POSITION ── -->
     <div id="detail-position" class="detail-position hidden">
-      <div class="detail-section-header">POSITION</div>
+      <div class="detail-section-header" data-section="pos">POSITION</div>
+      <div class="detail-section-body" data-section="pos">
       <div class="detail-meta">
         <div class="detail-meta-row" data-tip="GPS coordinates from ADS-B transponder, updated every 0.5–2 seconds. Accuracy ±50 m typical. Uses WGS-84 datum — same standard as aviation charts.">
           <span class="detail-meta-label">COORD</span>
@@ -349,6 +356,7 @@
           <span class="detail-meta-label">TO DEST</span>
           <span id="detail-dtd" class="detail-meta-value">--</span>
         </div>
+      </div>
       </div>
     </div>
 

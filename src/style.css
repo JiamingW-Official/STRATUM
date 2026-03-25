@@ -817,15 +817,26 @@ html, body {
 .detail-status-badge.descent { color: #ffd8d0; border-color: rgba(232,131,106,0.3); background: rgba(232,131,106,0.14); display: inline-block; box-shadow: 0 0 14px rgba(232,131,106,0.1); }
 
 /* Section header labels */
+/* Collapsible sections */
 .detail-section-header {
   font-family: var(--font-mono);
   font-size: 8px; font-weight: 700;
   letter-spacing: 2.5px; text-transform: uppercase;
   color: rgba(196,160,88,0.6);
-  padding: 12px 18px 5px;
+  padding: 10px 18px 10px;
   border-top: 1px solid rgba(255,255,255,0.06);
   position: relative;
-  transition: color 0.3s ease;
+  transition: color 0.2s ease, background 0.2s ease;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.detail-section-header:hover {
+  color: rgba(196,160,88,0.85);
+  background: rgba(196,160,88,0.03);
 }
 .detail-section-header::before {
   content: '';
@@ -835,6 +846,28 @@ html, body {
   width: 2px; height: 16px;
   background: linear-gradient(180deg, rgba(196,160,88,0.55), rgba(196,160,88,0.04));
   border-radius: 0 2px 2px 0;
+}
+.detail-section-header::after {
+  content: '';
+  width: 6px; height: 6px;
+  border-right: 1.5px solid rgba(196,160,88,0.4);
+  border-bottom: 1.5px solid rgba(196,160,88,0.4);
+  transform: rotate(45deg);
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+.detail-section-header.collapsed::after {
+  transform: rotate(-45deg);
+}
+.detail-section-body {
+  overflow: hidden;
+  max-height: 600px;
+  transition: max-height 0.35s var(--ease), opacity 0.25s ease;
+  opacity: 1;
+}
+.detail-section-body.collapsed {
+  max-height: 0;
+  opacity: 0;
 }
 
 /* Airline row with logo */
@@ -878,31 +911,32 @@ html, body {
 .airline-meta.hidden { display: none; }
 /* Airline deep info — floating popover to the left of sidebar */
 .airline-deep {
-  position: absolute;
-  right: calc(100% + 10px);
-  top: -8px;
-  width: 280px;
-  padding: 12px 14px 14px;
+  position: fixed;
+  left: 50%;
+  bottom: 80px;
+  transform: translateX(-50%) translateY(12px);
+  width: 360px;
+  max-width: calc(100vw - 40px);
+  padding: 14px 16px 16px;
   font-family: var(--font-mono);
   font-size: 9.5px;
   color: rgba(255,255,255,0.6);
   letter-spacing: 0.3px;
   line-height: 1.6;
-  background: rgba(12, 18, 28, 0.95);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  border-radius: 8px;
-  border: 1px solid rgba(196,160,88,0.12);
-  box-shadow: 0 12px 48px rgba(0,0,0,0.6), 0 0 1px rgba(255,255,255,0.05);
-  z-index: 100;
+  background: rgba(10, 14, 22, 0.96);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(24px) saturate(1.2);
+  border-radius: 10px;
+  border: 1px solid rgba(196,160,88,0.15);
+  box-shadow: 0 16px 56px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.03), 0 0 40px rgba(196,160,88,0.04);
+  z-index: 200;
   opacity: 0;
-  transform: translateX(8px);
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.3s ease, transform 0.3s var(--ease);
   pointer-events: none;
 }
 .airline-deep.show {
   opacity: 1;
-  transform: translateX(0);
+  transform: translateX(-50%) translateY(0);
   pointer-events: auto;
 }
 .airline-deep.hidden { display: none; }
