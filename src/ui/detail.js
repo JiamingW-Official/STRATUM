@@ -1,6 +1,6 @@
 import { haversineDistance } from '../scene/aircraft.js';
 import { getAirlineName } from '../data/airlineDb.js';
-import { getAirlineSync, getAirline } from '../data/airlines.js';
+import { getAirlineSync, getAirline, getAirlineFleet, getAirlineFinancials, getAirlineRoutes } from '../data/airlines.js';
 import { computeDensityAltitude, fetchDestinationWeather, estimateTurbulence } from '../data/weather.js';
 
 // ── T2-02: Aircraft type silhouette SVG paths ──
@@ -52,6 +52,85 @@ function toPhonetic(callsign) {
   }).join(' ');
 }
 
+// ── Airline deep info (fleet match, financials, route network) ──
+let _lastDeepIcao = '';
+function _fmtNum(n) {
+  if (n >= 1e9) return `$${(n / 1e3).toFixed(0)}B`;
+  if (n >= 1e6) return `$${n.toFixed(0)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return String(n);
+}
+async function _loadAirlineDeep(icaoPrefix, typeCode) {
+  const code = icaoPrefix.slice(0, 3).toUpperCase();
+  if (code === _lastDeepIcao) return; // already showing
+  _lastDeepIcao = code;
+  const el = document.getElementById('detail-airline-deep');
+  if (!el) return;
+
+  const [fleet, fin, routes] = await Promise.all([
+    getAirlineFleet(code), getAirlineFinancials(code), getAirlineRoutes(code),
+  ]);
+
+  if (!fleet && !fin && !routes) { el.classList.add('hidden'); return; }
+
+  let html = '';
+
+  // Fleet match — find current aircraft type in airline's fleet
+  if (fleet) {
+    const tc = (typeCode || '').toUpperCase();
+    const match = tc ? fleet.types.find(t => {
+      const ft = t.t.toUpperCase();
+      return ft.includes(tc) || tc.includes(ft.replace(/[- ]/g, '').slice(0, 4));
+    }) : null;
+
+    html += '<div class="airline-deep-section">';
+    html += '<div class="airline-deep-title">Fleet</div>';
+    html += `<div class="airline-deep-grid">`;
+    html += `<span>Total</span><span class="airline-deep-val">${fleet.total} aircraft</span>`;
+    html += `<span>Avg age</span><span class="airline-deep-val">${fleet.avgAge} years</span>`;
+    html += `<span>Types</span><span class="airline-deep-val">${fleet.types.length} models</span>`;
+    html += `</div>`;
+    if (match) {
+      html += `<div class="fleet-match-badge">${match.t}: ${match.c} in fleet · ${match.s} seats · ${(match.r / 1000).toFixed(1)}K km range · avg ${match.a}yr</div>`;
+    }
+    html += '</div>';
+  }
+
+  // Financials
+  if (fin) {
+    html += '<div class="airline-deep-section">';
+    html += '<div class="airline-deep-title">Financials' + (fin.yr ? ` (${fin.yr})` : '') + '</div>';
+    html += '<div class="airline-deep-grid">';
+    if (fin.rev) html += `<span>Revenue</span><span class="airline-deep-val">${_fmtNum(fin.rev)}</span>`;
+    if (fin.pax) html += `<span>Passengers</span><span class="airline-deep-val">${fin.pax}M/yr</span>`;
+    if (fin.lf) html += `<span>Load factor</span><span class="airline-deep-val">${fin.lf}%</span>`;
+    if (fin.emp) html += `<span>Employees</span><span class="airline-deep-val">${(fin.emp / 1000).toFixed(0)}K</span>`;
+    if (fin.tk) html += `<span>Ticker</span><span class="airline-deep-val">${fin.tk} (${fin.ex || ''})</span>`;
+    html += '</div></div>';
+  }
+
+  // Route network
+  if (routes) {
+    html += '<div class="airline-deep-section">';
+    html += '<div class="airline-deep-title">Network</div>';
+    html += '<div class="airline-deep-grid">';
+    html += `<span>Routes</span><span class="airline-deep-val">${routes.total} (${routes.dom} dom / ${routes.intl} intl)</span>`;
+    html += `<span>Airports</span><span class="airline-deep-val">${routes.airports} in ${routes.countries} countries</span>`;
+    html += '</div>';
+    if (routes.top && routes.top.length > 0) {
+      html += '<div class="airline-route-list">';
+      for (const r of routes.top.slice(0, 8)) {
+        html += `<span class="airline-route-tag">${r.f}→${r.t} ×${r.d}/d</span>`;
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  el.innerHTML = html;
+  el.classList.remove('hidden');
+}
+
 // ── T1-04: Copy + Toast ──
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -90,6 +169,7 @@ const elAirlineRow = document.getElementById('detail-airline-row');
 const elAirline = document.getElementById('detail-airline');
 const elAirlineLogo = document.getElementById('detail-airline-logo');
 const elAirlineMeta = document.getElementById('detail-airline-meta');
+const elAirlineDeep = document.getElementById('detail-airline-deep');
 const elEnrichLoader = document.getElementById('detail-enrich-loader');
 const elAlt = document.getElementById('detail-alt');
 const elSpd = document.getElementById('detail-spd');
@@ -1184,10 +1264,15 @@ export function showDetail(aircraftObj, userLat, userLon) {
         elAirlineMeta.classList.remove('hidden');
       });
     }
+    // Deep info: fleet match + financials + route network (async, lazy-loaded)
+    if (icaoPrefix && elAirlineDeep) {
+      _loadAirlineDeep(icaoPrefix, d.typeCode || '');
+    }
   } else if (elAirlineRow) {
     elAirlineRow.classList.add('hidden');
     elAirlineLogo.classList.add('hidden');
     elAirlineMeta.classList.add('hidden');
+    if (elAirlineDeep) elAirlineDeep.classList.add('hidden');
   }
 
   // ── ROUTE BANNER ──
@@ -1931,6 +2016,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
 
 export function closeDetail() {
   selectedAircraft = null;
+  _lastDeepIcao = '';
   _lastEduPhase = null; // C-2: Reset so card shows again on next selection
   _lastRenderedType = null; // reset silhouette cache
   if (_phaseEduTimer) { clearTimeout(_phaseEduTimer); _phaseEduTimer = null; }

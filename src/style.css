@@ -848,7 +848,7 @@ html, body {
   width: 28px; height: 28px;
   border-radius: 4px;
   object-fit: contain;
-  background: rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.15);
   flex-shrink: 0;
 }
 .airline-logo.hidden { display: none; }
@@ -869,6 +869,63 @@ html, body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .airline-meta.hidden { display: none; }
+/* Airline deep info (fleet, financials, routes) */
+.airline-deep {
+  padding: 0 16px 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.3px;
+  line-height: 1.5;
+}
+.airline-deep.hidden { display: none; }
+.airline-deep-section {
+  margin-bottom: 6px;
+}
+.airline-deep-title {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(196,160,88,0.6);
+  margin-bottom: 2px;
+}
+.airline-deep-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px 12px;
+}
+.airline-deep-grid span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.airline-deep-val {
+  color: rgba(255,255,255,0.7);
+}
+.fleet-match-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(196,160,88,0.12);
+  border: 1px solid rgba(196,160,88,0.2);
+  color: rgba(196,160,88,0.85);
+  font-size: 9px;
+  margin-top: 2px;
+}
+.airline-route-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 2px;
+}
+.airline-route-tag {
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.06);
+  font-size: 8.5px;
+  color: rgba(255,255,255,0.5);
+}
+
 /* Loading spinner */
 .detail-loader {
   width: 10px; height: 10px;
