@@ -113,7 +113,7 @@ function createTextureFromRegion(result, lonMin, lonMax, latMin, latMax) {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 16;
+  texture.anisotropy = 8; // 8× sufficient — halves memory bandwidth vs 16×
 
   const uOffset = (lonMin - result.canvasLonMin) / (result.canvasLonMax - result.canvasLonMin);
   const vOffset = (latMin - result.canvasLatMin) / (result.canvasLatMax - result.canvasLatMin);

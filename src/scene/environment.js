@@ -2773,7 +2773,7 @@ function _resolveChartLabelOverlaps(group) {
 
 function _createNavLabel(ident, freq) {
   const canvas = document.createElement('canvas');
-  const dpr = 4; // 4× for razor-sharp text at all zoom levels
+  const dpr = 2; // 2× sharp text — saves 75% VRAM vs 4×
   const logW = 120, logH = 20;
   canvas.width = logW * dpr;   // 480 px
   canvas.height = logH * dpr;  // 80 px

@@ -1668,8 +1668,12 @@ class AircraftObject {
       this._tailStrobe.material.opacity = on ? this.masterOpacity : 0;
     }
 
-    // Sync model color to current speed
-    this._setModelColor(getSpeedColor(this.data.velocity));
+    // Sync model color — only when speed changes by >10 kts (saves material updates)
+    const _spd = this.data.velocity || 0;
+    if (Math.abs(_spd - (this._lastColorSpd || 0)) > 10) {
+      this._lastColorSpd = _spd;
+      this._setModelColor(getSpeedColor(_spd));
+    }
 
     // Dead-reckoning — smooth lerp balances responsiveness with no snap-back.
     // With seen_pos-corrected API time, the extrapolation target is accurate
@@ -1706,8 +1710,9 @@ class AircraftObject {
       this.rebuildTrail();
     }
 
-    // Refresh info label periodically
-    if (this._labelDirty && elapsed - this._lastLabelUpdate >= LABEL_UPDATE_INTERVAL) {
+    // Refresh info label — distant aircraft update less frequently (saves canvas textures)
+    const labelInterval = (this.group.position.lengthSq() > 2500) ? 8 : LABEL_UPDATE_INTERVAL;
+    if (this._labelDirty && elapsed - this._lastLabelUpdate >= labelInterval) {
       this._lastLabelUpdate = elapsed;
       this._refreshInfoLabel();
     }

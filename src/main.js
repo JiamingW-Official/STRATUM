@@ -1728,6 +1728,8 @@ const _wRight = new THREE.Vector3();
 const _wMove = new THREE.Vector3();
 
 function getWASDInput() {
+  // Skip camera matrix work when no movement keys are pressed
+  if (keysDown.size === 0) { _wMove.set(0, 0, 0); return _wMove; }
   camera.getWorldDirection(_wForward);
   _wForward.y = 0;
   _wForward.normalize();
