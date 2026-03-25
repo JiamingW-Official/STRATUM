@@ -1,6 +1,6 @@
 import { haversineDistance } from '../scene/aircraft.js';
 import { getAirlineName } from '../data/airlineDb.js';
-import { getAirlineSync, getAirline, getAirlineFleet, getAirlineFinancials, getAirlineRoutes } from '../data/airlines.js';
+import { getAirlineSync, getAirline, getAirlineFleet, getAirlineFinancials, getAirlineRoutes, getAirportCoords, getCoastline } from '../data/airlines.js';
 import { computeDensityAltitude, fetchDestinationWeather, estimateTurbulence } from '../data/weather.js';
 
 // ── T2-02: Aircraft type silhouette SVG paths ──
@@ -52,7 +52,7 @@ function toPhonetic(callsign) {
   }).join(' ');
 }
 
-// ── Airline deep info (fleet match, financials, route network) ──
+// ── Airline deep info (fleet match, financials, route network, map) ──
 let _lastDeepIcao = '';
 function _fmtNum(n) {
   if (n >= 1e9) return `$${(n / 1e3).toFixed(0)}B`;
@@ -60,75 +60,199 @@ function _fmtNum(n) {
   if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
   return String(n);
 }
+
+function _drawRouteMap(canvas, hubs, routes, aptCoords, coastline) {
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // Project: equirectangular
+  const proj = (lat, lon) => [((lon + 180) / 360) * W, ((90 - lat) / 180) * H];
+
+  // Draw coastline
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 0.8;
+  for (const arc of coastline) {
+    ctx.beginPath();
+    for (let i = 0; i < arc.length; i++) {
+      const [x, y] = proj(arc[i][1], arc[i][0]);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // Draw route arcs
+  ctx.strokeStyle = 'rgba(196,160,88,0.12)';
+  ctx.lineWidth = 0.6;
+  for (const r of routes) {
+    const from = aptCoords[r.f], to = aptCoords[r.t];
+    if (!from || !to) continue;
+    const [x1, y1] = proj(from[0], from[1]);
+    const [x2, y2] = proj(to[0], to[1]);
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - Math.abs(x2 - x1) * 0.15;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.quadraticCurveTo(mx, my, x2, y2);
+    ctx.stroke();
+  }
+
+  // Draw route endpoints (dim)
+  ctx.fillStyle = 'rgba(196,160,88,0.25)';
+  const drawn = new Set();
+  for (const r of routes) {
+    for (const code of [r.f, r.t]) {
+      if (drawn.has(code)) continue;
+      drawn.add(code);
+      const c = aptCoords[code];
+      if (!c) continue;
+      const [x, y] = proj(c[0], c[1]);
+      ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Draw hubs (bright, larger)
+  for (const hub of hubs) {
+    const c = aptCoords[hub];
+    if (!c) continue;
+    const [x, y] = proj(c[0], c[1]);
+    // Glow
+    ctx.fillStyle = 'rgba(196,160,88,0.15)';
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+    // Core
+    ctx.fillStyle = 'rgba(196,160,88,0.9)';
+    ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Label
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '7px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(hub, x, y - 8);
+  }
+}
+
 async function _loadAirlineDeep(icaoPrefix, typeCode) {
   const code = icaoPrefix.slice(0, 3).toUpperCase();
-  if (code === _lastDeepIcao) return; // already showing
+  if (code === _lastDeepIcao) return;
   _lastDeepIcao = code;
   const el = document.getElementById('detail-airline-deep');
   if (!el) return;
 
-  const [fleet, fin, routes] = await Promise.all([
-    getAirlineFleet(code), getAirlineFinancials(code), getAirlineRoutes(code),
+  const [airline, fleet, fin, routes, aptCoords, coastline] = await Promise.all([
+    getAirline(code), getAirlineFleet(code), getAirlineFinancials(code),
+    getAirlineRoutes(code), getAirportCoords(), getCoastline(),
   ]);
 
-  if (!fleet && !fin && !routes) { el.classList.add('hidden'); return; }
+  if (!airline && !fleet && !fin && !routes) { el.classList.add('hidden'); return; }
+
+  const logoUrl = airline?.logoUrl || '';
+  const name = airline?.name || code;
+  const hubs = airline?.hubs || [];
 
   let html = '';
 
-  // Fleet match — find current aircraft type in airline's fleet
-  if (fleet) {
-    const tc = (typeCode || '').toUpperCase();
-    const match = tc ? fleet.types.find(t => {
-      const ft = t.t.toUpperCase();
-      return ft.includes(tc) || tc.includes(ft.replace(/[- ]/g, '').slice(0, 4));
-    }) : null;
+  // ── Header: logo + name + key stats ──
+  html += '<div class="adp-header">';
+  if (logoUrl) html += `<img class="adp-logo" src="${logoUrl}" alt="${name}" />`;
+  html += '<div class="adp-header-text">';
+  html += `<div class="adp-name">${name}</div>`;
+  const tags = [];
+  if (airline?.iata) tags.push(airline.iata);
+  if (airline?.alliance) tags.push(airline.alliance);
+  if (airline?.country) tags.push(airline.country);
+  if (tags.length) html += `<div class="adp-tags">${tags.join(' · ')}</div>`;
+  html += '</div>';
+  html += '<div class="adp-close" id="adp-close-btn">✕</div>';
+  html += '</div>';
 
-    html += '<div class="airline-deep-section">';
-    html += '<div class="airline-deep-title">Fleet</div>';
-    html += `<div class="airline-deep-grid">`;
-    html += `<span>Total</span><span class="airline-deep-val">${fleet.total} aircraft</span>`;
-    html += `<span>Avg age</span><span class="airline-deep-val">${fleet.avgAge} years</span>`;
-    html += `<span>Types</span><span class="airline-deep-val">${fleet.types.length} models</span>`;
-    html += `</div>`;
-    if (match) {
-      html += `<div class="fleet-match-badge">${match.t}: ${match.c} in fleet · ${match.s} seats · ${(match.r / 1000).toFixed(1)}K km range · avg ${match.a}yr</div>`;
+  // ── Route map canvas ──
+  html += '<canvas id="adp-route-map" class="adp-map" width="700" height="350"></canvas>';
+
+  // ── Hub airports ──
+  if (hubs.length > 0) {
+    html += '<div class="adp-section">';
+    html += '<div class="adp-section-title">HUBS</div>';
+    html += '<div class="adp-hub-list">';
+    for (const h of hubs) {
+      html += `<span class="adp-hub">${h}</span>`;
     }
-    html += '</div>';
-  }
-
-  // Financials
-  if (fin) {
-    html += '<div class="airline-deep-section">';
-    html += '<div class="airline-deep-title">Financials' + (fin.yr ? ` (${fin.yr})` : '') + '</div>';
-    html += '<div class="airline-deep-grid">';
-    if (fin.rev) html += `<span>Revenue</span><span class="airline-deep-val">${_fmtNum(fin.rev)}</span>`;
-    if (fin.pax) html += `<span>Passengers</span><span class="airline-deep-val">${fin.pax}M/yr</span>`;
-    if (fin.lf) html += `<span>Load factor</span><span class="airline-deep-val">${fin.lf}%</span>`;
-    if (fin.emp) html += `<span>Employees</span><span class="airline-deep-val">${(fin.emp / 1000).toFixed(0)}K</span>`;
-    if (fin.tk) html += `<span>Ticker</span><span class="airline-deep-val">${fin.tk} (${fin.ex || ''})</span>`;
     html += '</div></div>';
   }
 
-  // Route network
+  // ── Stats grid ──
+  html += '<div class="adp-stats">';
+  if (fleet) {
+    html += `<div class="adp-stat"><div class="adp-stat-val">${fleet.total}</div><div class="adp-stat-label">Aircraft</div></div>`;
+    html += `<div class="adp-stat"><div class="adp-stat-val">${fleet.avgAge}y</div><div class="adp-stat-label">Avg Age</div></div>`;
+  }
   if (routes) {
-    html += '<div class="airline-deep-section">';
-    html += '<div class="airline-deep-title">Network</div>';
-    html += '<div class="airline-deep-grid">';
-    html += `<span>Routes</span><span class="airline-deep-val">${routes.total} (${routes.dom} dom / ${routes.intl} intl)</span>`;
-    html += `<span>Airports</span><span class="airline-deep-val">${routes.airports} in ${routes.countries} countries</span>`;
-    html += '</div>';
-    if (routes.top && routes.top.length > 0) {
-      html += '<div class="airline-route-list">';
-      for (const r of routes.top.slice(0, 8)) {
-        html += `<span class="airline-route-tag">${r.f}→${r.t} ×${r.d}/d</span>`;
-      }
-      html += '</div>';
+    html += `<div class="adp-stat"><div class="adp-stat-val">${routes.total}</div><div class="adp-stat-label">Routes</div></div>`;
+    html += `<div class="adp-stat"><div class="adp-stat-val">${routes.airports}</div><div class="adp-stat-label">Airports</div></div>`;
+    html += `<div class="adp-stat"><div class="adp-stat-val">${routes.countries}</div><div class="adp-stat-label">Countries</div></div>`;
+  }
+  if (fin?.pax) html += `<div class="adp-stat"><div class="adp-stat-val">${fin.pax}M</div><div class="adp-stat-label">Pax/Year</div></div>`;
+  html += '</div>';
+
+  // ── Fleet match ──
+  if (fleet) {
+    const tc = (typeCode || '').toUpperCase();
+    const match = tc ? fleet.types.find(t => t.t.toUpperCase().includes(tc) || tc.includes(t.t.replace(/[- ]/g, '').slice(0, 4).toUpperCase())) : null;
+    if (match) {
+      html += `<div class="adp-fleet-match">${match.t}: ${match.c} in fleet · ${match.s} seats · ${(match.r/1000).toFixed(1)}K km</div>`;
     }
-    html += '</div>';
+  }
+
+  // ── Route search + list ──
+  if (routes?.top) {
+    html += '<div class="adp-section">';
+    html += '<div class="adp-section-title">TOP ROUTES</div>';
+    html += '<input id="adp-route-search" class="adp-search" placeholder="Search routes..." />';
+    html += '<div id="adp-route-list" class="adp-route-list">';
+    for (const r of routes.top) {
+      html += `<div class="adp-route-item" data-from="${r.f}" data-to="${r.t}">`
+        + `<span class="adp-route-pair">${r.f} → ${r.t}</span>`
+        + `<span class="adp-route-freq">${r.d}×/day</span></div>`;
+    }
+    html += '</div></div>';
+  }
+
+  // ── Financials ──
+  if (fin) {
+    html += '<div class="adp-section">';
+    html += `<div class="adp-section-title">FINANCIALS${fin.yr ? ` (${fin.yr})` : ''}</div>`;
+    html += '<div class="adp-fin-grid">';
+    if (fin.rev) html += `<span>Revenue</span><span>${_fmtNum(fin.rev)}</span>`;
+    if (fin.lf) html += `<span>Load Factor</span><span>${fin.lf}%</span>`;
+    if (fin.emp) html += `<span>Employees</span><span>${(fin.emp/1000).toFixed(0)}K</span>`;
+    if (fin.tk) html += `<span>Ticker</span><span>${fin.tk} · ${fin.ex || ''}</span>`;
+    html += '</div></div>';
   }
 
   el.innerHTML = html;
   el.classList.remove('hidden');
+
+  // Draw route map
+  const mapCanvas = document.getElementById('adp-route-map');
+  if (mapCanvas && aptCoords && coastline) {
+    _drawRouteMap(mapCanvas, hubs, routes?.top || [], aptCoords, coastline);
+  }
+
+  // Close button
+  document.getElementById('adp-close-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    el.classList.remove('show');
+    document.querySelector('.airline-deep-backdrop')?.classList.remove('show');
+  });
+
+  // Route search filter
+  const searchInput = document.getElementById('adp-route-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.toUpperCase();
+      document.querySelectorAll('.adp-route-item').forEach(item => {
+        const from = item.dataset.from || '', to = item.dataset.to || '';
+        item.style.display = (!q || from.includes(q) || to.includes(q)) ? '' : 'none';
+      });
+    });
+  }
 }
 
 // ── T1-04: Copy + Toast ──

@@ -957,60 +957,101 @@ html, body {
   opacity: 1;
   pointer-events: auto;
 }
-.airline-deep-section {
-  margin-bottom: 8px;
+/* ── ADP: Airline Deep Panel internal layout ── */
+.adp-header {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 14px; position: relative;
 }
-.airline-deep-section:last-child { margin-bottom: 0; }
-.airline-deep-title {
-  font-size: 7.5px; font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: rgba(196,160,88,0.7);
-  margin-bottom: 4px;
+.adp-logo {
+  width: 52px; height: 52px; border-radius: 8px;
+  object-fit: contain; background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(255,255,255,0.15); flex-shrink: 0;
 }
-.airline-deep-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3px 14px;
+.adp-header-text { flex: 1; min-width: 0; }
+.adp-name {
+  font-family: var(--font-sans); font-size: 16px; font-weight: 600;
+  color: var(--text); letter-spacing: 0.3px; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.airline-deep-grid span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.adp-tags {
+  font-size: 10px; color: rgba(196,160,88,0.7); margin-top: 3px;
+  letter-spacing: 0.5px;
 }
-.airline-deep-val {
-  color: rgba(255,255,255,0.75);
-  text-align: right;
+.adp-close {
+  position: absolute; top: -4px; right: -4px;
+  width: 24px; height: 24px; display: flex; align-items: center;
+  justify-content: center; border-radius: 50%; cursor: pointer;
+  color: rgba(255,255,255,0.4); font-size: 12px;
+  transition: background 0.2s, color 0.2s;
 }
-.fleet-match-badge {
-  display: inline-block;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: rgba(196,160,88,0.08);
-  border: 1px solid rgba(196,160,88,0.15);
-  color: rgba(196,160,88,0.9);
-  font-size: 9px;
-  margin-top: 4px;
-  line-height: 1.4;
-}
-.airline-route-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-.airline-route-tag {
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: rgba(255,255,255,0.05);
+.adp-close:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
+.adp-map {
+  width: 100%; height: auto; border-radius: 8px;
+  background: rgba(0,0,0,0.3); margin-bottom: 12px;
   border: 1px solid rgba(255,255,255,0.04);
-  font-size: 8.5px;
-  color: rgba(255,255,255,0.55);
-  transition: background 0.2s ease;
 }
-.airline-route-tag:hover {
-  background: rgba(196,160,88,0.08);
+.adp-section { margin-bottom: 12px; }
+.adp-section:last-child { margin-bottom: 0; }
+.adp-section-title {
+  font-size: 7.5px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: rgba(196,160,88,0.65);
+  margin-bottom: 6px;
 }
+.adp-hub-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.adp-hub {
+  padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600;
+  background: rgba(196,160,88,0.1); border: 1px solid rgba(196,160,88,0.2);
+  color: rgba(196,160,88,0.9); letter-spacing: 1px;
+}
+.adp-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 1px; border-radius: 8px; overflow: hidden;
+  background: rgba(255,255,255,0.04); margin-bottom: 12px;
+}
+.adp-stat {
+  background: rgba(0,0,0,0.2); padding: 10px 8px; text-align: center;
+}
+.adp-stat-val {
+  font-family: var(--font-mono); font-size: 16px; font-weight: 600;
+  color: var(--text); line-height: 1;
+}
+.adp-stat-label {
+  font-size: 7px; text-transform: uppercase; letter-spacing: 1.5px;
+  color: rgba(255,255,255,0.35); margin-top: 4px;
+}
+.adp-fleet-match {
+  padding: 6px 10px; border-radius: 6px; font-size: 9.5px;
+  background: rgba(196,160,88,0.06); border: 1px solid rgba(196,160,88,0.12);
+  color: rgba(196,160,88,0.85); margin-bottom: 12px; line-height: 1.4;
+}
+.adp-search {
+  width: 100%; padding: 7px 10px; border-radius: 6px; box-sizing: border-box;
+  background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06);
+  color: var(--text); font-family: var(--font-mono); font-size: 10px;
+  outline: none; margin-bottom: 8px; transition: border-color 0.2s;
+}
+.adp-search:focus { border-color: rgba(196,160,88,0.3); }
+.adp-search::placeholder { color: rgba(255,255,255,0.25); }
+.adp-route-list {
+  max-height: 150px; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: rgba(196,160,88,0.1) transparent;
+}
+.adp-route-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 8px; border-radius: 4px; transition: background 0.15s;
+}
+.adp-route-item:hover { background: rgba(196,160,88,0.06); }
+.adp-route-pair {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 500;
+  color: rgba(255,255,255,0.7); letter-spacing: 0.5px;
+}
+.adp-route-freq { font-size: 9px; color: rgba(255,255,255,0.35); }
+.adp-fin-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 4px 16px; font-size: 10px;
+}
+.adp-fin-grid span:nth-child(odd) { color: rgba(255,255,255,0.4); }
+.adp-fin-grid span:nth-child(even) { color: rgba(255,255,255,0.75); text-align: right; }
 
 /* Loading spinner */
 .detail-loader {
