@@ -1737,10 +1737,10 @@ class AircraftObject {
       scene.remove(this.trailLine);
       this.trailLine.geometry.dispose();
     }
-    this.trailLineMat.dispose();
-    scene.remove(this.dropLine);
-    this.dropGeometry.dispose();
-    this.dropMaterial.dispose();
+    if (this.trailLineMat) this.trailLineMat.dispose();
+    if (this.dropLine) scene.remove(this.dropLine);
+    if (this.dropGeometry) this.dropGeometry.dispose();
+    if (this.dropMaterial) this.dropMaterial.dispose();
     if (this._gapLine) {
       scene.remove(this._gapLine);
       this._gapLine.geometry.dispose();

@@ -1246,10 +1246,15 @@ export function clearGroundMap(scene) {
     }
   }
   hiResOverlays.length = 0;
-  if (groundMaterial && groundMaterial.map) {
-    groundMaterial.map.dispose();
-    groundMaterial.map = null;
-    groundMaterial.needsUpdate = true;
+  if (groundMaterial) {
+    if (groundMaterial.map) { groundMaterial.map.dispose(); groundMaterial.map = null; }
+    groundMaterial.dispose();
+    groundMaterial = null;
+  }
+  if (groundMesh) {
+    scene.remove(groundMesh);
+    if (groundMesh.geometry) groundMesh.geometry.dispose();
+    groundMesh = null;
   }
 }
 

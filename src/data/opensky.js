@@ -456,19 +456,35 @@ function _restartTimer() {
   pollTimer = setInterval(poll, _getInterval());
 }
 
+let _visListenerAdded = false;
+
 export function startPolling(onData, onError) {
+  // Prevent duplicate timers if called again (e.g. city switch)
+  if (pollTimer) clearInterval(pollTimer);
+
   onDataCallback = onData;
   onErrorCallback = onError;
   poll();
   pollTimer = setInterval(poll, POLL_INTERVAL);
 
-  // Slow down when tab hidden — saves ~90% of Worker quota for background tabs
-  document.addEventListener('visibilitychange', () => {
-    _tabVisible = !document.hidden;
-    _restartTimer();
-    // Immediate poll on return to foreground for instant freshness
-    if (_tabVisible) poll();
-  });
+  // Register visibility listener only once — prevents accumulation on city switch
+  if (!_visListenerAdded) {
+    _visListenerAdded = true;
+    document.addEventListener('visibilitychange', () => {
+      _tabVisible = !document.hidden;
+      _restartTimer();
+      // Immediate poll on return to foreground for instant freshness
+      if (_tabVisible) poll();
+    });
+  }
+}
+
+/** Force an immediate re-poll (e.g. after city switch updates coordinates) */
+export function restartPolling() {
+  if (!pollTimer) return; // not started yet
+  clearInterval(pollTimer);
+  poll();
+  pollTimer = setInterval(poll, _getInterval());
 }
 
 export function stopPolling() {

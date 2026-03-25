@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // Postprocessing is lazy-loaded after first render to keep critical-path JS small
 import { createEnvironment, updatePulse, loadGroundMap, loadAirports, clearGroundMap, clearAirports, getAirportHitTargets, getAirportData, selectAirport, deselectAirport, categorizeFlights, updateWindIndicators, checkLandings, updateTouchdownEffects, updateDayNight, animateAirportLoading, clearFIRBoundaries, reloadFIRForLocation, sceneToGeo, getFIRForPosition, clearNavChart, reloadNavChart, renderFuelRangeRing, clearFuelRangeRing, getRunwayThresholdTargets, getNavHitTargets, updateRouteOverlay, clearRouteOverlay } from './scene/environment.js';
 import { AircraftManager, createRouteArc, removeRouteArc, classifyAircraftType, getTCASTraffic, setSunState, haversineDistance } from './scene/aircraft.js';
-import { setUserLocation, getUserLocation, startPolling, enrichAircraft } from './data/opensky.js';
+import { setUserLocation, getUserLocation, startPolling, restartPolling, enrichAircraft } from './data/opensky.js';
 import { prefetchAirportData } from './data/airports.js';
 import { updateHUD, updateHUDTimer, updateHUDAirports, updateHUDCity, setLocalTimezone, showSignalLost } from './ui/hud.js';
 import { showDetail, closeDetail, refreshDetail, getSelectedAircraft, showDetailLoading, reseedChartData } from './ui/detail.js';
@@ -3967,6 +3967,7 @@ async function switchCity(city) {
   clearNavChart(scene);
 
   setUserLocation(city.lat, city.lon);
+  restartPolling(); // Immediately re-poll with new city coordinates
   if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
   updateHUDCity(city.name, city.code);
   updateHUDAirports(0);
