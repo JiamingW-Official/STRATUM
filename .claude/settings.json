@@ -40,7 +40,8 @@
       "Bash(wc -l /Users/jiamingw/Documents/GitHub/STRATUM/src/ui/*.js /Users/jiamingw/Documents/GitHub/STRATUM/src/scene/*.js /Users/jiamingw/Documents/GitHub/STRATUM/src/data/*.js /Users/jiamingw/Documents/GitHub/STRATUM/src/main.js)",
       "mcp__claude_ai_Vercel__deploy_to_vercel",
       "Bash(npm install:*)",
-      "Bash(vercel whoami:*)"
+      "Bash(vercel whoami:*)",
+      "Bash(pip3 install:*)"
     ]
   }
 }

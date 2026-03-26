@@ -1,6 +1,6 @@
 import { haversineDistance } from '../scene/aircraft.js';
 import { getAirlineName } from '../data/airlineDb.js';
-import { getAirlineSync, getAirline, getAirlineFleet, getAirlineFinancials, getAirlineRoutes, getAirportCoords, getCoastline } from '../data/airlines.js';
+import { getAirlineSync, getAirline, getAirlineFleet, getAirlineFinancials, getAirlineRoutes } from '../data/airlines.js';
 import { computeDensityAltitude, fetchDestinationWeather, estimateTurbulence } from '../data/weather.js';
 
 // ── T2-02: Aircraft type silhouette SVG paths ──
@@ -61,76 +61,6 @@ function _fmtNum(n) {
   return String(n);
 }
 
-function _drawRouteMap(canvas, hubs, routes, aptCoords, coastline) {
-  const W = canvas.width, H = canvas.height;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, W, H);
-
-  // Project: equirectangular
-  const proj = (lat, lon) => [((lon + 180) / 360) * W, ((90 - lat) / 180) * H];
-
-  // Draw coastline
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-  ctx.lineWidth = 0.8;
-  for (const arc of coastline) {
-    ctx.beginPath();
-    for (let i = 0; i < arc.length; i++) {
-      const [x, y] = proj(arc[i][1], arc[i][0]);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-
-  // Draw route arcs — thickness and opacity scale with daily frequency
-  const maxFreq = Math.max(1, ...routes.map(r => r.d || 1));
-  for (const r of routes) {
-    const from = aptCoords[r.f], to = aptCoords[r.t];
-    if (!from || !to) continue;
-    const [x1, y1] = proj(from[0], from[1]);
-    const [x2, y2] = proj(to[0], to[1]);
-    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - Math.abs(x2 - x1) * 0.15;
-    const intensity = 0.06 + 0.18 * ((r.d || 1) / maxFreq);
-    ctx.strokeStyle = `rgba(196,160,88,${intensity.toFixed(2)})`;
-    ctx.lineWidth = 0.4 + 1.2 * ((r.d || 1) / maxFreq);
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.quadraticCurveTo(mx, my, x2, y2);
-    ctx.stroke();
-  }
-
-  // Draw route endpoints (dim)
-  ctx.fillStyle = 'rgba(196,160,88,0.25)';
-  const drawn = new Set();
-  for (const r of routes) {
-    for (const code of [r.f, r.t]) {
-      if (drawn.has(code)) continue;
-      drawn.add(code);
-      const c = aptCoords[code];
-      if (!c) continue;
-      const [x, y] = proj(c[0], c[1]);
-      ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-
-  // Draw hubs (bright, larger)
-  for (const hub of hubs) {
-    const c = aptCoords[hub];
-    if (!c) continue;
-    const [x, y] = proj(c[0], c[1]);
-    // Glow
-    ctx.fillStyle = 'rgba(196,160,88,0.15)';
-    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
-    // Core
-    ctx.fillStyle = 'rgba(196,160,88,0.9)';
-    ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
-    // Label
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.font = '7px JetBrains Mono, monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(hub, x, y - 8);
-  }
-}
-
 function _drawFleetChart(canvas, types) {
   const W = canvas.width, H = canvas.height;
   const ctx = canvas.getContext('2d');
@@ -177,9 +107,9 @@ async function _loadAirlineDeep(icaoPrefix, typeCode) {
   const el = document.getElementById('detail-airline-deep');
   if (!el) return;
 
-  const [airline, fleet, fin, routes, aptCoords, coastline] = await Promise.all([
+  const [airline, fleet, fin, routes] = await Promise.all([
     getAirline(code), getAirlineFleet(code), getAirlineFinancials(code),
-    getAirlineRoutes(code), getAirportCoords(), getCoastline(),
+    getAirlineRoutes(code),
   ]);
 
   if (!airline && !fleet && !fin && !routes) { el.classList.add('hidden'); return; }
@@ -217,9 +147,6 @@ async function _loadAirlineDeep(icaoPrefix, typeCode) {
 
   // ── Body wrapper ──
   html += '<div class="adp-body">';
-
-  // ── Route map canvas ──
-  html += '<canvas id="adp-route-map" class="adp-map" width="700" height="350"></canvas>';
 
   // ── Hub + Focus cities row ──
   if (hubs.length > 0 || focusCities.length > 0) {
@@ -333,12 +260,6 @@ async function _loadAirlineDeep(icaoPrefix, typeCode) {
 
   el.innerHTML = html;
   el.classList.remove('hidden');
-
-  // Draw route map with frequency-based arc thickness
-  const mapCanvas = document.getElementById('adp-route-map');
-  if (mapCanvas && aptCoords && coastline) {
-    _drawRouteMap(mapCanvas, hubs, routes?.top || [], aptCoords, coastline);
-  }
 
   // Draw fleet breakdown chart
   const fleetCanvas = document.getElementById('adp-fleet-chart');

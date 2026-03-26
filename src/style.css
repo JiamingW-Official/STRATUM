@@ -1011,14 +1011,6 @@ html, body {
 
 /* ── ADP Body ── */
 .adp-body { padding: 16px 24px 24px; }
-
-.adp-map {
-  width: 100%; height: auto; border-radius: 10px;
-  background: linear-gradient(180deg, rgba(0,2,8,0.4) 0%, rgba(0,4,12,0.5) 100%);
-  margin-bottom: 16px;
-  border: 1px solid rgba(196,160,88,0.08);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
-}
 .adp-section { margin-bottom: 16px; }
 .adp-section:last-child { margin-bottom: 0; }
 .adp-section-title {

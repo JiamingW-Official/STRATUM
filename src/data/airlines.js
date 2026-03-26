@@ -85,21 +85,5 @@ export async function getAirlineRoutes(icaoPrefix) {
   return _routes[code] || null;
 }
 
-// Airport coordinates (IATA → [lat, lon]) for route map
-let _aptCoords = null, _aptCoordsLoading = null;
-export async function getAirportCoords() {
-  if (_aptCoords) return _aptCoords;
-  if (!_aptCoordsLoading) _aptCoordsLoading = _lazyLoad('/airlines/airports.json').then(d => { _aptCoords = d; return d; });
-  return _aptCoordsLoading;
-}
-
-// Simplified world coastline for mini map
-let _coast = null, _coastLoading = null;
-export async function getCoastline() {
-  if (_coast) return _coast;
-  if (!_coastLoading) _coastLoading = _lazyLoad('/airlines/coastline.json').then(d => { _coast = d; return d; });
-  return _coastLoading;
-}
-
 // Pre-load main index on import
 _loadIndex();
