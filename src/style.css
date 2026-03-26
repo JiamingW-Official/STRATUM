@@ -47,7 +47,7 @@ html, body {
   text-rendering: optimizeLegibility;
 }
 
-#scene { position: fixed; inset: 0; display: block; }
+#scene { position: fixed; inset: 0; display: block; touch-action: none; }
 
 /* ── Vignette ── */
 .vignette {
@@ -4043,6 +4043,37 @@ html, body {
 
   /* Signal lost — mobile friendly */
   .signal-lost-content { padding: 30px 24px; }
+
+  /* Radio panel — responsive width */
+  .radio-panel {
+    width: calc(100vw - 20px);
+    max-width: 300px;
+    right: var(--edge); bottom: calc(var(--edge) + 50px);
+  }
+
+  /* Filter panel — responsive */
+  .filter-panel {
+    min-width: 160px;
+    max-width: calc(100vw - 20px);
+    left: var(--edge); bottom: calc(var(--edge) + 50px);
+  }
+
+  /* Tooltips — prevent overflow */
+  .rwy-tooltip { min-width: auto; max-width: 85vw; }
+  .nav-tooltip { min-width: auto; max-width: 85vw; }
+
+  /* Notes panel — narrower */
+  .notes-panel { width: calc(100vw - 20px); max-width: 300px; }
+
+  /* Spotter/challenge panels */
+  .spotter-panel { top: var(--edge); right: var(--edge); }
+  .challenge-panel { top: 80px; right: var(--edge); }
+
+  /* Bloom/status labels */
+  .bloom-label { right: var(--edge); }
+
+  /* Prevent body scroll when panels are open */
+  .detail-panel, .airline-deep { overscroll-behavior: contain; }
 }
 
 /* ── Small phone (375px) ── */
