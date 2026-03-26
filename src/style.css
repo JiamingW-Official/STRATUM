@@ -1295,7 +1295,7 @@ html, body {
   letter-spacing: -0.2px;
 }
 .detail-grid-ext .detail-label {
-  font-size: 5px; color: var(--text-3);
+  font-size: 5.5px; color: var(--text-3);
   letter-spacing: 2.5px;
 }
 .detail-grid + .detail-grid-ext {
@@ -3111,7 +3111,7 @@ html, body {
 }
 
 .phase-lbl {
-  font-family: var(--font-mono); font-size: 5px;
+  font-family: var(--font-mono); font-size: 6px;
   letter-spacing: 0.3px; color: rgba(255,255,255,0.14);
   text-transform: uppercase; white-space: nowrap;
 }
@@ -3924,8 +3924,9 @@ html, body {
     max-height: 55vh;
     border-radius: 14px 14px 0 0;
     border-left: none; border-right: none; border-bottom: none;
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
-  .detail-panel.hidden { transform: translateY(100%); }
+  .detail-panel.hidden { transform: translateY(100%) translateX(0); }
   .detail-panel:not(.hidden) {
     animation: slide-up-mobile 0.35s var(--ease) both;
   }
@@ -3972,7 +3973,7 @@ html, body {
 
   /* Phase timeline */
   .phase-timeline { padding: 6px 14px 8px; }
-  .phase-label { font-size: 5px; }
+  .phase-label { font-size: 6px; }
 
   /* Footer */
   .detail-footer { padding: 8px 14px 12px; }
@@ -3982,11 +3983,11 @@ html, body {
   .compass { width: 36px; height: 36px; }
   .search-hint { display: none; }
 
-  /* Search bar — full width at bottom */
+  /* Search bar — full width at bottom, safe area aware */
   .search-bar {
     width: calc(100vw - 20px);
     max-width: none;
-    bottom: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0));
     left: 50%;
   }
   .search-bar:focus-within { width: calc(100vw - 20px); }
@@ -4019,12 +4020,13 @@ html, body {
     max-width: none;
     top: auto; bottom: 0;
     left: 0; right: 0;
-    transform: translateY(20px);
+    transform: translateY(20px) scale(1);
     border-radius: 16px 16px 0 0;
     max-height: 85vh;
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
   .airline-deep.show {
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
   .adp-header { padding: 18px 16px 14px; }
   .adp-logo { width: 44px; height: 44px; }
