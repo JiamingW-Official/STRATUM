@@ -484,7 +484,6 @@ const elBearing = document.getElementById('detail-bearing');
 
 // Specs elements
 const elSpecs = document.getElementById('detail-specs');
-const elSpecsDivider = document.getElementById('detail-specs-divider');
 const elAircraftName = document.getElementById('detail-aircraft-name');
 const elMfr = document.getElementById('detail-mfr');
 const elPax = document.getElementById('detail-pax');
@@ -500,7 +499,6 @@ const elGeoAlt = document.getElementById('detail-geoalt');
 
 // Transponder / navigation elements
 const elXpdr = document.getElementById('detail-xpdr');
-const elXpdrDivider = document.getElementById('detail-xpdr-divider');
 const elSquawk = document.getElementById('detail-squawk');
 const elWakeRow = document.getElementById('detail-wake-row');
 const elWake = document.getElementById('detail-wake');
@@ -2013,7 +2011,6 @@ export function showDetail(aircraftObj, userLat, userLon) {
   const hasXpdr = d.squawk || d.wakeCat || d.flightPhase || d.navAlt != null || d.rssi != null;
   if (hasXpdr && elXpdr) {
     elXpdr.classList.remove('hidden');
-    if (elXpdrDivider) elXpdrDivider.classList.remove('hidden');
 
     if (d.squawk) {
       // T1-01: Squawk code alert styling
@@ -2191,7 +2188,6 @@ export function showDetail(aircraftObj, userLat, userLon) {
     }
   } else if (elXpdr) {
     elXpdr.classList.add('hidden');
-    if (elXpdrDivider) elXpdrDivider.classList.add('hidden');
   }
 
   // ── PERFORMANCE SECTION (P2 TOD, P5 Efficiency) ──
