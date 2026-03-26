@@ -3901,34 +3901,156 @@ html, body {
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  :root { --edge: 12px; }
+  :root { --edge: 10px; }
 
-  #hud { padding: 12px 14px; width: 240px; }
-  .hud-stat-value { font-size: 22px; }
-  .hud-stats { gap: 20px; }
+  /* HUD — compact for mobile */
+  #hud {
+    padding: 10px 12px;
+    width: 200px;
+    border-radius: 0 0 8px 0;
+    top: 0; left: 0;
+  }
+  .hud-stat-value { font-size: 18px; }
+  .hud-stats { gap: 14px; }
+  .hud-brand { font-size: 9px; letter-spacing: 4px; }
+  .hud-wx-detail { display: none; }
+  .hud-city-btn { font-size: 7px; padding: 5px 7px; }
 
+  /* Detail panel — bottom sheet */
   .detail-panel {
-    top: auto; bottom: var(--edge);
-    right: var(--edge); left: var(--edge);
-    width: auto;
+    top: auto; bottom: 0;
+    right: 0; left: 0;
+    width: 100%;
+    max-height: 55vh;
+    border-radius: 14px 14px 0 0;
+    border-left: none; border-right: none; border-bottom: none;
   }
   .detail-panel.hidden { transform: translateY(100%); }
+  .detail-panel:not(.hidden) {
+    animation: slide-up-mobile 0.35s var(--ease) both;
+  }
+  @keyframes slide-up-mobile {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
 
-  .spotter-panel { top: var(--edge); right: var(--edge); }
-  .challenge-panel { top: 100px; right: var(--edge); }
+  /* Detail header — tighter */
+  .detail-header { padding: 12px 14px 8px; }
+  .detail-callsign { font-size: 18px; letter-spacing: 1.5px; }
+  .detail-type-badge { font-size: 6px; padding: 2px 6px; }
 
+  /* Airline row */
+  .detail-airline-row {
+    margin: 2px 6px; padding: 6px 10px 8px; gap: 8px;
+  }
+  .airline-logo { width: 34px; height: 34px; }
+  .detail-airline-name { font-size: 11px; }
+  .airline-meta { font-size: 8px; }
+
+  /* Route banner */
+  .detail-route { padding: 8px 12px 10px; gap: 10px; }
+  .detail-route-code { font-size: 16px; letter-spacing: 2px; }
+  .detail-route-city { font-size: 7px; max-width: 70px; }
+
+  /* Data grids */
+  .detail-grid { margin: 4px 8px 0; }
+  .detail-cell { padding: 5px 10px 6px; }
+  .detail-value { font-size: 14px; }
+  .detail-label { font-size: 5.5px; letter-spacing: 1.5px; }
+
+  /* Section headers */
+  .detail-section-header { padding: 8px 14px 8px; font-size: 7px; }
+
+  /* Meta rows */
+  .detail-meta { padding: 3px 10px 6px; }
+  .detail-meta-row { padding: 4px 8px; margin: 0 -4px; }
+  .detail-meta-label { font-size: 6px; }
+  .detail-meta-value { font-size: 9.5px; }
+
+  /* Progress bar */
+  .detail-progress { padding: 4px 14px 6px; }
+
+  /* Phase timeline */
+  .phase-timeline { padding: 6px 14px 8px; }
+  .phase-label { font-size: 5px; }
+
+  /* Footer */
+  .detail-footer { padding: 8px 14px 12px; }
+
+  /* Hide less important elements */
   .help-panel { display: none !important; }
+  .compass { width: 36px; height: 36px; }
+  .search-hint { display: none; }
 
-  .compass { width: 42px; height: 42px; }
+  /* Search bar — full width at bottom */
+  .search-bar {
+    width: calc(100vw - 20px);
+    max-width: none;
+    bottom: 10px;
+    left: 50%;
+  }
+  .search-bar:focus-within { width: calc(100vw - 20px); }
+  .search-bar input { font-size: 14px; padding: 12px 40px 12px 36px; }
 
-  .search-bar { width: calc(100vw - 24px); max-width: 440px; }
-  .search-bar:focus-within { width: calc(100vw - 24px); }
+  /* Fab toolbar */
+  .fab-toolbar { bottom: 58px; right: 10px; }
+  .fab-btn { width: 40px; height: 40px; font-size: 14px; }
+  .fab-label { display: none; }
 
+  /* TCAS */
   .tcas-widget {
-    top: auto; bottom: 70px;
+    top: auto; bottom: 80px;
+    left: 10px; right: auto;
     transform: none;
   }
 
+  /* City overlay — full screen on mobile */
+  .city-overlay-content {
+    width: 100vw; height: 100vh;
+    max-width: none; max-height: none;
+    border-radius: 0;
+  }
+  .city-globe-pane { display: none; }
+  .city-list-pane { width: 100%; }
+
+  /* Airline deep panel — full width bottom sheet */
+  .airline-deep {
+    width: 100%;
+    max-width: none;
+    top: auto; bottom: 0;
+    left: 0; right: 0;
+    transform: translateY(20px);
+    border-radius: 16px 16px 0 0;
+    max-height: 85vh;
+  }
+  .airline-deep.show {
+    transform: translateY(0);
+  }
+  .adp-header { padding: 18px 16px 14px; }
+  .adp-logo { width: 44px; height: 44px; }
+  .adp-name { font-size: 15px; }
+  .adp-body { padding: 12px 16px 20px; }
+  .adp-stats { grid-template-columns: repeat(3, 1fr); }
+  .adp-stat { padding: 10px 6px; }
+  .adp-stat-val { font-size: 16px; }
+  .adp-stat-label { font-size: 6px; }
+  .adp-search { font-size: 14px; padding: 10px 12px; }
+  .adp-route-list { max-height: 120px; }
+  .adp-fleet-chart { height: auto; }
+  .adp-split-bar { height: 24px; font-size: 8px; }
+
+  /* Signal lost — mobile friendly */
+  .signal-lost-content { padding: 30px 24px; }
+}
+
+/* ── Small phone (375px) ── */
+@media (max-width: 400px) {
+  #hud { width: 180px; padding: 8px 10px; }
+  .hud-stat-value { font-size: 16px; }
+  .detail-callsign { font-size: 16px; }
+  .detail-value { font-size: 13px; }
+  .detail-panel { max-height: 50vh; }
+  .adp-stats { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ── Runway Threshold Tooltip ── */
