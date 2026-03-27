@@ -1147,6 +1147,9 @@ function handleAirportClick(airport) {
   const aptCodes = new Set([airport.iata, airport.icao].filter(Boolean).map(c => c.toUpperCase()));
   const relatedSet = _buildAirportRelatedSet(aptCodes, airport);
 
+  const code = airport.iata || airport.icao;
+  console.log(`[STRATUM] Airport filter: ${code} → ${relatedSet.size} related of ${aircraftManager.aircraft.size} total`);
+
   // Filter: hide all unrelated aircraft
   aircraftManager.setFilter(relatedSet);
   if (relatedSet.size > 0) {
@@ -1155,7 +1158,7 @@ function handleAirportClick(airport) {
     aircraftManager.clearHighlight();
   }
 
-  const code = airport.iata || airport.icao;
+  const { arrivals, departures } = categorizeFlights(lastRawData, airport, data.runways);
   console.log(`[STRATUM] ${code}: ${arrivals.length} arrivals, ${departures.length} departures`);
   showAirportWidget(airport, arrivals, departures);
 

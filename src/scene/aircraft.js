@@ -1631,11 +1631,11 @@ class AircraftObject {
       if (this.fadeProgress <= 0) { this.removed = true; return; }
     }
 
-    // Filter opacity — smooth transition; fully hide unrelated aircraft
+    // Filter opacity — fast transition; fully hide unrelated aircraft
     const filterTarget = (filterSet && !filterSet.has(this.data.icao24)) ? 0 : 1;
     if (this._filterOpacity === undefined) this._filterOpacity = 1;
-    this._filterOpacity += (filterTarget - this._filterOpacity) * Math.min(delta * 4, 0.5);
-    if (Math.abs(this._filterOpacity - filterTarget) < 0.005) this._filterOpacity = filterTarget;
+    this._filterOpacity += (filterTarget - this._filterOpacity) * Math.min(delta * 8, 0.6);
+    if (Math.abs(this._filterOpacity - filterTarget) < 0.01) this._filterOpacity = filterTarget;
 
     // Highlight dims non-highlighted to 8%
     const highlightMul = (highlightSet && !highlightSet.has(this.data.icao24)) ? 0.08 : 1;
@@ -1648,10 +1648,17 @@ class AircraftObject {
     this.masterOpacity = newOpacity;
 
     if (opacityChanged) {
+      // Fully hide group when filtered out (prevents bloom bleed from emissive materials)
+      const shouldHide = this.masterOpacity < 0.01;
+      this.group.visible = !shouldHide;
+      if (this.trailLine) this.trailLine.visible = !shouldHide;
+      if (this.dropLine) this.dropLine.visible = !shouldHide;
+      if (this._gapLine) this._gapLine.visible = !shouldHide;
+
       this._setModelOpacity(this.masterOpacity);
-      this._labelMat.opacity = this.masterOpacity * 0.75;
-      this.trailLineMat.opacity = this.masterOpacity * 0.85 * (this._trailOpacityMult || 1.0);
-      this.dropMaterial.opacity = this.masterOpacity * 0.15;
+      if (this._labelMat) this._labelMat.opacity = this.masterOpacity * 0.75;
+      if (this.trailLineMat) this.trailLineMat.opacity = this.masterOpacity * 0.85 * (this._trailOpacityMult || 1.0);
+      if (this.dropMaterial) this.dropMaterial.opacity = this.masterOpacity * 0.15;
       if (this._gapLine) this._gapLine.material.opacity = this.masterOpacity * 0.3;
       for (const nl of this._navLights) nl.material.opacity = this.masterOpacity * 0.55;
     }
@@ -1776,11 +1783,19 @@ class AircraftObject {
     }
   }
 
-  /** Lightweight origin/destination lookup for filtering — no expensive computations */
+  /** Lightweight origin/destination lookup for filtering */
   getRouteCodes() {
     const route = getRoute(this.data.callsign);
-    const origin = this.data.origin || route?.origin || null;
-    const dest = this.data.destination || route?.destination || null;
+    let origin = this.data.origin || route?.origin || null;
+    let dest = this.data.destination || route?.destination || null;
+    // Fallback: local trajectory inference
+    if (!origin || !dest) {
+      const inferred = getInferredRoute(this.data.icao24, this.data.callsign);
+      if (inferred) {
+        if (!origin) origin = inferred.origin || null;
+        if (!dest) dest = inferred.destination || null;
+      }
+    }
     return { origin, destination: dest };
   }
 
