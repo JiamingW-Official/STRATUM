@@ -500,7 +500,6 @@ export class AircraftManager {
           const ac = new AircraftObject(data, targetPos, this.scene, this.userLat, this.userLon);
           this.aircraft.set(data.icao24, ac);
           this.raycasterTargets.push(ac.hitMesh);
-          this.raycasterTargets.push(ac.labelSprite);
         } catch (err) {
           console.error('[STRATUM] Failed to create aircraft:', data.icao24, err);
         }
@@ -520,8 +519,6 @@ export class AircraftManager {
         this.aircraft.delete(id);
         const idx = this.raycasterTargets.indexOf(ac.hitMesh);
         if (idx !== -1) this.raycasterTargets.splice(idx, 1);
-        const spriteIdx = this.raycasterTargets.indexOf(ac.labelSprite);
-        if (spriteIdx !== -1) this.raycasterTargets.splice(spriteIdx, 1);
       } else if (!ac.fadingOut) {
         activeCount++;
       }

@@ -413,8 +413,11 @@ function showAircraftTooltip(data, x, y) {
   const margin = 14;
   let tx = x + margin;
   let ty = y - 40;
-  if (tx + 200 > window.innerWidth) tx = x - margin - 200;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  if (tx + 220 > vw) tx = x - margin - 220;
+  if (tx < 4) tx = 4;
   if (ty < 8) ty = y + margin + 4;
+  if (ty + 60 > vh) ty = vh - 64;
 
   tooltipEl.style.transform = `translate(${tx}px, ${ty}px)`;
   tooltipEl.classList.remove('hidden');
