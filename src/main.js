@@ -1230,6 +1230,22 @@ function handleData(dataList) {
       refreshDetail(aircraftManager, lat, lon);
     }
 
+    // Re-evaluate airport filter with fresh data (new arrivals/departures)
+    const _aptData = selectedAirportState ? getAirportData() : null;
+    if (selectedAirportState && _aptData) {
+      const { arrivals, departures } = categorizeFlights(dataList, selectedAirportState, _aptData.runways);
+      const aptCodes = new Set([selectedAirportState.iata, selectedAirportState.icao].filter(Boolean).map(c => c.toUpperCase()));
+      const relatedSet = new Set([...arrivals.map(ac => ac.icao24), ...departures.map(ac => ac.icao24)]);
+      for (const [, ac] of aircraftManager.aircraft) {
+        const dd = ac.getDisplayData();
+        if (aptCodes.has((dd.origin || '').toUpperCase()) || aptCodes.has((dd.destination || '').toUpperCase())) {
+          relatedSet.add(ac.data.icao24);
+        }
+      }
+      aircraftManager.setFilter(relatedSet);
+      aircraftManager.setHighlight(relatedSet);
+    }
+
     // Hidden: milestone celebration when aircraft count hits round numbers
     if (count >= 50 && !_milestones.has(50)) { _milestones.add(50); _showMilestone('50 aircraft in range'); }
     if (count >= 100 && !_milestones.has(100)) { _milestones.add(100); _showMilestone('100 aircraft tracked'); }
