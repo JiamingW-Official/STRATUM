@@ -731,6 +731,7 @@ function handleAircraftSelect(ac) {
   });
   if (selectedAirportState) {
     deselectAirport(scene);
+    aircraftManager.clearFilter();
     aircraftManager.clearHighlight();
     hideAirportWidget();
     selectedAirportState = null;
@@ -811,6 +812,7 @@ canvas.addEventListener('click', (e) => {
     removeRouteArc(scene);
     if (selectedAirportState) {
       deselectAirport(scene);
+      aircraftManager.clearFilter();
       aircraftManager.clearHighlight();
       hideAirportWidget();
       selectedAirportState = null;
@@ -865,6 +867,7 @@ canvas.addEventListener('contextmenu', (e) => {
   stopFollow();
   if (selectedAirportState) {
     deselectAirport(scene);
+    aircraftManager.clearFilter();
     aircraftManager.clearHighlight();
     hideAirportWidget();
     selectedAirportState = null;
@@ -1075,6 +1078,7 @@ document.getElementById('aw-close')?.addEventListener('click', () => {
   hideAirportWidget();
   if (selectedAirportState) {
     deselectAirport(scene);
+    aircraftManager?.clearFilter();
     aircraftManager?.clearHighlight();
     selectedAirportState = null;
   }
@@ -1088,6 +1092,7 @@ function handleAirportClick(airport) {
       selectedAirportState.iata === airport.iata &&
       selectedAirportState.icao === airport.icao) {
     deselectAirport(scene);
+    aircraftManager.clearFilter();
     aircraftManager.clearHighlight();
     hideAirportWidget();
     selectedAirportState = null;
@@ -1104,13 +1109,27 @@ function handleAirportClick(airport) {
   selectAirport(scene, airport);
 
   const { arrivals, departures } = categorizeFlights(lastRawData, airport, data.runways);
-  const highlightSet = new Set([
+  const aptCodes = new Set([airport.iata, airport.icao].filter(Boolean).map(c => c.toUpperCase()));
+
+  // Include: aircraft in approach/departure geometry + aircraft with matching route origin/destination
+  const relatedSet = new Set([
     ...arrivals.map(ac => ac.icao24),
     ...departures.map(ac => ac.icao24),
   ]);
+  // Also match by route data (origin or destination matches this airport)
+  for (const [, ac] of aircraftManager.aircraft) {
+    const dd = ac.getDisplayData();
+    const orig = (dd.origin || '').toUpperCase();
+    const dest = (dd.destination || '').toUpperCase();
+    if (aptCodes.has(orig) || aptCodes.has(dest)) {
+      relatedSet.add(ac.data.icao24);
+    }
+  }
 
-  if (highlightSet.size > 0) {
-    aircraftManager.setHighlight(highlightSet);
+  // Filter: dim unrelated aircraft to near-invisible
+  aircraftManager.setFilter(relatedSet);
+  if (relatedSet.size > 0) {
+    aircraftManager.setHighlight(relatedSet);
   } else {
     aircraftManager.clearHighlight();
   }
@@ -3969,7 +3988,7 @@ async function switchCity(city) {
   stopFollow();
   if (selectedAirportState) {
     deselectAirport(scene);
-    if (aircraftManager) aircraftManager.clearHighlight();
+    if (aircraftManager) { aircraftManager.clearFilter(); aircraftManager.clearHighlight(); }
     hideAirportWidget();
     selectedAirportState = null;
   }
