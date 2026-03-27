@@ -767,7 +767,7 @@ canvas.addEventListener('click', (e) => {
   // Delay single-click to avoid conflict with dblclick
   clearTimeout(_clickTimer);
   _clickTimer = setTimeout(() => {
-    if (_dblClickGuard) return;
+    if (_dblClickGuard || !aircraftManager) return;
 
     pointer.x = (cx / window.innerWidth) * 2 - 1;
     pointer.y = -(cy / window.innerHeight) * 2 + 1;
@@ -1099,6 +1099,7 @@ document.getElementById('aw-close')?.addEventListener('click', () => {
 /** Build the set of aircraft related to an airport (for filtering) */
 function _buildAirportRelatedSet(aptCodes, airport) {
   const relatedSet = new Set();
+  if (!aircraftManager) return relatedSet;
   // Route data match: origin or destination = this airport
   for (const [, ac] of aircraftManager.aircraft) {
     const rc = ac.getRouteCodes();
@@ -1119,6 +1120,7 @@ function _buildAirportRelatedSet(aptCodes, airport) {
 }
 
 function handleAirportClick(airport) {
+  if (!aircraftManager) return;
   const data = getAirportData();
   if (!data) return;
 
