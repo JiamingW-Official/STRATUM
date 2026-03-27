@@ -431,7 +431,7 @@ function waypointToScenePos(wp, userLat, userLon) {
 // --- Shared geometries / materials (one instance, many aircraft) ---
 let _sharedHitGeo = null;
 function getSharedHitGeometry() {
-  if (!_sharedHitGeo) _sharedHitGeo = new THREE.SphereGeometry(2.0, 8, 8);
+  if (!_sharedHitGeo) _sharedHitGeo = new THREE.SphereGeometry(0.5, 6, 6);
   return _sharedHitGeo;
 }
 
@@ -822,7 +822,7 @@ class AircraftObject {
     } else {
       // Fallback: small procedural cone until GLB loads
       this.bodyMat = new THREE.MeshPhongMaterial({
-        color, emissive: color, emissiveIntensity: 0.6,
+        color, emissive: color, emissiveIntensity: 0.4,
         transparent: true, opacity: 0,
       });
       this.bodyMesh = new THREE.Mesh(getFallbackGeometry(), this.bodyMat);
@@ -1205,12 +1205,12 @@ class AircraftObject {
         // emissive at full color but lower intensity for subtle glow
         m.material.color.setRGB(color.r * 0.7, color.g * 0.7, color.b * 0.7);
         m.material.emissive.copy(color);
-        m.material.emissiveIntensity = 0.6;
+        m.material.emissiveIntensity = 0.4;
       }
     } else if (this.bodyMat) {
       this.bodyMat.color.setRGB(color.r * 0.7, color.g * 0.7, color.b * 0.7);
       this.bodyMat.emissive.copy(color);
-      this.bodyMat.emissiveIntensity = 0.6;
+      this.bodyMat.emissiveIntensity = 0.4;
     }
   }
 
@@ -1656,7 +1656,7 @@ class AircraftObject {
       this.trailLineMat.opacity = this.masterOpacity * 0.85 * (this._trailOpacityMult || 1.0);
       this.dropMaterial.opacity = this.masterOpacity * 0.15;
       if (this._gapLine) this._gapLine.material.opacity = this.masterOpacity * 0.3;
-      for (const nl of this._navLights) nl.material.opacity = this.masterOpacity * 0.8;
+      for (const nl of this._navLights) nl.material.opacity = this.masterOpacity * 0.55;
     }
 
     // Tail strobe — Boeing: single flash, Airbus: double flash

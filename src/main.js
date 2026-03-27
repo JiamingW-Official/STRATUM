@@ -430,11 +430,19 @@ const pointer = new THREE.Vector2();
 const _hoverPointer = new THREE.Vector2();
 let _lastHoverTime = 0;
 
+// UI panels that should block aircraft hover tooltips
+const _uiPanelSelectors = '.detail-panel:not(.hidden), #hud, .search-bar, .help-panel:not(.hidden), .city-overlay:not(.hidden), .filter-panel:not(.hidden), .radio-panel:not(.hidden), .airline-deep.show, .fab-toolbar';
 canvas.addEventListener('pointermove', (e) => {
   if (e.buttons > 0) resetIdleTimer();
   const now = performance.now();
-  if (now - _lastHoverTime < 32) return; // ~30fps hover polling (saves CPU)
+  if (now - _lastHoverTime < 32) return;
   _lastHoverTime = now;
+
+  // Hide tooltip when mouse is over any UI panel
+  const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+  if (elUnder && elUnder !== canvas && elUnder.closest(_uiPanelSelectors)) {
+    hideAircraftTooltip(); canvas.style.cursor = ''; return;
+  }
 
   if (!aircraftManager) { hideAircraftTooltip(); return; }
 
