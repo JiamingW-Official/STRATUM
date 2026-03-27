@@ -1096,6 +1096,28 @@ document.getElementById('aw-close')?.addEventListener('click', () => {
   }
 });
 
+/** Build the set of aircraft related to an airport (for filtering) */
+function _buildAirportRelatedSet(aptCodes, airport) {
+  const relatedSet = new Set();
+  // Route data match: origin or destination = this airport
+  for (const [, ac] of aircraftManager.aircraft) {
+    const rc = ac.getRouteCodes();
+    const orig = (rc.origin || '').toUpperCase();
+    const dest = (rc.destination || '').toUpperCase();
+    if (aptCodes.has(orig) || aptCodes.has(dest)) {
+      relatedSet.add(ac.data.icao24);
+    }
+  }
+  // Geometry: only aircraft < 5km (on this airport's runways/taxiways)
+  for (const ac of lastRawData) {
+    if (ac.latitude == null || ac.longitude == null) continue;
+    if (haversineDistance(ac.latitude, ac.longitude, airport.lat, airport.lon) < 5) {
+      relatedSet.add(ac.icao24);
+    }
+  }
+  return relatedSet;
+}
+
 function handleAirportClick(airport) {
   const data = getAirportData();
   if (!data) return;
@@ -1121,27 +1143,7 @@ function handleAirportClick(airport) {
   selectAirport(scene, airport);
 
   const aptCodes = new Set([airport.iata, airport.icao].filter(Boolean).map(c => c.toUpperCase()));
-  const relatedSet = new Set();
-
-  // Primary: route data match — most accurate, no geographic ambiguity
-  for (const [, ac] of aircraftManager.aircraft) {
-    const dd = ac.getDisplayData();
-    const orig = (dd.origin || '').toUpperCase();
-    const dest = (dd.destination || '').toUpperCase();
-    if (aptCodes.has(orig) || aptCodes.has(dest)) {
-      relatedSet.add(ac.data.icao24);
-    }
-  }
-
-  // Secondary: geometry match ONLY for very close aircraft (< 5km, Zone A)
-  // This catches aircraft without route data that are clearly on this airport
-  for (const ac of lastRawData) {
-    if (ac.latitude == null || ac.longitude == null) continue;
-    const dist = haversineDistance(ac.latitude, ac.longitude, airport.lat, airport.lon);
-    if (dist < 5) { // < 5km — definitely this airport, not a nearby one
-      relatedSet.add(ac.icao24);
-    }
-  }
+  const relatedSet = _buildAirportRelatedSet(aptCodes, airport);
 
   // Filter: hide all unrelated aircraft
   aircraftManager.setFilter(relatedSet);
@@ -1238,20 +1240,7 @@ function handleData(dataList) {
     // Re-evaluate airport filter with fresh data
     if (selectedAirportState) {
       const _aptCodes = new Set([selectedAirportState.iata, selectedAirportState.icao].filter(Boolean).map(c => c.toUpperCase()));
-      const _relSet = new Set();
-      // Route-based matching
-      for (const [, ac] of aircraftManager.aircraft) {
-        const dd = ac.getDisplayData();
-        if (_aptCodes.has((dd.origin || '').toUpperCase()) || _aptCodes.has((dd.destination || '').toUpperCase())) {
-          _relSet.add(ac.data.icao24);
-        }
-      }
-      // Very close geometry (< 5km)
-      for (const ac of dataList) {
-        if (ac.latitude == null || ac.longitude == null) continue;
-        const d = haversineDistance(ac.latitude, ac.longitude, selectedAirportState.lat, selectedAirportState.lon);
-        if (d < 5) _relSet.add(ac.icao24);
-      }
+      const _relSet = _buildAirportRelatedSet(_aptCodes, selectedAirportState);
       aircraftManager.setFilter(_relSet);
       aircraftManager.setHighlight(_relSet);
     }

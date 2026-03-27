@@ -1776,6 +1776,14 @@ class AircraftObject {
     }
   }
 
+  /** Lightweight origin/destination lookup for filtering — no expensive computations */
+  getRouteCodes() {
+    const route = getRoute(this.data.callsign);
+    const origin = this.data.origin || route?.origin || null;
+    const dest = this.data.destination || route?.destination || null;
+    return { origin, destination: dest };
+  }
+
   getDisplayData() {
     const altFt = this.data.baroAltitude != null
       ? Math.round(this.data.baroAltitude * METERS_TO_FEET) : null;
