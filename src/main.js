@@ -793,7 +793,19 @@ canvas.addEventListener('click', (e) => {
       aptDist = aptIntersects[0].distance;
     }
 
-    // Aircraft always wins — user explicitly clicked on a moving target
+    // If both aircraft and airport are hit, pick based on distance.
+    // Airport wins if it's closer or very close (within 20% of aircraft distance).
+    if (ac && airport) {
+      if (aptDist < acDist * 0.8) {
+        closeDetail();
+        handleAirportClick(airport);
+        return;
+      }
+      if (shift) { toggleComparison(ac); return; }
+      handleAircraftSelect(ac);
+      return;
+    }
+
     if (ac) {
       if (shift) { toggleComparison(ac); return; }
       handleAircraftSelect(ac);

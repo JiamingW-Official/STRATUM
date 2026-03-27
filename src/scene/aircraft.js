@@ -1631,8 +1631,8 @@ class AircraftObject {
       if (this.fadeProgress <= 0) { this.removed = true; return; }
     }
 
-    // Filter opacity — smooth transition to dimmed state
-    const filterTarget = (filterSet && !filterSet.has(this.data.icao24)) ? 0.06 : 1;
+    // Filter opacity — smooth transition to nearly invisible for unrelated aircraft
+    const filterTarget = (filterSet && !filterSet.has(this.data.icao24)) ? 0.02 : 1;
     if (this._filterOpacity === undefined) this._filterOpacity = 1;
     this._filterOpacity += (filterTarget - this._filterOpacity) * Math.min(delta * 4, 0.5);
     if (Math.abs(this._filterOpacity - filterTarget) < 0.005) this._filterOpacity = filterTarget;
