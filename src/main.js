@@ -1120,15 +1120,10 @@ function handleAirportClick(airport) {
   selectedAirportState = airport;
   selectAirport(scene, airport);
 
-  const { arrivals, departures } = categorizeFlights(lastRawData, airport, data.runways);
   const aptCodes = new Set([airport.iata, airport.icao].filter(Boolean).map(c => c.toUpperCase()));
+  const relatedSet = new Set();
 
-  // Include: aircraft in approach/departure geometry + aircraft with matching route origin/destination
-  const relatedSet = new Set([
-    ...arrivals.map(ac => ac.icao24),
-    ...departures.map(ac => ac.icao24),
-  ]);
-  // Also match by route data (origin or destination matches this airport)
+  // Primary: route data match — most accurate, no geographic ambiguity
   for (const [, ac] of aircraftManager.aircraft) {
     const dd = ac.getDisplayData();
     const orig = (dd.origin || '').toUpperCase();
@@ -1138,7 +1133,17 @@ function handleAirportClick(airport) {
     }
   }
 
-  // Filter: dim unrelated aircraft to near-invisible
+  // Secondary: geometry match ONLY for very close aircraft (< 5km, Zone A)
+  // This catches aircraft without route data that are clearly on this airport
+  for (const ac of lastRawData) {
+    if (ac.latitude == null || ac.longitude == null) continue;
+    const dist = haversineDistance(ac.latitude, ac.longitude, airport.lat, airport.lon);
+    if (dist < 5) { // < 5km — definitely this airport, not a nearby one
+      relatedSet.add(ac.icao24);
+    }
+  }
+
+  // Filter: hide all unrelated aircraft
   aircraftManager.setFilter(relatedSet);
   if (relatedSet.size > 0) {
     aircraftManager.setHighlight(relatedSet);
@@ -1230,20 +1235,25 @@ function handleData(dataList) {
       refreshDetail(aircraftManager, lat, lon);
     }
 
-    // Re-evaluate airport filter with fresh data (new arrivals/departures)
-    const _aptData = selectedAirportState ? getAirportData() : null;
-    if (selectedAirportState && _aptData) {
-      const { arrivals, departures } = categorizeFlights(dataList, selectedAirportState, _aptData.runways);
-      const aptCodes = new Set([selectedAirportState.iata, selectedAirportState.icao].filter(Boolean).map(c => c.toUpperCase()));
-      const relatedSet = new Set([...arrivals.map(ac => ac.icao24), ...departures.map(ac => ac.icao24)]);
+    // Re-evaluate airport filter with fresh data
+    if (selectedAirportState) {
+      const _aptCodes = new Set([selectedAirportState.iata, selectedAirportState.icao].filter(Boolean).map(c => c.toUpperCase()));
+      const _relSet = new Set();
+      // Route-based matching
       for (const [, ac] of aircraftManager.aircraft) {
         const dd = ac.getDisplayData();
-        if (aptCodes.has((dd.origin || '').toUpperCase()) || aptCodes.has((dd.destination || '').toUpperCase())) {
-          relatedSet.add(ac.data.icao24);
+        if (_aptCodes.has((dd.origin || '').toUpperCase()) || _aptCodes.has((dd.destination || '').toUpperCase())) {
+          _relSet.add(ac.data.icao24);
         }
       }
-      aircraftManager.setFilter(relatedSet);
-      aircraftManager.setHighlight(relatedSet);
+      // Very close geometry (< 5km)
+      for (const ac of dataList) {
+        if (ac.latitude == null || ac.longitude == null) continue;
+        const d = haversineDistance(ac.latitude, ac.longitude, selectedAirportState.lat, selectedAirportState.lon);
+        if (d < 5) _relSet.add(ac.icao24);
+      }
+      aircraftManager.setFilter(_relSet);
+      aircraftManager.setHighlight(_relSet);
     }
 
     // Hidden: milestone celebration when aircraft count hits round numbers
