@@ -10291,6 +10291,9 @@ class GlobeView {
           const y = cy - R * (cosP0 * sinPhi - sinP0 * cosPhi * dlc);
           const d = Math.max(0.15, cosc);
           const isCoast = this._coastGrid[gi];
+          // Subdivision fills the interior; the coast must stay one dot per
+          // cell or it thickens into a band as the cell splits into a block.
+          if (isCoast && sub > 1 && (rf !== r || cf !== c)) continue;
 
           // Write pixels directly to ImageData — much faster than fillRect
           const sz = isCoast
@@ -10308,12 +10311,14 @@ class GlobeView {
                 : step === 3
                   ? 2
                   : 2;
+          // Interior lifted from the original 0.32/0.06: at that level the land
+          // barely separated from the ocean and the globe read as coastline only.
           const alpha = isCoast
             ? Math.round((0.55 * d + 0.2) * 255)
-            : Math.round((0.32 * d + 0.06) * 255);
-          const rr = isCoast ? 50 : 22;
-          const gg = isCoast ? 135 : 72;
-          const bb = isCoast ? 72 : 40;
+            : Math.round((0.5 * d + 0.16) * 255);
+          const rr = isCoast ? 50 : 30;
+          const gg = isCoast ? 135 : 92;
+          const bb = isCoast ? 72 : 54;
           const px0 = Math.round(x - sz / 2);
           const py0 = Math.round(y - sz / 2);
           for (let dy = 0; dy < sz; dy++) {
