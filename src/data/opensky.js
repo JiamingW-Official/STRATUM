@@ -197,11 +197,12 @@ async function _doFetch(url, pauseRef, label) {
       throw new Error(`${label} 429`);
     }
     if (!r.ok) {
-      // A source that hard-blocks us (403 on every request) is not going to
-      // recover within a poll or two; retrying it each cycle just burns a
-      // connection. 429 above keeps its own, longer pause.
-      if (r.status === 401 || r.status === 403)
-        pauseRef.v = Date.now() + 600000;
+      // Back off a source that is refusing us, but only briefly. These requests
+      // pass through our own proxy, so a 403 often means the proxy hop was
+      // blocked rather than the source rejecting this user permanently — and a
+      // ten-minute park meant one bad response silently removed the last working
+      // fallback for the rest of the session. 429 above keeps its longer pause.
+      if (r.status === 401 || r.status === 403) pauseRef.v = Date.now() + 60000;
       throw new Error(`${label} HTTP ${r.status}`);
     }
     return parseAdsbResponse(await r.json());

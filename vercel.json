@@ -3,7 +3,7 @@
     { "source": "/api/adsbfi/:path*",  "destination": "https://opendata.adsb.fi/:path*" },
     { "source": "/api/adsboe/:path*",  "destination": "https://api.adsb.one/:path*" },
     { "source": "/api/adsbx/:path*",  "destination": "https://api.airplanes.live/:path*" },
-    { "source": "/api/trace/:path*",  "destination": "https://globe.airplanes.live/:path*" },
+    { "source": "/api/trace/:path*",  "destination": "https://stratum.jiamingwofficial.workers.dev/api/trace/:path*" },
     { "source": "/api/hexdb/:path*",  "destination": "https://hexdb.io/:path*" },
     { "source": "/api/opensky/:path*", "destination": "https://opensky-network.org/:path*" },
     { "source": "/api/ovp-de/:path*", "destination": "https://overpass-api.de/:path*" },
