@@ -10242,22 +10242,49 @@ class GlobeView {
       const W = this._landW,
         H = this._landH;
       const step = R < 100 ? 4 : R < 160 ? 3 : R < 240 ? 2 : 1;
+      // The land is a stipple of small dots, one per 0.5-degree cell. Zoomed in,
+      // a cell spans R * 0.5deg pixels on screen and the dots drift apart until
+      // continents look hollow. Subdividing each cell keeps dots ~2px apart at
+      // any zoom; at the default zoom `sub` is 1 and this is the original loop.
+      const sub =
+        step > 1
+          ? 1
+          : Math.max(1, Math.min(4, Math.round((R * 0.00872665) / 2.2)));
+      const inc = step / sub;
       const D = Math.PI / 180;
       const sinP0 = Math.sin(viewLat * D);
       const cosP0 = Math.cos(viewLat * D);
       const vl = viewLon * D;
+      const cosVl = Math.cos(vl);
+      const sinVl = Math.sin(vl);
 
-      for (let r = 0; r < H; r += step) {
-        const sinPhi = this._sinLat[r];
-        const cosPhi = this._cosLat[r];
-        for (let c = 0; c < W; c += step) {
+      for (let rf = 0; rf < H; rf += inc) {
+        const r = rf | 0;
+        let sinPhi, cosPhi;
+        if (sub === 1) {
+          sinPhi = this._sinLat[r];
+          cosPhi = this._cosLat[r];
+        } else {
+          const lat = (-85 + rf * 0.5) * D;
+          sinPhi = Math.sin(lat);
+          cosPhi = Math.cos(lat);
+        }
+        for (let cf = 0; cf < W; cf += inc) {
+          const c = cf | 0;
           const gi = r * W + c;
           if (!this._landGrid[gi]) continue;
+          let sinLon, cosLon;
+          if (sub === 1) {
+            sinLon = this._sinLon[c];
+            cosLon = this._cosLon[c];
+          } else {
+            const lon = (-180 + cf * 0.5) * D;
+            sinLon = Math.sin(lon);
+            cosLon = Math.cos(lon);
+          }
           // Inline projection — no object allocation
-          const dl =
-            this._sinLon[c] * Math.cos(vl) - this._cosLon[c] * Math.sin(vl);
-          const dlc =
-            this._cosLon[c] * Math.cos(vl) + this._sinLon[c] * Math.sin(vl);
+          const dl = sinLon * cosVl - cosLon * sinVl;
+          const dlc = cosLon * cosVl + sinLon * sinVl;
           const cosc = sinP0 * sinPhi + cosP0 * cosPhi * dlc;
           if (cosc < 0) continue; // not visible
           const x = cx + R * cosPhi * dl;
@@ -10265,22 +10292,28 @@ class GlobeView {
           const d = Math.max(0.15, cosc);
           const isCoast = this._coastGrid[gi];
 
-          // Each grid cell must paint a square as wide as the cell's own
-          // footprint on screen, or the land breaks up into isolated pixels as
-          // the globe is zoomed — the old fixed 1-3px squares left continents
-          // looking hollow, just an outline with a scatter of airport dots
-          // inside. A 0.5-degree cell spans R * 0.5deg pixels; step widens it.
-          const cellPx = R * 0.00872665 * step; // 0.5deg in radians * R
-          const sz = Math.max(1, Math.ceil(cellPx * (isCoast ? 1.15 : 1.05)));
-          // Muted slate-teal, not a saturated green: land should read as ground
-          // under the amber airport dots, not compete with them. Lower alpha
-          // also softens the 0.5-degree grid's stair-steps at high zoom.
+          // Write pixels directly to ImageData — much faster than fillRect
+          const sz = isCoast
+            ? step <= 1
+              ? 1
+              : step === 2
+                ? 2
+                : step === 3
+                  ? 2
+                  : 3
+            : step <= 1
+              ? 1
+              : step === 2
+                ? 1
+                : step === 3
+                  ? 2
+                  : 2;
           const alpha = isCoast
-            ? Math.round((0.42 * d + 0.18) * 255)
-            : Math.round((0.3 * d + 0.13) * 255);
-          const rr = isCoast ? 62 : 38;
-          const gg = isCoast ? 122 : 82;
-          const bb = isCoast ? 108 : 78;
+            ? Math.round((0.55 * d + 0.2) * 255)
+            : Math.round((0.32 * d + 0.06) * 255);
+          const rr = isCoast ? 50 : 22;
+          const gg = isCoast ? 135 : 72;
+          const bb = isCoast ? 72 : 40;
           const px0 = Math.round(x - sz / 2);
           const py0 = Math.round(y - sz / 2);
           for (let dy = 0; dy < sz; dy++) {
