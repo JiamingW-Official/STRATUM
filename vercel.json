@@ -11,6 +11,17 @@
     { "source": "/api/ovp-ru/:path*", "destination": "https://maps.mail.ru/osm/tools/overpass/:path*" },
     { "source": "/api/adsbdb/:path*", "destination": "https://api.adsbdb.com/:path*" },
     { "source": "/api/fir/:path*", "destination": "https://raw.githubusercontent.com/maiuswong/simaware-express/main/public/livedata/:path*" },
-    { "source": "/api/navaids/:path*", "destination": "https://davidmegginson.github.io/:path*" }
+    { "source": "/api/navaids/:path*", "destination": "https://davidmegginson.github.io/:path*" },
+
+    { "source": "/api/boot", "destination": "https://stratum.jiamingwofficial.workers.dev/api/boot" },
+    { "source": "/api/positions", "destination": "https://stratum.jiamingwofficial.workers.dev/api/positions" },
+    { "source": "/api/enrich", "destination": "https://stratum.jiamingwofficial.workers.dev/api/enrich" },
+    { "source": "/api/routes", "destination": "https://stratum.jiamingwofficial.workers.dev/api/routes" },
+    { "source": "/api/weather", "destination": "https://stratum.jiamingwofficial.workers.dev/api/weather" },
+    { "source": "/api/atlas", "destination": "https://stratum.jiamingwofficial.workers.dev/api/atlas" },
+    { "source": "/api/airports", "destination": "https://stratum.jiamingwofficial.workers.dev/api/airports" },
+    { "source": "/api/airports/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/api/airports/:path*" },
+    { "source": "/api/liveatc", "destination": "https://stratum.jiamingwofficial.workers.dev/api/liveatc" },
+    { "source": "/api/liveatc/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/api/liveatc/:path*" }
   ]
 }
