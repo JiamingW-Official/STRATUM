@@ -111,9 +111,56 @@ function addPerfHeaders(response) {
   return response;
 }
 
+// The airport parser reads only el.type/lat/lon/bounds/geometry and nine tags;
+// everything else Overpass returns is carried across the wire and stored in KV
+// for nothing. Pruning here halves the payload (1.43MB -> 719KB for Austin, and
+// 230KB -> 104KB gzipped) and shrinks every cache entry by the same amount.
+// Coordinates keep 5 decimals, about a metre — far finer than anything drawn.
+const AEROWAY_TAGS = new Set([
+  "aeroway", "iata", "icao", "icao:code",
+  "name", "ref", "surface", "width", "building",
+]);
+
+function pruneOverpass(bodyText) {
+  let data;
+  try {
+    data = JSON.parse(bodyText);
+  } catch {
+    return bodyText; // not JSON we understand — pass through untouched
+  }
+  if (!Array.isArray(data.elements)) return bodyText;
+
+  const r5 = (n) => Math.round(n * 1e5) / 1e5;
+  const elements = data.elements.map((el) => {
+    const out = { type: el.type };
+    if (typeof el.lat === "number") out.lat = r5(el.lat);
+    if (typeof el.lon === "number") out.lon = r5(el.lon);
+    if (el.bounds) {
+      out.bounds = {
+        minlat: r5(el.bounds.minlat), minlon: r5(el.bounds.minlon),
+        maxlat: r5(el.bounds.maxlat), maxlon: r5(el.bounds.maxlon),
+      };
+    }
+    if (Array.isArray(el.geometry)) {
+      out.geometry = el.geometry
+        .filter(Boolean)
+        .map((pt) => ({ lat: r5(pt.lat), lon: r5(pt.lon) }));
+    }
+    if (el.tags) {
+      const tags = {};
+      for (const k of Object.keys(el.tags)) {
+        if (AEROWAY_TAGS.has(k)) tags[k] = el.tags[k];
+      }
+      if (Object.keys(tags).length) out.tags = tags;
+    }
+    return out;
+  });
+  return JSON.stringify({ elements });
+}
+
 // ── Smart Overpass endpoint: /api/airports?lat=X&lon=Y&r=1.2 ──
 // Cache hierarchy: PoP Cache API (instant same-DC) → KV (global, ~10ms) → Overpass (2-8s)
-async function handleAirports(url, env) {
+async function handleAirports(url, env, cacheOnly = false) {
   const lat = parseFloat(url.searchParams.get("lat"));
   const lon = parseFloat(url.searchParams.get("lon"));
   const r = parseFloat(url.searchParams.get("r")) || 1.2;
@@ -163,6 +210,17 @@ async function handleAirports(url, env) {
     }
   }
 
+  // Speculative callers stop here rather than paying for a cold fetch.
+  if (cacheOnly) {
+    return new Response("null", {
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "X-Cache": "SKIP",
+      },
+    });
+  }
+
   // 3. Overpass — cold fetch, race all 3 mirrors
   const south = (lat - r).toFixed(4);
   const north = (lat + r).toFixed(4);
@@ -171,37 +229,40 @@ async function handleAirports(url, env) {
   const query = `[out:json][timeout:15];(way["aeroway"="runway"](${south},${west},${north},${east});way["aeroway"="taxiway"](${south},${west},${north},${east});way["aeroway"="terminal"](${south},${west},${north},${east});node["aeroway"="aerodrome"](${south},${west},${north},${east});way["aeroway"="aerodrome"](${south},${west},${north},${east});relation["aeroway"="aerodrome"](${south},${west},${north},${east}););out body geom;`;
   const body = `data=${encodeURIComponent(query)}`;
 
-  const racePromises = OVERPASS_URLS.map((endpoint) => {
-    const ctrl = new AbortController();
-    // Overpass genuinely needs this long for a dense 2.4-degree box: measured
-    // 14-17s returning 0.7-1.6MB for Austin, San Diego and New Orleans. The old
-    // 12s abort turned those into 502s, so those airports never drew runways at
-    // all. One slow fetch is fine — the result is then KV-cached for 30 days.
-    const timer = setTimeout(() => ctrl.abort(), 25000);
-    return fetch(endpoint, {
-      method: "POST",
-      body,
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "STRATUM/1.0",
-        "Accept-Encoding": "gzip, br",
-      },
-      signal: ctrl.signal,
-    })
-      .then(async (res) => {
-        clearTimeout(timer);
+  // overpass-api.de reports "Rate limit: 2" — two concurrent slots per client IP.
+  // Racing every mirror on every request burned both slots for one answer and made
+  // the whole pool contend with itself, which is what turned cold airports into
+  // 502s. Try mirrors in order and only fall through when one actually fails.
+  async function askOverpass() {
+    let lastErr;
+    for (const endpoint of OVERPASS_URLS) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 25000);
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          body,
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "STRATUM/1.0",
+            "Accept-Encoding": "gzip, br",
+          },
+          signal: ctrl.signal,
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res;
-      })
-      .catch((err) => {
+      } catch (err) {
+        lastErr = err;
+      } finally {
         clearTimeout(timer);
-        throw err;
-      });
-  });
+      }
+    }
+    throw lastErr || new Error("all Overpass mirrors failed");
+  }
 
   try {
-    const upstream = await Promise.any(racePromises);
-    const responseBody = await upstream.text();
+    const upstream = await askOverpass();
+    const responseBody = pruneOverpass(await upstream.text());
 
     // Write to both PoP cache (24h) and KV (30 days) — airport geometry almost never changes
     const toCache = new Response(responseBody, {
@@ -278,6 +339,7 @@ async function handleAirportsBatch(url, env) {
           `https://cache.internal/api/airports?lat=${lat}&lon=${lon}&r=${r}`,
         ),
         env,
+        true, // cache-only: never let a speculative prefetch stall on Overpass
       ).then((res) => res.text()),
     ),
   );
@@ -1193,25 +1255,34 @@ export default {
     // a cold airport used to cost a 15s Overpass fetch on first visit, and this
     // walks the whole catalogue in a couple of hours without ever asking Overpass
     // for more than a handful of boxes at once.
-    const HOT = WARM_CITIES.map((c) => [c.lat, c.lon]);
-    const SLICE = 16;
+    const warm = ([lat, lon]) =>
+      handleBoot(
+        new URL(
+          `https://cache.internal/api/boot?lat=${lat}&lon=${lon}&r=100&ar=1.2`,
+        ),
+        env,
+      ).catch(() => null);
+
+    // The busiest airports refresh every run. These are almost always cache
+    // reads, so they can go wide.
+    await Promise.allSettled(WARM_CITIES.map((c) => warm([c.lat, c.lon])));
+
+    // The rest of the catalogue is walked a few at a time. overpass-api.de gives
+    // a client IP two concurrent slots, and every warm request leaves through the
+    // same relay address, so a wide fan-out here just makes the pool contend with
+    // itself — that contention was turning cold airports into 502s. Two at a time
+    // stays inside the budget and still walks all of them within a day, against a
+    // cache that holds for thirty.
+    const SLICE = 6;
     const cycle = Math.floor(Date.now() / 300000); // one step per 5-minute tick
     const start = (cycle * SLICE) % WARM_AIRPORTS.length;
-    const slice = [];
-    for (let i = 0; i < SLICE; i++) {
-      slice.push(WARM_AIRPORTS[(start + i) % WARM_AIRPORTS.length]);
+    for (let i = 0; i < SLICE; i += 2) {
+      const pair = [
+        WARM_AIRPORTS[(start + i) % WARM_AIRPORTS.length],
+        WARM_AIRPORTS[(start + i + 1) % WARM_AIRPORTS.length],
+      ];
+      await Promise.allSettled(pair.map(warm));
     }
-
-    await Promise.allSettled(
-      [...HOT, ...slice].map(([lat, lon]) =>
-        handleBoot(
-          new URL(
-            `https://cache.internal/api/boot?lat=${lat}&lon=${lon}&r=100&ar=1.2`,
-          ),
-          env,
-        ).catch(() => null),
-      ),
-    );
   },
 
   async fetch(request, env) {
