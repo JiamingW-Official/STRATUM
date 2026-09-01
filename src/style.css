@@ -2497,37 +2497,28 @@ html, body {
 /* One continuous 4x2 grid. Rows are separated by a hairline, columns by
    nothing — the values are set in a fixed-width face and align on their own. */
 .cdp-stats-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(3, 1fr);
   padding: 8px 18px; gap: 0; flex-shrink: 0;
-  border-top: 1px solid rgba(255,255,255,0.05);
-  column-gap: 8px;
+  border-top: 1px solid rgba(255,255,255,0.05); column-gap: 10px;
+  row-gap: 6px;
 }
 .cdp-stats-ext { padding-top: 8px; }
 .cdp-stats-ext .cdp-stat-val { font-size: var(--fs-body); color: rgba(var(--text-rgb), 0.6); }
 .cdp-stat {
   display: flex; flex-direction: column; align-items: flex-start;
   padding: 2px 6px 2px 0;
-  min-width: 0;
-  overflow: hidden;
+  min-width: 0; overflow: visible;
 }
 .cdp-stat-val {
   font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500;
-  color: rgba(var(--text-rgb), 0.85); white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+  color: rgba(var(--text-rgb), 0.85); white-space: nowrap; overflow: visible; text-overflow: clip;
 }
 .cdp-stat-lbl {
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0;
-  color: rgba(var(--accent-rgb), 0.4); text-transform: uppercase; margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+  color: rgba(var(--accent-rgb), 0.4); text-transform: uppercase; margin-top: 2px; white-space: nowrap; overflow: visible; text-overflow: clip;
 }
 
-.cdp-coord-row {
-  display: flex; align-items: center; gap: 8px;
+.cdp-coord-row { display: none; align-items: center; gap: 8px;
   padding: 6px 18px; flex-shrink: 0;
   border-top: 1px solid rgba(255,255,255,0.05);
 }
@@ -2554,7 +2545,7 @@ html, body {
   margin: 8px 18px 4px; padding: 0;
   font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.5;
   color: rgba(var(--text-rgb), 0.4);
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; flex-shrink: 0;
 }
 .cdp-desc.hidden { display: none; }
