@@ -640,54 +640,6 @@ html, body {
 .wake-modal-edu { font-family: var(--font-sans); font-size: var(--fs-label); color: rgba(255,255,255,0.45); line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; }
 
 /* C-2: Flight Phase Education Card */
-.phase-edu-card {
-  margin: 4px 16px 0; padding: 10px 16px 12px; background: none; border-radius: 0;
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  transition: max-height 0.4s var(--ease), opacity 0.4s var(--ease), margin 0.4s var(--ease);
-  border: none;
-  box-shadow: none;
-  font-family: var(--font-sans);
-  font-size: var(--fs-body);
-  color: var(--text-2);
-  line-height: 1.5;
-  border-top: 1px solid var(--hairline);
-}
-.phase-edu-card--visible { max-height: 120px; opacity: 1;
-  background: none;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  font-family: var(--font-sans);
-  font-size: var(--fs-body);
-  color: var(--text-2);
-  line-height: 1.5;
-}
-.phase-edu-card--hidden { max-height: 0; opacity: 0; margin-top: 0; margin-bottom: 0;
-  background: none;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  font-family: var(--font-sans);
-  font-size: var(--fs-body);
-  color: var(--text-2);
-  line-height: 1.5;
-}
-.phase-edu-title { font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 500; letter-spacing: var(--track-label); margin-bottom: 3px;
-  background: none;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-.phase-edu-text { font-family: var(--font-sans); font-size: var(--fs-body); color: var(--text-2); line-height: 1.5;
-  background: none;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-}
 
 /* C-4: Mach Education Strip */
 .mach-strip { padding: 6px 16px 8px; border-top: 1px solid rgba(255,255,255,0.04); }
@@ -3007,26 +2959,6 @@ html, body {
 
 /* Educational hover tooltip */
 .phase-node[data-edu] { cursor: help; }
-.phase-node[data-edu]::after {
-  content: attr(data-edu);
-  position: absolute; bottom: calc(100% + 10px); left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  width: 215px;
-  font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.6;
-  color: rgba(var(--text-rgb), 0.72);
-  background: rgba(5,7,13,0.97);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  backdrop-filter: blur(20px) saturate(1.2);
-  border: 1px solid rgba(var(--accent-rgb), 0.13);
-  border-radius: var(--r-sm); padding: 9px 11px;
-  pointer-events: none; opacity: 0;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  z-index: 50; white-space: normal; text-align: left;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.75);
-}
-.phase-node[data-edu]:hover::after {
-  opacity: 1; transform: translateX(-50%) translateY(0);
-}
 
 /* ── T2-04: Nearest airport distance ── */
 .detail-nearest-value {
@@ -4531,3 +4463,27 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* A dossier open in the top-right corner takes that corner; the challenge
    card yields the way the spotter card already does. */
 .detail-panel:not(.hidden) ~ .challenge-panel { opacity: 0; pointer-events: none; }
+
+/* Phase tooltip — a float, portalled to <body> so no panel can clip it. */
+#phase-tip {
+  position: fixed; z-index: 9999; width: 250px;
+  padding: 10px 12px;
+  background: var(--surface-float);
+  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float)) saturate(1.4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none; opacity: 0; transform: translateY(4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+#phase-tip.is-visible { opacity: 1; transform: translateY(0); }
+.phase-tip-title {
+  font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 500;
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 4px;
+}
+.phase-tip-text {
+  font-family: var(--font-sans); font-size: var(--fs-body);
+  color: var(--text-2); line-height: 1.5;
+}

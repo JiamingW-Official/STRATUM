@@ -523,8 +523,6 @@ let selectedAircraft = null;
 let _lastRenderedType = null; // skip SVG rebuild when type unchanged
 
 // C-2: Track last phase for education card transitions
-let _lastEduPhase = null;
-let _phaseEduTimer = null;
 
 // ── T3-03: Altitude profile chart (FR24-accurate) ──
 const altHistory = []; // {time, alt, speed, vs} entries — alt in feet
@@ -1590,10 +1588,11 @@ export function showDetail(aircraftObj, userLat, userLon) {
       PHASES.forEach((p, i) => {
         const state   = i < curIdx ? 'past' : i === curIdx ? 'active' : '';
         const eduText = (PHASE_EDU[p] ? PHASE_EDU[p].text : '').replace(/"/g, '&quot;');
-        parts.push(`<div class="phase-node ${state}"${eduText ? ` data-edu="${eduText}"` : ''}><div class="phase-dot"></div><span class="phase-lbl">${ABBR[p]}</span></div>`);
+        parts.push(`<div class="phase-node ${state}" data-phase="${p}"${eduText ? ` data-edu="${eduText}"` : ''}><div class="phase-dot"></div><span class="phase-lbl">${ABBR[p]}</span></div>`);
         if (i < PHASES.length - 1) parts.push(`<div class="phase-conn${i < curIdx ? ' past' : ''}"></div>`);
       });
       elPhaseTimeline.innerHTML = parts.join('');
+      _bindPhaseTip(elPhaseTimeline);
     } else {
       elPhaseTimeline.classList.add('hidden');
     }
@@ -1603,7 +1602,6 @@ export function showDetail(aircraftObj, userLat, userLon) {
   if (_oldArc) _oldArc.style.display = 'none';
 
   // C-2: Flight Phase Education Card — show when phase transitions
-  _checkPhaseEducationCard(d);
 
   // ── FLIGHT DATA — altitude uses best available (geo > baro) ──
   const bestAltFt = d._bestAltFt != null ? d._bestAltFt : (d._rawAlt != null ? Math.round(d._rawAlt * 3.28084) : null);
@@ -2239,9 +2237,7 @@ export function closeDetail() {
   _lastDeepIcao = '';
   if (elAirlineDeep) { elAirlineDeep.classList.remove('show'); }
   document.querySelector('.airline-deep-backdrop')?.classList.remove('show');
-  _lastEduPhase = null; // C-2: Reset so card shows again on next selection
   _lastRenderedType = null; // reset silhouette cache
-  if (_phaseEduTimer) { clearTimeout(_phaseEduTimer); _phaseEduTimer = null; }
   panel.classList.add('hidden');
   showDetailLoading(false);
   stopTrackedTimer();
@@ -2397,54 +2393,6 @@ function _showWakeModal(cat, type) {
       <div class="wake-modal-edu">Tip: Wake turbulence rolls toward the ground and drifts with the wind. Pilots can avoid it by flying slightly above the preceding aircraft's flight path and landing beyond their touchdown point.</div>
     </div>`;
   modal.classList.remove('hidden');
-}
-
-// ── C-2: Flight Phase Education Card ──
-// Slides in when flight phase transitions, auto-hides after 8s.
-const _PHASE_EDU_C2 = {
-  'ON GROUND': { title: 'TAXI', color: 'rgba(160,160,200,0.8)', text: 'Crew received ATC clearance and taxi instructions. Transponder set to Mode C. Passengers seated with seatbelts fastened. Wing walkers clear the gate.' },
-  'TAKEOFF':   { title: 'TAKEOFF', color: 'rgba(90,172,255,0.8)', text: 'TOGA (Takeoff/Go-Around) thrust applied. V1 = decision speed. VR = rotation. V2 = safety speed. Positive rate of climb confirmed — "Gear up!" Autopilot engaged after 1,000 ft AGL.' },
-  'INITIAL CLIMB': { title: 'INITIAL CLIMB', color: 'rgba(90,172,255,0.8)', text: 'Following SID (Standard Instrument Departure). Power reduced from TOGA to CLB thrust. Pitch ~15°. ATC assigns step climb clearances — altitude increases every few minutes.' },
-  'CLIMB':     { title: 'CLIMB', color: 'rgba(90,172,255,0.8)', text: 'Climbing at ~1,500–2,500 ft/min. LNAV/VNAV modes guide lateral and vertical path. VNAV calculates optimum step-climb altitudes for best fuel economy with jet stream routing.' },
-  'CRUISE':    { title: 'CRUISE', color: 'rgba(120,220,120,0.8)', text: 'Autopilot maintains heading and altitude. Mach hold above FL280 — speed expressed as fraction of sound speed. Pilots monitor fuel, weather ahead, and systems. Fuel burn most efficient here.' },
-  'EN ROUTE':  { title: 'EN ROUTE', color: 'rgba(120,220,120,0.8)', text: 'Cruising on filed flight plan route. ATC radar separation maintained at 5 nm lateral, 1,000 ft vertical (RVSM). FMC calculates fuel burn and optimum profile continuously.' },
-  'DESCENT':   { title: 'DESCENT', color: 'rgba(232,160,60,0.8)', text: 'Top of Descent (TOD) reached — throttles to idle. Descent follows STAR (Standard Terminal Arrival Route). Rule of thumb: 3 nm per 1,000 ft altitude to lose. Cabin crew preparing for landing.' },
-  'APPROACH':  { title: 'APPROACH', color: 'rgba(232,100,60,0.8)', text: 'ILS (Instrument Landing System) frequency tuned. Localizer and glideslope signals acquired. Gear down, flaps extending. Crew calling out checklist items. Decision altitude ~200 ft AGL for CAT I.' },
-  'LANDING':   { title: 'LANDING', color: 'rgba(180,90,220,0.8)', text: 'Flare initiated ~20 ft AGL. Thrust reversers deploy after main gear touch. Spoilers rise to dump lift. Brakes applied below 100 kts. Runway exit speed ~60 kts. Transponder switched to standby.' },
-};
-
-function _checkPhaseEducationCard(d) {
-  const panel = document.getElementById('detail-panel');
-  if (!panel) return;
-  const phase = d.flightPhase;
-  if (!phase || phase === _lastEduPhase) return;
-  _lastEduPhase = phase;
-
-  const edu = _PHASE_EDU_C2[phase];
-  if (!edu) return;
-
-  let card = document.getElementById('detail-phase-edu-card');
-  if (!card) {
-    card = document.createElement('div');
-    card.id = 'detail-phase-edu-card';
-    card.className = 'phase-edu-card';
-    const phaseTimeline = document.getElementById('detail-phase-timeline');
-    if (phaseTimeline && phaseTimeline.parentNode) {
-      phaseTimeline.parentNode.insertBefore(card, phaseTimeline.nextSibling);
-    } else {
-      panel.appendChild(card);
-    }
-  }
-
-  card.style.borderLeftColor = edu.color;
-  card.innerHTML = `<div class="phase-edu-title" style="color:${edu.color}">${edu.title}</div><div class="phase-edu-text">${edu.text}</div>`;
-  card.classList.remove('phase-edu-card--hidden');
-  card.classList.add('phase-edu-card--visible');
-
-  clearTimeout(_phaseEduTimer);
-  _phaseEduTimer = setTimeout(() => {
-    if (card) { card.classList.remove('phase-edu-card--visible'); card.classList.add('phase-edu-card--hidden'); }
-  }, 8000);
 }
 
 // ── C-4: Mach Number & Altitude Education Strip ──
@@ -2796,4 +2744,51 @@ function _renderWeatherStory(d, turb) {
   el.style.borderLeftColor = color;
   el.style.background = color.replace(/[\d.]+\)$/, '0.06)');
   el.innerHTML = `<div style="font-size:8.5px;color:rgba(255,255,255,0.45);line-height:1.5">${story}</div>`;
+}
+
+
+// ── Phase tooltip ──
+// Rendered on <body> with fixed positioning rather than as a ::after inside the
+// panel: the panel scrolls, so anything positioned inside it is clipped at its
+// edges and sits under later siblings. The user hovers a timeline node; the
+// tip appears above it, or below when there is no room, always top-most.
+let _phaseTipEl = null;
+function _phaseTip() {
+  if (_phaseTipEl) return _phaseTipEl;
+  _phaseTipEl = document.createElement('div');
+  _phaseTipEl.id = 'phase-tip';
+  _phaseTipEl.setAttribute('role', 'tooltip');
+  _phaseTipEl.innerHTML = '<div class="phase-tip-title"></div><div class="phase-tip-text"></div>';
+  document.body.appendChild(_phaseTipEl);
+  window.addEventListener('scroll', _hidePhaseTip, true);
+  return _phaseTipEl;
+}
+function _hidePhaseTip() {
+  if (_phaseTipEl) _phaseTipEl.classList.remove('is-visible');
+}
+function _showPhaseTip(node) {
+  const tip = _phaseTip();
+  tip.querySelector('.phase-tip-title').textContent = node.dataset.phase || '';
+  tip.querySelector('.phase-tip-text').textContent = node.dataset.edu || '';
+  tip.classList.add('is-visible');
+  const r = node.getBoundingClientRect();
+  const w = tip.offsetWidth, h = tip.offsetHeight, gap = 10, pad = 12;
+  let left = r.left + r.width / 2 - w / 2;
+  left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
+  let top = r.top - h - gap;
+  if (top < pad) top = r.bottom + gap;   // no room above: flip below
+  tip.style.left = `${Math.round(left)}px`;
+  tip.style.top = `${Math.round(top)}px`;
+}
+function _bindPhaseTip(container) {
+  if (container.dataset.tipBound) return;
+  container.dataset.tipBound = '1';
+  container.addEventListener('mouseover', (e) => {
+    const node = e.target.closest('.phase-node[data-edu]');
+    if (node) _showPhaseTip(node);
+  });
+  container.addEventListener('mouseout', (e) => {
+    const node = e.target.closest('.phase-node[data-edu]');
+    if (node && !node.contains(e.relatedTarget)) _hidePhaseTip();
+  });
 }
