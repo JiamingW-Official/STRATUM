@@ -73,7 +73,27 @@ const EXTRA_HEADERS = {
   "/api/trace": { Referer: "https://globe.airplanes.live/" },
 };
 
-const apiProxy = {};
+// index.html loads type from /fonts/css/…, which the Worker proxies to Google
+// Fonts in production. Dev had no route for it, so the request fell through to
+// the SPA index.html and no font ever loaded — every local screenshot was
+// rendering system fallbacks. Proxy the CSS here; the stylesheet it returns
+// references fonts.gstatic.com directly, which the browser can reach itself.
+const fontProxy = {
+  "/fonts/css": {
+    target: "https://fonts.googleapis.com",
+    changeOrigin: true,
+    agent: proxyAgent,
+    rewrite: (path) => path.replace(/^\/fonts\/css/, ""),
+  },
+  "/fonts/file": {
+    target: "https://fonts.gstatic.com",
+    changeOrigin: true,
+    agent: proxyAgent,
+    rewrite: (path) => path.replace(/^\/fonts\/file/, ""),
+  },
+};
+
+const apiProxy = { ...fontProxy };
 for (const [prefix, target] of Object.entries(PASSTHROUGH)) {
   apiProxy[prefix] = {
     target,

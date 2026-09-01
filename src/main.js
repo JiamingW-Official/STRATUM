@@ -1480,14 +1480,14 @@ function _renderWindAdvisor(airport, container) {
             ? "rgba(200,180,90,0.8)"
             : "rgba(220,90,90,0.8)";
       const mark = isBest
-        ? '<span style="color:rgba(90,200,90,0.9)">✓</span>'
-        : '<span style="color:rgba(255,255,255,0.12)">·</span>';
+        ? '<span class="aw-wind-mark aw-wind-mark--ok">✓</span>'
+        : '<span class="aw-wind-mark">·</span>';
       const hwLabel = `${Math.round(Math.abs(s.headwind))}kt HW`;
-      return `<div style="display:flex;align-items:center;gap:6px;padding:1px 0;font-size:9px;font-family:var(--font-mono)">
-      <span style="width:10px;text-align:center">${mark}</span>
-      <span style="width:28px;color:rgba(255,255,255,0.85);font-weight:600">${s.ref}</span>
-      <span style="width:44px;color:${hwColor}">${hwLabel}</span>
-      <span style="color:${xwColor}">${Math.round(s.crosswind)}kt XW</span>
+      return `<div class="aw-wind-row">
+      <span class="aw-wind-cell aw-wind-cell--mark">${mark}</span>
+      <span class="aw-wind-cell aw-wind-cell--ref">${s.ref}</span>
+      <span class="aw-wind-cell aw-wind-cell--hw" style="color:${hwColor}">${hwLabel}</span>
+      <span class="aw-wind-cell" style="color:${xwColor}">${Math.round(s.crosswind)}kt XW</span>
     </div>`;
     })
     .join("");
@@ -1507,20 +1507,20 @@ function _renderWindAdvisor(airport, container) {
     by = (12 - Math.sin(rad) * 8).toFixed(1);
 
   el.innerHTML = `
-    <div style="font-size:7px;color:rgba(196,160,88,0.45);letter-spacing:1px;margin-bottom:4px">WIND ADVISOR</div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+    <div class="aw-wind-title">Wind advisor</div>
+    <div class="aw-wind-head">
       <svg viewBox="0 0 24 24" width="22" height="22" style="flex-shrink:0">
         <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="0.8"/>
         <line x1="${bx}" y1="${by}" x2="${ax}" y2="${ay}" stroke="rgba(90,160,255,0.75)" stroke-width="2" stroke-linecap="round"/>
         <circle cx="${ax}" cy="${ay}" r="2.5" fill="rgba(90,160,255,0.9)"/>
       </svg>
       <div>
-        <div style="font-size:9px;color:rgba(255,255,255,0.8);letter-spacing:0.5px">${Math.round(windDir)}° ${windCard} · ${Math.round(windSpd)}kt</div>
-        <div style="font-size:8px;color:rgba(255,255,255,0.3)">surface wind</div>
+        <div class="aw-wind-val">${Math.round(windDir)}° ${windCard} · ${Math.round(windSpd)}kt</div>
+        <div class="aw-wind-sub">surface wind</div>
       </div>
     </div>
     ${rows}
-    <div style="font-size:8px;color:rgba(255,255,255,0.3);margin-top:5px;line-height:1.4">${edu}</div>
+    <div class="aw-wind-edu">${edu}</div>
   `;
 }
 

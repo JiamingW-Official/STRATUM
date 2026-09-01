@@ -16,7 +16,11 @@
   <link rel="dns-prefetch" href="https://opendata.adsb.fi" />
   <link rel="dns-prefetch" href="https://globe.airplanes.live" />
   <link rel="dns-prefetch" href="https://api.adsbdb.com" />
-  <link href="/fonts/css/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <!-- Three roles, three faces: Bricolage for the few large identifiers (brand,
+       airport codes, callsigns), Instrument Sans for prose, JetBrains Mono for
+       data values only. Inter was the ambient face before — the most recognisable
+       tell of generated UI — and mono was doing prose duty it is not built for. -->
+  <link href="/fonts/css/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" fetchpriority="high" />
   <!-- Speculative boot fetch — one Worker request returns positions+airports+weather
        before JS bundle even parses (~300-500ms head start, 1 HTTP request instead of 2) -->
