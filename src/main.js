@@ -9913,7 +9913,7 @@ class GlobeView {
           const tier = this._dotSizes ? this._dotSizes[i] : 0;
           if (tier === 2) {
             // MEGA HUB — wide atmosphere bloom + bright core + outer ring
-            const coreR = 3.5 + zoom * 0.5;
+            const coreR = 2.4 + zoom * 0.3;
             // Wide soft bloom
             ctx.beginPath();
             ctx.arc(p.x, p.y, coreR + 7, 0, Math.PI * 2);
@@ -9951,7 +9951,7 @@ class GlobeView {
             }
           } else if (tier === 1) {
             // MAJOR — core + mid glow + ring
-            const coreR = 2.4 + zoom * 0.35;
+            const coreR = 1.7 + zoom * 0.22;
             ctx.beginPath();
             ctx.arc(p.x, p.y, coreR + 3, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(210,175,90,${0.1 * d})`;
@@ -9980,7 +9980,7 @@ class GlobeView {
             }
           } else {
             // REGIONAL — dot with soft halo
-            const coreR = 1.8 + zoom * 0.3;
+            const coreR = 1.2 + zoom * 0.18;
             ctx.beginPath();
             ctx.arc(p.x, p.y, coreR + 2, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(200,175,110,${0.12 * d})`;
@@ -10007,7 +10007,7 @@ class GlobeView {
         } else {
           // Unmatched — denser star-field: brighter, larger dots
           const hash = (i * 7 + 3) % 4;
-          const r = hash === 0 ? 0.8 : hash === 1 ? 1.1 : 1.3;
+          const r = hash === 0 ? 0.6 : hash === 1 ? 0.8 : 1.0;
           const a = hash === 0 ? 0.22 * d + 0.06 : 0.35 * d + 0.08;
           ctx.beginPath();
           ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
@@ -10265,28 +10265,22 @@ class GlobeView {
           const d = Math.max(0.15, cosc);
           const isCoast = this._coastGrid[gi];
 
-          // Write pixels directly to ImageData — much faster than fillRect
-          const sz = isCoast
-            ? step <= 1
-              ? 1
-              : step === 2
-                ? 2
-                : step === 3
-                  ? 2
-                  : 3
-            : step <= 1
-              ? 1
-              : step === 2
-                ? 1
-                : step === 3
-                  ? 2
-                  : 2;
+          // Each grid cell must paint a square as wide as the cell's own
+          // footprint on screen, or the land breaks up into isolated pixels as
+          // the globe is zoomed — the old fixed 1-3px squares left continents
+          // looking hollow, just an outline with a scatter of airport dots
+          // inside. A 0.5-degree cell spans R * 0.5deg pixels; step widens it.
+          const cellPx = R * 0.00872665 * step; // 0.5deg in radians * R
+          const sz = Math.max(1, Math.ceil(cellPx * (isCoast ? 1.15 : 1.05)));
+          // Muted slate-teal, not a saturated green: land should read as ground
+          // under the amber airport dots, not compete with them. Lower alpha
+          // also softens the 0.5-degree grid's stair-steps at high zoom.
           const alpha = isCoast
-            ? Math.round((0.55 * d + 0.2) * 255)
-            : Math.round((0.32 * d + 0.06) * 255);
-          const rr = isCoast ? 50 : 22;
-          const gg = isCoast ? 135 : 72;
-          const bb = isCoast ? 72 : 40;
+            ? Math.round((0.42 * d + 0.18) * 255)
+            : Math.round((0.3 * d + 0.13) * 255);
+          const rr = isCoast ? 62 : 38;
+          const gg = isCoast ? 122 : 82;
+          const bb = isCoast ? 108 : 78;
           const px0 = Math.round(x - sz / 2);
           const py0 = Math.round(y - sz / 2);
           for (let dy = 0; dy < sz; dy++) {

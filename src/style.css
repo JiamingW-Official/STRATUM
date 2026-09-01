@@ -2569,144 +2569,152 @@ html, body {
 }
 .city-detail-pane.hidden { display: none; }
 
+/* Four type sizes for the whole pane: 30 / 12 / 10 / 7.5. Hierarchy comes from
+   size and contrast, not from boxing every value in its own bordered card. */
+
 .cdp-topbar {
-  padding: 14px 18px 10px; flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  padding: 10px 18px 8px; flex-shrink: 0;
 }
 .cdp-back-btn {
   background: none; border: none; cursor: pointer; padding: 0;
-  font-family: var(--font-mono); font-size: 8px; letter-spacing: 1.5px;
+  font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 1.5px;
   color: rgba(196,160,88,0.5); text-transform: uppercase;
   transition: color 0.15s;
 }
 .cdp-back-btn:hover { color: rgba(196,160,88,0.9); }
 
 .cdp-hero {
-  padding: 18px 20px 14px; flex-shrink: 0;
+  padding: 4px 18px 12px; flex-shrink: 0;
+  display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: baseline;
 }
 .cdp-iata {
-  font-family: var(--font-mono); font-size: 38px; font-weight: 500;
-  letter-spacing: 4px; color: var(--amber); line-height: 1;
+  grid-row: 1 / span 2;
+  font-family: var(--font-mono); font-size: 30px; font-weight: 500;
+  letter-spacing: 3px; color: var(--amber); line-height: 1;
 }
 .cdp-name {
   font-family: var(--font-sans); font-size: 12px; font-weight: 500;
-  color: rgba(238,233,220,0.8); margin-top: 6px; line-height: 1.3;
+  color: rgba(238,233,220,0.85); line-height: 1.2;
 }
 .cdp-country-region {
-  font-family: var(--font-mono); font-size: 8px; letter-spacing: 1.2px;
-  color: rgba(196,160,88,0.4); text-transform: uppercase; margin-top: 3px;
+  font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 1.2px;
+  color: rgba(196,160,88,0.45); text-transform: uppercase; margin-top: 3px;
 }
 .cdp-tier {
-  display: inline-block; margin-top: 10px;
+  grid-column: 1 / -1; justify-self: start; margin-top: 8px;
   font-family: var(--font-mono); font-size: 7px; letter-spacing: 2px;
-  text-transform: uppercase; padding: 3px 9px; border-radius: 3px;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 2px;
 }
-.cdp-tier-mega-hub { background: rgba(196,160,88,0.18); color: rgba(196,160,88,0.95); border: 1px solid rgba(196,160,88,0.35); }
-.cdp-tier-major    { background: rgba(100,160,200,0.12); color: rgba(140,200,230,0.75); border: 1px solid rgba(100,160,200,0.25); }
-.cdp-tier-regional { background: rgba(238,233,220,0.05); color: rgba(238,233,220,0.4); border: 1px solid rgba(238,233,220,0.12); }
+.cdp-tier-mega-hub { background: rgba(196,160,88,0.16); color: rgba(196,160,88,0.95); }
+.cdp-tier-major    { background: rgba(100,160,200,0.12); color: rgba(140,200,230,0.8); }
+.cdp-tier-regional { background: rgba(238,233,220,0.06); color: rgba(238,233,220,0.45); }
 
+/* One continuous 4x2 grid. Rows are separated by a hairline, columns by
+   nothing — the values are set in a fixed-width face and align on their own. */
 .cdp-stats-grid {
-  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
-  padding: 12px 16px; gap: 6px; flex-shrink: 0;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  padding: 8px 18px; gap: 0; flex-shrink: 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
 }
-.cdp-stats-ext {
-  padding-top: 0; border-top: 1px solid rgba(255,255,255,0.04);
-}
-.cdp-stats-ext .cdp-stat-val {
-  font-size: 11px; color: var(--text-2);
-}
+.cdp-stats-ext { padding-top: 8px; }
+.cdp-stats-ext .cdp-stat-val { font-size: 12px; color: rgba(238,233,220,0.6); }
 .cdp-stat {
-  display: flex; flex-direction: column; align-items: center;
-  background: rgba(255,255,255,0.03); border-radius: 5px; padding: 8px 4px;
-  border: 1px solid rgba(255,255,255,0.04);
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 2px 6px 2px 0;
 }
 .cdp-stat-val {
-  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
-  color: rgba(238,233,220,0.75); text-align: center;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+  color: rgba(238,233,220,0.85); white-space: nowrap;
 }
 .cdp-stat-lbl {
-  font-family: var(--font-mono); font-size: 7px; letter-spacing: 0.8px;
-  color: rgba(196,160,88,0.35); text-transform: uppercase; margin-top: 3px;
-  text-align: center;
+  font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 0.8px;
+  color: rgba(196,160,88,0.4); text-transform: uppercase; margin-top: 2px;
 }
 
 .cdp-coord-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 20px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 18px; flex-shrink: 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
 }
 .cdp-coord-label {
-  font-family: var(--font-mono); font-size: 7px; letter-spacing: 1.5px;
-  color: rgba(196,160,88,0.35); text-transform: uppercase;
+  font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 1.5px;
+  color: rgba(196,160,88,0.4); text-transform: uppercase;
 }
 .cdp-coord-val {
   font-family: var(--font-mono); font-size: 10px;
-  color: rgba(238,233,220,0.5); letter-spacing: 0.5px;
+  color: rgba(238,233,220,0.55); letter-spacing: 0.5px;
 }
 
 .cdp-fact {
-  margin: 4px 18px 6px; padding: 10px 14px;
-  background: rgba(196,160,88,0.04);
-  border-left: 2px solid rgba(196,160,88,0.25);
-  border-radius: 0 4px 4px 0;
-  font-family: var(--font-sans); font-size: 10px; line-height: 1.55;
-  color: rgba(238,233,220,0.45); font-style: italic;
+  margin: 2px 18px 0; padding: 4px 0 4px 10px;
+  border-left: 2px solid rgba(196,160,88,0.4);
+  font-family: var(--font-sans); font-size: 10px; line-height: 1.45;
+  color: rgba(238,233,220,0.55); font-style: italic;
   flex-shrink: 0;
 }
 .cdp-fact.hidden { display: none; }
 
+/* The city blurb is the single tallest thing here and the pane exists to pick
+   an airspace, not to read about a city. Three lines, then it stops. */
 .cdp-desc {
-  margin: 4px 18px 8px; padding: 10px 14px;
-  background: rgba(255,255,255,0.02);
-  border-radius: 4px;
-  font-family: var(--font-sans); font-size: 10px; line-height: 1.6;
-  color: rgba(238,233,220,0.42);
-  flex-shrink: 0;
+  margin: 8px 18px 4px; padding: 0;
+  font-family: var(--font-sans); font-size: 10px; line-height: 1.5;
+  color: rgba(238,233,220,0.4);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; flex-shrink: 0;
 }
 .cdp-desc.hidden { display: none; }
 
 .cdp-nearby-title {
-  padding: 8px 20px 5px;
-  font-family: var(--font-mono); font-size: 7px; letter-spacing: 1.8px;
-  color: rgba(196,160,88,0.35); text-transform: uppercase; flex-shrink: 0;
+  padding: 8px 18px 3px;
+  font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 1.8px;
+  color: rgba(196,160,88,0.4); text-transform: uppercase; flex-shrink: 0;
 }
 .cdp-nearby {
-  padding: 0 12px; flex-shrink: 0;
+  padding: 0 18px; flex-shrink: 0;
 }
 .cdp-nearby-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 8px; border-radius: 5px; cursor: pointer;
-  transition: background 0.12s;
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 5px 0; cursor: pointer;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  transition: color 0.12s;
 }
-.cdp-nearby-item:hover { background: rgba(196,160,88,0.07); }
+.cdp-nearby-item:first-child { border-top: none; }
+.cdp-nearby-item:hover .cdp-nearby-code { color: rgba(196,160,88,1); }
+.cdp-nearby-item:hover .cdp-nearby-name { color: rgba(238,233,220,0.8); }
 .cdp-nearby-code {
-  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
-  color: rgba(196,160,88,0.75); min-width: 32px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+  color: rgba(196,160,88,0.8); min-width: 30px;
 }
 .cdp-nearby-name {
   font-family: var(--font-sans); font-size: 10px;
-  color: rgba(238,233,220,0.45); flex: 1;
+  color: rgba(238,233,220,0.5); flex: 1;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cdp-nearby-dist {
-  font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.5px;
-  color: rgba(238,233,220,0.25); flex-shrink: 0;
+  font-family: var(--font-mono); font-size: 7.5px; letter-spacing: 0.5px;
+  color: rgba(238,233,220,0.3); flex-shrink: 0;
 }
 
+/* Pinned to the bottom of the pane whatever the content above does, so the
+   one action this pane exists for is never the thing you have to scroll to. */
 .cdp-cta-wrap {
-  padding: 14px 16px 18px; flex-shrink: 0; margin-top: auto;
+  position: sticky; bottom: 0; margin-top: auto;
+  padding: 10px 18px 14px; flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(8,10,14,0) 0%, rgba(8,10,14,0.96) 28%);
 }
 .cdp-select-btn {
-  width: 100%; padding: 11px 0;
-  background: rgba(196,160,88,0.12);
-  border: 1px solid rgba(196,160,88,0.35);
-  border-radius: 6px; cursor: pointer;
+  width: 100%; padding: 10px 0;
+  background: rgba(196,160,88,0.14);
+  border: 1px solid rgba(196,160,88,0.4);
+  border-radius: 4px; cursor: pointer;
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px;
-  color: rgba(196,160,88,0.9); text-transform: uppercase;
+  color: rgba(196,160,88,0.95); text-transform: uppercase;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .cdp-select-btn:hover {
-  background: rgba(196,160,88,0.22);
-  border-color: rgba(196,160,88,0.6);
+  background: rgba(196,160,88,0.24);
+  border-color: rgba(196,160,88,0.7);
   color: rgba(196,160,88,1);
 }
 
