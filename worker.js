@@ -1,23 +1,27 @@
+import { WARM_AIRPORTS } from "./warmAirports.js";
+
 // Cloudflare Worker — Edge proxy + caching layer for STRATUM
 // Features: Cache API for slow-changing data, smart Overpass routing, CORS handling
 
-// Every ADS-B source refuses this Worker's subrequests: adsb.fi and adsb.one
-// answer with a Cloudflare block page, airplanes.live with a "contact us"
-// message, opensky times out. The same requests succeed from our own Vercel
-// deployment, so live positions are fetched by way of it rather than direct.
-// This is our infrastructure on both ends — nothing is being disguised.
-const ADSB_RELAY = "https://stratum-beta.vercel.app";
+// Several upstreams refuse this Worker's subrequests outright — adsb.fi and
+// adsb.one answer with a Cloudflare block page, both Overpass mirrors fail with
+// 5xx, hexdb returns 403 — while the same requests succeed from our own Vercel
+// deployment. Those routes are fetched by way of it. Our infrastructure sits on
+// both ends and nothing is disguised; api.airplanes.live is deliberately NOT
+// relayed, because its 403 is a written request to contact the operator rather
+// than an infrastructure block.
+const RELAY_ORIGIN = "https://stratum-beta.vercel.app";
 
 // ── Proxy route map ──
 const PROXY_ROUTES = {
-  "/api/adsbfi/": `${ADSB_RELAY}/api/adsbfi/`,
+  "/api/adsbfi/": `${RELAY_ORIGIN}/api/adsbfi/`,
   "/api/adsboe/": "https://api.adsb.one/",
   "/api/adsbx/": "https://api.airplanes.live/",
   "/api/trace/": "https://globe.airplanes.live/",
-  "/api/hexdb/": "https://hexdb.io/",
+  "/api/hexdb/": `${RELAY_ORIGIN}/api/hexdb/`,
   "/api/opensky/": "https://opensky-network.org/",
-  "/api/ovp-de/": "https://overpass-api.de/",
-  "/api/ovp-kumi/": "https://overpass.kumi.systems/",
+  "/api/ovp-de/": `${RELAY_ORIGIN}/api/ovp-de/`,
+  "/api/ovp-kumi/": `${RELAY_ORIGIN}/api/ovp-kumi/`,
   // '/api/ovp-ru/' removed — consistent 403 errors
   "/api/adsbdb/": "https://api.adsbdb.com/",
   "/api/fir/":
@@ -52,8 +56,8 @@ const CACHE_TTLS = {
 
 // ── Overpass endpoints for smart routing ──
 const OVERPASS_URLS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
+  `${RELAY_ORIGIN}/api/ovp-de/api/interpreter`,
+  `${RELAY_ORIGIN}/api/ovp-kumi/api/interpreter`,
 ];
 
 // ── Helpers ──
@@ -96,7 +100,7 @@ async function cachePut(cacheKey, response, ttl, swr = 0) {
       : `public, max-age=${ttl}`;
   cached.headers.set("Cache-Control", cc);
   cached.headers.set("X-Cache-TTL", String(ttl));
-  cache.put(cacheKey, cached);
+  return cache.put(cacheKey, cached);
 }
 
 // ── Security + perf headers applied to all responses ──
@@ -169,7 +173,11 @@ async function handleAirports(url, env) {
 
   const racePromises = OVERPASS_URLS.map((endpoint) => {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
+    // Overpass genuinely needs this long for a dense 2.4-degree box: measured
+    // 14-17s returning 0.7-1.6MB for Austin, San Diego and New Orleans. The old
+    // 12s abort turned those into 502s, so those airports never drew runways at
+    // all. One slow fetch is fine — the result is then KV-cached for 30 days.
+    const timer = setTimeout(() => ctrl.abort(), 25000);
     return fetch(endpoint, {
       method: "POST",
       body,
@@ -202,9 +210,18 @@ async function handleAirports(url, env) {
         "Access-Control-Allow-Origin": "*",
       },
     });
-    cachePut(cacheKey, toCache, 86400, 3600);
-    if (env?.AIRPORT_CACHE)
-      env.AIRPORT_CACHE.put(kvKey, responseBody, { expirationTtl: 86400 * 30 });
+    // Awaited, not fire-and-forget: a Worker may cancel outstanding promises once
+    // it has returned, and for a payload this size (1.5MB for a dense box) the
+    // writes lost that race every time. Every visit re-ran the 15-20s Overpass
+    // fetch because nothing was ever actually stored.
+    await Promise.allSettled([
+      cachePut(cacheKey, toCache, 86400, 3600),
+      env?.AIRPORT_CACHE
+        ? env.AIRPORT_CACHE.put(kvKey, responseBody, {
+            expirationTtl: 86400 * 30,
+          })
+        : Promise.resolve(),
+    ]);
 
     return addPerfHeaders(
       new Response(responseBody, {
@@ -819,7 +836,7 @@ async function handlePositions(url) {
     })
       .then((res) => (res.ok ? res.json() : null))
       .catch(() => null),
-    fetch(`${ADSB_RELAY}/api/adsbfi/api/v2/lat/${lat}/lon/${lon}/dist/${r}`, {
+    fetch(`${RELAY_ORIGIN}/api/adsbfi/api/v2/lat/${lat}/lon/${lon}/dist/${r}`, {
       headers: { "User-Agent": "STRATUM/1.0" },
       signal: AbortSignal.timeout(4000),
     })
@@ -1166,14 +1183,30 @@ export default {
   // Cron trigger: pre-warm cache every 5 min (paid plan feature)
   // Positions + weather refresh every 5 min; airports refresh daily (24h cache)
   async scheduled(event, env, ctx) {
-    // One handleBoot call per city replaces 3 individual calls — cleaner and equivalent.
-    // handleBoot fans out positions + airports + weather internally in parallel,
-    // each handler writes its own PoP/KV cache tier so individual endpoints also benefit.
+    // handleBoot fans out positions + airports + weather in parallel and each
+    // handler writes its own PoP/KV tier, so warming through it also warms the
+    // individual endpoints.
+    //
+    // The busiest airports are refreshed every run to keep their positions and
+    // weather current. The rest of the picker's airports only need their runway
+    // geometry in KV, which lasts 30 days, so they are warmed a slice at a time:
+    // a cold airport used to cost a 15s Overpass fetch on first visit, and this
+    // walks the whole catalogue in a couple of hours without ever asking Overpass
+    // for more than a handful of boxes at once.
+    const HOT = WARM_CITIES.map((c) => [c.lat, c.lon]);
+    const SLICE = 16;
+    const cycle = Math.floor(Date.now() / 300000); // one step per 5-minute tick
+    const start = (cycle * SLICE) % WARM_AIRPORTS.length;
+    const slice = [];
+    for (let i = 0; i < SLICE; i++) {
+      slice.push(WARM_AIRPORTS[(start + i) % WARM_AIRPORTS.length]);
+    }
+
     await Promise.allSettled(
-      WARM_CITIES.map((c) =>
+      [...HOT, ...slice].map(([lat, lon]) =>
         handleBoot(
           new URL(
-            `https://cache.internal/api/boot?lat=${c.lat}&lon=${c.lon}&r=100&ar=1.2`,
+            `https://cache.internal/api/boot?lat=${lat}&lon=${lon}&r=100&ar=1.2`,
           ),
           env,
         ).catch(() => null),
