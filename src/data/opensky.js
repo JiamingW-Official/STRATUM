@@ -220,24 +220,23 @@ async function fetchStates() {
   const lat = userLat.toFixed(4);
   const lon = userLon.toFixed(4);
 
-  // Speculative boot payload from index.html beats any round trip — consume ONCE
-  // then clear, so a city switch never reuses its hardcoded NYC data.
+  const t = Math.floor(Date.now() / 1000);
+  const attempts = [];
+
+  // The speculative boot payload is one more racer, never a gate. Awaiting it
+  // first meant the opening poll inherited its latency, and that request also
+  // carries an airports leg that can take ten to eighteen seconds cold — so the
+  // very first aircraft render waited on airport geometry it did not need.
   const earlyP = window._earlyBoot;
   if (earlyP) {
     window._earlyBoot = null;
-    try {
-      const boot = await earlyP;
-      if (boot?.positions) {
-        const parsed = parseAdsbResponse(boot.positions);
-        if (parsed.length) return parsed;
-      }
-    } catch {
-      /* fall through to the live sources */
-    }
+    attempts.push(
+      earlyP.then((boot) => {
+        if (!boot?.positions) throw new Error("boot: no positions");
+        return parseAdsbResponse(boot.positions);
+      }),
+    );
   }
-
-  const t = Math.floor(Date.now() / 1000);
-  const attempts = [];
 
   // Worker multi-source aggregation — one round trip, richest merge when healthy.
   attempts.push(

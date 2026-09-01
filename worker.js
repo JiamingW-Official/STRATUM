@@ -1,9 +1,16 @@
 // Cloudflare Worker — Edge proxy + caching layer for STRATUM
 // Features: Cache API for slow-changing data, smart Overpass routing, CORS handling
 
+// Every ADS-B source refuses this Worker's subrequests: adsb.fi and adsb.one
+// answer with a Cloudflare block page, airplanes.live with a "contact us"
+// message, opensky times out. The same requests succeed from our own Vercel
+// deployment, so live positions are fetched by way of it rather than direct.
+// This is our infrastructure on both ends — nothing is being disguised.
+const ADSB_RELAY = "https://stratum-beta.vercel.app";
+
 // ── Proxy route map ──
 const PROXY_ROUTES = {
-  "/api/adsbfi/": "https://opendata.adsb.fi/",
+  "/api/adsbfi/": `${ADSB_RELAY}/api/adsbfi/`,
   "/api/adsboe/": "https://api.adsb.one/",
   "/api/adsbx/": "https://api.airplanes.live/",
   "/api/trace/": "https://globe.airplanes.live/",
@@ -812,7 +819,7 @@ async function handlePositions(url) {
     })
       .then((res) => (res.ok ? res.json() : null))
       .catch(() => null),
-    fetch(`https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${r}`, {
+    fetch(`${ADSB_RELAY}/api/adsbfi/api/v2/lat/${lat}/lon/${lon}/dist/${r}`, {
       headers: { "User-Agent": "STRATUM/1.0" },
       signal: AbortSignal.timeout(4000),
     })
@@ -889,13 +896,41 @@ async function handlePositions(url) {
 
   const pruned = [...merged.values()].map(pruneAc);
   const fetchMs = Date.now() - t0;
+  const usable = results.filter(Boolean).length;
+
+  // Every source failing is not the same answer as an airspace with no traffic,
+  // but this returned `{ac:[],total:0}` with a 200 for both. Clients could not
+  // tell them apart, so a total outage looked like empty sky — and the 2s edge
+  // cache then served that emptiness to everyone else asking for the area.
+  // Report the failure instead and let callers fall back to their own sources.
+  if (usable === 0) {
+    return addPerfHeaders(
+      new Response(
+        JSON.stringify({
+          error: "no upstream source responded",
+          ac: [],
+          total: 0,
+        }),
+        {
+          status: 503,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-store",
+            "Server-Timing": `fetch;dur=${fetchMs}, sources;desc="0/3"`,
+          },
+        },
+      ),
+    );
+  }
+
   const body = JSON.stringify({ ac: pruned, total: merged.size });
   const response = new Response(body, {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
       "X-Cache": "MISS",
-      "Server-Timing": `fetch;dur=${fetchMs}, sources;desc="${settled}/3"`,
+      "Server-Timing": `fetch;dur=${fetchMs}, sources;desc="${usable}/3"`,
     },
   });
 
