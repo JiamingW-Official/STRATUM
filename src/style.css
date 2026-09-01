@@ -2052,8 +2052,8 @@ html, body {
   z-index: 15;
   display: flex; align-items: center; gap: 10px;
   padding: 9px 18px; background: var(--surface-float); -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
-  transition: all 0.4s var(--ease-spring);
-  pointer-events: none;
+  transition: all 0.4s var(--ease-spring); pointer-events: auto;
+  cursor: default;
 }
 
 .follow-indicator.hidden {
@@ -3276,11 +3276,11 @@ html, body {
 
 /* TCAS widget — left center */
 .tcas-widget {
-  left: var(--edge); top: 58%;
-  transform: translateY(-50%);
+  left: var(--edge); top: calc(50% + 34px); transform: translateY(0) translateX(-6px);
   right: auto; bottom: auto;
-  max-height: 280px; overflow: hidden;
-  pointer-events: auto;
+  max-height: 280px; overflow: hidden; pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
 /* Compare widget — bottom center */
@@ -4487,3 +4487,5 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   font-family: var(--font-sans); font-size: var(--fs-body);
   color: var(--text-2); line-height: 1.5;
 }
+
+.tcas-widget.is-open { opacity: 1; pointer-events: auto; transform: translateY(0) translateX(0); }

@@ -328,6 +328,21 @@ let focusGoalDir = null;
 let focusZooming = false;
 
 const followIndicator = document.getElementById("follow-indicator");
+// TCAS traffic is on demand: it opens while the tracking pill or the panel
+// itself is hovered, and closes a beat after the pointer leaves both.
+let _tcasCloseTimer = null;
+function _tcasOpen() {
+  clearTimeout(_tcasCloseTimer);
+  if (_tcasEl) _tcasEl.classList.add("is-open");
+}
+function _tcasScheduleClose() {
+  clearTimeout(_tcasCloseTimer);
+  _tcasCloseTimer = setTimeout(() => _tcasEl?.classList.remove("is-open"), 250);
+}
+if (followIndicator) {
+  followIndicator.addEventListener("mouseenter", _tcasOpen);
+  followIndicator.addEventListener("mouseleave", _tcasScheduleClose);
+}
 const followCallsignEl = document.getElementById("follow-callsign");
 
 function flyToThenFollow(aircraftObj) {
@@ -3060,6 +3075,8 @@ function updateTCASDisplay(followAc, allAircraft, elapsed) {
     _tcasEl.id = "tcas-display";
     _tcasEl.className = "stratum-widget tcas-widget";
     document.body.appendChild(_tcasEl);
+    _tcasEl.addEventListener("mouseenter", _tcasOpen);
+    _tcasEl.addEventListener("mouseleave", _tcasScheduleClose);
   }
   _tcasEl.style.display = "";
   const top5 = threats.slice(0, 5);
@@ -3107,7 +3124,10 @@ function updateTCASDisplay(followAc, allAircraft, elapsed) {
       .join("");
 }
 function hideTCASDisplay() {
-  if (_tcasEl) _tcasEl.style.display = "none";
+  if (_tcasEl) {
+    _tcasEl.style.display = "none";
+    _tcasEl.classList.remove("is-open");
+  }
 }
 
 // ── T3-02: Weather panel (integrated into HUD) ──
