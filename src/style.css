@@ -763,7 +763,14 @@ html, body {
   background: linear-gradient(180deg, rgba(196,160,88,0.03) 0%, transparent 100%);
 }
 
-.detail-header-left { display: flex; align-items: center; gap: 8px; }
+/* Must be allowed to shrink, and to shrink below its content width — otherwise a
+   long callsign plus type and status badges squeezes the action cluster, which
+   pushes the close button past the panel's `overflow: hidden` edge. It then
+   disappears and the copy button takes over the top-right corner. */
+.detail-header-left {
+  display: flex; align-items: center; gap: 8px;
+  min-width: 0; flex: 1 1 auto; overflow: hidden;
+}
 
 .detail-callsign {
   font-family: var(--font-mono);
@@ -1203,11 +1210,16 @@ html, body {
   background: none; border: none;
   color: rgba(255,255,255,0.3); font-size: 16px;
   cursor: pointer; padding: 8px;
-  min-width: 36px; min-height: 36px;
+  /* 44px matches the journal and copy buttons beside it; the close used to be a
+     smaller, offset target. The extra left margin separates it from that pair so
+     it reads as its own control rather than a third icon in the cluster, and the
+     right margin is no longer negative — that pull was helping push it out of
+     the panel. */
+  min-width: 44px; min-height: 44px;
   display: flex; align-items: center; justify-content: center;
   transition: color 0.15s, background 0.15s, transform 0.15s var(--ease);
   line-height: 1; font-family: var(--font-sans);
-  border-radius: 6px; margin: -4px -4px -4px 0;
+  border-radius: 6px; margin: -4px 0 -4px 6px;
 }
 .detail-close:hover { color: var(--text); background: rgba(255,255,255,0.06); }
 .detail-close:active { transform: scale(0.9); }
@@ -2981,7 +2993,7 @@ html, body {
 }
 
 /* ── T1-04: Copy button + Toast ── */
-.detail-header-actions { display: flex; align-items: center; gap: 4px; }
+.detail-header-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .detail-copy-btn {
   background: none; border: 1px solid var(--border); border-radius: 3px;
   color: var(--text-3); font-size: 11px; cursor: pointer; padding: 8px 10px;

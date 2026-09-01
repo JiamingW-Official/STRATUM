@@ -3,7 +3,7 @@ import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 // GLTFLoader is lazy-loaded on first model request to reduce critical-path JS
-import { getTrack, getTrackVersion, getRoute, getHexDetail } from '../data/opensky.js';
+import { getTrack, getTrackVersion, getRoute, getHexDetail, TRACE_HISTORY_SEC } from '../data/opensky.js';
 import { getAircraftSpecs } from '../data/aircraftDb.js';
 import { getAircraftMeta, queueHexLookup } from '../data/hexdb.js';
 import { triggerInference, getInferredRoute, detectHoldingPattern } from '../data/routeInfer.js';
@@ -35,7 +35,7 @@ const VS_THRESHOLD = 1.5;
 
 // Trail config — 30 min
 const TRAIL_SAMPLE_INTERVAL = 0.25;     // 4Hz live sampling — good balance of smoothness vs CPU
-const TRAIL_MAX_POINTS = 7200;          // 30 min at 4Hz
+const TRAIL_MAX_POINTS = 14400;        // 60 min at 4Hz — matches TRACE_HISTORY_SEC
 const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real track
 const SYNTHETIC_TRAIL_STEP = 0.5;
 const TRAIL_REBUILD_INTERVAL = 2.0;     // rebuild geometry every 2s — reduces GPU uploads by 50%
@@ -976,7 +976,7 @@ class AircraftObject {
    */
   _applyRealTrack(waypoints) {
     const now = Math.floor(Date.now() / 1000);
-    const cutoff = now - 1800; // last 30 minutes
+    const cutoff = now - TRACE_HISTORY_SEC;
 
     let rawPoints;
     const recent = waypoints.filter((wp) => wp.time >= cutoff);

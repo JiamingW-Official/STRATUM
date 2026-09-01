@@ -1,60 +1,92 @@
 // STRATUM Service Worker — smart caching by resource type
-const CACHE_NAME = 'stratum-v6';
-const TILE_CACHE = 'stratum-tiles-v1';
-const RADIO_CACHE = 'stratum-radio-v1';
+const CACHE_NAME = "stratum-v6";
+const TILE_CACHE = "stratum-tiles-v1";
+const RADIO_CACHE = "stratum-radio-v1";
 
-const MAX_TILE_ENTRIES = 4000;
+// Sized for rasterised region images (~600KB each), not the 7KB tiles this cache
+// originally held: 400 entries is roughly 240MB and covers ~80 cities at five
+// images apiece. The limit was previously declared but never enforced, so the
+// cache grew without bound.
+const MAX_TILE_ENTRIES = 400;
 
-self.addEventListener('install', e => {
+// cache.keys() returns insertion order, so the overflow is the oldest.
+async function trimTileCache(cache) {
+  const keys = await cache.keys();
+  const excess = keys.length - MAX_TILE_ENTRIES;
+  for (let i = 0; i < excess; i++) await cache.delete(keys[i]);
+}
+
+self.addEventListener("install", (e) => {
   // Pre-cache the HTML shell and favicon for instant repeat visits
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache =>
-      cache.addAll(['/', '/favicon.svg']).catch(() => {})
-    ).then(() => self.skipWaiting())
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(["/", "/favicon.svg"]).catch(() => {}))
+      .then(() => self.skipWaiting()),
   );
 });
-self.addEventListener('activate', e => {
+self.addEventListener("activate", (e) => {
   const keep = new Set([CACHE_NAME, TILE_CACHE, RADIO_CACHE]);
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => !keep.has(k)).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => !keep.has(k)).map((k) => caches.delete(k)),
+        ),
+      )
+      .then(() => self.clients.claim()),
   );
 });
 
-self.addEventListener('fetch', e => {
+self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-  if (url.pathname.startsWith('/api/')) return;
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
+  if (url.pathname.startsWith("/api/")) return;
 
   // ── Map tiles: cache-first (immutable by zoom/x/y) ──
-  if (url.hostname.endsWith('basemaps.cartocdn.com')) {
+  if (
+    url.hostname.endsWith("basemaps.cartocdn.com") ||
+    url.hostname === "server.arcgisonline.com"
+  ) {
     e.respondWith(
-      caches.open(TILE_CACHE).then(cache =>
-        cache.match(e.request).then(cached => {
+      caches.open(TILE_CACHE).then((cache) =>
+        cache.match(e.request).then((cached) => {
           if (cached) return cached;
-          return fetch(e.request).then(res => {
-            if (res.ok) cache.put(e.request, res.clone());
-            return res;
-          }).catch(() => cached || new Response('', { status: 408 }));
-        })
-      )
+          return fetch(e.request)
+            .then((res) => {
+              // Storing must never take the response down with it: a full quota
+              // makes cache.put reject, and an unhandled rejection here would
+              // fail the image load itself.
+              if (res.ok) {
+                cache
+                  .put(e.request, res.clone())
+                  .then(() => trimTileCache(cache))
+                  .catch(() => {});
+              }
+              return res;
+            })
+            .catch(() => cached || new Response("", { status: 408 }));
+        }),
+      ),
     );
     return;
   }
 
   // ── Radio MP3: cache-first ──
-  if (url.pathname.startsWith('/radio/') && url.pathname.endsWith('.mp3')) {
+  if (url.pathname.startsWith("/radio/") && url.pathname.endsWith(".mp3")) {
     e.respondWith(
-      caches.open(RADIO_CACHE).then(cache =>
-        cache.match(e.request).then(cached => {
+      caches.open(RADIO_CACHE).then((cache) =>
+        cache.match(e.request).then((cached) => {
           if (cached) return cached;
-          return fetch(e.request).then(res => {
-            if (res.ok) cache.put(e.request, res.clone());
-            return res;
-          }).catch(() => cached || new Response('', { status: 408 }));
-        })
-      )
+          return fetch(e.request)
+            .then((res) => {
+              if (res.ok) cache.put(e.request, res.clone());
+              return res;
+            })
+            .catch(() => cached || new Response("", { status: 408 }));
+        }),
+      ),
     );
     return;
   }
@@ -62,32 +94,40 @@ self.addEventListener('fetch', e => {
   // ── Hashed static assets (/assets/*.js, /assets/*.css): cache-first ──
   // Content-hashed filenames are immutable — if the file changes, the hash changes.
   // Cache-first here means repeat visits load from disk instantly, zero network.
-  if (url.pathname.startsWith('/assets/')) {
+  if (url.pathname.startsWith("/assets/")) {
     e.respondWith(
-      caches.open(CACHE_NAME).then(cache =>
-        cache.match(e.request).then(cached => {
+      caches.open(CACHE_NAME).then((cache) =>
+        cache.match(e.request).then((cached) => {
           if (cached) return cached;
-          return fetch(e.request).then(res => {
+          return fetch(e.request).then((res) => {
             if (res.ok) cache.put(e.request, res.clone());
             return res;
           });
-        })
-      )
+        }),
+      ),
     );
     return;
   }
 
   // ── HTML + SW itself: network-first (picks up new deployments) ──
   e.respondWith(
-    fetch(e.request).then(res => {
-      if (res.ok) {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
-      }
-      return res;
-    }).catch(async () => {
-      const cached = await caches.match(e.request);
-      return cached || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
-    })
+    fetch(e.request)
+      .then((res) => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(e.request, clone));
+        }
+        return res;
+      })
+      .catch(async () => {
+        const cached = await caches.match(e.request);
+        return (
+          cached ||
+          new Response("Offline", {
+            status: 503,
+            headers: { "Content-Type": "text/plain" },
+          })
+        );
+      }),
   );
 });
