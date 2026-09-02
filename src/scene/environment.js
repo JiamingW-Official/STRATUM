@@ -411,30 +411,37 @@ export async function loadAirports(scene, userLat, userLon) {
 
   // ── Deferred: lights, taxiways, terminals — rendered on next frames ──
   // Each batch runs in a separate rAF so it never blocks the main render loop.
-  const _snapEpoch = _loadEpoch;
+  // The guard is the group itself, not the load epoch. Two loads overlap at
+  // boot, and the epoch is bumped by whichever clearAirports runs next; that
+  // left a runway group attached to the scene, labels and all, with every
+  // light pass skipped because the counter had moved on. If this group is
+  // still the live one and still in the scene, its lights belong to it.
+  const myGroup = airportGroup;
+  const myData = airportData;
+  const live = () => airportGroup === myGroup && !!myGroup.parent && airportData === myData;
   requestAnimationFrame(() => {
-    if (_loadEpoch !== _snapEpoch) return;
-    renderRunwayEdgeLights(airportData.runways, userLat, userLon);
-    renderThresholdAndEndLights(airportData.runways);
-    renderRunwayCentrelineAndPAPI(airportData.runways);
-    renderRunwayThresholdTargets(airportData.runways);
+    if (!live()) return;
+    renderRunwayEdgeLights(myData.runways, userLat, userLon);
+    renderThresholdAndEndLights(myData.runways);
+    renderRunwayCentrelineAndPAPI(myData.runways);
+    renderRunwayThresholdTargets(myData.runways);
     requestAnimationFrame(() => {
-      if (_loadEpoch !== _snapEpoch) return;
-      for (const rwy of airportData.runways) {
+      if (!live()) return;
+      for (const rwy of myData.runways) {
         renderApproachLights(rwy, userLat, userLon);
       }
       requestAnimationFrame(() => {
-        if (_loadEpoch !== _snapEpoch) return;
-        if (airportData.taxiways)
-          renderTaxiwaysBatched(airportData.taxiways, userLat, userLon);
-        if (airportData.terminals) {
-          for (const term of airportData.terminals)
+        if (!live()) return;
+        if (myData.taxiways)
+          renderTaxiwaysBatched(myData.taxiways, userLat, userLon);
+        if (myData.terminals) {
+          for (const term of myData.terminals)
             renderTerminal(term, userLat, userLon);
         }
-        const txCount = airportData.taxiways?.length || 0;
-        const tmCount = airportData.terminals?.length || 0;
+        const txCount = myData.taxiways?.length || 0;
+        const tmCount = myData.terminals?.length || 0;
         console.log(
-          `[STRATUM] Airport detail loaded: ${airportData.runways.length} runways, ${txCount} taxiways, ${tmCount} terminals`,
+          `[STRATUM] Airport detail loaded: ${myData.runways.length} runways, ${txCount} taxiways, ${tmCount} terminals`,
         );
       });
     });
