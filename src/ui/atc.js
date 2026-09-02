@@ -9,9 +9,11 @@ import AIRPORTS from '../data/atcAirports.json';
 
 let _audio = null;
 let _icao = null;
-// A mount is served from more than one Icecast mirror and the resolver rotates
-// between them; if the recorded one refuses, try the others with the same mount.
-const MIRRORS = ['s1-bos', 's1-fmt2', 's1-lax', 's1-dal'];
+// Only the mirror the resolver named is known to carry a given mount. The others
+// answer 200 with an empty content-type and no CORS header, so cycling through
+// them turned one transient hiccup into "feed unavailable"; s1-bos is kept as a
+// single alternate because it mirrors most mounts.
+const MIRRORS = ['s1-bos'];
 let _mirrorIdx = 0;
 let _nearby = null; // set when the feed belongs to a neighbouring airport
 let _btn = null, _label = null, _wrap = null;
@@ -74,13 +76,14 @@ function _ensureAudio() {
   if (_audio) return _audio;
   _audio = new Audio();
   _audio.preload = 'none';
-  _audio.crossOrigin = 'anonymous';
+  // No crossOrigin: we only play the stream, never read its samples, and
+  // requesting CORS mode makes an otherwise playable stream fail.
   _audio.volume = 0.7;
   _audio.addEventListener('playing', () => _render('playing'));
   _audio.addEventListener('waiting', () => _render('loading'));
   _audio.addEventListener('error', () => {
-    // One retry per mirror, then give up honestly.
-    if (_wanted && _mirrorIdx < MIRRORS.length - 1) {
+    // One alternate mirror, then report honestly.
+    if (_wanted && _mirrorIdx < MIRRORS.length) {
       _mirrorIdx++;
       const url = feedFor(_icao);
       if (url) { _audio.src = url; _audio.play().catch(() => {}); return; }
