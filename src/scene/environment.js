@@ -153,82 +153,13 @@ export function createEnvironment(scene) {
   gridHelper.position.y = 0.005;
   scene.add(gridHelper);
 
-  // User location — refined crosshair + gentle pulse
-  const pulseGroup = new THREE.Group();
-  pulseGroup.name = "userPulse";
-
-  // Center dot
-  const dotGeo = new THREE.CircleGeometry(0.04, 24);
-  const dotMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.9,
-    side: THREE.DoubleSide,
-  });
-  const dot = new THREE.Mesh(dotGeo, dotMat);
-  dot.rotation.x = -Math.PI / 2;
-  dot.position.y = 0.06;
-  pulseGroup.add(dot);
-
-  // Crosshair lines (4 short segments)
-  const crossMat = new THREE.LineBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.25,
-  });
-  const armLen = 0.2,
-    gap = 0.08;
-  const crossVerts = [
-    gap,
-    0,
-    0,
-    armLen,
-    0,
-    0,
-    -gap,
-    0,
-    0,
-    -armLen,
-    0,
-    0,
-    0,
-    0,
-    gap,
-    0,
-    0,
-    armLen,
-    0,
-    0,
-    -gap,
-    0,
-    0,
-    -armLen,
-  ];
-  const crossGeo = new THREE.BufferGeometry();
-  crossGeo.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(crossVerts, 3),
-  );
-  const crosshair = new THREE.LineSegments(crossGeo, crossMat);
-  crosshair.position.y = 0.05;
-  pulseGroup.add(crosshair);
-
-  // Pulse ring
-  const pulseRingGeo = new THREE.RingGeometry(0.12, 0.14, 48);
-  const pulseRingMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.15,
-    side: THREE.DoubleSide,
-  });
-  const pulseRing = new THREE.Mesh(pulseRingGeo, pulseRingMat);
-  pulseRing.rotation.x = -Math.PI / 2;
-  pulseRing.position.y = 0.04;
-  pulseRing.name = "pulseRing";
-  _pulseRingRef = pulseRing;
-  pulseGroup.add(pulseRing);
-
-  scene.add(pulseGroup);
+  // There used to be a "you are here" marker at the origin: a white disc, a
+  // crosshair and a pulsing ring, from when the map was centred on the viewer.
+  // The origin is now the airport the airspace is built around, so the marker
+  // read as a highlight on that airport -- the white ball inside a grey ring
+  // over JFK -- and the bloom pass turned the disc into a glow. The focused
+  // airport is marked by its label and its diamond, a step brighter than the
+  // others; nothing else is added.
 }
 
 export async function loadGroundMap(lat, lon) {
@@ -422,6 +353,19 @@ export async function loadAirports(scene, userLat, userLon) {
   airportGroup.name = "airports";
   airportGroup.renderOrder = 50;
 
+  // The airport this airspace is centred on: the one nearest the centre that
+  // has scheduled service. Its label and marker are drawn a step brighter than
+  // the rest -- that is the whole of the highlight.
+  {
+    let best = null, bestD = Infinity;
+    for (const a of airportData.airports) {
+      if (!a.iata) continue;
+      const d = (a.lat - userLat) ** 2 + (a.lon - userLon) ** 2;
+      if (d < bestD) { bestD = d; best = a; }
+    }
+    airportData.focusIcao = best ? best.icao : null;
+  }
+
   // ── Critical path: runways + labels (visible immediately) ──
   for (const rwy of airportData.runways) {
     renderRunway(rwy, userLat, userLon);
@@ -472,6 +416,7 @@ export async function loadAirports(scene, userLat, userLon) {
     if (_loadEpoch !== _snapEpoch) return;
     renderRunwayEdgeLights(airportData.runways, userLat, userLon);
     renderThresholdAndEndLights(airportData.runways);
+    renderRunwayCentrelineAndPAPI(airportData.runways);
     renderRunwayThresholdTargets(airportData.runways);
     requestAnimationFrame(() => {
       if (_loadEpoch !== _snapEpoch) return;
@@ -564,186 +509,137 @@ function renderRunway(rwy, userLat, userLon) {
 const _rwyTextureCache = new Map();
 
 function createRunwayTexture(ref, lengthMeters, widthMeters) {
-  const wBucket = Math.round(widthMeters / 5) * 5; // 5m buckets
-  const cacheKey = `${ref}:${wBucket}`;
+  const L = Math.max(300, lengthMeters);
+  const Wm = Math.max(10, widthMeters);
+  const cacheKey = `${ref}:${Math.round(Wm / 5) * 5}:${Math.round(L / 100) * 100}`;
   if (_rwyTextureCache.has(cacheKey)) return _rwyTextureCache.get(cacheKey);
 
-  const W = 2048; // was 4096 — still crisp at typical zoom; 4× fewer pixels to paint
-  const H = 192; // was 320
+  // The old texture was a fixed 2048x192 stretched over whatever the runway
+  // measured, so a pixel covered 2m along a long runway and 0.3m across it, and
+  // a numeral drawn square came out seven times longer than it was wide. Every
+  // mark here is specified in metres and converted with its own axis scale;
+  // the canvas is sized from the runway so both scales stay close to 0.4m/px.
+  const W = Math.min(4096, Math.max(1024, Math.round(L * 1.0)));
+  const H = Math.min(256, Math.max(64, Math.round(Wm * 4)));
+  const px = W / L; // pixels per metre along the runway
+  const py = H / Wm; // pixels per metre across it
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d", { alpha: false });
-  const ppm = W / lengthMeters; // pixels per meter along runway
+  const X = (m) => m * px;
+  const Y = (m) => H / 2 + m * py; // metres from centreline, + toward one edge
 
-  ctx.clearRect(0, 0, W, H);
-
-  // ── Asphalt base with realistic grain ──
-  ctx.fillStyle = "rgba(14, 18, 28, 0.82)";
+  // Pavement. Concrete is a shade lighter than asphalt.
+  ctx.fillStyle = "#11151d";
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle longitudinal texture streaks (tyre rubber buildup)
-  ctx.fillStyle = "rgba(0,0,0,0.06)";
-  const rubberZoneW = H * 0.3;
-  ctx.fillRect(0, (H - rubberZoneW) / 2, W, rubberZoneW);
-
-  // Asphalt grain noise (reduced — invisible at typical zoom distance)
-  ctx.fillStyle = "rgba(255,255,255,0.015)";
-  for (let i = 0; i < 80; i++) {
-    ctx.fillRect(
-      Math.random() * W,
-      Math.random() * H,
-      1 + Math.random() * 3,
-      1,
-    );
-  }
-  // Dark speckle
-  ctx.fillStyle = "rgba(0,0,0,0.05)";
-  for (let i = 0; i < 40; i++) {
-    ctx.fillRect(
-      Math.random() * W,
-      Math.random() * H,
-      2 + Math.random() * 5,
-      1 + Math.random() * 2,
-    );
+  // Rubber. Tyres touch down in the first 900m and leave the centre dark; from
+  // above it is the most visible thing on a runway after the numbers.
+  for (const fromLeft of [true, false]) {
+    const g = fromLeft
+      ? ctx.createLinearGradient(X(120), 0, X(950), 0)
+      : ctx.createLinearGradient(W - X(120), 0, W - X(950), 0);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(0.25, "rgba(0,0,0,0.28)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    const x0 = fromLeft ? X(120) : W - X(950);
+    ctx.fillRect(x0, Y(-Wm * 0.28), X(830), Wm * 0.56 * py);
   }
 
-  // Pavement joint lines (~25m intervals)
-  ctx.strokeStyle = "rgba(0,0,0,0.12)";
-  ctx.lineWidth = 1;
-  const jointSpacing = Math.max(ppm * 25, 35);
-  for (let x = jointSpacing; x < W; x += jointSpacing) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, H);
-    ctx.stroke();
-  }
+  // Transverse pavement joints every 7.5m, barely there.
+  ctx.fillStyle = "rgba(0,0,0,0.10)";
+  for (let m = 7.5; m < L; m += 7.5) ctx.fillRect(X(m), 0, 1, H);
 
-  // ── Edge stripes (continuous white, ICAO standard ~0.9m width) ──
-  const edgeW = Math.max(H * 0.022, 2);
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
-  ctx.fillRect(0, 1, W, edgeW);
-  ctx.fillRect(0, H - 1 - edgeW, W, edgeW);
+  const paint = "rgba(236,236,230,0.78)";
+  ctx.fillStyle = paint;
 
-  // ── Threshold bars (piano keys) ──
-  // ICAO: width ≥45m → 16, ≥30m → 12, ≥23m → 8, else 6
-  const numBars =
-    widthMeters >= 45 ? 16 : widthMeters >= 30 ? 12 : widthMeters >= 23 ? 8 : 6;
-  const barL = Math.max(ppm * 30, 35); // ~30m stripe length
-  const barW = Math.max(H * 0.025, 3); // stripe width across runway
-  const usableH = H * 0.82;
-  const barGap = (usableH - numBars * barW) / (numBars - 1);
-  const barStartY = (H - usableH) / 2;
-  const threshOff = Math.max(ppm * 6, 12); // 6m inset from edge
+  // Side stripes: 0.9m, the full length.
+  ctx.fillRect(0, Y(-Wm / 2) , W, Math.max(1, 0.9 * py));
+  ctx.fillRect(0, Y(Wm / 2) - Math.max(1, 0.9 * py), W, Math.max(1, 0.9 * py));
 
-  ctx.fillStyle = "rgba(255,255,255,0.65)";
-  for (let i = 0; i < numBars; i++) {
-    const by = barStartY + i * (barW + barGap);
-    ctx.fillRect(threshOff, by, barL, barW); // left threshold
-    ctx.fillRect(W - threshOff - barL, by, barL, barW); // right threshold
-  }
-
-  // Threshold demarcation line (solid white bar across width after piano keys)
-  const threshLineX = threshOff + barL + Math.max(ppm * 3, 5);
-  const threshLineW = Math.max(ppm * 1.8, 3);
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
-  ctx.fillRect(threshLineX, edgeW + 2, threshLineW, H - 2 * edgeW - 4);
-  ctx.fillRect(
-    W - threshLineX - threshLineW,
-    edgeW + 2,
-    threshLineW,
-    H - 2 * edgeW - 4,
-  );
-
-  // ── Runway designator numbers (rotated along runway axis) ──
-  // Numbers are oriented so pilots read them on approach: tops face the threshold
-  const parts = ref.split("/");
-  const fontSize = Math.floor(H * 0.45);
-  const numX = threshLineX + threshLineW + Math.max(ppm * 20, 30);
-
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
-  ctx.font = `900 ${fontSize}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  // Left threshold: tops point into runway (so pilots read it on approach)
-  if (parts[0]) {
-    ctx.save();
-    ctx.translate(numX, H / 2);
-    ctx.rotate(Math.PI / 2);
-    ctx.fillText(parts[0], 0, 0);
-    ctx.restore();
-  }
-  // Right threshold: tops point into runway (so pilots read it on approach)
-  if (parts[1]) {
-    ctx.save();
-    ctx.translate(W - numX, H / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(parts[1], 0, 0);
-    ctx.restore();
-  }
-
-  // ── Centerline dashes (ICAO: 30m dash, 20m gap, ~0.9m wide) ──
-  const dashPx = Math.max(30 * ppm, 14);
-  const gapPx = Math.max(20 * ppm, 9);
-  const clStart = numX + Math.max(ppm * 30, 35);
-  ctx.strokeStyle = "rgba(255,255,255,0.42)";
-  ctx.lineWidth = Math.max(H * 0.018, 2);
-  ctx.setLineDash([dashPx, gapPx]);
-  ctx.beginPath();
-  ctx.moveTo(clStart, H / 2);
-  ctx.lineTo(W - clStart, H / 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // ── Touchdown zone markings (ICAO paired rectangular bars) ──
-  // Pairs at 150m intervals from 150m: 3→2→2→1→1 pairs
-  const tdzPairCounts = [3, 2, 2, 1, 1];
-  const tdzBarW = Math.max(ppm * 22.5, 12);
-  const tdzBarH = Math.max(H * 0.04, 3);
-  const tdzLateralOff = H * 0.22; // distance from center to inner edge of bar pair
-  const tdzPairSpacing = tdzBarH * 1.8;
-  ctx.fillStyle = "rgba(255,255,255,0.35)";
-
-  for (let i = 0; i < tdzPairCounts.length; i++) {
-    const dist = (i + 1) * 150; // 150, 300, 450, 600, 750m
-    const xL = threshOff + dist * ppm;
-    const xR = W - threshOff - dist * ppm - tdzBarW;
-    if (xL + tdzBarW > W * 0.4) continue;
-
-    const count = tdzPairCounts[i];
-    for (let p = 0; p < count; p++) {
-      const yAbove = H / 2 - tdzLateralOff - p * tdzPairSpacing - tdzBarH;
-      const yBelow = H / 2 + tdzLateralOff + p * tdzPairSpacing;
-      ctx.fillRect(xL, yAbove, tdzBarW, tdzBarH);
-      ctx.fillRect(xL, yBelow, tdzBarW, tdzBarH);
-      ctx.fillRect(xR, yAbove, tdzBarW, tdzBarH);
-      ctx.fillRect(xR, yBelow, tdzBarW, tdzBarH);
+  // Threshold stripes. Annex 14 Table: 18m -> 4, 23m -> 6, 30m -> 8, 45m -> 12,
+  // 60m -> 16. Each 30m long and 1.8m wide, 1.8m apart, starting 6m in.
+  const nStripes = Wm >= 60 ? 16 : Wm >= 45 ? 12 : Wm >= 30 ? 8 : Wm >= 23 ? 6 : 4;
+  const stripeW = 1.8, stripePitch = 3.6;
+  const setW = nStripes * stripeW + (nStripes - 1) * (stripePitch - stripeW);
+  for (const left of [true, false]) {
+    const x0 = left ? X(6) : W - X(36);
+    for (let i = 0; i < nStripes; i++) {
+      const yc = -setW / 2 + i * stripePitch;
+      ctx.fillRect(x0, Y(yc), X(30), Math.max(1, stripeW * py));
     }
   }
 
-  // ── Aiming point markers (bold white rectangles at ~300m) ──
-  const aimDist = 300 * ppm;
-  if (aimDist > 10 && aimDist < W * 0.35) {
-    const aimW = Math.max(ppm * 45, 28);
-    const aimH = H * 0.28;
-    ctx.fillStyle = "rgba(255,255,255,0.4)";
-    ctx.fillRect(threshOff + aimDist, (H - aimH) / 2, aimW, aimH);
-    ctx.fillRect(W - threshOff - aimDist - aimW, (H - aimH) / 2, aimW, aimH);
+  // Designators: 9m high, stroke 1.5m, base 12m past the stripes. From the air
+  // they are small — that is the size they are.
+  const parts = ref.split("/");
+  const numH = 9; // metres, along the runway
+  const numBase = 36 + 12;
+  // The figures are typeset upright on their own canvas, then placed rotated
+  // with an explicit size in metres on each axis. Rotating the main context and
+  // scaling it was the previous approach, and it swapped the axes: the numbers
+  // came out as a smear a few pixels wide.
+  const drawDesig = (txt, atM, mirror) => {
+    if (!txt) return;
+    const off = document.createElement("canvas");
+    off.width = 512; off.height = 256;
+    const g = off.getContext("2d");
+    g.fillStyle = paint;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.font = '700 200px "Helvetica Neue", Arial, sans-serif';
+    g.fillText(txt, 256, 138);
+    const glyphW = Math.min(500, g.measureText(txt).width + 20) / 200 * numH; // metres across
+    const wAlong = numH * px;      // figure height runs along the runway
+    const wAcross = glyphW * py;   // figure width runs across it
+    ctx.save();
+    ctx.translate(X(atM + numH / 2), H / 2);
+    ctx.rotate(mirror ? -Math.PI / 2 : Math.PI / 2);
+    // After rotation the canvas x axis runs across the runway and y along it.
+    ctx.drawImage(off, 0, 0, off.width, off.height, -wAcross / 2, -wAlong / 2, wAcross, wAlong);
+    ctx.restore();
+  };
+  drawDesig(parts[0], numBase, false);
+  drawDesig(parts[1] || "", L - numBase - numH, true);
+
+  // Centreline: 0.9m wide, 30m stripe, 20m gap, between the designators.
+  const clFrom = numBase + numH + 12;
+  ctx.fillStyle = paint;
+  for (let m = clFrom; m + 30 < L - clFrom; m += 50) {
+    ctx.fillRect(X(m), Y(-0.45), X(30), Math.max(1, 0.9 * py));
   }
 
-  // ── Fixed distance markers at 150m intervals (small single bars) ──
-  ctx.fillStyle = "rgba(255,255,255,0.2)";
-  for (let d = 900; d <= 1500; d += 300) {
-    const xL = threshOff + d * ppm;
-    if (xL > W * 0.45) break;
-    const fW = Math.max(ppm * 10, 6);
-    const fH = H * 0.06;
-    ctx.fillRect(xL, H * 0.25, fW, fH);
-    ctx.fillRect(xL, H * 0.69, fW, fH);
-    const xR = W - threshOff - d * ppm - fW;
-    ctx.fillRect(xR, H * 0.25, fW, fH);
-    ctx.fillRect(xR, H * 0.69, fW, fH);
+  // Aiming point and touchdown zone, by landing distance (Annex 14 Table 5-1).
+  const aim =
+    L >= 2400 ? { at: 400, len: 60, w: 8 } :
+    L >= 1500 ? { at: 300, len: 45, w: 6 } :
+    L >= 900 ?  { at: 250, len: 30, w: 6 } :
+                { at: 150, len: 30, w: 4 };
+  const innerGap = Wm >= 45 ? 18 : Wm >= 30 ? 12 : 9; // between the two bars
+  for (const left of [true, false]) {
+    const x0 = left ? X(aim.at) : W - X(aim.at + aim.len);
+    ctx.fillRect(x0, Y(-innerGap / 2 - aim.w), X(aim.len), aim.w * py);
+    ctx.fillRect(x0, Y(innerGap / 2), X(aim.len), aim.w * py);
+  }
+  // Touchdown zone: pairs of 22.5m x 3m stripes 1.5m apart at 150m intervals,
+  // coded 3-2-2-1-1 outward from the threshold; the aiming point takes the slot
+  // it sits in.
+  const tdz =
+    L >= 2400 ? [[150, 3], [450, 2], [600, 2], [750, 1], [900, 1]] :
+    L >= 1500 ? [[150, 3], [450, 2], [600, 2]] :
+    L >= 900 ?  [[150, 2], [450, 1]] : [];
+  for (const [at, count] of tdz) {
+    if (Math.abs(at - aim.at) < 100) continue;
+    for (const left of [true, false]) {
+      const x0 = left ? X(at) : W - X(at + 22.5);
+      for (let k = 0; k < count; k++) {
+        const off = innerGap / 2 + k * 4.5; // 3m stripe + 1.5m gap
+        ctx.fillRect(x0, Y(-off - 3), X(22.5), 3 * py);
+        ctx.fillRect(x0, Y(off), X(22.5), 3 * py);
+      }
+    }
   }
 
   _rwyTextureCache.set(cacheKey, canvas);
@@ -753,119 +649,65 @@ function createRunwayTexture(ref, lengthMeters, widthMeters) {
 // ---- Approach Lights (ALSF-2 — Approach Light System with Sequenced Flashers) ----
 
 function renderApproachLights(rwy, userLat, userLon) {
-  if (rwy._sx === undefined) return; // need scene coords from renderRunway
-  const sx = rwy._sx,
-    sz = rwy._sz,
-    ex = rwy._ex,
-    ez = rwy._ez;
-  const dx = ex - sx,
-    dz = ez - sz;
+  if (rwy._sx === undefined) return;
+  const sx = rwy._sx, sz = rwy._sz, ex = rwy._ex, ez = rwy._ez;
+  const dx = ex - sx, dz = ez - sz;
   const len = Math.sqrt(dx * dx + dz * dz);
   if (len < 0.1) return;
-  const nx = dx / len,
-    nz = dz / len;
-
-  _renderALSF2(sx, sz, -nx, -nz, rwy._rWid);
-  _renderALSF2(ex, ez, nx, nz, rwy._rWid);
+  const nx = dx / len, nz = dz / len;
+  const lenM = len * METERS_PER_UNIT;
+  // Which ends carry an instrument approach is not in the data. A runway long
+  // enough for airline traffic almost always has one at both ends; a short one
+  // rarely has any. Under 1,500m nothing is drawn rather than something wrong.
+  if (lenM < 1500) return;
+  const full = lenM >= 2400;
+  _renderALSF2(sx, sz, -nx, -nz, rwy._rWid, full);
+  _renderALSF2(ex, ez, nx, nz, rwy._rWid, full);
 }
 
-function _renderALSF2(threshX, threshZ, dirX, dirZ, rwyWid) {
+// ALSF-2 as installed: centreline barrettes of five white lights every 30m out
+// to 730m (2,400ft), red side-row barrettes through the inner 300m, a white
+// crossbar at 300m (the "1,000ft bar") and a shorter one at 150m, and the
+// sequenced flashers from 300m outward. The previous version ran to 900m, made
+// the 1,000ft bar red and added crossbars at 450 and 600m that no ALSF-2 has.
+// Shorter runways get the MALSR pattern: barrettes every 60m to 430m, one bar.
+function _renderALSF2(threshX, threshZ, dirX, dirZ, rwyWid, full) {
   const positions = [];
   const colors = [];
-  const sizes = [];
-  const perpX = -dirZ,
-    perpZ = dirX;
-  const halfW = rwyWid * 0.5;
+  const perpX = -dirZ, perpZ = dirX;
+  const m2u = 1 / METERS_PER_UNIT;
+  const W = [1.0, 1.0, 0.88], R = [1.0, 0.15, 0.1], S = [1.0, 1.0, 1.0];
+  const push = (mAlong, mAcross, c, y = 0.03) => {
+    positions.push(
+      threshX + dirX * mAlong * m2u + perpX * mAcross * m2u, y,
+      threshZ + dirZ * mAlong * m2u + perpZ * mAcross * m2u,
+    );
+    colors.push(...c);
+  };
 
-  // ALSF-2: 900m total approach, lights every 30m
-  const spacing = 30 / METERS_PER_UNIT;
-  const totalLen = 900 / METERS_PER_UNIT;
-  const numLights = Math.floor(totalLen / spacing);
-
-  for (let i = 1; i <= numLights; i++) {
-    const dist = i * spacing;
-    const distM = i * 30;
-    const px = threshX + dirX * dist;
-    const pz = threshZ + dirZ * dist;
-
-    // Centerline light
-    positions.push(px, 0.03, pz);
-    if (distM <= 300) {
-      colors.push(1.0, 0.15, 0.1); // red zone (inner 300m)
-      sizes.push(0.014);
-    } else {
-      colors.push(1.0, 1.0, 0.85); // white/warm
-      sizes.push(0.012);
+  const reach = full ? 730 : 430;
+  const pitch = full ? 30 : 60;
+  for (let m = pitch; m <= reach; m += pitch) {
+    // Five-light barrette, 1m apart, centred.
+    for (let j = -2; j <= 2; j++) push(m, j * 1.0, W);
+    // Red side rows in the inner 300m, five lights from 3m to 9m out each side.
+    if (full && m <= 300) {
+      for (let j = 0; j < 5; j++) { push(m, 3 + j * 1.5, R); push(m, -(3 + j * 1.5), R); }
     }
-
-    // ── Sequenced flashers (outer 5 lights, 600-900m) ──
-    if (distM >= 600 && distM % 60 === 0) {
-      // Larger brighter strobe light
-      positions.push(px, 0.035, pz);
-      colors.push(1.0, 1.0, 1.0);
-      sizes.push(0.022);
-    }
-
-    // ── Side barrettes (5 lights per side at each station) ──
-    if (distM <= 300 && distM % 30 === 0) {
-      // Red side row lights in inner 300m
-      const sideSpan = halfW * 0.8;
-      for (let j = 1; j <= 5; j++) {
-        const off = (j / 5) * sideSpan;
-        positions.push(px + perpX * off, 0.03, pz + perpZ * off);
-        positions.push(px - perpX * off, 0.03, pz - perpZ * off);
-        colors.push(1.0, 0.15, 0.1, 1.0, 0.15, 0.1);
-        sizes.push(0.008, 0.008);
-      }
-    }
-
-    // ── Crossbars at 150m, 300m, 450m, 600m ──
-    if (distM === 150 || distM === 300 || distM === 450 || distM === 600) {
-      const crossSpan = distM <= 300 ? halfW * 1.2 : halfW * 1.5;
-      const crossCount = distM <= 300 ? 8 : 6;
-      const isDecisionBar = distM === 300; // decision bar — brighter
-      for (let j = -crossCount; j <= crossCount; j++) {
-        if (j === 0) continue;
-        const off = (j / crossCount) * crossSpan;
-        positions.push(px + perpX * off, 0.03, pz + perpZ * off);
-        if (isDecisionBar) {
-          colors.push(1.0, 0.15, 0.1); // red decision bar
-          sizes.push(0.014);
-        } else {
-          colors.push(1.0, 1.0, 0.85);
-          sizes.push(0.01);
-        }
-      }
-    }
-
-    // ── Roll guidance lights (pair flanking centerline, 300-900m) ──
-    if (distM > 300 && distM % 60 === 0) {
-      const rollOff = halfW * 0.15;
-      positions.push(px + perpX * rollOff, 0.03, pz + perpZ * rollOff);
-      positions.push(px - perpX * rollOff, 0.03, pz - perpZ * rollOff);
-      colors.push(1.0, 1.0, 0.85, 1.0, 1.0, 0.85);
-      sizes.push(0.009, 0.009);
-    }
+    // Sequenced flashers beyond the 1,000ft bar.
+    if (m > 300 || !full) push(m, 0, S, 0.04);
+  }
+  // Crossbars: 300m bar spans 30m; the 150m bar 20m.
+  const bars = full ? [[300, 15], [150, 10]] : [[300, 12]];
+  for (const [at, half] of bars) {
+    for (let j = -half; j <= half; j += 1.5) push(at, j, W);
   }
 
   if (positions.length === 0) return;
-
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-
-  // Use custom sizes via PointsMaterial — approximate with average
-  const mat = new THREE.PointsMaterial({
-    size: 0.006,
-    transparent: true,
-    opacity: 0.65,
-    vertexColors: true,
-    sizeAttenuation: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-
-  const points = new THREE.Points(geo, mat);
+  const points = new THREE.Points(geo, _lightMaterial(0.0022, 0.7));
   points.name = "approachLights";
   _approachLightMeshes.push(points);
   airportGroup.add(points);
@@ -879,51 +721,31 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
 
   for (const rwy of runways) {
     if (rwy._sx === undefined) continue;
-    const sx = rwy._sx,
-      sz = rwy._sz,
-      ex = rwy._ex,
-      ez = rwy._ez;
-    const dx = ex - sx,
-      dz = ez - sz;
+    const sx = rwy._sx, sz = rwy._sz, ex = rwy._ex, ez = rwy._ez;
+    const dx = ex - sx, dz = ez - sz;
     const len = Math.sqrt(dx * dx + dz * dz);
     if (len < 0.1) continue;
-    const nx = dx / len,
-      nz = dz / len;
-    const perpX = -nz,
-      perpZ = nx;
+    const nx = dx / len, nz = dz / len;
+    const perpX = -nz, perpZ = nx;
+    const lenM = len * METERS_PER_UNIT;
 
-    const halfW = Math.max(rwy._rWid * 0.52, 0.007); // slightly outside edge
-    const spacing = 50 / METERS_PER_UNIT; // 50m spacing (was 60m)
-    const numLights = Math.floor(len / spacing);
+    // Edge lights sit up to 3m outside the paved edge, at most 60m apart.
+    const halfW = rwy._rWid * 0.5 + 3 / METERS_PER_UNIT;
+    const spacing = 60 / METERS_PER_UNIT;
+    const n = Math.max(2, Math.round(len / spacing));
+    // The caution zone is the last 600m or the last third, whichever is less,
+    // and it is yellow. Red is not an edge-light colour; the red at a runway's
+    // end is the end-light bar, drawn with the threshold.
+    const caution = Math.min(600, lenM / 3);
 
-    for (let i = 0; i <= numLights; i++) {
-      const t = i / numLights;
-      const px = sx + dx * t;
-      const pz = sz + dz * t;
-
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const px = sx + dx * t, pz = sz + dz * t;
       positions.push(px + perpX * halfW, 0.035, pz + perpZ * halfW);
       positions.push(px - perpX * halfW, 0.035, pz - perpZ * halfW);
-
-      const distFromStart = t * len * METERS_PER_UNIT;
-      const distFromEnd = (1 - t) * len * METERS_PER_UNIT;
-      const minDist = Math.min(distFromStart, distFromEnd);
-
-      let r, g, b;
-      if (minDist < 300) {
-        r = 1.0;
-        g = 0.12;
-        b = 0.08;
-      } // deep red
-      else if (minDist < 600) {
-        r = 1.0;
-        g = 0.72;
-        b = 0.1;
-      } // rich amber
-      else {
-        r = 0.95;
-        g = 0.97;
-        b = 1.0;
-      } // cool white
+      const dEnd = Math.min(t, 1 - t) * lenM;
+      const yel = dEnd < caution;
+      const r = 1.0, g = yel ? 0.78 : 0.96, b = yel ? 0.18 : 0.9;
       colors.push(r, g, b, r, g, b);
     }
   }
@@ -932,39 +754,20 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-
-  // Core bright lights
-  _runwayEdgeLightMesh = new THREE.Points(
-    geo,
-    new THREE.PointsMaterial({
-      size: 0.002,
-      transparent: true,
-      opacity: 0.85,
-      vertexColors: true,
-      sizeAttenuation: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    }),
-  );
+  _runwayEdgeLightMesh = new THREE.Points(geo, _lightMaterial(0.0022, 0.9));
   _runwayEdgeLightMesh.name = "runwayEdgeLights";
   airportGroup.add(_runwayEdgeLightMesh);
+}
 
-  // Bloom glow halo layer (larger, softer, same colors)
-  const glowGeo = geo.clone();
-  const glowMesh = new THREE.Points(
-    glowGeo,
-    new THREE.PointsMaterial({
-      size: 0.007,
-      transparent: true,
-      opacity: 0.08,
-      vertexColors: true,
-      sizeAttenuation: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    }),
-  );
-  glowMesh.name = "runwayEdgeLightsGlow";
-  airportGroup.add(glowMesh);
+// One material recipe for every fixture. The separate "glow halo" Points layers
+// that used to shadow each light set are gone: the post-process bloom already
+// does that job, and at map zoom four stacked additive layers summed into the
+// white blob that sat over every airport.
+function _lightMaterial(size, opacity) {
+  return new THREE.PointsMaterial({
+    size, transparent: true, opacity, vertexColors: true,
+    sizeAttenuation: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
 }
 
 // ---- Threshold Bar Lights (green) + Runway End Lights (red) ----
@@ -972,57 +775,42 @@ function renderRunwayEdgeLights(runways, userLat, userLon) {
 function renderThresholdAndEndLights(runways) {
   const positions = [];
   const colors = [];
+  const GREEN = [0.1, 1.0, 0.3];
+  const RED = [1.0, 0.12, 0.08];
+  const WHITE = [1.0, 1.0, 1.0];
 
   for (const rwy of runways) {
     if (rwy._sx === undefined) continue;
-    const sx = rwy._sx,
-      sz = rwy._sz,
-      ex = rwy._ex,
-      ez = rwy._ez;
-    const dx = ex - sx,
-      dz = ez - sz;
+    const sx = rwy._sx, sz = rwy._sz, ex = rwy._ex, ez = rwy._ez;
+    const dx = ex - sx, dz = ez - sz;
     const len = Math.sqrt(dx * dx + dz * dz);
     if (len < 0.1) continue;
-    const perpX = -(ez - sz) / len,
-      perpZ = (ex - sx) / len;
+    const nx = dx / len, nz = dz / len;
+    const perpX = -nz, perpZ = nx;
     const halfW = rwy._rWid * 0.5;
-    const numLights = 14; // lights across threshold width
+    const widM = rwy._rWid * METERS_PER_UNIT;
+    // The same fixture shows green to an aircraft on approach and red to one
+    // rolling out: a threshold light bar is a runway end bar seen from behind.
+    // Top-down that is a green row on the threshold and a red row 1.5m inboard.
+    const across = Math.max(6, Math.round(widM / 3)); // 3m spacing
+    const inset = 1.5 / METERS_PER_UNIT;
 
-    // Green threshold lights at BOTH thresholds (visible to arriving aircraft)
-    // Red end lights at BOTH ends (visible to departing aircraft)
-    // In reality, each threshold shows green to approach and red to departure
-    // We render green on the approach-facing side
     for (let end = 0; end < 2; end++) {
-      const bx = end === 0 ? sx : ex;
-      const bz = end === 0 ? sz : ez;
-
-      for (let j = 0; j <= numLights; j++) {
-        const t = j / numLights - 0.5; // -0.5 to +0.5
-        const lx = bx + perpX * t * halfW * 2;
-        const lz = bz + perpZ * t * halfW * 2;
-
-        // Green threshold lights (slightly elevated)
+      const bx = end === 0 ? sx : ex, bz = end === 0 ? sz : ez;
+      const inX = end === 0 ? nx : -nx, inZ = end === 0 ? nz : -nz;
+      for (let j = 0; j <= across; j++) {
+        const t = j / across - 0.5;
+        const lx = bx + perpX * t * halfW * 2, lz = bz + perpZ * t * halfW * 2;
         positions.push(lx, 0.04, lz);
-        colors.push(0.05, 1.0, 0.25); // vivid green
+        colors.push(...GREEN);
+        positions.push(lx + inX * inset, 0.04, lz + inZ * inset);
+        colors.push(...RED);
       }
-    }
-
-    // REIL — Runway End Identifier Lights (bright strobes at threshold corners)
-    for (let end = 0; end < 2; end++) {
-      const bx = end === 0 ? sx : ex;
-      const bz = end === 0 ? sz : ez;
-      // Two lights, one at each edge
-      positions.push(
-        bx + perpX * halfW * 1.05,
-        0.048,
-        bz + perpZ * halfW * 1.05,
-      );
-      positions.push(
-        bx - perpX * halfW * 1.05,
-        0.048,
-        bz - perpZ * halfW * 1.05,
-      );
-      colors.push(1.0, 1.0, 1.0, 1.0, 1.0, 1.0); // bright white strobes
+      // REIL: two white flashers 12m outside each edge, abeam the threshold.
+      const reil = halfW + 12 / METERS_PER_UNIT;
+      positions.push(bx + perpX * reil, 0.045, bz + perpZ * reil);
+      positions.push(bx - perpX * reil, 0.045, bz - perpZ * reil);
+      colors.push(...WHITE, ...WHITE);
     }
   }
 
@@ -1030,39 +818,100 @@ function renderThresholdAndEndLights(runways) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-
-  // Core lights
-  _thresholdBarMesh = new THREE.Points(
-    geo,
-    new THREE.PointsMaterial({
-      size: 0.0025,
-      transparent: true,
-      opacity: 0.88,
-      vertexColors: true,
-      sizeAttenuation: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    }),
-  );
+  _thresholdBarMesh = new THREE.Points(geo, _lightMaterial(0.0026, 0.92));
   _thresholdBarMesh.name = "thresholdLights";
   airportGroup.add(_thresholdBarMesh);
+}
 
-  // Glow halo for threshold/REIL
-  const threshGlowGeo = geo.clone();
-  const threshGlow = new THREE.Points(
-    threshGlowGeo,
-    new THREE.PointsMaterial({
-      size: 0.008,
-      transparent: true,
-      opacity: 0.08,
-      vertexColors: true,
-      sizeAttenuation: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    }),
-  );
-  threshGlow.name = "thresholdLightsGlow";
-  airportGroup.add(threshGlow);
+// ---- Centreline, touchdown-zone and PAPI lights ----
+// These are what make a precision runway read as one at night. Centreline
+// lights every 15m: white, then alternating red and white from 900m out to
+// 300m from the end, then red. Touchdown-zone barrettes of three, 30m apart,
+// through the first 900m either side of the centreline. A PAPI on the left of
+// each approach: four units 9m apart, on-slope reads two white outboard and two
+// red inboard.
+function _isPrecision(rwy) {
+  const lenM = (rwy._rLen || 0) * METERS_PER_UNIT;
+  const widM = (rwy._rWid || 0) * METERS_PER_UNIT;
+  return lenM >= 2400 || widM >= 45;
+}
+
+function renderRunwayCentrelineAndPAPI(runways) {
+  const positions = [];
+  const colors = [];
+  const W = [0.98, 0.98, 0.92], R = [1.0, 0.12, 0.08];
+
+  for (const rwy of runways) {
+    if (rwy._sx === undefined) continue;
+    const sx = rwy._sx, sz = rwy._sz, ex = rwy._ex, ez = rwy._ez;
+    const dx = ex - sx, dz = ez - sz;
+    const len = Math.sqrt(dx * dx + dz * dz);
+    if (len < 0.1) continue;
+    const nx = dx / len, nz = dz / len;
+    const perpX = -nz, perpZ = nx;
+    const lenM = len * METERS_PER_UNIT;
+    const precision = _isPrecision(rwy);
+
+    if (precision) {
+      const step = 15 / METERS_PER_UNIT;
+      const n = Math.floor(len / step);
+      for (let i = 1; i < n; i++) {
+        const m = i * 15;
+        const px = sx + nx * i * step, pz = sz + nz * i * step;
+        // Colour is decided from whichever end is nearer, since a bidirectional
+        // fixture is coded for the aircraft rolling toward that end.
+        const dEnd = Math.min(m, lenM - m);
+        const c = dEnd < 300 ? R : dEnd < 900 && i % 2 === 0 ? R : W;
+        positions.push(px, 0.036, pz);
+        colors.push(...c);
+      }
+      // Touchdown zone: barrettes at 30m pitch for 900m from each threshold,
+      // three lights 1.5m apart, starting 9m out from the centreline.
+      const pitch = 30 / METERS_PER_UNIT;
+      const inner = 9 / METERS_PER_UNIT, gap = 1.5 / METERS_PER_UNIT;
+      for (let end = 0; end < 2; end++) {
+        const bx = end === 0 ? sx : ex, bz = end === 0 ? sz : ez;
+        const ix = end === 0 ? nx : -nx, iz = end === 0 ? nz : -nz;
+        for (let k = 1; k <= 30 && k * 30 < lenM / 2; k++) {
+          const px = bx + ix * k * pitch, pz = bz + iz * k * pitch;
+          for (let j = 0; j < 3; j++) {
+            const off = inner + j * gap;
+            positions.push(px + perpX * off, 0.036, pz + perpZ * off);
+            positions.push(px - perpX * off, 0.036, pz - perpZ * off);
+            colors.push(...W, ...W);
+          }
+        }
+      }
+    }
+
+    // PAPI: abeam the aiming point, 15m off the left edge as seen on approach.
+    const aimM = lenM >= 2400 ? 400 : lenM >= 1500 ? 300 : 250;
+    if (lenM >= 900) {
+      const off0 = rwy._rWid * 0.5 + 15 / METERS_PER_UNIT;
+      const pitch = 9 / METERS_PER_UNIT;
+      for (let end = 0; end < 2; end++) {
+        const bx = end === 0 ? sx : ex, bz = end === 0 ? sz : ez;
+        const ix = end === 0 ? nx : -nx, iz = end === 0 ? nz : -nz;
+        // Left of the approach direction: perpendicular flips with direction.
+        const lx = end === 0 ? -perpX : perpX, lz = end === 0 ? -perpZ : perpZ;
+        const ax = bx + ix * (aimM / METERS_PER_UNIT);
+        const az = bz + iz * (aimM / METERS_PER_UNIT);
+        for (let u = 0; u < 4; u++) {
+          const o = off0 + u * pitch;
+          positions.push(ax + lx * o, 0.05, az + lz * o);
+          colors.push(...(u >= 2 ? W : R)); // inner two red, outer two white
+        }
+      }
+    }
+  }
+
+  if (positions.length === 0) return;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  const mesh = new THREE.Points(geo, _lightMaterial(0.0018, 0.85));
+  mesh.name = "runwayCentrelineLights";
+  airportGroup.add(mesh);
 }
 
 // ---- Runway Threshold Hit Targets (for hover tooltips) ----
@@ -1246,22 +1095,6 @@ function renderTaxiwayLights(taxiways, userLat, userLon) {
     );
     _taxiwayLightMesh.name = "taxiwayLights";
     airportGroup.add(_taxiwayLightMesh);
-    // Glow halo
-    const clGlowGeo = geo.clone();
-    const clGlow = new THREE.Points(
-      clGlowGeo,
-      new THREE.PointsMaterial({
-        color: 0x22ee66,
-        size: 0.005,
-        transparent: true,
-        opacity: 0.09,
-        sizeAttenuation: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      }),
-    );
-    clGlow.name = "taxiwayLightsGlow";
-    airportGroup.add(clGlow);
   }
 
   // Blue edge lights
@@ -1290,22 +1123,6 @@ function renderTaxiwayLights(taxiways, userLat, userLon) {
     );
     mesh.name = "taxiwayEdgeLights";
     airportGroup.add(mesh);
-    // Glow halo
-    const edgeGlowGeo = geo.clone();
-    const edgeGlow = new THREE.Points(
-      edgeGlowGeo,
-      new THREE.PointsMaterial({
-        size: 0.005,
-        transparent: true,
-        opacity: 0.08,
-        vertexColors: true,
-        sizeAttenuation: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      }),
-    );
-    edgeGlow.name = "taxiwayEdgeLightsGlow";
-    airportGroup.add(edgeGlow);
   }
 }
 
@@ -1406,21 +1223,18 @@ function renderAirportLabel(apt, userLat, userLon) {
 
   const code = apt.iata || apt.icao;
   if (!code) return;
+  const focused = !!(airportData && apt.icao && apt.icao === airportData.focusIcao);
 
   const canvas = document.createElement("canvas");
   canvas.width = 512;
   canvas.height = 160;
   const ctx = canvas.getContext("2d");
 
-  // Thin line accent above code
-  ctx.fillStyle = "rgba(90,172,255,0.3)";
-  ctx.fillRect(216, 8, 80, 1);
-
   // Airport code
   ctx.font = "500 72px Inter, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  ctx.fillStyle = focused ? "rgba(255,255,255,0.98)" : "rgba(255,255,255,0.62)";
   ctx.fillText(code, 256, 58);
 
   // Airport name — smaller, muted
@@ -1490,7 +1304,7 @@ function renderAirportLabel(apt, userLat, userLon) {
   const markerMat = new THREE.LineBasicMaterial({
     color: 0xffffff,
     transparent: true,
-    opacity: 0.2,
+    opacity: focused ? 0.5 : 0.18,
   });
   const marker = new THREE.LineSegments(markerShape, markerMat);
   marker.position.set(cx, 0.04, cz);
@@ -1569,14 +1383,6 @@ export function deselectAirport(scene) {
 // ---- Pulse animation (called from main loop) ----
 
 export function updatePulse(scene, time) {
-  // User location pulse ring — cached ref, no scene traversal
-  if (_pulseRingRef) {
-    const cycle = (time % 5) / 5;
-    const scale = 1 + cycle * 3;
-    _pulseRingRef.scale.set(scale, scale, 1);
-    _pulseRingRef.material.opacity = 0.15 * (1 - cycle * cycle);
-  }
-
   // Airport beacon pulse — iterate cached array, no forEach with string compare
   const beaconOpacity = 0.15 + 0.1 * Math.sin(time * 1.5);
   for (let i = 0; i < _aptBeacons.length; i++) {
@@ -2416,57 +2222,51 @@ async function loadNavChart(scene, lat, lon) {
   const ndbs = nearby.filter((n) => n.type === "NDB" || n.type === "NDB-DME");
 
   const Y_NAV = 0.04;
-  const OUTER_R = 0.1;
-  const INNER_R = 0.055;
-  const OUTER_DOTS = 12;
-  const INNER_DOTS = 6;
 
-  // ── Batched VOR dots ──
-  const vorPositions = [];
+  // A VOR on a chart is a hexagon with a dot at its centre. The previous symbol
+  // was eighteen white points at 0.025 world units each, which up close became a
+  // grey ring around a white ball -- the "focus glow" that sat on every major
+  // airport, since the VOR usually stands on the field. Lines do not bloom.
+  const VOR_R = 0.085;
+  const vorLineVerts = [];
+  const vorDotPos = [];
   const vorScenePos = []; // {nav, pos} for labels + airway connections
 
   for (const nav of vors) {
     const pos = geoToScene(nav.lat, nav.lon, lat, lon);
     if (Math.abs(pos.x) > GROUND_HALF || Math.abs(pos.z) > GROUND_HALF)
       continue;
-
-    for (let i = 0; i < OUTER_DOTS; i++) {
-      const a = (i / OUTER_DOTS) * Math.PI * 2;
-      vorPositions.push(
-        pos.x + Math.cos(a) * OUTER_R,
-        Y_NAV,
-        pos.z + Math.sin(a) * OUTER_R,
+    for (let i = 0; i < 6; i++) {
+      const a0 = (i / 6) * Math.PI * 2 + Math.PI / 6;
+      const a1 = ((i + 1) / 6) * Math.PI * 2 + Math.PI / 6;
+      vorLineVerts.push(
+        pos.x + Math.cos(a0) * VOR_R, Y_NAV, pos.z + Math.sin(a0) * VOR_R,
+        pos.x + Math.cos(a1) * VOR_R, Y_NAV, pos.z + Math.sin(a1) * VOR_R,
       );
     }
-    for (let i = 0; i < INNER_DOTS; i++) {
-      const a = (i / INNER_DOTS) * Math.PI * 2;
-      vorPositions.push(
-        pos.x + Math.cos(a) * INNER_R,
-        Y_NAV,
-        pos.z + Math.sin(a) * INNER_R,
-      );
-    }
-    vorPositions.push(pos.x, Y_NAV, pos.z); // center
-
+    vorDotPos.push(pos.x, Y_NAV, pos.z);
     vorScenePos.push({ nav, pos });
   }
 
-  if (vorPositions.length > 0) {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(vorPositions, 3),
+  if (vorLineVerts.length > 0) {
+    const lgeo = new THREE.BufferGeometry();
+    lgeo.setAttribute("position", new THREE.Float32BufferAttribute(vorLineVerts, 3));
+    _navGroup.add(
+      new THREE.LineSegments(
+        lgeo,
+        new THREE.LineBasicMaterial({
+          color: 0xb8c4d6, transparent: true, opacity: 0.38, depthWrite: false,
+        }),
+      ),
     );
+    const dgeo = new THREE.BufferGeometry();
+    dgeo.setAttribute("position", new THREE.Float32BufferAttribute(vorDotPos, 3));
     _navGroup.add(
       new THREE.Points(
-        geo,
+        dgeo,
         new THREE.PointsMaterial({
-          color: 0xffffff,
-          size: 0.025,
-          transparent: true,
-          opacity: 0.75,
-          depthWrite: false,
-          sizeAttenuation: true,
+          color: 0xb8c4d6, size: 3, sizeAttenuation: false,
+          transparent: true, opacity: 0.6, depthWrite: false,
         }),
       ),
     );

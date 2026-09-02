@@ -12,6 +12,25 @@ let fetchPromise = null;
 let _epoch = 0; // incremented on clear; prevents stale in-flight fetch from writing back
 let _activeController = null; // AbortController for the in-flight Worker fetch
 
+
+// OSM width tags are free text: "45", "45 m", "150 ft", "150'". parseFloat on
+// "150 ft" gives 150 and a runway three times wider than any on earth. When the
+// tag is missing the default follows the runway's length, which is how ICAO
+// ties width to aerodrome code: a 1,000m strip is 23m across, not 45.
+function parseOsmWidth(tag, lengthM, fallback) {
+  if (tag != null) {
+    const m = String(tag).trim().match(/^([\d.]+)\s*(m|ft|feet|')?/i);
+    if (m) {
+      let v = parseFloat(m[1]);
+      const u = (m[2] || "").toLowerCase();
+      if (u === "ft" || u === "feet" || u === "'") v *= 0.3048;
+      if (v > 0 && v < 120) return v;
+    }
+  }
+  if (fallback) return fallback;
+  return lengthM >= 1800 ? 45 : lengthM >= 1200 ? 30 : 23;
+}
+
 export function clearAirportCache() {
   _epoch++;
   cachedData = null;
@@ -284,7 +303,7 @@ function parseOverpassData(data) {
         endLon: end.lon,
         heading,
         length, // meters
-        width: parseFloat(el.tags?.width) || 45,
+        width: parseOsmWidth(el.tags?.width, length),
         ref: el.tags?.ref || refFromHeading(heading),
         surface: el.tags?.surface || "asphalt",
       });
@@ -298,7 +317,7 @@ function parseOverpassData(data) {
     ) {
       taxiways.push({
         ref: el.tags?.ref || "",
-        width: parseFloat(el.tags?.width) || 20,
+        width: parseOsmWidth(el.tags?.width, 0, 23),
         geometry: el.geometry.map((n) => ({ lat: n.lat, lon: n.lon })),
       });
     }

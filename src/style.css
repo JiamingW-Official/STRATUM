@@ -4565,3 +4565,20 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .ghost-hint-title { font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 500; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--accent); }
 .ghost-hint-text { font-family: var(--font-sans); font-size: var(--fs-body); color: var(--text-2); line-height: 1.45; }
 .ghost-hint kbd { font-family: var(--font-mono); font-size: var(--fs-label); padding: 0 5px; border: 1px solid var(--hairline-strong); border-radius: var(--r-sm); color: var(--text); }
+
+/* Runway tooltip: what the lights mean, said once, where you are looking at them. */
+.rwy-tooltip-legend { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--hairline); font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); letter-spacing: 0; white-space: nowrap; }
+.rwy-tooltip-legend i { display: inline-block; width: 5px; height: 5px; border-radius: 50%; vertical-align: middle; margin: 0 1px; }
+.rwy-tooltip-legend .l-g { background: #2eff60; } .rwy-tooltip-legend .l-w { background: #f4f4ee; }
+.rwy-tooltip-legend .l-y { background: #ffc72e; } .rwy-tooltip-legend .l-r { background: #ff2e1f; }
+.rwy-tooltip-legend .l-b { background: #2e6bff; }
+
+/* Below 768px the HUD was allowed to shrink until "GMT-4" broke across two
+   lines and the tower button wrapped mid-name. Nothing in it is meant to
+   wrap; give it the width it needs instead. */
+@media (max-width: 768px) {
+  #hud { min-width: 232px; }
+  .hud-stat-value, .hud-stat-label, .hud-atc-btn, .hud-atc-credit,
+  .hud-wx-line, .hud-wx-wind { white-space: nowrap; }
+  .hud-sky-line { white-space: normal; }
+}

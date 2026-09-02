@@ -726,6 +726,7 @@ function _showRunwayTooltip(info, mx, my) {
     <div class="rwy-tooltip-row"><span class="rwy-tooltip-label">Width</span><span class="rwy-tooltip-val">${info.width}m / ${widthFt}ft</span></div>
     <div class="rwy-tooltip-row"><span class="rwy-tooltip-label">Position</span><span class="rwy-tooltip-val">${info.lat.toFixed(4)}, ${info.lon.toFixed(4)}</span></div>
     <span class="rwy-tooltip-surface">${surfaceLabel}</span>
+    <div class="rwy-tooltip-legend">threshold <i class="l-g"></i> · edge <i class="l-w"></i> last 600m <i class="l-y"></i> · end <i class="l-r"></i> · taxiway <i class="l-b"></i> · PAPI <i class="l-w"></i><i class="l-r"></i></div>
   `;
   _rwyTooltip.style.left = mx + 16 + "px";
   _rwyTooltip.style.top = my - 10 + "px";
