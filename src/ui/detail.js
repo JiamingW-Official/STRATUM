@@ -656,21 +656,16 @@ function renderAltChart() {
     canvas.addEventListener('touchend', () => setH(null));
   }
 
-  // Always show chart once created — draw empty state if not enough data
-  canvas.style.display = 'block';
+  // The chart takes no room until it has something to draw. A 130px box reading
+  // "collecting..." is the first thing the eye lands on after selecting an
+  // aircraft, and it pushes the numbers that ARE known below the fold for the
+  // few seconds the track takes to arrive.
   const validAlts = altHistory.filter(e => e.alt != null && isFinite(e.alt));
   if (altHistory.length < 2 || validAlts.length < 5) {
-    const _ctx = canvas.getContext('2d');
-    const _w = Math.round(canvas.getBoundingClientRect().width) || 260;
-    canvas.width = _w * 2; canvas.height = 260;
-    _ctx.scale(2, 2);
-    _ctx.clearRect(0, 0, _w, 130);
-    _ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    _ctx.font = '9px JetBrains Mono, monospace';
-    _ctx.textAlign = 'center';
-    _ctx.fillText('Collecting altitude data...', _w / 2, 65);
+    canvas.style.display = 'none';
     return;
   }
+  canvas.style.display = 'block';
   let w = Math.round(canvas.getBoundingClientRect().width);
   if (!w) { void canvas.offsetWidth; w = Math.round(canvas.getBoundingClientRect().width) || 260; }
   const H = 130;
@@ -997,20 +992,12 @@ function renderSpeedChart() {
     canvas.addEventListener('touchend', () => setH(null));
   }
 
-  canvas.style.display = 'block';
   const speedEntries = altHistory.filter(e => e.gsKts != null && isFinite(e.gsKts));
   if (speedEntries.length < 5) {
-    const _ctx = canvas.getContext('2d');
-    const _w = Math.round(canvas.getBoundingClientRect().width) || 260;
-    canvas.width = _w * 2; canvas.height = 260;
-    _ctx.scale(2, 2);
-    _ctx.clearRect(0, 0, _w, 130);
-    _ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    _ctx.font = '9px JetBrains Mono, monospace';
-    _ctx.textAlign = 'center';
-    _ctx.fillText('Collecting speed data...', _w / 2, 65);
+    canvas.style.display = 'none';
     return;
   }
+  canvas.style.display = 'block';
   let w = Math.round(canvas.getBoundingClientRect().width);
   if (!w) { void canvas.offsetWidth; w = Math.round(canvas.getBoundingClientRect().width) || 260; }
   const H = 130;

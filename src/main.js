@@ -1325,13 +1325,11 @@ function showAirportWidget(airport, arrivals, departures) {
     } else factEl.classList.add("hidden");
   }
 
-  const descEl = _awEl("aw-desc");
-  if (descEl) {
-    if (meta?.desc) {
-      descEl.textContent = meta.desc;
-      descEl.classList.remove("hidden");
-    } else descEl.classList.add("hidden");
-  }
+  // The city blurb ("a vertical metropolis of Broadway theaters...") is travel
+  // copy, and it rendered truncated mid-sentence. It still belongs in the picker,
+  // where you are choosing where to go; over the live map it is filler. The
+  // aviation fact above it stays.
+  _awEl("aw-desc")?.classList.add("hidden");
 
   // B-4: Arrival Sequencing Queue — sorted by distance to airport, with ETA
   let flightListEl = document.getElementById("aw-flight-list");
@@ -1376,15 +1374,25 @@ function showAirportWidget(airport, arrivals, departures) {
   }));
   const allItems = [...arrWithDist, ...depItems].slice(0, 20);
 
-  flightListEl.innerHTML = allItems
-    .map((item, i) => {
-      const cs = item.ac.callsign || item.ac.icao24;
-      const rank = item.tag === "arr" ? `#${i + 1} ` : "";
-      const dist = item.distNm != null ? ` · ${item.distNm}nm` : "";
-      const eta = item.etaMin != null ? ` · ${item.etaMin}min` : "";
-      return `<div class="aw-flight-item" data-icao="${item.ac.icao24}"><span>${rank}${cs}${dist}${eta}</span><span class="aw-flight-tag ${item.tag}">${item.tag.toUpperCase()}</span></div>`;
-    })
-    .join("");
+  // Every row carried an ARR or DEP tag, but the list is already sorted with all
+  // arrivals first, so twenty rows repeated two words. Two headers say it once,
+  // and the list gains the name it never had.
+  const _row = (item, i) => {
+    const cs = item.ac.callsign || item.ac.icao24;
+    const rank = item.tag === "arr" ? `#${i + 1} ` : "";
+    const dist = item.distNm != null ? ` · ${item.distNm}nm` : "";
+    const eta = item.etaMin != null ? ` · ${item.etaMin}min` : "";
+    return `<div class="aw-flight-item" data-icao="${item.ac.icao24}"><span>${rank}${cs}</span><span class="aw-flight-meta">${(dist + eta).replace(/^ · /, "")}</span></div>`;
+  };
+  const _arr = allItems.filter((it) => it.tag === "arr");
+  const _dep = allItems.filter((it) => it.tag === "dep");
+  flightListEl.innerHTML =
+    (_arr.length
+      ? `<div class="aw-flight-head">↓ Arriving</div>${_arr.map(_row).join("")}`
+      : "") +
+    (_dep.length
+      ? `<div class="aw-flight-head">↑ Departing</div>${_dep.map(_row).join("")}`
+      : "");
 
   // ATC spacing education note
   let seqEduEl = document.getElementById("aw-seq-edu");
@@ -12708,7 +12716,7 @@ function initCityPicker() {
   let searchQuery = "";
   let activeTier = "all"; // all | mega | major | regional
   let activeRegion = "All"; // All | Americas | Europe | ...
-  let sortBy = "name"; // name | pax | runways | elevation | country
+  let sortBy = "pax"; // pax | name | runways | elevation | country
   let _selectedIdx = -1;
   let _focusedIdx = -1;
 
@@ -12877,12 +12885,11 @@ function initCityPicker() {
             a.nameLower.localeCompare(b.nameLower),
         );
     } else {
-      // name (default) — already in name order from CITIES array, unless filtered
-      if (activeTier !== "all" || activeRegion !== "All" || q) {
-        results = results
-          .slice()
-          .sort((a, b) => a.nameLower.localeCompare(b.nameLower));
-      }
+      // The unfiltered list was left in the CITIES array's own order, which is
+      // curated by importance, while the control said "Name A-Z". Sort for real.
+      results = results
+        .slice()
+        .sort((a, b) => a.nameLower.localeCompare(b.nameLower));
     }
 
     return results;
@@ -12894,7 +12901,7 @@ function initCityPicker() {
   function renderList() {
     const filtered = getFilteredList();
     if (resultCount)
-      resultCount.textContent = `${filtered.length} airport${filtered.length !== 1 ? "s" : ""}`;
+      resultCount.textContent = `${filtered.length.toLocaleString()} airport${filtered.length !== 1 ? "s" : ""}`;
 
     // Update globe filter
     _globeView?.setFilter(activeRegion, searchQuery);
@@ -12940,18 +12947,23 @@ function initCityPicker() {
   function renderItem(e) {
     const c = CITIES[e.i];
     const meta = AIRPORT_DATA[c.code] || {};
-    const tierLabel = TIER_LABELS[e.tier];
-    const tierClass = TIER_CLASSES[e.tier];
-    const paxStr = e.pax > 0 ? `${e.pax}M` : "";
     const icao = meta.icao || "";
+    // Nine identical MEGA HUB badges down a column carry no information, and the
+    // tier is already the filter directly above the list. The same fact is worth
+    // more as a length: a bar scaled to annual passengers, against the busiest
+    // airport in the world, so every row differs from the one above it.
+    const paxStr = e.pax > 0 ? `${e.pax}M` : "";
+    const paxPct = e.pax > 0 ? Math.min(100, Math.round((e.pax / 105) * 100)) : 0;
     return `<div class="city-list-item${e.i === _selectedIdx ? " active" : ""}" data-idx="${e.i}">
       <span class="cli-code">${c.code}</span>
       <div class="cli-info">
         <span class="cli-name">${c.name}</span>
         <span class="cli-sub">${c.country || ""}${icao ? " · " + icao : ""}</span>
       </div>
-      <span class="cli-tier ${tierClass}">${tierLabel}</span>
-      ${paxStr ? `<span class="cli-pax">${paxStr}</span>` : '<span class="cli-pax"></span>'}
+      <span class="cli-load" title="${paxStr ? paxStr + " passengers a year" : "no traffic figure"}">
+        <span class="cli-load-bar"><i style="width:${paxPct}%"></i></span>
+        <span class="cli-pax">${paxStr}</span>
+      </span>
       <span class="cli-chevron">›</span>
     </div>`;
   }

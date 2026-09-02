@@ -496,6 +496,7 @@
                 placeholder="Search airport, city, ICAO..." autocomplete="off" spellcheck="false">
             </div>
             <div class="city-filter-row">
+              <span class="city-filter-key">SIZE</span>
               <div class="city-tier-chips" id="city-tier-chips">
                 <button type="button" class="tier-chip active" data-tier="all">All</button>
                 <button type="button" class="tier-chip" data-tier="mega">Mega Hub</button>
@@ -504,6 +505,7 @@
               </div>
             </div>
             <div class="city-filter-row">
+              <span class="city-filter-key">WHERE</span>
               <div class="city-region-chips" id="city-region-chips">
                 <button type="button" class="region-chip active" data-region="All">All</button>
                 <button type="button" class="region-chip" data-region="Americas">Americas</button>
@@ -517,8 +519,8 @@
             <div class="city-sort-row">
               <span class="city-sort-label">SORT</span>
               <select id="city-sort-select" class="city-sort-select" aria-label="Sort airports" title="Sort airports">
+                <option value="pax" selected>Busiest first</option>
                 <option value="name">Name A-Z</option>
-                <option value="pax">Passengers ↓</option>
                 <option value="runways">Runways ↓</option>
                 <option value="elevation">Elevation ↓</option>
                 <option value="country">Country</option>

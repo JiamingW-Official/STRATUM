@@ -1418,12 +1418,15 @@ html, body {
   text-transform: uppercase; margin-bottom: 4px; opacity: 0.9;
   font-weight: 500;
 }
-.aw-ad-arr .aw-ad-label { color: rgba(106,200,122,1); }
-.aw-ad-dep .aw-ad-label { color: rgba(232,131,106,1); }
+.aw-ad-label { color: var(--text-3); }
+/* Direction is carried by the arrow, not by a hue: green and red on two plain
+   counts read as good and bad, and green already means "live" everywhere else. */
+.aw-ad-label::before { content: ''; margin-right: 4px; opacity: 0.7; }
+.aw-ad-arr .aw-ad-label::before { content: '\2193'; }
+.aw-ad-dep .aw-ad-label::before { content: '\2191'; }
 .aw-ad-val { font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400; letter-spacing: -0.02em; line-height: 1;
 }
-.aw-ad-arr .aw-ad-val { color: rgba(106,200,122,0.9); }
-.aw-ad-dep .aw-ad-val { color: rgba(232,131,106,0.9); }
+.aw-ad-val { color: rgba(var(--text-rgb), 0.92); font-variant-numeric: tabular-nums; }
 .aw-ad-divider {
   width: 1px; background: var(--hairline);
   align-self: stretch; margin: 0;
@@ -1431,7 +1434,7 @@ html, body {
 
 /* ── Stats grid — 4 columns ── */
 .aw-stats {
-  display: grid; grid-template-columns: repeat(4, 1fr); padding: 10px 16px 4px; gap: 10px;
+  display: grid; grid-template-columns: 0.75fr 0.7fr 1fr 1.55fr; padding: 10px 16px 4px; gap: 10px;
   border-top: 1px solid var(--hairline);
 }
 .aw-stat {
@@ -2147,30 +2150,35 @@ html, body {
   display: flex; flex-direction: column;
   gap: 1px; padding: 4px 16px 8px;
 }
+/* Keys were flush left and descriptions flush right, so with key widths running
+   from "/" to "Shift+Click" the eye crossed a different-sized void on every
+   line. A fixed key column, right-aligned inside it, gives the list two clean
+   vertical edges and a constant gap. */
 .help-row {
-  display: flex; align-items: center;
-  justify-content: space-between; gap: 12px;
+  display: grid;
+  grid-template-columns: 94px 1fr;
+  align-items: center; gap: 12px;
   padding: 4px 4px;
   margin: 0 -4px;
   border-radius: var(--r-sm);
   transition: background 0.2s ease;
 }
-.help-row:hover { background: rgba(var(--accent-rgb), 0.03); transform: translateX(2px); }
+.help-row:hover { background: rgba(255,255,255,0.035); }
 
 .help-row kbd {
+  justify-self: end;
   font-family: var(--font-mono);
   font-size: var(--fs-label); color: var(--text);
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255,255,255,0.07);
   border-radius: var(--r-sm); padding: 3px 7px;
-  min-width: 56px; text-align: center;
+  text-align: center;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 .help-row span {
   font-family: var(--font-sans);
   font-size: var(--fs-label); color: var(--text-2);
-  text-align: right; letter-spacing: 0;
+  text-align: left; letter-spacing: 0;
 }
 
 .help-footer {
@@ -2629,7 +2637,7 @@ html, body {
 .city-search-input {
   width: 100%; box-sizing: border-box;
   background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(var(--accent-rgb), 0.14);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--r-sm); color: var(--text);
   font-family: var(--font-mono); font-size: var(--fs-label);
   padding: 9px 14px; outline: none;
@@ -2660,13 +2668,20 @@ html, body {
   white-space: nowrap;
 }
 .tier-chip:hover, .region-chip:hover {
-  border-color: rgba(var(--accent-rgb), 0.30); color: rgba(var(--text-rgb), 0.65);
-  background: rgba(var(--accent-rgb), 0.06);
+  border-color: rgba(255,255,255,0.16); color: rgba(var(--text-rgb), 0.75);
+  background: rgba(255,255,255,0.05);
 }
 .tier-chip.active, .region-chip.active {
   border-color: rgba(var(--accent-rgb), 0.55); color: var(--accent);
   background: rgba(var(--accent-rgb), 0.10);
   box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.08) inset;
+}
+
+/* Two chip rows both began with "All" and neither said what it filtered. */
+.city-filter-key {
+  font-family: var(--font-mono); font-size: var(--fs-label);
+  letter-spacing: var(--track-label); color: var(--text-3);
+  text-transform: uppercase; width: 42px; flex-shrink: 0;
 }
 
 /* Sort row */
@@ -2727,7 +2742,7 @@ html, body {
 }
 .cli-code {
   font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 600;
-  color: var(--accent); min-width: 44px; letter-spacing: 0;
+  color: rgba(var(--text-rgb), 0.92); min-width: 44px; letter-spacing: 0;
 }
 .city-list-item.active .cli-code { color: var(--accent-bright); }
 .cli-info {
@@ -2739,39 +2754,35 @@ html, body {
 }
 .cli-sub {
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0;
-  color: rgba(var(--accent-rgb), 0.35); text-transform: uppercase;
+  color: rgba(var(--text-rgb), 0.28); text-transform: uppercase;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .city-list-item:hover .cli-name,
 .city-list-item.active .cli-name { color: rgba(var(--text-rgb), 0.85); }
 .city-list-item:hover .cli-sub,
-.city-list-item.active .cli-sub { color: rgba(var(--accent-rgb), 0.60); }
+.city-list-item.active .cli-sub { color: rgba(var(--text-rgb), 0.5); }
 
-/* Tier badge in list */
-.cli-tier {
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
-  padding: 2px 6px; border-radius: var(--r-sm); margin: 0 8px;
-  text-transform: uppercase; white-space: nowrap;
-  border: 1px solid transparent;
+/* Annual passengers, as a length. Replaces a per-row tier badge that repeated
+   the filter above the list and read the same on every row. */
+.cli-load { display: flex; align-items: center; gap: 8px; margin: 0 10px 0 8px; }
+.cli-load-bar {
+  width: 46px; height: 2px; border-radius: 1px;
+  background: rgba(var(--text-rgb), 0.13);
+  overflow: hidden;
 }
-.cli-tier-mega {
-  color: #ffd84a; border-color: rgba(255,216,74,0.25);
-  background: rgba(255,216,74,0.06);
+.cli-load-bar i {
+  display: block; height: 100%;
+  background: rgba(var(--text-rgb), 0.45);
+  transition: background 0.15s ease;
 }
-.cli-tier-major {
-  color: rgba(var(--accent-rgb), 0.75); border-color: rgba(var(--accent-rgb), 0.15);
-  background: rgba(var(--accent-rgb), 0.04);
-}
-.cli-tier-regional {
-  color: var(--text-3); border-color: rgba(255,255,255,0.05);
-  background: transparent;
-}
+.city-list-item:hover .cli-load-bar i,
+.city-list-item.active .cli-load-bar i { background: var(--accent); }
 
 /* Pax count in list */
 .cli-pax {
   font-family: var(--font-mono); font-size: var(--fs-label);
-  color: var(--text-3); min-width: 30px; text-align: right;
-  letter-spacing: 0; margin-right: 4px;
+  color: var(--text-3); min-width: 34px; text-align: right;
+  letter-spacing: 0; font-variant-numeric: tabular-nums;
 }
 
 .cli-chevron {
@@ -3048,6 +3059,16 @@ html, body {
   transition: background 0.15s; font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
 }
 .aw-flight-item:hover { background: var(--accent-dim); }
+.aw-flight-head {
+  font-family: var(--font-sans); font-size: var(--fs-label);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--text-3); padding: 10px 0 4px;
+}
+.aw-flight-head:first-child { padding-top: 2px; }
+.aw-flight-meta {
+  font-family: var(--font-mono); font-size: var(--fs-label);
+  color: var(--text-3); letter-spacing: 0; font-variant-numeric: tabular-nums;
+}
 .aw-flight-tag {
   font-size: var(--fs-label); padding: 1px 4px; border-radius: var(--r-sm);
   letter-spacing: 0;
@@ -4460,7 +4481,18 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* Flight list rows carry a hairline, not a resting tint. */
 .aw-flight-item { background: none; border-top: 1px solid var(--hairline); padding: 6px 0; }
-.aw-flight-item:first-child { border-top: none; }
+.aw-flight-item:first-child,
+.aw-flight-head + .aw-flight-item { border-top: none; }
+.aw-flight-head {
+  font-family: var(--font-sans); font-size: var(--fs-label);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--text-3); padding: 10px 0 4px;
+}
+.aw-flight-head:first-child { padding-top: 2px; }
+.aw-flight-meta {
+  font-family: var(--font-mono); font-size: var(--fs-label);
+  color: var(--text-3); letter-spacing: 0; font-variant-numeric: tabular-nums;
+}
 .aw-flight-tag { font-size: var(--fs-label); font-weight: 600; letter-spacing: 0; border-radius: var(--r-sm); padding: 1px 6px; }
 
 /* A dossier open in the top-right corner takes that corner; the challenge
