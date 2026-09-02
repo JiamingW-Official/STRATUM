@@ -279,6 +279,9 @@ html, body {
 
 /* ── HUD Weather ── */
 .hud-weather { pointer-events: auto; padding: 5px 0 3px; }
+.hud-weather.is-empty { display: none; }
+/* An empty bordered pill is decoration, not information. */
+.hud-wx-cat:empty { display: none; }
 
 .hud-wx-line {
   display: flex; align-items: center; gap: 6px;

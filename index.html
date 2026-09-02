@@ -126,11 +126,13 @@
         <span class="hud-atc-credit">audio · LiveATC</span>
       </div>
     </div>
-    <!-- Weather — always visible, single compact line -->
-    <div id="hud-weather" class="hud-weather">
+    <!-- Weather — hidden until the first METAR lands. A dashed placeholder here
+         reads as broken rather than pending, and the panel floats, so there is
+         no layout to reserve. -->
+    <div id="hud-weather" class="hud-weather is-empty">
       <div class="hud-wx-line" id="hud-wx-toggle">
-        <span class="hud-wx-icon" id="hud-wx-icon">--</span>
-        <span class="hud-wx-temp" id="hud-wx-temp">--°</span>
+        <span class="hud-wx-icon" id="hud-wx-icon"></span>
+        <span class="hud-wx-temp" id="hud-wx-temp"></span>
         <span class="hud-wx-desc" id="hud-wx-desc"></span>
         <span class="hud-wx-wind" id="hud-wx-wind"></span>
         <span class="hud-wx-cat" id="hud-wx-cat"></span>

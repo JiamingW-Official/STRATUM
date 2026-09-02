@@ -3224,6 +3224,7 @@ async function updateWeatherWidget() {
     const e = document.getElementById(id);
     if (e) e.textContent = val;
   };
+  document.getElementById("hud-weather")?.classList.remove("is-empty");
   set("hud-wx-icon", weatherIcon(data.weatherCode));
   set("hud-wx-temp", `${Math.round(data.temp)}°`);
   set("hud-wx-desc", desc);

@@ -412,7 +412,41 @@ export async function loadAirports(scene, userLat, userLon) {
   for (const rwy of airportData.runways) {
     renderRunway(rwy, userLat, userLon);
   }
-  for (const apt of airportData.airports) {
+  // Labels are drawn most-significant first and suppressed where they would
+  // land on one already placed. Without this, a heliport with no IATA code sits
+  // on top of the international airport two blocks away and neither is legible.
+  // Significance: an IATA code means scheduled service; runway count breaks ties.
+  // Significance is measured in pavement, not in names: total length of the
+  // runways lying within 3km of the airport's own position. Runway records do
+  // not reliably carry the parent airport's identifier, so match on geometry.
+  // Without this a seaplane base outranks LaGuardia and takes its label.
+  const _pavement = (a) => {
+    let m = 0;
+    for (const r of airportData.runways) {
+      if (r.startLat == null || r.endLat == null) continue;
+      const mLat = (r.startLat + r.endLat) / 2, mLon = (r.startLon + r.endLon) / 2;
+      if (Math.abs(mLat - a.lat) > 0.027 || Math.abs(mLon - a.lon) > 0.036) continue;
+      m += Math.hypot((r.endLat - r.startLat) * 111000,
+                      (r.endLon - r.startLon) * 111000 * _cosLat);
+    }
+    return m;
+  };
+  const _weight = (a) => (a.iata ? 100000 : 0) + _pavement(a);
+  const _placed = [];
+  // Label sprites are screen-sized, so at the default framing one is about six
+  // world units wide. GEO_SCALE is 40 units per degree, so that is roughly 17km.
+  const LABEL_SEP_X = 6;
+  const LABEL_SEP_Z = 2;
+  for (const apt of [...airportData.airports].sort((a, b) => _weight(b) - _weight(a))) {
+    // Heliports and private strips have no IATA code, and their four-letter
+    // identifiers mean nothing to a reader. They keep their marker; the text
+    // goes to the fields you could actually fly out of.
+    if (!apt.iata && apt.icao !== airportData.focusIcao) continue;
+    const x = (apt.lon - userLon) * GEO_SCALE * _cosLat;
+    const z = -(apt.lat - userLat) * GEO_SCALE;
+    if (_placed.some((p) => Math.abs(p.x - x) < LABEL_SEP_X && Math.abs(p.z - z) < LABEL_SEP_Z))
+      continue;
+    _placed.push({ x, z });
     renderAirportLabel(apt, userLat, userLon);
   }
   scene.add(airportGroup);

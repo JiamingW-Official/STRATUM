@@ -13,7 +13,10 @@ let cityOverride = null;
 let prevCount = 0;
 
 export function updateHUDCity(name, code) {
-  cityOverride = code ? `${code}  ·  ${name}` : name;
+  // Many city names already end in their own code — "New York JFK" — so the
+  // prefix would just say it twice. Drop it when the name already carries it.
+  const dup = code && new RegExp(`(^|\\s)${code}$`, 'i').test(name.trim());
+  cityOverride = code && !dup ? `${code}  ·  ${name}` : name;
   if (hudLocation) hudLocation.textContent = cityOverride;
 }
 

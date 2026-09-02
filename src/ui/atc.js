@@ -78,14 +78,16 @@ function _render(state) {
   _btn?.classList.toggle('is-live', state === 'playing');
   _btn?.classList.toggle('is-busy', state === 'loading');
   if (_label) {
+    // One stable string: which position, how far off it is, and what it is doing.
+    // The control already looks like a button, so it does not also need to say
+    // "click"; the dot carries live / tuning / dead, and the width stops jumping.
     const where = _heard || _icao || '';
-    const near = _nearby ? ` · ${_nearby.km}km` : '';
+    const near = _nearby ? ` · ${_nearby.km}KM` : '';
+    const suffix =
+      state === 'loading' ? ' · TUNING' :
+      state === 'error'   ? ' · NO FEED' : '';
     _label.textContent =
-      state === 'playing' ? `Listening · ${where} ${kindFor(_heard)}${near}` :
-      state === 'armed'   ? `Click anywhere to hear ${where}` :
-      state === 'loading' ? 'Tuning…' :
-      state === 'error'   ? 'Feed unavailable' :
-                            `Hear ${where} ${kindFor(_heard)}${near}`;
+      `${where} ${kindFor(_heard).toUpperCase()}${near}${suffix}`;
   }
 }
 
