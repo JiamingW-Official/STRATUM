@@ -1936,11 +1936,11 @@ const filterState = {
   active: false, // is the panel open?
 };
 const ALT_PRESETS = {
+  ALL: { min: 0, max: 99999, label: "ALL" },
   GND: { min: 0, max: 1500, label: "GND" },
   TERMINAL: { min: 0, max: 10000, label: "<FL100" },
   TRANS: { min: 10000, max: 24000, label: "TRANS" },
   HIGH: { min: 24000, max: 60000, label: "HIGH" },
-  ALL: { min: 0, max: 99999, label: "ALL" },
 };
 
 // Session statistics (T2-14)
@@ -3795,7 +3795,7 @@ function initFilterPanel() {
           ${Object.keys(ALT_PRESETS)
             .map(
               (k) => `
-            <button class="filter-btn${filterState.altPreset === k ? " active" : ""}" data-alt="${k}">${ALT_PRESETS[k].label}</button>
+            <button class="filter-btn${filterState.altPreset === k ? " active" : ""}" data-alt="${k}">${ALT_PRESETS[k].label.replace(/</g, "&lt;")}</button>
           `,
             )
             .join("")}
