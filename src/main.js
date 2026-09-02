@@ -30,6 +30,8 @@ import {
   getNavHitTargets,
   updateRouteOverlay,
   clearRouteOverlay,
+  updateCoverageShadow,
+  setCoverageShadowVisible,
 } from "./scene/environment.js";
 import {
   AircraftManager,
@@ -39,6 +41,8 @@ import {
   getTCASTraffic,
   setSunState,
   haversineDistance,
+  toggleGhostMode,
+  isGhostMode,
 } from "./scene/aircraft.js";
 import {
   setUserLocation,
@@ -46,6 +50,7 @@ import {
   startPolling,
   restartPolling,
   enrichAircraft,
+  getRoute,
 } from "./data/opensky.js";
 import { prefetchAirportData } from "./data/airports.js";
 import {
@@ -55,6 +60,7 @@ import {
   updateHUDCity,
   setLocalTimezone,
   showSignalLost,
+  updateHUDSky,
 } from "./ui/hud.js";
 import {
   showDetail,
@@ -1704,6 +1710,26 @@ function updateFleetStats(dataList) {
 // --- Data handling ---
 let lastRawData = [];
 
+// The sky as people: seats by type where the type is known, a category-based
+// guess where it is not (light aircraft carry a handful, airliners ~150), and
+// the count of aircraft that asked not to be seen (LADD / PIA).
+document.body.classList.toggle("ghost-mode", isGhostMode());
+
+function _skyStats(list) {
+  let people = 0, unseen = 0;
+  const cities = new Set();
+  for (const d of list) {
+    if (d.seats) people += d.seats;
+    else if (d.category === "A1" || d.category === "A2") people += 4;
+    else if (d.category === "A3" || d.category === "A4" || d.category === "A5") people += 150;
+    else people += 2;
+    const dest = d.destination || getRoute(d.callsign)?.destination;
+    if (dest) cities.add(dest);
+    if (d.masked) unseen++;
+  }
+  return { people: Math.round(people), cities: cities.size, unseen };
+}
+
 function handleData(dataList) {
   console.log("[STRATUM] Received", dataList.length, "aircraft");
   showSignalLost(false);
@@ -1715,6 +1741,8 @@ function handleData(dataList) {
     const { lat, lon } = getUserLocation();
     const count = aircraftManager.getCount();
     updateHUD(count, lat, lon);
+    updateHUDSky(_skyStats(dataList));
+    updateCoverageShadow(dataList, lat, lon);
     // Throttle detail refresh to 1Hz — data arrives at 4-10Hz but UI update > 1Hz is wasted
     const _now = Date.now();
     if (_now - _lastDetailRefreshAt >= 900) {
@@ -2286,6 +2314,14 @@ document.addEventListener("keydown", (e) => {
   // I = unified Info panel (session + spotter)
   else if (k === "i") {
     toggleInfoPanel();
+    return;
+  }
+
+  // V = ghost layer: draw aircraft by how they are seen; masked ones lose their identity
+  else if (k === "v" && !e.ctrlKey && !e.metaKey) {
+    const on = toggleGhostMode();
+    document.body.classList.toggle("ghost-mode", on);
+    setCoverageShadowVisible(on);
     return;
   }
 

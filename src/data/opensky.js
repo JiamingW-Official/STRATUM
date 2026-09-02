@@ -1,4 +1,5 @@
 import { getAirportCity } from "./airportCities.js";
+import { getAircraftSpecs } from "./aircraftDb.js";
 import {
   batchUpdate as inferBatchUpdate,
   cleanupStale as inferCleanup,
@@ -142,6 +143,20 @@ function parseAircraft(ac) {
     emergency: ac.emergency || null,
     groundSpeed: ac.gs != null ? ac.gs : null,
     seenPos: ac.seen_pos != null ? ac.seen_pos : null,
+
+    // ── Visibility ──
+    // dbFlags: bit0 military, bit1 interesting, bit2 PIA (privacy ICAO — the
+    // aircraft is broadcasting a borrowed identity), bit3 LADD (the owner has
+    // asked aggregators to withhold it). `type` is how this position reached
+    // us: adsb_icao is the aircraft speaking for itself; mlat is volunteers
+    // triangulating a transponder that does not; tisb/adsr is a state relay.
+    masked: !!((ac.dbFlags || 0) & 12),
+    maskReason: (ac.dbFlags || 0) & 8 ? "LADD" : (ac.dbFlags || 0) & 4 ? "PIA" : null,
+    military: !!((ac.dbFlags || 0) & 1),
+    sensing: ac.type || "adsb_icao",
+    nic: ac.nic != null ? ac.nic : null,
+    rssi: ac.rssi != null ? ac.rssi : null,
+    seats: ac.t ? getAircraftSpecs(ac.t)?.pax || null : null,
   };
 }
 

@@ -4489,3 +4489,13 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 
 .tcas-widget.is-open { opacity: 1; pointer-events: auto; transform: translateY(0) translateX(0); }
+
+/* HUD — sky as people. Two plain sentences under the counters; the "unseen"
+   line carries the accent because it is the claim the whole layer makes. */
+.hud-sky { display: flex; flex-direction: column; gap: 3px; padding: 8px 0 2px; border-top: 1px solid var(--hairline); }
+.hud-sky.hidden { display: none; }
+.hud-sky-line { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-2); letter-spacing: 0; }
+.hud-sky-line #hud-sky-people, .hud-sky-line #hud-sky-cities, .hud-sky-line #hud-sky-unseen { font-family: var(--font-mono); color: var(--text); }
+.hud-sky-unseen #hud-sky-unseen { color: var(--accent); }
+.hud-sky-unseen.is-zero { color: var(--text-3); }
+.hud-sky-unseen.is-zero #hud-sky-unseen { color: var(--text-3); }

@@ -1566,7 +1566,90 @@ export function updatePulse(scene, time) {
 
 // ---- Exports ----
 
+// ── Coverage shadow ──
+// Where the volunteer receiver network hears faintly. The ground is divided
+// into a grid; each poll records, per cell, the strongest signal (rssi) and the
+// freshest position age among aircraft seen there. Cells that are only ever
+// heard faintly or late darken. Cells with no aircraft stay clear: "no data" is
+// not "no coverage", and the layer must not pretend otherwise.
+const COV_CELLS = 64;
+const COV_DEG = GROUND_SIZE / GEO_SCALE; // full extent in degrees (4)
+let _covMesh = null, _covTex = null, _covCanvas = null;
+let _covBest = null, _covAge = null, _covStamp = null;
+let _covVisible = true;
+
+function _ensureCoverage() {
+  if (_covMesh || !_sceneRef) return;
+  _covCanvas = document.createElement("canvas");
+  _covCanvas.width = COV_CELLS; _covCanvas.height = COV_CELLS;
+  _covTex = new THREE.CanvasTexture(_covCanvas);
+  _covTex.magFilter = THREE.LinearFilter; _covTex.minFilter = THREE.LinearFilter;
+  const geo = new THREE.PlaneGeometry(GROUND_SIZE * _cosLat, GROUND_SIZE);
+  const mat = new THREE.MeshBasicMaterial({ map: _covTex, transparent: true, depthWrite: false, opacity: 1 });
+  _covMesh = new THREE.Mesh(geo, mat);
+  _covMesh.rotation.x = -Math.PI / 2;
+  _covMesh.position.y = 0.012;
+  _covMesh.name = "coverageShadow";
+  _covMesh.visible = _covVisible;
+  _sceneRef.add(_covMesh);
+  _covBest = new Float32Array(COV_CELLS * COV_CELLS).fill(-Infinity);
+  _covAge = new Float32Array(COV_CELLS * COV_CELLS).fill(Infinity);
+  _covStamp = new Float64Array(COV_CELLS * COV_CELLS);
+}
+
+export function setCoverageShadowVisible(on) {
+  _covVisible = !!on;
+  if (_covMesh) _covMesh.visible = _covVisible;
+}
+
+/** Call once per poll with the parsed aircraft list and the viewer's centre. */
+export function updateCoverageShadow(list, userLat, userLon) {
+  _ensureCoverage();
+  if (!_covMesh) return;
+  const now = Date.now();
+  const half = COV_DEG / 2;
+  for (const d of list) {
+    if (d.rssi == null && d.seenPos == null) continue;
+    const u = (d.longitude - userLon + half) / COV_DEG;   // 0..1 west→east
+    const v = (userLat + half - d.latitude) / COV_DEG;    // 0..1 north→south
+    if (u < 0 || u >= 1 || v < 0 || v >= 1) continue;
+    const i = Math.floor(v * COV_CELLS) * COV_CELLS + Math.floor(u * COV_CELLS);
+    if (d.rssi != null && d.rssi > _covBest[i]) _covBest[i] = d.rssi;
+    if (d.seenPos != null && d.seenPos < _covAge[i]) _covAge[i] = d.seenPos;
+    _covStamp[i] = now;
+  }
+  const ctx = _covCanvas.getContext("2d");
+  const img = ctx.createImageData(COV_CELLS, COV_CELLS);
+  const px = img.data;
+  for (let i = 0; i < COV_CELLS * COV_CELLS; i++) {
+    let a = 0;
+    if (_covStamp[i]) {
+      // Signal: rssi runs roughly -3 (strong, close) to -35 dBFS (barely heard).
+      const rssi = _covBest[i];
+      const weak = rssi === -Infinity ? 0 : Math.min(1, Math.max(0, (-rssi - 18) / 14));
+      // Staleness: positions older than ~10s mean the network is losing it.
+      const age = _covAge[i];
+      const late = age === Infinity ? 0 : Math.min(1, Math.max(0, (age - 8) / 30));
+      // Memory: a cell heard well recently stays clear for a while.
+      const decay = Math.min(1, (now - _covStamp[i]) / 120000);
+      a = Math.max(weak, late) * (1 - decay * 0.5);
+    }
+    px[i * 4] = 6; px[i * 4 + 1] = 8; px[i * 4 + 2] = 14;
+    px[i * 4 + 3] = Math.round(a * 150);
+  }
+  ctx.putImageData(img, 0, 0);
+  _covTex.needsUpdate = true;
+}
+
+function _clearCoverage(scene) {
+  if (!_covMesh) return;
+  scene.remove(_covMesh);
+  _covMesh.geometry.dispose(); _covMesh.material.dispose(); _covTex.dispose();
+  _covMesh = null; _covTex = null; _covCanvas = null;
+}
+
 export function clearGroundMap(scene) {
+  _clearCoverage(scene);
   abortMapLoads(); // cancel in-flight tile fetches for previous city
   _mapEpoch++; // invalidate any load still awaiting, so it cannot repopulate this
   for (const overlay of hiResOverlays) {

@@ -855,6 +855,11 @@ const KEEP_FIELDS = [
   "emergency",
   "seen_pos",
   "seen",
+  "dbFlags",
+  "type",
+  "nic",
+  "mlat",
+  "tisb",
 ];
 function pruneAc(ac) {
   const o = {};

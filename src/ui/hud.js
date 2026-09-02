@@ -158,3 +158,24 @@ export function showSignalLost(show) {
     el.classList.add('hidden');
   }
 }
+
+
+// ── Sky as people / visibility ──
+const hudSky = document.getElementById('hud-sky');
+const hudSkyLine = document.querySelector('.hud-sky-line');
+const hudSkyUnseen = document.getElementById('hud-sky-unseen');
+const hudSkyUnseenLine = document.querySelector('.hud-sky-unseen');
+
+/** people: estimated seats overhead; cities: distinct destinations; unseen: LADD/PIA count */
+export function updateHUDSky({ people, cities, unseen }) {
+  if (!hudSky) return;
+  hudSky.classList.remove('hidden');
+  const n = people >= 1000 ? `≈${(people / 1000).toFixed(1)}k` : `≈${people}`;
+  // Rebuilt from a template every time: routes resolve a few seconds after
+  // positions, so the "bound for" clause appears once there is something to say.
+  hudSkyLine.innerHTML = cities > 0
+    ? `<span id="hud-sky-people">${n}</span> people overhead, bound for <span id="hud-sky-cities">${cities}</span> cities`
+    : `<span id="hud-sky-people">${n}</span> people overhead`;
+  hudSkyUnseen.textContent = String(unseen);
+  hudSkyUnseenLine.classList.toggle('is-zero', unseen === 0);
+}

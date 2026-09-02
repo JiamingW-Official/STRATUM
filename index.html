@@ -102,6 +102,12 @@
         <span class="hud-stat-label" id="hud-clock-label">UTC</span>
       </div>
     </div>
+    <!-- The sky as people, and as a visibility regime: how many are overhead,
+         where they are going, and how many aircraft have asked not to be seen. -->
+    <div id="hud-sky" class="hud-sky hidden">
+      <span class="hud-sky-line"><span id="hud-sky-people">--</span> people overhead, bound for <span id="hud-sky-cities">--</span> cities</span>
+      <span class="hud-sky-line hud-sky-unseen"><span id="hud-sky-unseen">0</span> asked not to be seen</span>
+    </div>
     <!-- Weather — always visible, single compact line -->
     <div id="hud-weather" class="hud-weather">
       <div class="hud-wx-line" id="hud-wx-toggle">
@@ -581,6 +587,7 @@
     <div class="help-grid">
       <div class="help-row"><kbd>B</kbd><span>Bloom cycle</span></div>
       <div class="help-row"><kbd>G</kbd><span>Distance rings</span></div>
+      <div class="help-row"><kbd>V</kbd><span>Ghost layer — aircraft by how they are seen</span></div>
       <div class="help-row"><kbd>F</kbd><span>Filter panel</span></div>
       <div class="help-row"><kbd>P</kbd><span>Screenshot mode</span></div>
       <div class="help-row"><kbd>R</kbd><span>Radio</span></div>

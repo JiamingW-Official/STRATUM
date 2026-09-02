@@ -443,6 +443,25 @@ function getSharedHitMaterial() {
 
 // --- Aircraft Manager ---
 
+// ── Ghost mode ──
+// Draws every aircraft by how it is seen. Aircraft flagged LADD/PIA have asked
+// aggregators to withhold their identity; in ghost mode they render as a bare
+// wireframe with no callsign or route — present, unnamed — while everything
+// else keeps its light. On by default; V toggles.
+let _ghostMode = true;
+const _GHOST_COLOR = new THREE.Color(0.62, 0.66, 0.74); // cool grey — no altitude tint
+// Every live AircraftObject, so a mode change restyles all of them now rather
+// than whenever each next passes through the colour path (up to a poll later).
+const _live = new Set();
+function _restyleAll() {
+  for (const ac of _live) {
+    if (ac._applyGhostState()) ac._setModelColor(getSpeedColor(ac.data.velocity));
+  }
+}
+export function setGhostMode(on) { _ghostMode = !!on; _restyleAll(); }
+export function isGhostMode() { return _ghostMode; }
+export function toggleGhostMode() { _ghostMode = !_ghostMode; _restyleAll(); return _ghostMode; }
+
 export class AircraftManager {
   constructor(scene, userLat, userLon) {
     this.scene = scene;
@@ -773,6 +792,7 @@ export class AircraftManager {
 
 class AircraftObject {
   constructor(data, position, scene, userLat, userLon) {
+    _live.add(this);
     this.data = data;
     this.scene = scene;
     this.userLat = userLat;
@@ -1136,21 +1156,24 @@ class AircraftObject {
     ctx.shadowBlur = 6;
     ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
 
-    // Line 1: Callsign + Type
+    const ghost = _ghostMode && data.masked;
+
+    // Line 1: Callsign + Type — or, for a ghost, only what it cannot hide.
     ctx.font = 'bold 44px JetBrains Mono, monospace';
-    ctx.fillStyle = '#f0f0f0';
+    ctx.fillStyle = ghost ? 'rgba(200,205,215,0.55)' : '#f0f0f0';
     ctx.textAlign = 'left';
-    let line1 = data.callsign || data.icao24;
-    if (data.aircraftType) line1 += `  ${data.aircraftType}`;
+    let line1 = ghost
+      ? `UNSEEN${data.aircraftType ? `  ${data.aircraftType}` : ''}`
+      : (data.callsign || data.icao24) + (data.aircraftType ? `  ${data.aircraftType}` : '');
     ctx.fillText(line1, 22, 52);
 
     // Line 2: Route + Alt + Speed + Heading
     ctx.font = '36px JetBrains Mono, monospace';
     ctx.fillStyle = 'rgba(170,205,255,0.92)';
     let line2 = '';
-    const route = getRoute(data.callsign);
-    const labelOrigin = data.origin || (route && route.origin) || null;
-    const labelDest = data.destination || (route && route.destination) || null;
+    const route = ghost ? null : getRoute(data.callsign);
+    const labelOrigin = ghost ? null : (data.origin || (route && route.origin) || null);
+    const labelDest = ghost ? null : (data.destination || (route && route.destination) || null);
     if (labelOrigin || labelDest) {
       line2 += `${labelOrigin || '?'}\u2192${labelDest || '?'} `;
     }
@@ -1181,6 +1204,7 @@ class AircraftObject {
   }
 
   _setModelOpacity(opacity) {
+    if (_ghostMode && this.data.masked) opacity *= 0.55;
     if (this._useGLB && this._modelMeshes.length > 0) {
       for (const m of this._modelMeshes) m.material.opacity = opacity;
     } else if (this.bodyMat) {
@@ -1188,7 +1212,24 @@ class AircraftObject {
     }
   }
 
+  // Ghost state changes (mode toggled, or the flag arriving on a later poll)
+  // must re-style the body and redraw the label regardless of colour caching.
+  _applyGhostState() {
+    const ghost = !!(_ghostMode && this.data.masked);
+    if (this._ghostApplied === ghost) return false;
+    this._ghostApplied = ghost;
+    const mats = this._useGLB && this._modelMeshes.length > 0
+      ? this._modelMeshes.map((m) => m.material)
+      : (this.bodyMat ? [this.bodyMat] : []);
+    for (const mat of mats) mat.wireframe = ghost;
+    this._lastColorR = null; // force the next colour write through
+    this._labelDirty = true;
+    return true;
+  }
+
   _setModelColor(color) {
+    this._applyGhostState();
+    if (this._ghostApplied) color = _GHOST_COLOR;
     // Skip if color hasn't changed
     if (this._lastColorR === color.r && this._lastColorG === color.g && this._lastColorB === color.b) return;
     this._lastColorR = color.r;
@@ -1628,7 +1669,8 @@ class AircraftObject {
 
     if (this.fadingOut) {
       this.fadeProgress = Math.max(this.fadeProgress - delta * 0.6, 0);
-      if (this.fadeProgress <= 0) { this.removed = true; return; }
+      if (this.fadeProgress <= 0) { this.removed = true;
+    _live.delete(this); return; }
     }
 
     // Filter opacity — fast transition; fully hide unrelated aircraft
