@@ -1,402 +1,1066 @@
 {
+ "CYEG": {
+  "kind": "tower",
+  "lat": 53.3097,
+  "lon": -113.58,
+  "mount": "cyeg_twr",
+  "server": "s1-fmt2"
+ },
+ "CYHZ": {
+  "kind": "feed",
+  "lat": 44.8808,
+  "lon": -63.5086,
+  "mount": "cyhz3",
+  "server": "s1-bos"
+ },
+ "CYOW": {
+  "kind": "feed",
+  "lat": 45.3225,
+  "lon": -75.6692,
+  "mount": "cyow3",
+  "server": "s1-bos"
+ },
+ "CYQB": {
+  "kind": "tower",
+  "lat": 46.7911,
+  "lon": -71.3933,
+  "mount": "cyqb1_gnd_twr",
+  "server": "s1-fmt2"
+ },
+ "CYUL": {
+  "kind": "tower",
+  "lat": 45.4678,
+  "lon": -73.7423,
+  "mount": "cyul_twr",
+  "server": "s1-bos"
+ },
+ "CYVR": {
+  "kind": "tower",
+  "lat": 49.1939,
+  "lon": -123.184,
+  "mount": "cyvr1_twr",
+  "server": "s1-bos"
+ },
+ "CYWG": {
+  "kind": "feed",
+  "lat": 49.91,
+  "lon": -97.2399,
+  "mount": "cywg2_misc1",
+  "server": "s1-bos"
+ },
+ "CYYC": {
+  "kind": "tower",
+  "lat": 51.1188,
+  "lon": -114.0099,
+  "mount": "cyyc2_twr",
+  "server": "s1-bos"
+ },
+ "CYYZ": {
+  "kind": "tower",
+  "lat": 43.6759,
+  "lon": -79.6294,
+  "mount": "cyyz1_twr_south",
+  "server": "s1-bos"
+ },
+ "EETN": {
+  "kind": "tower",
+  "lat": 59.4132,
+  "lon": 24.8326,
+  "mount": "eetn2_twr",
+  "server": "s1-bos"
+ },
  "EHAM": {
   "kind": "tower",
+  "lat": 52.3086,
+  "lon": 4.7639,
   "mount": "eham_twr_0624",
   "server": "s1-bos"
  },
  "EIDW": {
   "kind": "feed",
+  "lat": 53.4287,
+  "lon": -6.2621,
   "mount": "eidw8",
+  "server": "s1-bos"
+ },
+ "EINN": {
+  "kind": "feed",
+  "lat": 52.702,
+  "lon": -8.9248,
+  "mount": "einn2_high1",
+  "server": "s1-bos"
+ },
+ "ENBR": {
+  "kind": "approach",
+  "lat": 60.2934,
+  "lon": 5.2181,
+  "mount": "enbr4_app",
   "server": "s1-bos"
  },
  "ENGM": {
   "kind": "feed",
+  "lat": 60.1939,
+  "lon": 11.1004,
   "mount": "eneg2",
   "server": "s1-bos"
  },
  "EPWA": {
   "kind": "tower",
+  "lat": 52.1657,
+  "lon": 20.9671,
   "mount": "epwa_twr2",
   "server": "s1-bos"
  },
  "HAAB": {
   "kind": "tower",
+  "lat": 8.9779,
+  "lon": 38.7993,
   "mount": "haab2_twr",
   "server": "s1-fmt2"
  },
  "KABQ": {
   "kind": "tower",
+  "lat": 35.04,
+  "lon": -106.6089,
   "mount": "kabq2_twr2",
   "server": "s1-bos"
  },
+ "KALB": {
+  "kind": "approach",
+  "lat": 42.7483,
+  "lon": -73.8017,
+  "mount": "kalb2_app",
+  "server": "s1-fmt2"
+ },
  "KATL": {
   "kind": "tower",
+  "lat": 33.6367,
+  "lon": -84.4281,
   "mount": "katl_twr",
   "server": "s1-bos"
  },
  "KAUS": {
   "kind": "tower",
+  "lat": 30.1975,
+  "lon": -97.662,
   "mount": "kaus3_twr",
+  "server": "s1-bos"
+ },
+ "KAVL": {
+  "kind": "tower",
+  "lat": 35.4355,
+  "lon": -82.5419,
+  "mount": "kavl2_gnd_twr",
+  "server": "s1-fmt2"
+ },
+ "KAVP": {
+  "kind": "feed",
+  "lat": 41.3371,
+  "lon": -75.7242,
+  "mount": "kavp2",
+  "server": "s1-bos"
+ },
+ "KBDL": {
+  "kind": "tower",
+  "lat": 41.9386,
+  "lon": -72.688,
+  "mount": "kbdl2_twr",
+  "server": "s1-bos"
+ },
+ "KBIL": {
+  "kind": "tower",
+  "lat": 45.8089,
+  "lon": -108.5412,
+  "mount": "kbil1_twr",
   "server": "s1-bos"
  },
  "KBNA": {
   "kind": "tower",
+  "lat": 36.1245,
+  "lon": -86.6782,
   "mount": "kbna_gnd_twr",
   "server": "s1-bos"
  },
+ "KBOI": {
+  "kind": "ground",
+  "lat": 43.5644,
+  "lon": -116.223,
+  "mount": "kboi_gnd",
+  "server": "s1-fmt2"
+ },
  "KBOS": {
   "kind": "tower",
+  "lat": 42.362,
+  "lon": -71.0079,
   "mount": "kbos1_twr",
   "server": "s1-bos"
  },
+ "KBTR": {
+  "kind": "tower",
+  "lat": 30.5332,
+  "lon": -91.1496,
+  "mount": "kbtr2_twr",
+  "server": "s1-bos"
+ },
+ "KBTV": {
+  "kind": "tower",
+  "lat": 44.4719,
+  "lon": -73.1533,
+  "mount": "kbtv_del_gnd_twr",
+  "server": "s1-fmt2"
+ },
+ "KBUR": {
+  "kind": "tower",
+  "lat": 34.2028,
+  "lon": -118.3581,
+  "mount": "kbur3_gnd_twr",
+  "server": "s1-fmt2"
+ },
  "KBWI": {
   "kind": "tower",
+  "lat": 39.1754,
+  "lon": -76.6683,
   "mount": "kbwi_es_twr",
+  "server": "s1-bos"
+ },
+ "KBZN": {
+  "kind": "approach",
+  "lat": 45.7789,
+  "lon": -111.1537,
+  "mount": "kbzn1_app",
+  "server": "s1-fmt2"
+ },
+ "KCHA": {
+  "kind": "feed",
+  "lat": 35.0353,
+  "lon": -85.2038,
+  "mount": "kcha2",
   "server": "s1-bos"
  },
  "KCLE": {
   "kind": "tower",
+  "lat": 41.4117,
+  "lon": -81.8498,
   "mount": "kcle3_twr",
   "server": "s1-bos"
  },
  "KCLT": {
   "kind": "tower",
+  "lat": 35.214,
+  "lon": -80.9431,
   "mount": "kclt7_twr_118100",
   "server": "s1-bos"
  },
  "KCMH": {
   "kind": "tower",
+  "lat": 39.998,
+  "lon": -82.8919,
   "mount": "kcmh1_del_gnd_twr",
   "server": "s1-bos"
  },
  "KCVG": {
   "kind": "tower",
+  "lat": 39.0488,
+  "lon": -84.6678,
   "mount": "kcvg1_twr",
   "server": "s1-bos"
  },
+ "KDAB": {
+  "kind": "tower",
+  "lat": 29.1825,
+  "lon": -81.0595,
+  "mount": "kdab_twr_pri_radio",
+  "server": "s1-fmt2"
+ },
  "KDCA": {
   "kind": "tower",
+  "lat": 38.8521,
+  "lon": -77.0377,
   "mount": "kdca1_twr",
   "server": "s1-bos"
  },
  "KDEN": {
   "kind": "tower",
+  "lat": 39.86,
+  "lon": -104.6738,
   "mount": "kden1_twr_west1",
   "server": "s1-bos"
  },
  "KDFW": {
   "kind": "tower",
+  "lat": 32.8968,
+  "lon": -97.038,
   "mount": "kdfw1_twr1_e",
   "server": "s1-bos"
  },
  "KDTW": {
   "kind": "tower",
+  "lat": 42.2138,
+  "lon": -83.3538,
   "mount": "kdtw_twr",
+  "server": "s1-bos"
+ },
+ "KELP": {
+  "kind": "approach",
+  "lat": 31.8099,
+  "lon": -106.3756,
+  "mount": "kelp1_app_n",
   "server": "s1-bos"
  },
  "KEWR": {
   "kind": "tower",
+  "lat": 40.6894,
+  "lon": -74.1705,
   "mount": "kewr_twr",
   "server": "s1-bos"
  },
+ "KFAT": {
+  "kind": "feed",
+  "lat": 36.7758,
+  "lon": -119.718,
+  "mount": "kfat2",
+  "server": "s1-fmt2"
+ },
  "KFLL": {
   "kind": "departure",
+  "lat": 26.0726,
+  "lon": -80.1527,
   "mount": "kopf5_dep_126050",
+  "server": "s1-bos"
+ },
+ "KFSD": {
+  "kind": "feed",
+  "lat": 43.5855,
+  "lon": -96.7412,
+  "mount": "kfsd1",
+  "server": "s1-bos"
+ },
+ "KFWA": {
+  "kind": "approach",
+  "lat": 40.9789,
+  "lon": -85.1945,
+  "mount": "kfwa1_app",
+  "server": "s1-bos"
+ },
+ "KGEG": {
+  "kind": "feed",
+  "lat": 47.6199,
+  "lon": -117.534,
+  "mount": "kgeg",
+  "server": "s1-bos"
+ },
+ "KGFK": {
+  "kind": "tower",
+  "lat": 47.9493,
+  "lon": -97.1761,
+  "mount": "kgfk3_twr",
+  "server": "s1-bos"
+ },
+ "KGNV": {
+  "kind": "feed",
+  "lat": 29.6901,
+  "lon": -82.2718,
+  "mount": "kgnv",
+  "server": "s1-bos"
+ },
+ "KGRR": {
+  "kind": "tower",
+  "lat": 42.8808,
+  "lon": -85.5228,
+  "mount": "kgrr2_2_gnd_twr_app",
+  "server": "s1-bos"
+ },
+ "KGSO": {
+  "kind": "tower",
+  "lat": 36.0994,
+  "lon": -79.9373,
+  "mount": "kgso1_twr",
+  "server": "s1-bos"
+ },
+ "KHPN": {
+  "kind": "tower",
+  "lat": 41.067,
+  "lon": -73.7076,
+  "mount": "khpn2_del_gnd_twr",
+  "server": "s1-bos"
+ },
+ "KHSV": {
+  "kind": "ground",
+  "lat": 34.6362,
+  "lon": -86.7744,
+  "mount": "khsv_del_gnd",
   "server": "s1-bos"
  },
  "KIAD": {
   "kind": "tower",
+  "lat": 38.9445,
+  "lon": -77.4558,
   "mount": "kiad1_twr_emergency",
   "server": "s1-bos"
  },
  "KIAH": {
   "kind": "tower",
+  "lat": 29.9844,
+  "lon": -95.3414,
   "mount": "kiah2_twr_8l26r",
+  "server": "s1-bos"
+ },
+ "KILM": {
+  "kind": "tower",
+  "lat": 34.2723,
+  "lon": -77.9051,
+  "mount": "kilm2_gnd_twr_app",
   "server": "s1-bos"
  },
  "KIND": {
   "kind": "tower",
+  "lat": 39.7173,
+  "lon": -86.2944,
   "mount": "kind9_gnd_twr",
   "server": "s1-bos"
  },
+ "KJAC": {
+  "kind": "tower",
+  "lat": 43.6073,
+  "lon": -110.738,
+  "mount": "kjac1_twr",
+  "server": "s1-fmt2"
+ },
  "KJAX": {
   "kind": "tower",
+  "lat": 30.4925,
+  "lon": -81.6878,
   "mount": "kjax_twr_118300",
   "server": "s1-bos"
  },
  "KJFK": {
   "kind": "tower",
+  "lat": 40.6394,
+  "lon": -73.7793,
   "mount": "kjfk_twr",
   "server": "s1-bos"
  },
  "KLAS": {
   "kind": "tower",
+  "lat": 36.0834,
+  "lon": -115.1518,
   "mount": "klas4_twr",
   "server": "s1-bos"
  },
  "KLAX": {
   "kind": "tower",
+  "lat": 33.9425,
+  "lon": -118.408,
   "mount": "klax_twr",
   "server": "s1-bos"
  },
  "KLGA": {
   "kind": "tower",
+  "lat": 40.7772,
+  "lon": -73.8726,
   "mount": "klga_twr",
+  "server": "s1-fmt2"
+ },
+ "KMAF": {
+  "kind": "feed",
+  "lat": 31.9425,
+  "lon": -102.202,
+  "mount": "kodo2",
   "server": "s1-bos"
  },
  "KMCI": {
   "kind": "approach",
+  "lat": 39.3017,
+  "lon": -94.7139,
   "mount": "kmci1_app",
   "server": "s1-bos"
  },
  "KMCO": {
   "kind": "tower",
+  "lat": 28.4294,
+  "lon": -81.309,
   "mount": "korl_kmco_twr_west",
   "server": "s1-bos"
  },
  "KMDW": {
   "kind": "tower",
+  "lat": 41.786,
+  "lon": -87.7524,
   "mount": "kmdw1_gnd_twr",
   "server": "s1-bos"
  },
  "KMEM": {
   "kind": "tower",
+  "lat": 35.0438,
+  "lon": -89.9763,
   "mount": "kmem4_twr_119700",
   "server": "s1-bos"
  },
+ "KMHT": {
+  "kind": "approach",
+  "lat": 42.9326,
+  "lon": -71.4357,
+  "mount": "kmht_app",
+  "server": "s1-fmt2"
+ },
  "KMIA": {
   "kind": "tower",
+  "lat": 25.796,
+  "lon": -80.2898,
   "mount": "kmia3_twr",
+  "server": "s1-bos"
+ },
+ "KMKE": {
+  "kind": "approach",
+  "lat": 42.9472,
+  "lon": -87.8966,
+  "mount": "kmke3_app_dep",
+  "server": "s1-bos"
+ },
+ "KMSO": {
+  "kind": "feed",
+  "lat": 46.9158,
+  "lon": -114.0911,
+  "mount": "kmso",
   "server": "s1-bos"
  },
  "KMSP": {
   "kind": "tower",
+  "lat": 44.8801,
+  "lon": -93.2217,
   "mount": "kmsp3_twr_12l",
+  "server": "s1-bos"
+ },
+ "KMYR": {
+  "kind": "feed",
+  "lat": 33.6797,
+  "lon": -78.9283,
+  "mount": "kmyr",
   "server": "s1-bos"
  },
  "KOAK": {
   "kind": "approach",
+  "lat": 37.7201,
+  "lon": -122.2212,
   "mount": "koak_app",
+  "server": "s1-fmt2"
+ },
+ "KOKC": {
+  "kind": "approach",
+  "lat": 35.3934,
+  "lon": -97.5982,
+  "mount": "kokc_app_1242",
   "server": "s1-fmt2"
  },
  "KONT": {
   "kind": "tower",
+  "lat": 34.056,
+  "lon": -117.601,
   "mount": "kont1_twr",
   "server": "s1-bos"
  },
  "KORD": {
   "kind": "tower",
+  "lat": 41.9786,
+  "lon": -87.9048,
   "mount": "kord1n2_twr_n",
+  "server": "s1-bos"
+ },
+ "KORF": {
+  "kind": "tower",
+  "lat": 36.8953,
+  "lon": -76.201,
+  "mount": "korf1_twr",
   "server": "s1-bos"
  },
  "KPDX": {
   "kind": "tower",
+  "lat": 45.5887,
+  "lon": -122.598,
   "mount": "kpdx3_twr",
   "server": "s1-bos"
  },
  "KPHL": {
   "kind": "tower",
+  "lat": 39.8719,
+  "lon": -75.2411,
   "mount": "kphl_twr_east",
   "server": "s1-bos"
  },
  "KPHX": {
   "kind": "tower",
+  "lat": 33.4353,
+  "lon": -112.0059,
   "mount": "kphx_twr_both",
+  "server": "s1-fmt2"
+ },
+ "KPIE": {
+  "kind": "approach",
+  "lat": 27.9102,
+  "lon": -82.6874,
+  "mount": "kpie1_app_118800",
   "server": "s1-fmt2"
  },
  "KPIT": {
   "kind": "tower",
+  "lat": 40.4915,
+  "lon": -80.2329,
   "mount": "kpit2_twr",
   "server": "s1-bos"
  },
+ "KPNS": {
+  "kind": "tower",
+  "lat": 30.4727,
+  "lon": -87.1866,
+  "mount": "kpns2_twr3",
+  "server": "s1-fmt2"
+ },
+ "KPSP": {
+  "kind": "feed",
+  "lat": 33.8297,
+  "lon": -116.507,
+  "mount": "kpsp2_all",
+  "server": "s1-bos"
+ },
+ "KPWM": {
+  "kind": "tower",
+  "lat": 43.6462,
+  "lon": -70.3093,
+  "mount": "kpwm2_gnd_twr",
+  "server": "s1-fmt2"
+ },
  "KRDU": {
   "kind": "tower",
+  "lat": 35.8787,
+  "lon": -78.7873,
   "mount": "krdu_gnd_twr",
   "server": "s1-bos"
  },
+ "KROA": {
+  "kind": "tower",
+  "lat": 37.3255,
+  "lon": -79.9754,
+  "mount": "kroa4_gnd_twr_app",
+  "server": "s1-fmt2"
+ },
+ "KROC": {
+  "kind": "feed",
+  "lat": 43.1189,
+  "lon": -77.6724,
+  "mount": "kroc",
+  "server": "s1-fmt2"
+ },
  "KRSW": {
   "kind": "ground",
+  "lat": 26.5347,
+  "lon": -81.7528,
   "mount": "krsw2",
   "server": "s1-bos"
  },
  "KSAN": {
   "kind": "tower",
+  "lat": 32.7336,
+  "lon": -117.19,
   "mount": "ksan1_twr",
   "server": "s1-bos"
  },
  "KSAT": {
   "kind": "tower",
+  "lat": 29.5337,
+  "lon": -98.4698,
   "mount": "ksat1_gnd_twr",
   "server": "s1-bos"
  },
+ "KSAV": {
+  "kind": "approach",
+  "lat": 32.1266,
+  "lon": -81.2,
+  "mount": "ksav1_app",
+  "server": "s1-fmt2"
+ },
  "KSDF": {
   "kind": "tower",
+  "lat": 38.1706,
+  "lon": -85.7351,
   "mount": "ksdf_twr",
   "server": "s1-bos"
  },
  "KSEA": {
   "kind": "tower",
+  "lat": 47.4479,
+  "lon": -122.3103,
   "mount": "ksea3_twr_east",
+  "server": "s1-bos"
+ },
+ "KSFB": {
+  "kind": "tower",
+  "lat": 28.7743,
+  "lon": -81.2346,
+  "mount": "ksfb3_twr2",
+  "server": "s1-fmt2"
+ },
+ "KSFF": {
+  "kind": "approach",
+  "lat": 47.6829,
+  "lon": -117.3219,
+  "mount": "ksff2_app",
   "server": "s1-bos"
  },
  "KSFO": {
   "kind": "tower",
+  "lat": 37.6198,
+  "lon": -122.3748,
   "mount": "ksfo_gnd_twr",
   "server": "s1-bos"
  },
  "KSJC": {
   "kind": "tower",
+  "lat": 37.3625,
+  "lon": -121.9292,
   "mount": "ksjc6_twr",
   "server": "s1-bos"
  },
  "KSMF": {
   "kind": "approach",
+  "lat": 38.6954,
+  "lon": -121.591,
   "mount": "ksmf2_app_125400",
+  "server": "s1-bos"
+ },
+ "KSRQ": {
+  "kind": "tower",
+  "lat": 27.3946,
+  "lon": -82.5544,
+  "mount": "ksrq1_twr",
   "server": "s1-bos"
  },
  "KSTL": {
   "kind": "tower",
+  "lat": 38.7487,
+  "lon": -90.37,
   "mount": "kstl2_twr",
   "server": "s1-bos"
  },
+ "KSYR": {
+  "kind": "tower",
+  "lat": 43.1112,
+  "lon": -76.1063,
+  "mount": "ksyr_gnd_twr",
+  "server": "s1-bos"
+ },
+ "KTLH": {
+  "kind": "tower",
+  "lat": 30.4012,
+  "lon": -84.3543,
+  "mount": "ktlh1_twr",
+  "server": "s1-fmt2"
+ },
  "KTPA": {
   "kind": "tower",
+  "lat": 27.9755,
+  "lon": -82.5332,
   "mount": "ktpa5_twr",
   "server": "s1-bos"
  },
+ "KTRI": {
+  "kind": "feed",
+  "lat": 36.4752,
+  "lon": -82.4074,
+  "mount": "ktri",
+  "server": "s1-fmt2"
+ },
+ "KTUL": {
+  "kind": "feed",
+  "lat": 36.1971,
+  "lon": -95.8862,
+  "mount": "ktul1",
+  "server": "s1-bos"
+ },
+ "KTUS": {
+  "kind": "feed",
+  "lat": 32.115,
+  "lon": -110.9381,
+  "mount": "ktus",
+  "server": "s1-bos"
+ },
+ "KTYS": {
+  "kind": "feed",
+  "lat": 35.811,
+  "lon": -83.994,
+  "mount": "ktys",
+  "server": "s1-fmt2"
+ },
  "LHBP": {
   "kind": "approach",
+  "lat": 47.4302,
+  "lon": 19.2624,
   "mount": "lhbp_app_122980",
   "server": "s1-bos"
  },
  "LLBG": {
   "kind": "feed",
+  "lat": 32.0114,
+  "lon": 34.8867,
   "mount": "llbg2",
+  "server": "s1-bos"
+ },
+ "LSZA": {
+  "kind": "feed",
+  "lat": 46.0043,
+  "lon": 8.9106,
+  "mount": "lsza",
   "server": "s1-bos"
  },
  "LSZH": {
   "kind": "tower",
+  "lat": 47.4581,
+  "lon": 8.5481,
   "mount": "lszh1_twr",
   "server": "s1-bos"
  },
  "MMGL": {
   "kind": "feed",
+  "lat": 20.5233,
+  "lon": -103.3101,
   "mount": "mmgl",
   "server": "s1-fmt2"
  },
  "MMMX": {
   "kind": "tower",
+  "lat": 19.4358,
+  "lon": -99.0703,
   "mount": "mmmx1_twr_pri_r",
+  "server": "s1-bos"
+ },
+ "MMMY": {
+  "kind": "approach",
+  "lat": 25.7785,
+  "lon": -100.107,
+  "mount": "mmmy3_app",
+  "server": "s1-bos"
+ },
+ "MROC": {
+  "kind": "feed",
+  "lat": 9.9939,
+  "lon": -84.2088,
+  "mount": "mroc",
   "server": "s1-bos"
  },
  "OPKC": {
   "kind": "feed",
+  "lat": 24.9065,
+  "lon": 67.1608,
   "mount": "opkc",
   "server": "s1-bos"
  },
  "PANC": {
   "kind": "tower",
+  "lat": 61.179,
+  "lon": -149.9926,
   "mount": "panc3_twr",
   "server": "s1-bos"
  },
  "PHNL": {
   "kind": "tower",
+  "lat": 21.3184,
+  "lon": -157.9257,
   "mount": "phnl1_twr",
   "server": "s1-bos"
  },
  "PHOG": {
   "kind": "approach",
+  "lat": 20.8963,
+  "lon": -156.4318,
   "mount": "phog2_app",
   "server": "s1-fmt2"
  },
+ "RCKH": {
+  "kind": "feed",
+  "lat": 22.5771,
+  "lon": 120.35,
+  "mount": "rckh2",
+  "server": "s1-bos"
+ },
  "RJAA": {
   "kind": "tower",
+  "lat": 35.7686,
+  "lon": 140.3887,
   "mount": "rjaa_twr1",
+  "server": "s1-bos"
+ },
+ "RJFF": {
+  "kind": "tower",
+  "lat": 33.5859,
+  "lon": 130.451,
+  "mount": "rjff3_twr",
+  "server": "s1-bos"
+ },
+ "RJOO": {
+  "kind": "feed",
+  "lat": 34.7809,
+  "lon": 135.4408,
+  "mount": "rjoo1",
   "server": "s1-bos"
  },
  "RJTT": {
   "kind": "tower",
-  "mount": "rjtt_twr_tca",
+  "lat": 35.5497,
+  "lon": 139.787,
+  "mount": "rjtt_twr",
   "server": "s1-bos"
  },
  "RPLL": {
   "kind": "approach",
+  "lat": 14.5086,
+  "lon": 121.02,
   "mount": "rpll_app_119900",
   "server": "s1-bos"
  },
  "SBBR": {
   "kind": "approach",
+  "lat": -15.8692,
+  "lon": -47.9208,
   "mount": "sbbr3_app",
   "server": "s1-bos"
  },
  "SBKP": {
   "kind": "tower",
+  "lat": -23.0074,
+  "lon": -47.1345,
   "mount": "sbkp3_twr",
   "server": "s1-fmt2"
  },
+ "SBPA": {
+  "kind": "feed",
+  "lat": -29.994,
+  "lon": -51.1675,
+  "mount": "sbpa2",
+  "server": "s1-bos"
+ },
  "SCEL": {
   "kind": "feed",
+  "lat": -33.393,
+  "lon": -70.7858,
   "mount": "scel",
   "server": "s1-bos"
  },
  "SKBO": {
   "kind": "feed",
+  "lat": 4.7016,
+  "lon": -74.1469,
   "mount": "skbo7_bog_ctl_125100",
   "server": "s1-fmt2"
  },
  "SPJC": {
   "kind": "tower",
+  "lat": -12.0219,
+  "lon": -77.1143,
   "mount": "spjc1_twr_east",
   "server": "s1-bos"
  },
  "SUMU": {
   "kind": "tower",
+  "lat": -34.8356,
+  "lon": -56.0265,
   "mount": "sumu_twr_info",
   "server": "s1-bos"
  },
  "SVMI": {
   "kind": "feed",
+  "lat": 10.6022,
+  "lon": -66.9912,
   "mount": "svzm2",
+  "server": "s1-bos"
+ },
+ "TBPB": {
+  "kind": "feed",
+  "lat": 13.0747,
+  "lon": -59.491,
+  "mount": "tbpb",
+  "server": "s1-bos"
+ },
+ "TNCM": {
+  "kind": "tower",
+  "lat": 18.041,
+  "lon": -63.1089,
+  "mount": "tncm_twr2",
+  "server": "s1-bos"
+ },
+ "TTPP": {
+  "kind": "approach",
+  "lat": 10.5953,
+  "lon": -61.3376,
+  "mount": "ttpp_app",
   "server": "s1-bos"
  },
  "URSS": {
   "kind": "feed",
+  "lat": 43.4499,
+  "lon": 39.9566,
   "mount": "urss",
   "server": "s1-bos"
  },
  "VHHH": {
   "kind": "feed",
+  "lat": 22.3118,
+  "lon": 113.9149,
   "mount": "vhhh5",
   "server": "s1-bos"
  },
  "WSSS": {
   "kind": "feed",
+  "lat": 1.3502,
+  "lon": 103.994,
   "mount": "wsss3",
   "server": "s1-bos"
  },
  "YBBN": {
   "kind": "tower",
+  "lat": -27.3842,
+  "lon": 153.117,
   "mount": "ybbn7_twr",
   "server": "s1-bos"
  },
+ "YBCG": {
+  "kind": "tower",
+  "lat": -28.166,
+  "lon": 153.5066,
+  "mount": "ybcg3_twr",
+  "server": "s1-bos"
+ },
+ "YMHB": {
+  "kind": "feed",
+  "lat": -42.837,
+  "lon": 147.513,
+  "mount": "ymhb2",
+  "server": "s1-fmt2"
+ },
  "YMML": {
   "kind": "feed",
+  "lat": -37.6707,
+  "lon": 144.8379,
   "mount": "ymml3",
   "server": "s1-bos"
  },
  "YPAD": {
   "kind": "feed",
+  "lat": -34.9475,
+  "lon": 138.5334,
   "mount": "ypad2_misc",
-  "server": "s1-fmt2"
+  "server": "s1-bos"
  },
  "YPPH": {
   "kind": "tower",
-  "mount": "ypph2_twr",
+  "lat": -31.9403,
+  "lon": 115.967,
+  "mount": "ypph_twr",
   "server": "s1-fmt2"
  },
  "YSSY": {
   "kind": "tower",
+  "lat": -33.9461,
+  "lon": 151.177,
   "mount": "yssy1_twr",
-  "server": "s1-bos"
+  "server": "s1-fmt2"
  }
 }

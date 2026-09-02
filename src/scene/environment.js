@@ -2852,26 +2852,29 @@ async function loadNavChart(scene, lat, lon) {
   const Y_FIX = 0.042;
   const FIX_SIZE = 0.038; // triangle radius
 
-  // 5a: Load real CIFP waypoints via dynamic import (non-blocking, US only)
+  // 5a: Load real CIFP waypoints. The full CIFP set is 5k waypoints across the
+  // US; only the ones inside the +/-2.5 degree window are ever drawn, so the
+  // data is pre-split into 5-degree tiles and we fetch the 1-4 that overlap.
   try {
-    const { CIFP_APPROACHES } = await import("../data/cifpApproaches.js");
-    for (const [icao, approaches] of Object.entries(CIFP_APPROACHES)) {
-      for (const app of approaches) {
-        const addWp = (wp) => {
-          if (!wp.n || wp.n.startsWith("RW")) return; // skip runway thresholds
-          if (Math.abs(wp.lat - lat) > 2.5 || Math.abs(wp.lon - lon) > 2.5)
-            return;
-          if (!allFixes.has(wp.n))
-            allFixes.set(wp.n, {
-              lat: wp.lat,
-              lon: wp.lon,
-              type: wp.t || "WP",
-              icao,
-            });
-        };
-        if (app.waypoints) app.waypoints.forEach(addWp);
-        if (app.missed) app.missed.forEach(addWp);
-        if (app.transitions) app.transitions.forEach((tr) => tr.forEach(addWp));
+    const tiles = new Set();
+    for (const dLat of [-2.5, 2.5]) {
+      for (const dLon of [-2.5, 2.5]) {
+        tiles.add(
+          `${Math.floor((lat + dLat) / 5) * 5}_${Math.floor((lon + dLon) / 5) * 5}`,
+        );
+      }
+    }
+    const loaded = await Promise.all(
+      [...tiles].map((t) =>
+        fetch(`/cifp/${t}.json`)
+          .then((r) => (r.ok ? r.json() : []))
+          .catch(() => []),
+      ),
+    );
+    for (const list of loaded) {
+      for (const [n, wLat, wLon, t] of list) {
+        if (Math.abs(wLat - lat) > 2.5 || Math.abs(wLon - lon) > 2.5) continue;
+        if (!allFixes.has(n)) allFixes.set(n, { lat: wLat, lon: wLon, type: t });
       }
     }
   } catch {

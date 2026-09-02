@@ -5,7 +5,19 @@
 // spoofed headers. Audio is attributed on screen. The map of airport → feed is
 // built at development time and only contains feeds that answered as audio.
 import FEEDS from '../data/atcFeeds.json';
-import AIRPORTS from '../data/atcAirports.json';
+
+// Every feed carries its own coordinates, so the common case — this airport has
+// a feed — needs no lookup table at all. The 3,000-airport table is only needed
+// to place an airport that has no feed of its own, so it is fetched then, once.
+let AIRPORTS = null;
+let _airportsLoad = null;
+function _loadAirports() {
+  _airportsLoad ??= fetch('/atc/airports.json')
+    .then((r) => (r.ok ? r.json() : {}))
+    .then((j) => (AIRPORTS = j))
+    .catch(() => (AIRPORTS = {}));
+  return _airportsLoad;
+}
 
 let _audio = null;
 let _icao = null;
@@ -30,12 +42,12 @@ function _entry(icao) {
 }
 
 function _nearestWithFeed(icao) {
-  const here = AIRPORTS[icao];
+  const here = AIRPORTS && AIRPORTS[icao];
   if (!here) return null;
   let best = null, bestKm = Infinity;
   for (const code of Object.keys(FEEDS)) {
-    const there = AIRPORTS[code];
-    if (!there) continue;
+    const there = FEEDS[code];
+    if (there.lat === undefined) continue;
     const dLat = (there.lat - here.lat) * 111;
     const dLon = (there.lon - here.lon) * 111 * Math.cos((here.lat * Math.PI) / 180);
     const km = Math.hypot(dLat, dLon);
@@ -133,10 +145,29 @@ export function setATCAirport(icao) {
   _nearby = null;
   if (_entry(_icao)) {
     _heard = _icao;
+  } else if (_icao) {
+    // No feed here. Resolving the nearest one needs the full airport table, so
+    // settle for silence now and re-resolve once it arrives.
+    _heard = null;
+    const want = _icao;
+    _loadAirports().then(() => {
+      if (_icao !== want || _entry(_heard)) return;
+      const n = _nearestWithFeed(want);
+      _heard = n ? n.code : null;
+      _nearby = n;
+      if (n) {
+        _preconnect(FEEDS[n.code].server);
+        const u = feedFor(want);
+        if (u) {
+          const a = _ensureAudio();
+          if (a.src !== u) a.src = u;
+          if (_wanted) a.play().catch(() => _render('error'));
+        }
+      }
+      _render(_wanted ? 'loading' : _armed ? 'armed' : 'idle');
+    });
   } else {
-    const n = _icao ? _nearestWithFeed(_icao) : null;
-    _heard = n ? n.code : null;
-    _nearby = n;
+    _heard = null;
   }
   if (_wanted) {
     // Follow the listener to the new tower if it has one; otherwise fall silent.
