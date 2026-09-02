@@ -450,12 +450,15 @@ function getSharedHitMaterial() {
 // else keeps its light. On by default; V toggles.
 let _ghostMode = true;
 const _GHOST_COLOR = new THREE.Color(0.62, 0.66, 0.74); // cool grey — no altitude tint
+const _SENSING_TAG = { mlat: 'MLAT', tisb: 'TIS-B', tisb_icao: 'TIS-B', tisb_other: 'TIS-B', adsr: 'ADS-R', adsr_icao: 'ADS-R', adsc: 'ADS-C', mode_s: 'MODE S' };
 // Every live AircraftObject, so a mode change restyles all of them now rather
 // than whenever each next passes through the colour path (up to a poll later).
 const _live = new Set();
 function _restyleAll() {
   for (const ac of _live) {
-    if (ac._applyGhostState()) ac._setModelColor(getSpeedColor(ac.data.velocity));
+    ac._applyGhostState();
+    ac._labelDirty = true;
+    ac._setModelColor(getSpeedColor(ac.data.velocity));
   }
 }
 export function setGhostMode(on) { _ghostMode = !!on; _restyleAll(); }
@@ -1165,6 +1168,11 @@ class AircraftObject {
     let line1 = ghost
       ? `UNSEEN${data.aircraftType ? `  ${data.aircraftType}` : ''}`
       : (data.callsign || data.icao24) + (data.aircraftType ? `  ${data.aircraftType}` : '');
+    // How the position reached us, when it was not the aircraft speaking for
+    // itself: volunteers triangulating (MLAT), a state relay (TIS-B), or a
+    // rebroadcast (ADS-R). Only in ghost mode — it is that layer's question.
+    const via = _ghostMode ? _SENSING_TAG[data.sensing] : null;
+    if (via) line1 += `  · ${via}`;
     ctx.fillText(line1, 22, 52);
 
     // Line 2: Route + Alt + Speed + Heading
@@ -1230,6 +1238,8 @@ class AircraftObject {
   _setModelColor(color) {
     this._applyGhostState();
     if (this._ghostApplied) color = _GHOST_COLOR;
+    const inferred = _ghostMode && this.data.sensing && this.data.sensing !== 'adsb_icao';
+    if (inferred !== this._inferredApplied) { this._inferredApplied = inferred; this._lastColorR = null; }
     // Skip if color hasn't changed
     if (this._lastColorR === color.r && this._lastColorG === color.g && this._lastColorB === color.b) return;
     this._lastColorR = color.r;
@@ -1243,12 +1253,12 @@ class AircraftObject {
         // emissive at full color but lower intensity for subtle glow
         m.material.color.setRGB(color.r * 0.7, color.g * 0.7, color.b * 0.7);
         m.material.emissive.copy(color);
-        m.material.emissiveIntensity = 0.4;
+        m.material.emissiveIntensity = this._inferredApplied ? 0.18 : 0.4;
       }
     } else if (this.bodyMat) {
       this.bodyMat.color.setRGB(color.r * 0.7, color.g * 0.7, color.b * 0.7);
       this.bodyMat.emissive.copy(color);
-      this.bodyMat.emissiveIntensity = 0.4;
+      this.bodyMat.emissiveIntensity = this._inferredApplied ? 0.18 : 0.4;
     }
   }
 
