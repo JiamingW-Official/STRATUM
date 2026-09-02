@@ -15,6 +15,10 @@ const DEG_TO_RAD = Math.PI / 180;
 const GEO_SCALE = 40;
 const METERS_PER_UNIT = 111000 / GEO_SCALE;
 const ALT_SCALE = 0.06; // compress vertical axis
+// The runway surface is drawn at y=0.038 and its lights up to 0.05. An aircraft
+// on the ground has altitude 0, which put it under the pavement it was taxiing
+// on: the runway's depth write hid it. Nothing is drawn below this height.
+const GROUND_CLEARANCE = 0.065;
 
 const COLOR_CRUISE = new THREE.Color(0xffffff);
 const COLOR_CLIMB = new THREE.Color(0xff9d4d);
@@ -423,7 +427,7 @@ export function dataToScenePos(data, userLat, userLon) {
   const cosLat = Math.cos(userLat * DEG_TO_RAD);
   const x = (data.longitude - userLon) * GEO_SCALE * cosLat;
   const z = -(data.latitude - userLat) * GEO_SCALE;
-  const y = (bestAlt(data) * METERS_TO_FEET) / 1000 * ALT_SCALE;
+  const y = Math.max(GROUND_CLEARANCE, (bestAlt(data) * METERS_TO_FEET) / 1000 * ALT_SCALE);
   return _tmpScenePos.set(x, y, z);
 }
 
@@ -432,7 +436,7 @@ function waypointToScenePos(wp, userLat, userLon) {
   const cosLat = Math.cos(userLat * DEG_TO_RAD);
   const x = (wp.longitude - userLon) * GEO_SCALE * cosLat;
   const z = -(wp.latitude - userLat) * GEO_SCALE;
-  const y = wp.baroAltitude != null ? (wp.baroAltitude * METERS_TO_FEET) / 1000 * ALT_SCALE : 0;
+  const y = Math.max(GROUND_CLEARANCE, wp.baroAltitude != null ? (wp.baroAltitude * METERS_TO_FEET) / 1000 * ALT_SCALE : 0);
   return _tmpWaypointPos.set(x, y, z);
 }
 

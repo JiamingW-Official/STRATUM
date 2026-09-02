@@ -582,7 +582,9 @@ function createRunwayTexture(ref, lengthMeters, widthMeters) {
   // Designators: 9m high, stroke 1.5m, base 12m past the stripes. From the air
   // they are small — that is the size they are.
   const parts = ref.split("/");
-  const numH = 9; // metres, along the runway
+  // Annex 14 says not less than 9m; many airports paint larger, and at 9m the
+  // figures vanish before the runway itself does. Painted at 13.5m here.
+  const numH = 13.5; // metres, along the runway
   const numBase = 36 + 12;
   // The figures are typeset upright on their own canvas, then placed rotated
   // with an explicit size in metres on each axis. Rotating the main context and
@@ -921,6 +923,32 @@ function renderRunwayCentrelineAndPAPI(runways) {
   airportGroup.add(mesh);
 }
 
+// ---- Threshold designator labels ----
+const _thrLabelTex = new Map();
+function _thresholdLabel(desig) {
+  let tex = _thrLabelTex.get(desig);
+  if (!tex) {
+    const c = document.createElement("canvas");
+    c.width = 192; c.height = 96;
+    const g = c.getContext("2d");
+    g.font = '600 64px "JetBrains Mono", monospace';
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = "rgba(255,255,255,0.92)";
+    g.fillText(desig, 96, 50);
+    tex = new THREE.CanvasTexture(c);
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    _thrLabelTex.set(desig, tex);
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: tex, transparent: true, opacity: 0.8, depthWrite: false, depthTest: false,
+    sizeAttenuation: true,
+  }));
+  sp.scale.set(0.16, 0.08, 1);
+  sp.renderOrder = 60;
+  return sp;
+}
+
 // ---- Runway Threshold Hit Targets (for hover tooltips) ----
 
 function renderRunwayThresholdTargets(runways) {
@@ -936,6 +964,16 @@ function renderRunwayThresholdTargets(runways) {
       const hitMat = new THREE.MeshBasicMaterial({ visible: false });
       const hitMesh = new THREE.Mesh(hitGeo, hitMat);
       hitMesh.position.set(x, 0.05, z);
+      // A chart label beside the threshold, sized in world units so it is a
+      // pixel at map zoom and readable once you are down among the runways.
+      // The painted figures stay true to size; this is what you read from up
+      // here, the way an aerodrome chart prints the designator by each end.
+      const lbl = _thresholdLabel(desig);
+      const outX = end === 0 ? -(rwy._ex - rwy._sx) : rwy._ex - rwy._sx;
+      const outZ = end === 0 ? -(rwy._ez - rwy._sz) : rwy._ez - rwy._sz;
+      const outLen = Math.hypot(outX, outZ) || 1;
+      lbl.position.set(x + (outX / outLen) * 0.11, 0.06, z + (outZ / outLen) * 0.11);
+      airportGroup.add(lbl);
       hitMesh.userData.runwayThreshold = {
         designator: desig,
         fullRef: rwy.ref,

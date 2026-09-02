@@ -177,3 +177,93 @@ What I did not do: I did not spoof headers to defeat the providers' blocks
 beyond the one `Referer` the trace host requires and the user chose to send.
 The airplanes.live message asked for an email; that is the correct next step,
 and it is the user's to take.
+
+## 7. Second pass: the sky, the ground, and saying it out loud
+
+Three weeks on, the owner's brief was one line: *this is still a long way from
+a portfolio piece.* This section is what that produced, in the order it was
+found.
+
+**Trails were nine minutes long, and the reason was the data, not the code.**
+The upstream publishes two trace files per aircraft. `trace_recent` is capped
+at 92 points -- measured at 5.9, 10.5 and 14.0 minutes on three aircraft,
+depending on how fast each was reporting -- so a jet at cruise arrived with a
+stub behind it. `trace_full` is the last 24 hours: 3,480 to 6,593 points,
+80-160 kB on the wire even compressed, of which about 92% is older than
+anything the map draws. Fetching it for every aircraft in range is 16 MB a
+visit. The cut moved to the edge: a Worker route fetches the full trace once,
+keeps the wanted window, drops the fields the trail never reads and rounds to
+a metre. 3,480 points and 587 kB became 360 points and 4 kB, spanning 38
+minutes; the answer is shaped like the upstream file so the client parses it
+with the code it had. Cached ten minutes -- only the last minute of a trail is
+in motion, and every hit is a 110 kB fetch not made against a volunteer host.
+
+Then the measure itself was wrong. Forty-five minutes is right for an aircraft
+turning onto final at 180 knots and wrong for one crossing at 500, which draws
+a line clean across the frame; with the window open the overflights were all
+you could see. Trails now cut at 80 nautical miles, a little under the 100 nm
+radius on screen, so every aircraft gets roughly the same sweep. Measured over
+153 aircraft: median 80, 90th percentile 96.
+
+**The runway was drawn at the wrong scale, seven times over.** The surface
+texture was a fixed 2048x192 stretched over whatever the runway measured. On
+JFK's 13R/31L, 4,408 m by 61 m, a pixel covered 2.2 m along the runway and
+0.3 m across it; every mark drawn square came out seven times longer than it
+was wide, and the designators, meant to stand 9 m, ran for 185 m. Pixel floors
+on the other marks overrode their metre dimensions on any long runway. Width
+came from `parseFloat` on the OSM tag, so `"150 ft"` became a 150-metre
+runway. Every mark is now specified in metres from ICAO Annex 14 and converted
+on its own axis: threshold stripes counted by width, aiming point as two bars
+either side of the centreline at the distance the landing length dictates,
+touchdown zone in the 3-2-2-1-1 code, rubber darkening the first 900 m. Lights
+follow the same rule: white edge lights with the last 600 m yellow (the red in
+the last 300 m was not an edge-light colour), the threshold bar as the
+bidirectional fixture it is -- green outward, red inward -- centreline lights
+every 15 m on precision runways, a PAPI abeam each aiming point, ALSF-2
+corrected to 730 m with a white 1,000 ft bar. Four duplicate "glow halo" point
+layers were deleted; the bloom pass already did that job, and stacked additive
+layers were the white blob over every airport at map zoom.
+
+**The highlight that was a leftover.** The white disc and grey ring over JFK
+that the owner asked to have removed were not a highlight. They were a "you
+are here" marker from when the map centred on the viewer; the origin is now the
+focused airport, so the marker read as a statement about it. The focused
+airport is marked by its label and diamond a step brighter than the rest, and
+nothing else is added.
+
+**A measurement that lied.** After the light rewrite the scene reported no
+light layers at all, on three reloads. The cause was the test harness, not the
+code: the browser pane was hidden, and a hidden tab throttles
+`requestAnimationFrame` to nothing, so the three deferred frames that build
+lights never ran. Fronting the tab produced 6,290 edge lights, 8,916 threshold,
+20,552 centreline and 8,920 approach. While looking, a real race surfaced: two
+airport loads overlap at boot and the deferred passes were guarded by a load
+counter that either could bump, so a runway group could sit in the scene with
+its lights skipped. The guard is now the group itself. Rule kept from §6, now
+with a corollary: measure the deployed thing, and know what your instrument
+cannot see.
+
+**The layer that carried the argument was invisible.** Masked aircraft were
+wireframes at 55% opacity with no label -- thematically right and, among 160
+contacts at map zoom, a change the eye could not find. They now carry an open
+ring, what a scope draws around a return it cannot identify. A sprite rather
+than geometry, because ring geometry sized to look right up close measured
+four pixels across at the altitude the layer works at.
+
+**Putting the sentence where the layer is.** This document's claim -- every
+position says how it reached us, some aircraft asked not to be shown -- was
+not in the product. No panel was added. One line under the boot checklist,
+gone with the screen. The HUD's "N asked not to be seen" is now the way into
+the layer: click it and it toggles, same as V. And one sentence under each
+callsign says how this position was heard -- the aircraft itself over ADS-B,
+volunteers triangulating, a state ground station relaying radar -- and, for a
+masked aircraft, that its owner asked through LADD or a privacy address not to
+be shown: the position is public, the name is not.
+
+That last line exposed a contradiction. The map drew a masked aircraft as
+UNSEEN while the panel beneath it gave the name away -- tail number, owner,
+the lot -- which made the layer a costume. While the layer is on, the panel now
+withholds what the owner asked to withhold; V reveals it, immediately, so V is
+an act and not a style. Verified on a Sikorsky S-92 on the FAA's limiting
+list: UNSEEN / withheld with the layer on, N314RG with it off, UNSEEN again,
+each within a frame.
