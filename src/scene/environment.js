@@ -582,9 +582,11 @@ function createRunwayTexture(ref, lengthMeters, widthMeters) {
   // Designators: 9m high, stroke 1.5m, base 12m past the stripes. From the air
   // they are small — that is the size they are.
   const parts = ref.split("/");
-  // Annex 14 says not less than 9m; many airports paint larger, and at 9m the
-  // figures vanish before the runway itself does. Painted at 13.5m here.
-  const numH = 13.5; // metres, along the runway
+  // Annex 14 says not less than 9m. At 9m the figures vanish before the runway
+  // does, and this is a map, not a pavement plan: painted at 27m, three times
+  // the minimum, with the width held inside the runway so a three-character
+  // designator on a narrow strip does not spill over the side stripes.
+  const numH = 27; // metres, along the runway
   const numBase = 36 + 12;
   // The figures are typeset upright on their own canvas, then placed rotated
   // with an explicit size in metres on each axis. Rotating the main context and
@@ -600,8 +602,11 @@ function createRunwayTexture(ref, lengthMeters, widthMeters) {
     g.textBaseline = "middle";
     g.font = '700 200px "Helvetica Neue", Arial, sans-serif';
     g.fillText(txt, 256, 138);
-    const glyphW = Math.min(500, g.measureText(txt).width + 20) / 200 * numH; // metres across
-    const wAlong = numH * px;      // figure height runs along the runway
+    let glyphW = Math.min(500, g.measureText(txt).width + 20) / 200 * numH; // metres across
+    let h = numH;
+    const maxAcross = Wm * 0.85;
+    if (glyphW > maxAcross) { h *= maxAcross / glyphW; glyphW = maxAcross; }
+    const wAlong = h * px;         // figure height runs along the runway
     const wAcross = glyphW * py;   // figure width runs across it
     ctx.save();
     ctx.translate(X(atM + numH / 2), H / 2);
@@ -614,7 +619,7 @@ function createRunwayTexture(ref, lengthMeters, widthMeters) {
   drawDesig(parts[1] || "", L - numBase - numH, true);
 
   // Centreline: 0.9m wide, 30m stripe, 20m gap, between the designators.
-  const clFrom = numBase + numH + 12;
+  const clFrom = numBase + numH + 12; // numH is the nominal height; a clamped figure only leaves more room
   ctx.fillStyle = paint;
   for (let m = clFrom; m + 30 < L - clFrom; m += 50) {
     ctx.fillRect(X(m), Y(-0.45), X(30), Math.max(1, 0.9 * py));
@@ -944,7 +949,7 @@ function _thresholdLabel(desig) {
     map: tex, transparent: true, opacity: 0.8, depthWrite: false, depthTest: false,
     sizeAttenuation: true,
   }));
-  sp.scale.set(0.16, 0.08, 1);
+  sp.scale.set(0.11, 0.055, 1);
   sp.renderOrder = 60;
   return sp;
 }
