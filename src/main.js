@@ -9395,7 +9395,7 @@ async function switchCity(city) {
   restartPolling(); // Immediately re-poll with new city coordinates
   if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
   updateHUDCity(city.name, city.code);
-  setATCAirport(typeof AIRPORT_DATA !== "undefined" ? AIRPORT_DATA[city.code]?.icao : null);
+  setATCAirport(AIRPORT_DATA[city.code]?.icao || null);
   updateHUDAirports(0);
 
   // Reset camera to cinematic angle
@@ -13509,7 +13509,7 @@ async function init() {
   setUserLocation(defaultCity.lat, defaultCity.lon);
   updateHUDCity(defaultCity.name, defaultCity.code);
   initATC();
-  setATCAirport(typeof AIRPORT_DATA !== "undefined" ? AIRPORT_DATA[defaultCity.code]?.icao : null);
+  setATCAirport(AIRPORT_DATA[defaultCity.code]?.icao || null);
   updateHUD(0, defaultCity.lat, defaultCity.lon);
   sessionStats.cities.add(defaultCity.code);
 
