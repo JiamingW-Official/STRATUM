@@ -1,0 +1,4 @@
+# Sync-conflict copies ("NAME 2.ext") that a cloud drive drops next to the
+# real files. They are never referenced, and their bodies are not on disk, so
+# any deploy that tries to read one waits on the file provider forever.
+* [0-9].*

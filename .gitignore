@@ -4,3 +4,6 @@ dist/
 .vercel
 radio/
 scripts/
+
+# Cloud-drive sync-conflict copies ("NAME 2.ext"); never referenced, bodies often not on disk.
+* [0-9].*
