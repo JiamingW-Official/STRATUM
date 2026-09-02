@@ -45,7 +45,6 @@ import {
   isGhostMode,
 } from "./scene/aircraft.js";
 import {
-  getLastFetchTime,
   setUserLocation,
   getUserLocation,
   startPolling,
@@ -1910,11 +1909,8 @@ function handleError(err, consecutiveErrors) {
     err.message,
     `(${consecutiveErrors} consecutive)`,
   );
-  // Three failed polls is not a lost signal; twenty seconds without a fix is.
-  // Below that the HUD's own "Ns ago" carries it, turning amber and then red.
-  const last = getLastFetchTime();
-  const silentFor = last ? Date.now() - last : Infinity;
-  if (consecutiveErrors >= 3 && silentFor >= 20000) showSignalLost(true);
+  // A failed poll is logged and nothing more. The HUD's own "Ns ago" decides
+  // when a silence has gone on long enough to say so, from one clock.
 }
 
 // --- Window resize ---

@@ -83,6 +83,7 @@ export function setLocalTimezone(offsetSeconds, abbr) {
   _tzAbbr = abbr || '';
 }
 
+let _overlayShown = false;
 export function updateHUDTimer() {
   const last = getLastFetchTime();
   if (!last) {
@@ -97,8 +98,16 @@ export function updateHUDTimer() {
       // same element that says "Just now", so nothing new appears to say it.
       hudUpdated.classList.toggle('is-stale', ago >= 8 && ago < 20);
       hudUpdated.classList.toggle('is-dead', ago >= 20);
+      // The overlay is decided here, from the same number, on the same tick, so
+      // the age line and the overlay can never disagree about how long it has
+      // been. Nothing else opens it; a successful poll closes it.
       const sub = document.getElementById('signal-lost-sub');
-      if (sub && ago >= 20) sub.textContent = `No position fix for ${ago}s. The tracker is up; the data path is not answering.`;
+      if (ago >= 20) {
+        if (sub) sub.textContent = `No position fix for ${ago}s. The tracker is up; the data path is not answering.`;
+        if (!_overlayShown) { _overlayShown = true; showSignalLost(true); }
+      } else if (_overlayShown) {
+        _overlayShown = false; showSignalLost(false);
+      }
     }
   }
 
