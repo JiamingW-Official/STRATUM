@@ -102,6 +102,19 @@ function _ensureAudio() {
   return _audio;
 }
 
+// One preconnect per mirror. The handshake to an Icecast host is most of the
+// delay before first sound; doing it while the map is still drawing removes it
+// from the moment the visitor actually acts.
+function _preconnect(host) {
+  if (document.querySelector(`link[data-atc="${host}"]`)) return;
+  for (const rel of ['preconnect', 'dns-prefetch']) {
+    const l = document.createElement('link');
+    l.rel = rel; l.href = `https://${host}.liveatc.net`; l.crossOrigin = 'anonymous';
+    l.dataset.atc = host;
+    document.head.appendChild(l);
+  }
+}
+
 export function initATC() {
   _wrap = document.getElementById('hud-atc');
   _btn = document.getElementById('hud-atc-btn');
@@ -132,6 +145,8 @@ export function setATCAirport(icao) {
     else stopATC();
   }
   // Open the stream now so the buffer is already filling when the visitor acts.
+  const f = _entry(_heard);
+  if (f) _preconnect(f.server);
   const url = feedFor(_icao);
   if (url && !_wanted) { const a = _ensureAudio(); if (a.src !== url) a.src = url; }
   _render(_wanted ? 'loading' : _armed ? 'armed' : 'idle');

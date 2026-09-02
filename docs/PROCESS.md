@@ -125,6 +125,30 @@ otherwise. Tower audio is the one trace a ghost still leaves.
 Nothing in this layer is invented. Every element is a field that was already
 in the feed and had been thrown away.
 
+**The wall that was a door.** The most useful correction in the project came
+from the owner, not from the code. I had concluded that public flight and
+audio infrastructure simply did not carry most airports: my scripts asked
+LiveATC's redirector for `kord_twr`, `kord_app`, twenty-five spellings in all,
+got 404 for every one, and I reported — with evidence — that O'Hare publishes
+no public feed. The owner's reply was one sentence: *I can search Chicago.*
+
+They were right and my method was wrong. LiveATC's airport pages sit behind a
+Cloudflare managed challenge that a real browser passes and a script does not,
+so I had never seen the page that lists the actual mount names. Opened through
+their browser, O'Hare's tower turned out to be `kord1n2_twr_n`; Denver's is
+`kden1_twr_west1`. Sector letters, runway pairs and frequencies — names no
+amount of enumeration would ever have produced. Reading the pages the owner
+could already read took coverage from eleven airports to eighty, across five
+continents, and corrected Los Angeles from a heliport stream to its actual
+tower.
+
+This is worth stating plainly because it cuts against the project's own thesis.
+STRATUM argues that visibility is governed — that some aircraft are withheld and
+some skies are unheard. That is true. But I had also mistaken my own bad
+technique for a refusal by the infrastructure, and written it up as a finding.
+Some walls are walls. Some are doors you are knocking on wrong, and the way to
+tell them apart is to check with someone standing on the other side.
+
 **Tower audio, and one more refusal.** The sound of the layer is live tower
 audio from LiveATC. The Worker could not carry it (its egress is refused, as
 above); the browser can, because LiveATC's Icecast mirrors allow cross-origin

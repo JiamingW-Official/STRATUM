@@ -1,4 +1,29 @@
 {
+ "EHAM": {
+  "kind": "tower",
+  "mount": "eham_twr_0624",
+  "server": "s1-bos"
+ },
+ "EIDW": {
+  "kind": "feed",
+  "mount": "eidw8",
+  "server": "s1-bos"
+ },
+ "ENGM": {
+  "kind": "feed",
+  "mount": "eneg2",
+  "server": "s1-bos"
+ },
+ "EPWA": {
+  "kind": "tower",
+  "mount": "epwa_twr2",
+  "server": "s1-bos"
+ },
+ "HAAB": {
+  "kind": "tower",
+  "mount": "haab2_twr",
+  "server": "s1-fmt2"
+ },
  "KABQ": {
   "kind": "tower",
   "mount": "kabq2_twr2",
@@ -92,6 +117,11 @@
  "KIND": {
   "kind": "tower",
   "mount": "kind9_gnd_twr",
+  "server": "s1-bos"
+ },
+ "KJAX": {
+  "kind": "tower",
+  "mount": "kjax_twr_118300",
   "server": "s1-bos"
  },
  "KJFK": {
@@ -232,6 +262,141 @@
  "KTPA": {
   "kind": "tower",
   "mount": "ktpa5_twr",
+  "server": "s1-bos"
+ },
+ "LHBP": {
+  "kind": "approach",
+  "mount": "lhbp_app_122980",
+  "server": "s1-bos"
+ },
+ "LLBG": {
+  "kind": "feed",
+  "mount": "llbg2",
+  "server": "s1-bos"
+ },
+ "LSZH": {
+  "kind": "tower",
+  "mount": "lszh1_twr",
+  "server": "s1-bos"
+ },
+ "MMGL": {
+  "kind": "feed",
+  "mount": "mmgl",
+  "server": "s1-fmt2"
+ },
+ "MMMX": {
+  "kind": "tower",
+  "mount": "mmmx1_twr_pri_r",
+  "server": "s1-bos"
+ },
+ "OPKC": {
+  "kind": "feed",
+  "mount": "opkc",
+  "server": "s1-bos"
+ },
+ "PANC": {
+  "kind": "tower",
+  "mount": "panc3_twr",
+  "server": "s1-bos"
+ },
+ "PHNL": {
+  "kind": "tower",
+  "mount": "phnl1_twr",
+  "server": "s1-bos"
+ },
+ "PHOG": {
+  "kind": "approach",
+  "mount": "phog2_app",
+  "server": "s1-fmt2"
+ },
+ "RJAA": {
+  "kind": "tower",
+  "mount": "rjaa_twr1",
+  "server": "s1-bos"
+ },
+ "RJTT": {
+  "kind": "tower",
+  "mount": "rjtt_twr_tca",
+  "server": "s1-bos"
+ },
+ "RPLL": {
+  "kind": "approach",
+  "mount": "rpll_app_119900",
+  "server": "s1-bos"
+ },
+ "SBBR": {
+  "kind": "approach",
+  "mount": "sbbr3_app",
+  "server": "s1-bos"
+ },
+ "SBKP": {
+  "kind": "tower",
+  "mount": "sbkp3_twr",
+  "server": "s1-fmt2"
+ },
+ "SCEL": {
+  "kind": "feed",
+  "mount": "scel",
+  "server": "s1-bos"
+ },
+ "SKBO": {
+  "kind": "feed",
+  "mount": "skbo7_bog_ctl_125100",
+  "server": "s1-fmt2"
+ },
+ "SPJC": {
+  "kind": "tower",
+  "mount": "spjc1_twr_east",
+  "server": "s1-bos"
+ },
+ "SUMU": {
+  "kind": "tower",
+  "mount": "sumu_twr_info",
+  "server": "s1-bos"
+ },
+ "SVMI": {
+  "kind": "feed",
+  "mount": "svzm2",
+  "server": "s1-bos"
+ },
+ "URSS": {
+  "kind": "feed",
+  "mount": "urss",
+  "server": "s1-bos"
+ },
+ "VHHH": {
+  "kind": "feed",
+  "mount": "vhhh5",
+  "server": "s1-bos"
+ },
+ "WSSS": {
+  "kind": "feed",
+  "mount": "wsss3",
+  "server": "s1-bos"
+ },
+ "YBBN": {
+  "kind": "tower",
+  "mount": "ybbn7_twr",
+  "server": "s1-bos"
+ },
+ "YMML": {
+  "kind": "feed",
+  "mount": "ymml3",
+  "server": "s1-bos"
+ },
+ "YPAD": {
+  "kind": "feed",
+  "mount": "ypad2_misc",
+  "server": "s1-fmt2"
+ },
+ "YPPH": {
+  "kind": "tower",
+  "mount": "ypph2_twr",
+  "server": "s1-fmt2"
+ },
+ "YSSY": {
+  "kind": "tower",
+  "mount": "yssy1_twr",
   "server": "s1-bos"
  }
 }
