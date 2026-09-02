@@ -4499,3 +4499,31 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-sky-unseen #hud-sky-unseen { color: var(--accent); }
 .hud-sky-unseen.is-zero { color: var(--text-3); }
 .hud-sky-unseen.is-zero #hud-sky-unseen { color: var(--text-3); }
+
+/* Tower audio control — a text button with a live dot, not a media player. */
+.hud-atc { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.hud-atc.hidden { display: none; }
+.hud-atc-btn { display: inline-flex; align-items: center; gap: 7px; background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 9px; cursor: pointer; color: var(--text-2); font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: 0; transition: color 0.15s, border-color 0.15s; }
+.hud-atc-btn:hover { color: var(--text); border-color: var(--hairline-strong); }
+.hud-atc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); flex-shrink: 0; }
+.hud-atc-btn.is-live { color: var(--text); border-color: rgba(var(--accent-rgb), 0.35); }
+.hud-atc-btn.is-live .hud-atc-dot { background: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.18); animation: atc-pulse 1.6s ease-in-out infinite; }
+.hud-atc-btn.is-busy .hud-atc-dot { background: var(--text-2); animation: atc-pulse 0.8s ease-in-out infinite; }
+@keyframes atc-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }
+.hud-atc-credit { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); letter-spacing: 0; }
+
+/* Ghost layer hint — a float, bottom-centre, once. */
+.ghost-hint {
+  position: fixed; left: 50%; bottom: calc(var(--edge) + 56px); transform: translate(-50%, 6px);
+  z-index: 70; max-width: 420px; padding: 10px 14px;
+  display: flex; flex-direction: column; gap: 3px;
+  background: var(--surface-float);
+  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4);
+  border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
+  opacity: 0; pointer-events: none; transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.ghost-hint.is-visible { opacity: 1; transform: translate(-50%, 0); }
+.ghost-hint.hidden { display: none; }
+.ghost-hint-title { font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 500; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--accent); }
+.ghost-hint-text { font-family: var(--font-sans); font-size: var(--fs-body); color: var(--text-2); line-height: 1.45; }
+.ghost-hint kbd { font-family: var(--font-mono); font-size: var(--fs-label); padding: 0 5px; border: 1px solid var(--hairline-strong); border-radius: var(--r-sm); color: var(--text); }

@@ -51,6 +51,12 @@
     </div>
   </div>
 
+  <!-- First-visit hint for the ghost layer: a reviewer must be able to read a
+       wireframe without reading the code. Shown once, then remembered. -->
+  <div id="ghost-hint" class="ghost-hint hidden" role="status">
+    <span class="ghost-hint-title">Ghost layer</span>
+    <span class="ghost-hint-text">Aircraft that asked not to be seen are drawn as wireframes — present, unnamed. Press <kbd>V</kbd> to toggle.</span>
+  </div>
   <!-- Post-boot loading status pill -->
   <div id="load-status" class="load-status hidden">
     <div class="load-status-spinner"></div>
@@ -107,6 +113,14 @@
     <div id="hud-sky" class="hud-sky hidden">
       <span class="hud-sky-line"><span id="hud-sky-people">--</span> people overhead, bound for <span id="hud-sky-cities">--</span> cities</span>
       <span class="hud-sky-line hud-sky-unseen"><span id="hud-sky-unseen">0</span> asked not to be seen</span>
+      <!-- Tower audio: the only trace an unseen aircraft still leaves. Source is
+           LiveATC, credited here; the button is the user gesture browsers need. -->
+      <div id="hud-atc" class="hud-atc hidden">
+        <button type="button" id="hud-atc-btn" class="hud-atc-btn" aria-label="Toggle tower audio">
+          <span class="hud-atc-dot"></span><span id="hud-atc-label">Hear the tower</span>
+        </button>
+        <span class="hud-atc-credit">audio · LiveATC</span>
+      </div>
     </div>
     <!-- Weather — always visible, single compact line -->
     <div id="hud-weather" class="hud-weather">

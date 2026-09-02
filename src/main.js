@@ -62,6 +62,7 @@ import {
   showSignalLost,
   updateHUDSky,
 } from "./ui/hud.js";
+import { initATC, setATCAirport } from "./ui/atc.js";
 import {
   showDetail,
   closeDetail,
@@ -1715,6 +1716,24 @@ let lastRawData = [];
 // the count of aircraft that asked not to be seen (LADD / PIA).
 document.body.classList.toggle("ghost-mode", isGhostMode());
 
+let _ghostHintShown = false;
+function _maybeShowGhostHint() {
+  if (_ghostHintShown || !isGhostMode()) return;
+  _ghostHintShown = true;
+  let seen = false;
+  try { seen = localStorage.getItem("stratum:ghost-hint") === "1"; } catch {}
+  if (seen) return;
+  const el = document.getElementById("ghost-hint");
+  if (!el) return;
+  el.classList.remove("hidden");
+  requestAnimationFrame(() => el.classList.add("is-visible"));
+  setTimeout(() => {
+    el.classList.remove("is-visible");
+    setTimeout(() => el.classList.add("hidden"), 400);
+    try { localStorage.setItem("stratum:ghost-hint", "1"); } catch {}
+  }, 14000); // data lands ~2s in, often under the boot splash — leave time to read it
+}
+
 function _skyStats(list) {
   let people = 0, unseen = 0;
   const cities = new Set();
@@ -1735,7 +1754,7 @@ function handleData(dataList) {
   showSignalLost(false);
   lastRawData = dataList;
   // Mark aircraft as arrived on first non-empty data
-  if (dataList.length > 0) _onAircraftArrived();
+  if (dataList.length > 0) { _onAircraftArrived(); _maybeShowGhostHint(); }
   if (aircraftManager) {
     aircraftManager.update(dataList);
     const { lat, lon } = getUserLocation();
@@ -9376,6 +9395,7 @@ async function switchCity(city) {
   restartPolling(); // Immediately re-poll with new city coordinates
   if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
   updateHUDCity(city.name, city.code);
+  setATCAirport(typeof AIRPORT_DATA !== "undefined" ? AIRPORT_DATA[city.code]?.icao : null);
   updateHUDAirports(0);
 
   // Reset camera to cinematic angle
@@ -13488,6 +13508,8 @@ async function init() {
   activeCity = defaultCity;
   setUserLocation(defaultCity.lat, defaultCity.lon);
   updateHUDCity(defaultCity.name, defaultCity.code);
+  initATC();
+  setATCAirport(typeof AIRPORT_DATA !== "undefined" ? AIRPORT_DATA[defaultCity.code]?.icao : null);
   updateHUD(0, defaultCity.lat, defaultCity.lon);
   sessionStats.cities.add(defaultCity.code);
 
