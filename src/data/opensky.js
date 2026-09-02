@@ -13,6 +13,11 @@ const ADSBX_BASE = "/api/adsbx/v2";
 const OPENSKY_BASE = "/api/opensky";
 const ADSBDB_BASE = "/api/adsbdb/v0";
 const TRACE_BASE = "/api/trace/data/traces";
+// How much history a trail carries when it first appears. The upstream's cheap
+// file is capped at 92 points — six to fourteen minutes — so the bulk path goes
+// through /api/trail, which cuts this window out of the 24-hour trace at the
+// edge and returns about a tenth of the bytes.
+const TRAIL_WINDOW_MIN = 45;
 const FETCH_TIMEOUT_MS = 6000;
 const POLL_INTERVAL = 2000; // 2s — fresher positions for smoother trails
 const POLL_INTERVAL_BG = 8000; // 8s when tab hidden
@@ -351,21 +356,26 @@ function _noteTraceFailure(reason) {
   );
 }
 
-// Two trace flavours, and the size gap decides who gets which: trace_full carries
-// the whole flight (measured at 6909 points / 25h / 1.2MB on one aircraft), while
-// trace_recent is the last ~5 minutes for about 15KB. Pulling the full trace for
-// every aircraft in range would mean hundreds of megabytes per load, so only the
-// aircraft the user actually selected gets it; everyone else gets the cheap recent
-// trace and then grows their trail from live sampling.
+// Two ways in, and the size gap decides who gets which. trace_full is the last
+// 24 hours -- 3,400 to 6,600 points, 80-160kB compressed -- and only the aircraft
+// the user actually selected is worth that. Its sibling trace_recent is not the
+// answer for everyone else: it is capped at 92 points, which is six to fourteen
+// minutes depending on the reporting rate, so a jet at cruise arrives with a stub
+// behind it. /api/trail cuts the wanted window out of the full trace at the edge
+// and hands back a tenth of the bytes in the same shape.
 async function fetchTraceAsync(icao24, deep = false) {
   if (trackFetchQueue.has(icao24)) return;
   if (Date.now() < _tracePausedUntil) return;
   trackFetchQueue.add(icao24);
 
   try {
-    // URL format: /data/traces/{last2hex}/trace_{full|recent}_{hex}.json
+    // The selected aircraft gets the whole flight straight from the source; every
+    // other aircraft gets the trimmed window, which is shaped like the upstream
+    // file so the parse below is the same either way.
     const suffix = icao24.slice(-2);
-    const url = `${TRACE_BASE}/${suffix}/trace_${deep ? "full" : "recent"}_${icao24}.json`;
+    const url = deep
+      ? `${TRACE_BASE}/${suffix}/trace_full_${icao24}.json`
+      : `/api/trail?hex=${icao24}&m=${TRAIL_WINDOW_MIN}`;
     const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!response.ok) {
       // 404 just means this aircraft has no trace; only treat blocks/outages as

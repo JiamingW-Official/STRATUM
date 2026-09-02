@@ -60,6 +60,7 @@ const WORKER_ROUTES = [
   "/api/positions",
   "/api/airports",
   "/api/enrich",
+  "/api/trail",
   "/api/weather",
   "/api/atlas",
   "/api/routes",

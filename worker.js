@@ -478,6 +478,92 @@ async function handleProxy(request, prefix, target, url) {
 
 // ── /api/enrich — Parallel aircraft detail aggregation ──
 // Fetches trace + route + hex detail in ONE round-trip from the edge
+// ── Trail history ────────────────────────────────────────────────────────────
+// The upstream offers two trace files and neither is the one a map wants.
+// trace_recent is capped at 92 points, which is six to fourteen minutes
+// depending on how fast the aircraft was reporting -- barely a stub behind a jet
+// at cruise. trace_full is the last 24 hours: 3,400 to 6,600 points, 80-160kB on
+// the wire even compressed, and roughly 92% of it is older than anything the map
+// will draw. Fetching that for every aircraft in range would be 16MB a visit.
+//
+// So the cut happens here instead, once, close to the source: fetch the full
+// trace, keep the requested window, drop the fields the trail does not read, and
+// round what is left to about a metre. The answer is 8-12kB and is shaped
+// exactly like the upstream file, so the client parses it with the code it
+// already had.
+//
+// Cached ten minutes, which is longer than it looks: only the last minute of a
+// 45-minute trail is in motion, and the client extends the tip from live
+// positions anyway. Every hit here is a 110kB fetch this worker does not make
+// against a volunteer-run service.
+async function handleTrail(url) {
+  const hex = (url.searchParams.get("hex") || "").toLowerCase();
+  if (!/^[0-9a-f]{6}$/.test(hex)) return new Response("Bad hex", { status: 400 });
+  const mins = Math.min(180, Math.max(5, parseInt(url.searchParams.get("m"), 10) || 45));
+
+  const cacheKey = new Request(`https://cache.internal/trail/${hex}/${mins}`);
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    const r = corsResponse(cached);
+    r.headers.set("X-Cache", "HIT");
+    return r;
+  }
+
+  const last2 = hex.slice(-2);
+  let data = null;
+  try {
+    const res = await fetch(
+      `https://globe.airplanes.live/data/traces/${last2}/trace_full_${hex}.json`,
+      {
+        headers: { "User-Agent": "STRATUM/1.0", Referer: TRACE_ORIGIN },
+        signal: AbortSignal.timeout(9000),
+      },
+    );
+    if (!res.ok) {
+      // 404 means this aircraft simply has no trace; say so without caching.
+      return corsResponse(
+        new Response(JSON.stringify({ timestamp: 0, trace: [] }), {
+          status: res.status === 404 ? 200 : 502,
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+        }),
+      );
+    }
+    data = await res.json();
+  } catch {
+    return corsResponse(
+      new Response(JSON.stringify({ timestamp: 0, trace: [] }), {
+        status: 504,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      }),
+    );
+  }
+
+  const base = data?.timestamp || 0;
+  const src = Array.isArray(data?.trace) ? data.trace : [];
+  const cutoff = Date.now() / 1000 - mins * 60;
+  const trace = [];
+  for (let i = 0; i < src.length; i++) {
+    const pt = src[i];
+    if (base + pt[0] < cutoff) continue;
+    const lat = pt[1], lon = pt[2], alt = pt[3];
+    if (lat == null || lon == null) continue;
+    // Five decimals is about a metre — far finer than anything a trail draws.
+    trace.push([
+      Math.round(pt[0] * 10) / 10,
+      Math.round(lat * 1e5) / 1e5,
+      Math.round(lon * 1e5) / 1e5,
+      typeof alt === "number" ? Math.round(alt) : alt,
+    ]);
+  }
+
+  const body = JSON.stringify({ timestamp: base, trace });
+  const out = new Response(body, {
+    headers: { "Content-Type": "application/json" },
+  });
+  await cachePut(cacheKey, out.clone(), 600, 600);
+  return corsResponse(out);
+}
+
 async function handleEnrich(url, env) {
   const hex = url.searchParams.get("hex");
   const callsign = (url.searchParams.get("cs") || "").trim();
@@ -1306,6 +1392,7 @@ export default {
       return handleAirportsBatch(url, env);
     if (url.pathname === "/api/routes") return handleRoutes(url, env);
     if (url.pathname === "/api/enrich") return handleEnrich(url, env);
+    if (url.pathname === "/api/trail") return handleTrail(url);
     if (url.pathname === "/api/weather") return handleWeather(url);
     if (url.pathname === "/api/atlas") return handleAtlas();
 
