@@ -18,7 +18,10 @@ const TRACE_BASE = "/api/trace/data/traces";
 // through /api/trail, which cuts this window out of the 24-hour trace at the
 // edge and returns about a tenth of the bytes.
 const TRAIL_WINDOW_MIN = 45;
-const FETCH_TIMEOUT_MS = 6000;
+// Through a slow tunnel a positions answer can land at second seven and still
+// be worth having; at 6s it was counted as a failure, and three of those in a
+// row put a full-screen "Signal Lost" over a link that was merely slow.
+const FETCH_TIMEOUT_MS = 12000;
 const POLL_INTERVAL = 2000; // 2s — fresher positions for smoother trails
 const POLL_INTERVAL_BG = 8000; // 8s when tab hidden
 const BBOX_RADIUS_NM = 100;

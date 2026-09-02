@@ -92,7 +92,13 @@ export function updateHUDTimer() {
     if (isDemo()) {
       hudUpdated.textContent = 'Simulated data';
     } else {
-      hudUpdated.textContent = ago < 2 ? 'Just now' : `${ago}s ago`;
+      hudUpdated.textContent = ago < 2 ? 'Just now' : ago < 8 ? `${ago}s ago` : `No fix for ${ago}s`;
+      // The age is the signal indicator: amber past 8s, red past 20s. It is the
+      // same element that says "Just now", so nothing new appears to say it.
+      hudUpdated.classList.toggle('is-stale', ago >= 8 && ago < 20);
+      hudUpdated.classList.toggle('is-dead', ago >= 20);
+      const sub = document.getElementById('signal-lost-sub');
+      if (sub && ago >= 20) sub.textContent = `No position fix for ${ago}s. The tracker is up; the data path is not answering.`;
     }
   }
 
