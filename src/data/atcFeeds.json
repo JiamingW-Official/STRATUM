@@ -139,19 +139,44 @@
   "mount": "kmia3_twr",
   "server": "s1-bos"
  },
+ "KMSP": {
+  "kind": "tower",
+  "mount": "kmsp3_twr_12l",
+  "server": "s1-bos"
+ },
  "KOAK": {
   "kind": "approach",
   "mount": "koak_app",
   "server": "s1-fmt2"
+ },
+ "KONT": {
+  "kind": "tower",
+  "mount": "kont1_twr",
+  "server": "s1-bos"
  },
  "KORD": {
   "kind": "tower",
   "mount": "kord1n2_twr_n",
   "server": "s1-bos"
  },
+ "KPDX": {
+  "kind": "tower",
+  "mount": "kpdx3_twr",
+  "server": "s1-bos"
+ },
  "KPHL": {
   "kind": "tower",
   "mount": "kphl_twr_east",
+  "server": "s1-bos"
+ },
+ "KPHX": {
+  "kind": "tower",
+  "mount": "kphx_twr_both",
+  "server": "s1-fmt2"
+ },
+ "KPIT": {
+  "kind": "tower",
+  "mount": "kpit2_twr",
   "server": "s1-bos"
  },
  "KRDU": {
@@ -169,6 +194,16 @@
   "mount": "ksan1_twr",
   "server": "s1-bos"
  },
+ "KSAT": {
+  "kind": "tower",
+  "mount": "ksat1_gnd_twr",
+  "server": "s1-bos"
+ },
+ "KSDF": {
+  "kind": "tower",
+  "mount": "ksdf_twr",
+  "server": "s1-bos"
+ },
  "KSEA": {
   "kind": "tower",
   "mount": "ksea3_twr_east",
@@ -179,9 +214,24 @@
   "mount": "ksfo_gnd_twr",
   "server": "s1-bos"
  },
+ "KSJC": {
+  "kind": "tower",
+  "mount": "ksjc6_twr",
+  "server": "s1-bos"
+ },
+ "KSMF": {
+  "kind": "approach",
+  "mount": "ksmf2_app_125400",
+  "server": "s1-bos"
+ },
  "KSTL": {
   "kind": "tower",
   "mount": "kstl2_twr",
+  "server": "s1-bos"
+ },
+ "KTPA": {
+  "kind": "tower",
+  "mount": "ktpa5_twr",
   "server": "s1-bos"
  }
 }
