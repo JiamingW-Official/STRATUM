@@ -2,7 +2,12 @@
  "KATL": {
   "kind": "tower",
   "mount": "katl_twr",
-  "server": "s1-fmt2"
+  "server": "s1-bos"
+ },
+ "KBNA": {
+  "kind": "approach",
+  "mount": "kbna_app",
+  "server": "s1-bos"
  },
  "KBOS": {
   "kind": "tower",
@@ -12,6 +17,11 @@
  "KCVG": {
   "kind": "tower",
   "mount": "kcvg1_twr",
+  "server": "s1-fmt2"
+ },
+ "KDCA": {
+  "kind": "tower",
+  "mount": "kdca1_twr",
   "server": "s1-fmt2"
  },
  "KEWR": {
@@ -31,13 +41,13 @@
  },
  "KOAK": {
   "kind": "approach",
-  "mount": "koak_dep",
-  "server": "s1-bos"
+  "mount": "koak_app",
+  "server": "s1-fmt2"
  },
  "KSAN": {
   "kind": "tower",
   "mount": "ksan1_twr",
-  "server": "s1-fmt2"
+  "server": "s1-bos"
  },
  "KSFO": {
   "kind": "tower",

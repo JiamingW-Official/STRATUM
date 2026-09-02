@@ -5,6 +5,7 @@
 // spoofed headers. Audio is attributed on screen. The map of airport → feed is
 // built at development time and only contains feeds that answered as audio.
 import FEEDS from '../data/atcFeeds.json';
+import AIRPORTS from '../data/atcAirports.json';
 
 let _audio = null;
 let _icao = null;
@@ -12,17 +13,43 @@ let _icao = null;
 // between them; if the recorded one refuses, try the others with the same mount.
 const MIRRORS = ['s1-bos', 's1-fmt2', 's1-lax', 's1-dal'];
 let _mirrorIdx = 0;
+let _nearby = null; // set when the feed belongs to a neighbouring airport
 let _btn = null, _label = null, _wrap = null;
 let _wanted = false;
 
+// Which airport we are actually listening to. Usually the active one; when it
+// publishes no feed — O'Hare does not, and it is the busiest airport in the
+// country — the nearest one that does, so the sky overhead still has a voice.
+let _heard = null;
+
+function _entry(icao) {
+  return icao ? FEEDS[icao.toUpperCase()] || null : null;
+}
+
+function _nearestWithFeed(icao) {
+  const here = AIRPORTS[icao];
+  if (!here) return null;
+  let best = null, bestKm = Infinity;
+  for (const code of Object.keys(FEEDS)) {
+    const there = AIRPORTS[code];
+    if (!there) continue;
+    const dLat = (there.lat - here.lat) * 111;
+    const dLon = (there.lon - here.lon) * 111 * Math.cos((here.lat * Math.PI) / 180);
+    const km = Math.hypot(dLat, dLon);
+    if (km < bestKm) { bestKm = km; best = code; }
+  }
+  // Beyond a few hundred km it is no longer the same sky; say nothing instead.
+  return bestKm <= 400 ? { code: best, km: Math.round(bestKm) } : null;
+}
+
 function feedFor(icao) {
-  const f = icao && FEEDS[icao.toUpperCase()];
+  const f = _entry(_heard);
   if (!f) return null;
   const order = [f.server, ...MIRRORS.filter((m) => m !== f.server)];
   return `https://${order[_mirrorIdx % order.length]}.liveatc.net/${f.mount}`;
 }
 function kindFor(icao) {
-  const f = icao && FEEDS[icao.toUpperCase()];
+  const f = _entry(icao);
   return (f && f.kind) || 'tower';
 }
 
@@ -33,11 +60,13 @@ function _render(state) {
   _btn?.classList.toggle('is-live', state === 'playing');
   _btn?.classList.toggle('is-busy', state === 'loading');
   if (_label) {
+    const where = _heard || _icao || '';
+    const near = _nearby ? ` · ${_nearby.km}km` : '';
     _label.textContent =
-      state === 'playing' ? `Listening · ${_icao} ${kindFor(_icao)}` :
+      state === 'playing' ? `Listening · ${where} ${kindFor(_heard)}${near}` :
       state === 'loading' ? 'Tuning…' :
       state === 'error'   ? 'Feed unavailable' :
-                            `Hear ${_icao || 'the'} ${kindFor(_icao)}`;
+                            `Hear ${where} ${kindFor(_heard)}${near}`;
   }
 }
 
@@ -77,6 +106,14 @@ export function setATCAirport(icao) {
   if (next === _icao) return;
   _icao = next;
   _mirrorIdx = 0;
+  _nearby = null;
+  if (_entry(_icao)) {
+    _heard = _icao;
+  } else {
+    const n = _icao ? _nearestWithFeed(_icao) : null;
+    _heard = n ? n.code : null;
+    _nearby = n;
+  }
   if (_wanted) {
     // Follow the listener to the new tower if it has one; otherwise fall silent.
     const url = feedFor(_icao);
