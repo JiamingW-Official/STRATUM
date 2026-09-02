@@ -62,7 +62,7 @@ import {
   showSignalLost,
   updateHUDSky,
 } from "./ui/hud.js";
-import { initATC, setATCAirport } from "./ui/atc.js";
+import { initATC, setATCAirport, armATCAutoplay } from "./ui/atc.js";
 import {
   showDetail,
   closeDetail,
@@ -13485,8 +13485,9 @@ function _checkLowCoverage(city) {
 async function init() {
   // T3-15: Check for shared view link
   const urlCity = restoreViewFromURL();
-  // Fallback centre used until (or instead of) geolocation — resolves to ORD.
-  const _FALLBACK = { lat: 41.9742, lon: -87.9073 };
+  // Fallback centre used until (or instead of) geolocation — resolves to JFK,
+  // which publishes a tower feed. O'Hare does not, so it opened silent.
+  const _FALLBACK = { lat: 40.6413, lon: -73.7781 };
 
   // ── 1. Start render loop IMMEDIATELY ──
   animate();
@@ -13510,6 +13511,7 @@ async function init() {
   updateHUDCity(defaultCity.name, defaultCity.code);
   initATC();
   setATCAirport(AIRPORT_DATA[defaultCity.code]?.icao || null);
+  armATCAutoplay();
   updateHUD(0, defaultCity.lat, defaultCity.lon);
   sessionStats.cities.add(defaultCity.code);
 

@@ -28,8 +28,8 @@
     // Publish the coordinates this payload is for. Consumers must match against
     // these, not a hardcoded constant — the default airspace has moved before,
     // and a stale constant silently hands one city another city's airports.
-    window._earlyBootAt = { lat: 41.9742, lon: -87.9073 };
-    window._earlyBoot = fetch('/api/boot?lat=41.9742&lon=-87.9073&r=100&ar=1.2')
+    window._earlyBootAt = { lat: 40.6413, lon: -73.7781 };
+    window._earlyBoot = fetch('/api/boot?lat=40.6413&lon=-73.7781&r=100&ar=1.2')
       .then(r => r.ok ? r.json() : null).catch(() => null);
   </script>
 </head>

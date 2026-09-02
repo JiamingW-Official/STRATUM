@@ -1,12 +1,22 @@
 {
+ "KABQ": {
+  "kind": "tower",
+  "mount": "kabq2_twr2",
+  "server": "s1-bos"
+ },
  "KATL": {
   "kind": "tower",
   "mount": "katl_twr",
   "server": "s1-bos"
  },
+ "KAUS": {
+  "kind": "tower",
+  "mount": "kaus3_twr",
+  "server": "s1-bos"
+ },
  "KBNA": {
-  "kind": "approach",
-  "mount": "kbna_app",
+  "kind": "tower",
+  "mount": "kbna_gnd_twr",
   "server": "s1-bos"
  },
  "KBOS": {
@@ -14,29 +24,119 @@
   "mount": "kbos1_twr",
   "server": "s1-bos"
  },
+ "KBWI": {
+  "kind": "tower",
+  "mount": "kbwi_es_twr",
+  "server": "s1-bos"
+ },
+ "KCLE": {
+  "kind": "tower",
+  "mount": "kcle3_twr",
+  "server": "s1-bos"
+ },
+ "KCLT": {
+  "kind": "tower",
+  "mount": "kclt7_twr_118100",
+  "server": "s1-bos"
+ },
+ "KCMH": {
+  "kind": "tower",
+  "mount": "kcmh1_del_gnd_twr",
+  "server": "s1-bos"
+ },
  "KCVG": {
   "kind": "tower",
   "mount": "kcvg1_twr",
-  "server": "s1-fmt2"
+  "server": "s1-bos"
  },
  "KDCA": {
   "kind": "tower",
   "mount": "kdca1_twr",
-  "server": "s1-fmt2"
+  "server": "s1-bos"
+ },
+ "KDEN": {
+  "kind": "tower",
+  "mount": "kden1_twr_west1",
+  "server": "s1-bos"
+ },
+ "KDFW": {
+  "kind": "tower",
+  "mount": "kdfw1_twr1_e",
+  "server": "s1-bos"
+ },
+ "KDTW": {
+  "kind": "tower",
+  "mount": "kdtw_twr",
+  "server": "s1-bos"
  },
  "KEWR": {
   "kind": "tower",
   "mount": "kewr_twr",
-  "server": "s1-fmt2"
+  "server": "s1-bos"
+ },
+ "KFLL": {
+  "kind": "departure",
+  "mount": "kopf5_dep_126050",
+  "server": "s1-bos"
+ },
+ "KIAD": {
+  "kind": "tower",
+  "mount": "kiad1_twr_emergency",
+  "server": "s1-bos"
+ },
+ "KIAH": {
+  "kind": "tower",
+  "mount": "kiah2_twr_8l26r",
+  "server": "s1-bos"
+ },
+ "KIND": {
+  "kind": "tower",
+  "mount": "kind9_gnd_twr",
+  "server": "s1-bos"
  },
  "KJFK": {
   "kind": "tower",
   "mount": "kjfk_twr",
-  "server": "s1-fmt2"
+  "server": "s1-bos"
+ },
+ "KLAS": {
+  "kind": "tower",
+  "mount": "klas4_twr",
+  "server": "s1-bos"
  },
  "KLAX": {
   "kind": "tower",
   "mount": "klax_twr",
+  "server": "s1-bos"
+ },
+ "KLGA": {
+  "kind": "tower",
+  "mount": "klga_twr",
+  "server": "s1-bos"
+ },
+ "KMCI": {
+  "kind": "approach",
+  "mount": "kmci1_app",
+  "server": "s1-bos"
+ },
+ "KMCO": {
+  "kind": "tower",
+  "mount": "korl_kmco_twr_west",
+  "server": "s1-bos"
+ },
+ "KMDW": {
+  "kind": "tower",
+  "mount": "kmdw1_gnd_twr",
+  "server": "s1-bos"
+ },
+ "KMEM": {
+  "kind": "tower",
+  "mount": "kmem4_twr_119700",
+  "server": "s1-bos"
+ },
+ "KMIA": {
+  "kind": "tower",
+  "mount": "kmia3_twr",
   "server": "s1-bos"
  },
  "KOAK": {
@@ -44,14 +144,44 @@
   "mount": "koak_app",
   "server": "s1-fmt2"
  },
+ "KORD": {
+  "kind": "tower",
+  "mount": "kord1n2_twr_n",
+  "server": "s1-bos"
+ },
+ "KPHL": {
+  "kind": "tower",
+  "mount": "kphl_twr_east",
+  "server": "s1-bos"
+ },
+ "KRDU": {
+  "kind": "tower",
+  "mount": "krdu_gnd_twr",
+  "server": "s1-bos"
+ },
+ "KRSW": {
+  "kind": "ground",
+  "mount": "krsw2",
+  "server": "s1-bos"
+ },
  "KSAN": {
   "kind": "tower",
   "mount": "ksan1_twr",
   "server": "s1-bos"
  },
+ "KSEA": {
+  "kind": "tower",
+  "mount": "ksea3_twr_east",
+  "server": "s1-bos"
+ },
  "KSFO": {
   "kind": "tower",
-  "mount": "ksfo_twr",
-  "server": "s1-fmt2"
+  "mount": "ksfo_gnd_twr",
+  "server": "s1-bos"
+ },
+ "KSTL": {
+  "kind": "tower",
+  "mount": "kstl2_twr",
+  "server": "s1-bos"
  }
 }

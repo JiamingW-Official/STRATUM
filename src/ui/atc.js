@@ -18,6 +18,7 @@ let _mirrorIdx = 0;
 let _nearby = null; // set when the feed belongs to a neighbouring airport
 let _btn = null, _label = null, _wrap = null;
 let _wanted = false;
+let _armed = false;
 
 // Which airport we are actually listening to. Usually the active one; when it
 // publishes no feed — O'Hare does not, and it is the busiest airport in the
@@ -57,6 +58,9 @@ function kindFor(icao) {
 
 function _render(state) {
   if (!_wrap) return;
+  // 'armed' is a standing state, not an event: any idle render while autoplay is
+  // waiting should still read as waiting, including after an airspace change.
+  if (state === 'idle' && _armed && !_wanted) state = 'armed';
   const has = !!feedFor(_icao);
   _wrap.classList.toggle('hidden', !has);
   _btn?.classList.toggle('is-live', state === 'playing');
@@ -66,6 +70,7 @@ function _render(state) {
     const near = _nearby ? ` · ${_nearby.km}km` : '';
     _label.textContent =
       state === 'playing' ? `Listening · ${where} ${kindFor(_heard)}${near}` :
+      state === 'armed'   ? `Click anywhere to hear ${where}` :
       state === 'loading' ? 'Tuning…' :
       state === 'error'   ? 'Feed unavailable' :
                             `Hear ${where} ${kindFor(_heard)}${near}`;
@@ -75,7 +80,10 @@ function _render(state) {
 function _ensureAudio() {
   if (_audio) return _audio;
   _audio = new Audio();
-  _audio.preload = 'none';
+  // 'auto' rather than 'none': the element opens the stream and fills its buffer
+  // while the page settles, so pressing the button starts sound immediately
+  // instead of spending several seconds in "Tuning…".
+  _audio.preload = 'auto';
   // No crossOrigin: we only play the stream, never read its samples, and
   // requesting CORS mode makes an otherwise playable stream fail.
   _audio.volume = 0.7;
@@ -123,7 +131,10 @@ export function setATCAirport(icao) {
     if (url) { _ensureAudio().src = url; _audio.play().catch(() => _render('error')); }
     else stopATC();
   }
-  _render(_wanted ? 'loading' : 'idle');
+  // Open the stream now so the buffer is already filling when the visitor acts.
+  const url = feedFor(_icao);
+  if (url && !_wanted) { const a = _ensureAudio(); if (a.src !== url) a.src = url; }
+  _render(_wanted ? 'loading' : _armed ? 'armed' : 'idle');
 }
 
 export function startATC() {
@@ -144,3 +155,19 @@ export function stopATC() {
 }
 
 export function isATCPlaying() { return _wanted; }
+
+// Autoplay, honestly: no browser will start audio before the visitor has
+// interacted with the page, so the feed is armed and begins on their first
+// click, key or touch anywhere. Until then the control says it is waiting.
+export function armATCAutoplay() {
+  if (_armed) return;
+  _armed = true;
+  const go = () => {
+    window.removeEventListener('pointerdown', go, true);
+    window.removeEventListener('keydown', go, true);
+    if (!_wanted && feedFor(_icao)) startATC();
+  };
+  window.addEventListener('pointerdown', go, true);
+  window.addEventListener('keydown', go, true);
+  _render('armed');
+}
