@@ -11,6 +11,20 @@ import { fetchNavaidData, filterNearbyNavaids } from "../data/navaids.js";
 const GROUND_SIZE = 160;
 const GEO_SCALE = 40;
 
+// Waypoint tiles are build-time data. Switching airspaces back and forth re-ran
+// the same four fetches every time; hold the promises for the session.
+const _cifpTiles = new Map();
+function _cifpTile(key) {
+  let p = _cifpTiles.get(key);
+  if (!p) {
+    p = fetch(`/cifp/${key}.json`)
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []);
+    _cifpTiles.set(key, p);
+  }
+  return p;
+}
+
 let groundMaterial = null;
 let groundMesh = null;
 let _cosLat = 1; // cos(userLat) — corrects E-W longitude scale
@@ -2898,13 +2912,7 @@ async function loadNavChart(scene, lat, lon) {
         );
       }
     }
-    const loaded = await Promise.all(
-      [...tiles].map((t) =>
-        fetch(`/cifp/${t}.json`)
-          .then((r) => (r.ok ? r.json() : []))
-          .catch(() => []),
-      ),
-    );
+    const loaded = await Promise.all([...tiles].map((t) => _cifpTile(t)));
     for (const list of loaded) {
       for (const [n, wLat, wLon, t] of list) {
         if (Math.abs(wLat - lat) > 2.5 || Math.abs(wLon - lon) > 2.5) continue;

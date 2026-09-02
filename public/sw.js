@@ -1,5 +1,5 @@
 // STRATUM Service Worker — smart caching by resource type
-const CACHE_NAME = "stratum-v6";
+const CACHE_NAME = "stratum-v7";
 const TILE_CACHE = "stratum-tiles-v1";
 const RADIO_CACHE = "stratum-radio-v1";
 
@@ -91,10 +91,17 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // ── Hashed static assets (/assets/*.js, /assets/*.css): cache-first ──
+  // ── Hashed static assets, plus the static data files: cache-first ──
   // Content-hashed filenames are immutable — if the file changes, the hash changes.
-  // Cache-first here means repeat visits load from disk instantly, zero network.
-  if (url.pathname.startsWith("/assets/")) {
+  // /cifp/ waypoint tiles and /atc/airports.json are generated at build time and
+  // change only with a deploy; without this they went to the network on every
+  // airspace change, four tiles at a time. Cache-first means zero network after
+  // the first visit, and the version bump above clears them on a new deploy.
+  if (
+    url.pathname.startsWith("/assets/") ||
+    url.pathname.startsWith("/cifp/") ||
+    url.pathname.startsWith("/atc/")
+  ) {
     e.respondWith(
       caches.open(CACHE_NAME).then((cache) =>
         cache.match(e.request).then((cached) => {

@@ -450,10 +450,51 @@ function getSharedHitMaterial() {
 // else keeps its light. On by default; V toggles.
 let _ghostMode = true;
 const _GHOST_COLOR = new THREE.Color(0.62, 0.66, 0.74); // cool grey — no altitude tint
+
+// A wireframe body and a stripped label make a masked aircraft quieter, which is
+// the right idea and completely invisible among a hundred and thirty contacts at
+// map zoom: pressing V changed nothing you could point at. These aircraft need a
+// mark of their own. An open ring with no fill is what a scope draws around a
+// return it cannot identify — present, positioned, unnamed. Geometry and
+// material are shared across every ghost and live for the session; the meshes
+// are children of ac.group, which dispose() does not traverse, so each one is
+// removed by hand there.
+let _ghostRingTex = null;
+let _ghostRingMat = null;
+function _ghostRing() {
+  if (!_ghostRingTex) {
+    // World geometry shrinks with distance: a ring sized to look right when you
+    // are down among the aircraft is four pixels across at map zoom, which is
+    // where this layer has to work. A sprite with sizeAttenuation off holds the
+    // same size at every altitude, the way the airport labels do.
+    const S = 96;
+    const c = document.createElement('canvas');
+    c.width = c.height = S;
+    const g = c.getContext('2d');
+    g.strokeStyle = 'rgba(176,192,212,0.85)';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.arc(S / 2, S / 2, S / 2 - 4, 0, Math.PI * 2);
+    g.stroke();
+    _ghostRingTex = new THREE.CanvasTexture(c);
+    _ghostRingTex.minFilter = THREE.LinearFilter;
+    _ghostRingTex.magFilter = THREE.LinearFilter;
+    _ghostRingMat = new THREE.SpriteMaterial({
+      map: _ghostRingTex, transparent: true, opacity: 0.5,
+      depthWrite: false, depthTest: false, sizeAttenuation: false,
+    });
+  }
+  const sp = new THREE.Sprite(_ghostRingMat);
+  sp.scale.set(0.028, 0.028, 1);
+  sp.renderOrder = 40;
+  return sp;
+}
+
 const _SENSING_TAG = { mlat: 'MLAT', tisb: 'TIS-B', tisb_icao: 'TIS-B', tisb_other: 'TIS-B', adsr: 'ADS-R', adsr_icao: 'ADS-R', adsc: 'ADS-C', mode_s: 'MODE S' };
 // Every live AircraftObject, so a mode change restyles all of them now rather
 // than whenever each next passes through the colour path (up to a poll later).
 const _live = new Set();
+
 function _restyleAll() {
   for (const ac of _live) {
     ac._applyGhostState();
@@ -1212,7 +1253,7 @@ class AircraftObject {
   }
 
   _setModelOpacity(opacity) {
-    if (_ghostMode && this.data.masked) opacity *= 0.55;
+    if (_ghostMode && this.data.masked) opacity *= 0.8;
     if (this._useGLB && this._modelMeshes.length > 0) {
       for (const m of this._modelMeshes) m.material.opacity = opacity;
     } else if (this.bodyMat) {
@@ -1226,6 +1267,13 @@ class AircraftObject {
     const ghost = !!(_ghostMode && this.data.masked);
     if (this._ghostApplied === ghost) return false;
     this._ghostApplied = ghost;
+    if (ghost && !this._ghostRing) {
+      this._ghostRing = _ghostRing();
+      this.group.add(this._ghostRing);
+    } else if (!ghost && this._ghostRing) {
+      this.group.remove(this._ghostRing);
+      this._ghostRing = null;
+    }
     const mats = this._useGLB && this._modelMeshes.length > 0
       ? this._modelMeshes.map((m) => m.material)
       : (this.bodyMat ? [this.bodyMat] : []);
@@ -1817,6 +1865,11 @@ class AircraftObject {
       });
     } else if (this.bodyMat) {
       this.bodyMat.dispose();
+    }
+    if (this._ghostRing) {
+      // Geometry and material are shared by every ghost — detach only.
+      this.group.remove(this._ghostRing);
+      this._ghostRing = null;
     }
     if (this._labelMat) {
       if (this._labelMat.map) this._labelMat.map.dispose();
