@@ -35,11 +35,14 @@ const VS_THRESHOLD = 1.5;
 
 // Trail config — 30 min
 const TRAIL_SAMPLE_INTERVAL = 0.25;     // 4Hz live sampling — good balance of smoothness vs CPU
-// The airspace on screen is a 100nm radius, so a trail a little shorter than
-// that reaches in from the edge without crossing the whole frame and out the
-// far side. One unit of scene space is 1.5nm (GEO_SCALE is 40 per degree).
+// The airspace on screen is a 100nm radius. At 110nm every trail reached from
+// beyond one edge to past the middle, and with a hundred and sixty aircraft the
+// frame read as a mesh. Eighty is a little under the radius: a trail arrives
+// from inside the ring, so the approach and departure geometry is what draws the
+// eye rather than the crossings behind it. One unit of scene space is 1.5nm
+// (GEO_SCALE is 40 per degree).
 const NM_PER_UNIT = 1.5;
-const TRAIL_MAX_NM = 110;
+const TRAIL_MAX_NM = 80;
 const TRAIL_MAX_POINTS = 14400;        // 60 min at 4Hz — matches TRACE_HISTORY_SEC
 const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real track
 const SYNTHETIC_TRAIL_STEP = 0.5;
