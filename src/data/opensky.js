@@ -443,8 +443,11 @@ let traceQueueBatch = [];
 // once, which starved the position polls badly enough to trip Signal Lost. Cap
 // how many can be outstanding, and cap the backlog so a busy airspace cannot
 // queue one request per aircraft.
-const TRACE_MAX_INFLIGHT = 3;
-const TRACE_MAX_QUEUED = 40;
+// Each answer is now about 3kB rather than a 15kB or 600kB file, so six can be
+// outstanding without crowding the position poll, and the backlog holds a busy
+// airspace instead of dropping two thirds of it on the floor.
+const TRACE_MAX_INFLIGHT = 6;
+const TRACE_MAX_QUEUED = 160;
 let _traceInFlight = 0;
 
 function _drainTraceQueue() {
@@ -459,6 +462,10 @@ function _drainTraceQueue() {
 }
 
 function queueTraceFetch(icao24) {
+  // TIS-B contacts are relayed by ground stations under a synthetic id such as
+  // ~2ad952. There is no trace filed under it, so asking costs a round trip and
+  // a console error for an answer that was never going to exist.
+  if (!/^[0-9a-f]{6}$/i.test(icao24)) return;
   if (trackCache.has(icao24) || trackFetchQueue.has(icao24)) return;
   if (traceQueueBatch.includes(icao24)) return;
   if (traceQueueBatch.length >= TRACE_MAX_QUEUED) return;
@@ -607,17 +614,23 @@ async function poll() {
       inferBatchUpdate(slice);
     }
 
-    // Queue trace fetches for aircraft that don't have cached tracks
+    // Queue trace fetches for aircraft that don't have cached tracks. Nearest
+    // first: the queue drains six at a time over the better part of a minute, and
+    // the aircraft overhead are the ones whose trail the viewer is watching
+    // appear. The far ones still arrive, just after the ones on screen.
     const activeIcaoSet = new Set();
+    const wanted = [];
     for (const ac of aircraft) {
-      if (ac.icao24) {
-        activeIcaoSet.add(ac.icao24);
-        const cached = trackCache.get(ac.icao24);
-        if (!cached || Date.now() - cached.fetchedAt > TRACK_CACHE_TTL) {
-          queueTraceFetch(ac.icao24);
-        }
-      }
+      if (!ac.icao24) continue;
+      activeIcaoSet.add(ac.icao24);
+      const cached = trackCache.get(ac.icao24);
+      if (cached && Date.now() - cached.fetchedAt <= TRACK_CACHE_TTL) continue;
+      const dLat = (ac.latitude ?? 0) - userLat;
+      const dLon = (ac.longitude ?? 0) - userLon;
+      wanted.push([dLat * dLat + dLon * dLon, ac.icao24]);
     }
+    wanted.sort((a, b) => a[0] - b[0]);
+    for (const [, hex] of wanted) queueTraceFetch(hex);
 
     // Periodic cleanup of stale inference data — every 30s, not every poll
     const now = Date.now();

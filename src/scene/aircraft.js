@@ -35,6 +35,11 @@ const VS_THRESHOLD = 1.5;
 
 // Trail config — 30 min
 const TRAIL_SAMPLE_INTERVAL = 0.25;     // 4Hz live sampling — good balance of smoothness vs CPU
+// The airspace on screen is a 100nm radius, so a trail a little shorter than
+// that reaches in from the edge without crossing the whole frame and out the
+// far side. One unit of scene space is 1.5nm (GEO_SCALE is 40 per degree).
+const NM_PER_UNIT = 1.5;
+const TRAIL_MAX_NM = 110;
 const TRAIL_MAX_POINTS = 14400;        // 60 min at 4Hz — matches TRACE_HISTORY_SEC
 const SYNTHETIC_TRAIL_SECONDS = 120;    // 2 min stub while waiting for real track
 const SYNTHETIC_TRAIL_STEP = 0.5;
@@ -1050,6 +1055,27 @@ class AircraftObject {
       rawPoints = recent;
     }
 
+    // Trail length is measured in distance flown, not in minutes. Forty-five
+    // minutes is the right amount of history for an aircraft turning onto final
+    // at 180 knots and the wrong amount for one crossing at 500, which draws a
+    // straight line clear across the frame and past both edges. Cutting at a
+    // fixed distance gives every aircraft roughly the same sweep on screen, so
+    // the approach geometry is what reads rather than the overflights.
+    if (rawPoints.length > 2) {
+      let nm = 0;
+      let cut = 0;
+      for (let i = rawPoints.length - 1; i > 0; i--) {
+        const a = rawPoints[i], b = rawPoints[i - 1];
+        const dLat = a.latitude - b.latitude;
+        const dLon =
+          (a.longitude - b.longitude) *
+          Math.cos((a.latitude * Math.PI) / 180);
+        nm += Math.hypot(dLat, dLon) * 60;
+        if (nm > TRAIL_MAX_NM) { cut = i - 1; break; }
+      }
+      if (cut > 0) rawPoints = rawPoints.slice(cut);
+    }
+
     // Compute real speed from lat/lon distance and time delta (m/s)
     // Also detect signal gaps (>30s between points)
     const GAP_THRESHOLD = 30; // seconds
@@ -1402,6 +1428,7 @@ class AircraftObject {
       this.trailPositions.splice(0, excess);
       this._liveStartIndex = Math.max(0, this._liveStartIndex - excess);
     }
+    this._trimTrailToRange();
 
     this._trailDirty = true;
   }
@@ -1413,7 +1440,26 @@ class AircraftObject {
       this.trailPositions.splice(0, excess);
       this._liveStartIndex = Math.max(0, this._liveStartIndex - excess);
     }
+    this._trimTrailToRange();
     this._trailDirty = true;
+  }
+
+  // The distance cap has to hold as the trail grows, not only when the track
+  // first lands, or a fast aircraft walks its tail back across the frame over
+  // the next few minutes.
+  _trimTrailToRange() {
+    const p = this.trailPositions;
+    if (p.length < 3) return;
+    let nm = 0;
+    let cut = 0;
+    for (let i = p.length - 1; i > 0; i--) {
+      nm += Math.hypot(p[i].pos.x - p[i - 1].pos.x, p[i].pos.z - p[i - 1].pos.z) * NM_PER_UNIT;
+      if (nm > TRAIL_MAX_NM) { cut = i - 1; break; }
+    }
+    if (cut > 0) {
+      p.splice(0, cut);
+      this._liveStartIndex = Math.max(0, this._liveStartIndex - cut);
+    }
   }
 
   rebuildTrail() {
@@ -1510,8 +1556,14 @@ class AircraftObject {
       positions[i3 + 1] = srcY[i];
       positions[i3 + 2] = srcZ[i];
 
+      // The trail carries forty-five minutes now instead of nine, and the old
+      // smoothstep put half brightness at the halfway point — twenty-odd minutes
+      // of full-strength line per aircraft, which at a hundred and sixty aircraft
+      // buries the map under its own history. A cubic holds the light in the last
+      // fifth of the path, so what reads at a glance is where each aircraft has
+      // just been, with the rest present as depth behind it.
       const t = i / (n - 1);
-      const fade = 0.05 + 0.95 * (t * t * (3 - 2 * t));
+      const fade = 0.04 + 0.96 * t * t * t;
       const sc = getSpeedColor(smoothedSpeed[i]);
       colors[i3] = sc.r * fade;
       colors[i3 + 1] = sc.g * fade;
