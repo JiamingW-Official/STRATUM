@@ -1,4 +1,4 @@
-import { haversineDistance } from '../scene/aircraft.js';
+import { haversineDistance, isGhostMode } from '../scene/aircraft.js';
 import { getAirlineName } from '../data/airlineDb.js';
 import { getAirlineSync, getAirline, getAirlineFleet, getAirlineFinancials, getAirlineRoutes } from '../data/airlines.js';
 import { computeDensityAltitude, fetchDestinationWeather, estimateTurbulence } from '../data/weather.js';
@@ -1348,7 +1348,41 @@ export function showDetail(aircraftObj, userLat, userLon) {
   }
 
   // ── HEADER ──
-  elCallsign.textContent = d.callsign || d.icao24;
+  // The map draws a masked aircraft as UNSEEN with no name. The panel used to
+  // give the name away underneath -- tail number, owner, the lot -- which made
+  // the layer a costume. While the layer is on, the panel withholds what the
+  // owner asked to withhold; V reveals it, so V is an act and not a style.
+  const withheld = !!(isGhostMode() && aircraftObj.data && aircraftObj.data.masked);
+  elCallsign.textContent = withheld ? 'UNSEEN' : (d.callsign || d.icao24);
+
+  // How this position reached us. Every point in the feed says so; it was
+  // being thrown away. A masked aircraft gets the second sentence.
+  {
+    const heard = document.getElementById('detail-heard');
+    if (heard) {
+      const raw = aircraftObj.data || {};
+      const via = {
+        adsb_icao: 'the aircraft itself, over ADS-B',
+        adsb_other: 'the aircraft itself, over ADS-B',
+        mlat: 'volunteers triangulating a transponder that will not say where it is (MLAT)',
+        tisb: 'a state ground station relaying radar (TIS-B)',
+        tisb_icao: 'a state ground station relaying radar (TIS-B)',
+        tisb_other: 'a state ground station relaying radar (TIS-B)',
+        adsr: 'a ground station rebroadcasting ADS-B (ADS-R)',
+        adsr_icao: 'a ground station rebroadcasting ADS-B (ADS-R)',
+        adsc: 'the aircraft by satellite contract (ADS-C)',
+        mode_s: 'a bare Mode S reply, no position of its own',
+      }[raw.sensing] || 'the volunteer network';
+      let text = `Heard from ${via}.`;
+      if (raw.masked) {
+        const list = raw.maskReason === 'PIA' ? 'a privacy ICAO address (PIA)' : "the FAA's limiting list (LADD)";
+        text += ` Its owner asked, through ${list}, not to be shown. The position is public; the name is not.`;
+      }
+      heard.textContent = text;
+      heard.classList.toggle('is-masked', !!raw.masked);
+      heard.classList.remove('hidden');
+    }
+  }
   // E-4: Update journal star button
   _updateJournalBtn(d.callsign || d.icao24);
 
@@ -1430,7 +1464,7 @@ export function showDetail(aircraftObj, userLat, userLon) {
   const airlineMatch = cs.match(/^([A-Z]{2,3})\d/);
   const icaoPrefix = airlineMatch ? airlineMatch[1] : null;
   const richAirline = icaoPrefix ? getAirlineSync(icaoPrefix) : null;
-  const airlineName = richAirline?.name || d.routeAirline || d.operator || (icaoPrefix ? getAirlineName(icaoPrefix) : null);
+  const airlineName = withheld ? null : (richAirline?.name || d.routeAirline || d.operator || (icaoPrefix ? getAirlineName(icaoPrefix) : null));
   if (airlineName && elAirlineRow) {
     elAirlineRow.classList.remove('hidden');
     elAirline.textContent = airlineName;
@@ -1874,9 +1908,9 @@ export function showDetail(aircraftObj, userLat, userLon) {
     I: '🇮🇹', EC: '🇪🇸', CS: '🇵🇹', RP: '🇵🇭', HS: '🇹🇭', PK: '🇮🇩',
     '9V': '🇸🇬', YR: '🇷🇴', LY: '🇱🇹', SP: '🇵🇱', OK: '🇨🇿', OM: '🇸🇰',
   };
-  let regDisplay = d.registration || '--';
+  let regDisplay = withheld ? 'withheld' : (d.registration || '--');
   let regFlag = '';
-  if (d.registration) {
+  if (d.registration && !withheld) {
     // Match longest prefix first (2-char prefixes before 1-char)
     const reg = d.registration.toUpperCase();
     const twoChar = reg.substring(0, 2);
@@ -1890,14 +1924,14 @@ export function showDetail(aircraftObj, userLat, userLon) {
     const clickHint = d.registration ? ' Click for registry details.' : '';
     regRow.setAttribute('data-tip', `REG (Registration) — tail number assigned at registration. Prefix indicates country: N=USA, G=UK, D=Germany, B=China, C=Canada, F=France, JA=Japan, VH=Australia.${clickHint}`);
     // E-3: Click to show ICAO hex block + registration info modal
-    if (!regRow._e3 && d.registration) {
+    if (!regRow._e3 && d.registration && !withheld) {
       regRow._e3 = true;
       regRow.style.cursor = 'pointer';
       regRow.addEventListener('click', () => _showRegistryModal(d.registration, d.icao24));
     }
   }
 
-  if (d.operator) {
+  if (d.operator && !withheld) {
     elOperatorRow.classList.remove('hidden');
     elOperator.textContent = d.operator;
   } else {

@@ -363,10 +363,18 @@ function flyToThenFollow(aircraftObj) {
     .subVectors(camera.position, aircraftObj.group.position)
     .normalize();
   if (followIndicator) {
-    const d = aircraftObj.getDisplayData();
-    followCallsignEl.textContent = d.callsign || d.icao24;
+    _syncFollowPill();
     followIndicator.classList.remove("hidden");
   }
+}
+
+// The pill names what the camera follows. While the ghost layer is on and the
+// aircraft asked not to be shown, it says so instead of the name.
+function _syncFollowPill() {
+  if (!followIndicator || !followTarget) return;
+  const d = followTarget.getDisplayData();
+  const withheld = isGhostMode() && followTarget.data && followTarget.data.masked;
+  followCallsignEl.textContent = withheld ? "UNSEEN" : (d.callsign || d.icao24);
 }
 
 function stopFollow() {
@@ -1743,6 +1751,25 @@ function _maybeShowGhostHint() {
   }, 14000); // data lands ~2s in, often under the boot splash — leave time to read it
 }
 
+// The ghost layer is reached from the number that names it. Pressing V and
+// clicking "N asked not to be seen" do the same thing.
+function _toggleGhostLayer() {
+  const on = toggleGhostMode();
+  document.body.classList.toggle("ghost-mode", on);
+  setCoverageShadowVisible(on);
+  const btn = document.getElementById("hud-sky-unseen-btn");
+  if (btn) btn.title = on ? "Hide them — V" : "Show them — V";
+  // The open panel withholds or reveals with the layer, now, not at the next
+  // poll: pressing V should be the thing that changes what you can read.
+  if (aircraftManager) {
+    const { lat, lon } = getUserLocation();
+    refreshDetail(aircraftManager, lat, lon);
+    _syncFollowPill();
+  }
+  return on;
+}
+document.getElementById("hud-sky-unseen-btn")?.addEventListener("click", _toggleGhostLayer);
+
 function _skyStats(list) {
   let people = 0, unseen = 0;
   const cities = new Set();
@@ -2347,9 +2374,7 @@ document.addEventListener("keydown", (e) => {
 
   // V = ghost layer: draw aircraft by how they are seen; masked ones lose their identity
   else if (k === "v" && !e.ctrlKey && !e.metaKey) {
-    const on = toggleGhostMode();
-    document.body.classList.toggle("ghost-mode", on);
-    setCoverageShadowVisible(on);
+    _toggleGhostLayer();
     return;
   }
 

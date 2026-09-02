@@ -52,6 +52,9 @@
         <div class="sts-sep">·</div>
         <div class="sts-item" id="sts-acft"><span class="sts-icon">○</span><span class="sts-label">Aircraft</span></div>
       </div>
+      <!-- The argument, once, at the moment of arrival. Everything on the map
+           is a field the feed already carried; this is where it is said. -->
+      <p class="boot-thesis">Every aircraft here says how it was heard.<br>Some asked not to be.</p>
     </div>
   </div>
 
@@ -116,7 +119,7 @@
          where they are going, and how many aircraft have asked not to be seen. -->
     <div id="hud-sky" class="hud-sky hidden">
       <span class="hud-sky-line"><span id="hud-sky-people">--</span> people overhead, bound for <span id="hud-sky-cities">--</span> cities</span>
-      <span class="hud-sky-line hud-sky-unseen"><span id="hud-sky-unseen">0</span> asked not to be seen</span>
+      <button type="button" class="hud-sky-line hud-sky-unseen" id="hud-sky-unseen-btn" title="Show them — V"><span id="hud-sky-unseen">0</span> asked not to be seen</button>
       <!-- Tower audio: the only trace an unseen aircraft still leaves. Source is
            LiveATC, credited here; the button is the user gesture browsers need. -->
       <div id="hud-atc" class="hud-atc hidden">
@@ -209,6 +212,10 @@
     </div>
     <!-- ── PHONETIC CALLSIGN ── -->
     <div id="detail-phonetic" class="detail-phonetic hidden"></div>
+    <!-- How this position reached us, and whether the aircraft asked not to be
+         shown. Both are fields the feed already carries; this is the one place
+         they are said in words. -->
+    <div id="detail-heard" class="detail-heard hidden"></div>
 
     <!-- ── AIRLINE ROW ── -->
     <div id="detail-airline-row" class="detail-airline-row hidden">
