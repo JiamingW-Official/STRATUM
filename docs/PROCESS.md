@@ -125,6 +125,19 @@ otherwise. Tower audio is the one trace a ghost still leaves.
 Nothing in this layer is invented. Every element is a field that was already
 in the feed and had been thrown away.
 
+**Tower audio, and one more refusal.** The sound of the layer is live tower
+audio from LiveATC. The Worker could not carry it (its egress is refused, as
+above); the browser can, because LiveATC's Icecast mirrors allow cross-origin
+playback with no header tricks — verified by requesting the stream with
+nothing but a byte range. But the directory that says *which* mount an airport
+uses sits behind a Cloudflare managed challenge ("Just a moment…"); I did not
+try to defeat it. The feed map was instead built through LiveATC's own
+redirector, which resolves a mount name to whichever mirror is serving it and
+answers a wrong name with a 404, and only feeds that answered as audio were
+kept. Mounts rotate between mirrors; the player follows. The audio is credited
+on screen, and the terms question — a portfolio prototype embedding another
+service's streams — was put to the owner explicitly and decided by them.
+
 ## 6. Reflection
 
 Three things I would tell myself at the start:
