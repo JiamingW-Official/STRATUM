@@ -376,8 +376,13 @@ export async function loadAirports(scene, userLat, userLon) {
   // Retry once on failure (Overpass can be temporarily unreachable)
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      airportData = await fetchAirportData(userLat, userLon, 1.2);
+      // Assign only after the epoch check: the previous city's fetch resolves
+      // late and used to write its geometry into the shared airportData, which
+      // the incoming city then rendered — JFK drawing O'Hare's runways 430
+      // world units off-screen while its own never appeared.
+      const fetched = await fetchAirportData(userLat, userLon, 1.2);
       if (_loadEpoch !== myEpoch) return;
+      airportData = fetched;
       break; // success
     } catch (err) {
       if (attempt === 0 && _loadEpoch === myEpoch) {
@@ -1684,6 +1689,16 @@ export function clearAirports(scene) {
   _removeLoadingPlaceholder(scene);
   if (airportGroup) {
     scene.remove(airportGroup);
+    // Removing a group does not free what it held; without this every city
+    // switch leaked its runway textures and geometry for the session.
+    airportGroup.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      for (const m of mats) {
+        if (m.map) m.map.dispose();
+        m.dispose();
+      }
+    });
     airportGroup = null;
   }
   airportHitTargets.length = 0;

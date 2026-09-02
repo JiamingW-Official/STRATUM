@@ -4503,6 +4503,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* Tower audio control — a text button with a live dot, not a media player. */
 .hud-atc { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
 .hud-atc.hidden { display: none; }
+/* The HUD panel is pointer-events:none so the map stays draggable through it;
+   interactive children must opt back in. */
+.hud-atc { pointer-events: auto; }
 .hud-atc-btn { display: inline-flex; align-items: center; gap: 7px; background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 9px; cursor: pointer; color: var(--text-2); font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: 0; transition: color 0.15s, border-color 0.15s; }
 .hud-atc-btn:hover { color: var(--text); border-color: var(--hairline-strong); }
 .hud-atc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); flex-shrink: 0; }

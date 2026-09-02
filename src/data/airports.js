@@ -90,12 +90,14 @@ function _saveToCache(lat, lon, data) {
 
 async function _fetchFromOverpass(centerLat, centerLon, radiusDeg) {
   // 0. Consume boot payload from index.html speculative fetch — airports arrive for free
-  //    alongside positions in one /api/boot request (coords must match NYC default)
+  //    alongside positions in one /api/boot request (only when it is the same airspace)
   const earlyP = window._earlyBoot;
+  const bootAt = window._earlyBootAt;
   if (
     earlyP &&
-    Math.abs(centerLat - 40.7128) < 0.5 &&
-    Math.abs(centerLon - -74.006) < 0.5
+    bootAt &&
+    Math.abs(centerLat - bootAt.lat) < 0.5 &&
+    Math.abs(centerLon - bootAt.lon) < 0.5
   ) {
     try {
       const boot = await earlyP;
