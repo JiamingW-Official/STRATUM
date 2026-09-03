@@ -1850,7 +1850,7 @@ function _renderVisibilityCmp() {
   const name = cmp ? _nearestCityName(cmp.lat, cmp.lon) : null;
   if (!cmp || !name || gap < 0.03) { el.textContent = ""; return; }
   const pct = (x) => `${Math.round(x * 100)}%`;
-  el.textContent = ` · ${pct(share)} here · ${pct(cmp.masked / cmp.total)} over ${name}`;
+  el.textContent = `${pct(share)} of this sky · ${pct(cmp.masked / cmp.total)} over ${name}`;
 }
 
 function _skyStats(list) {
@@ -12857,6 +12857,9 @@ function initCityPicker() {
     showMode = btn.dataset.mode;
     modeChips.querySelectorAll(".tier-chip").forEach((b) => b.classList.toggle("active", b === btn));
     _globeView?.setUnseenMode(showMode === "unseen");
+    // The picture is the contrast between two sides of an ocean; turn the globe
+    // to the Atlantic so both are in view when the mode is chosen.
+    if (showMode === "unseen") _globeView?.flyTo(35, -40);
     const sel = document.getElementById("city-sort-select");
     if (showMode === "unseen" && sel && sel.value !== "unseen") { sel.value = "unseen"; sortBy = "unseen"; }
     renderList();
