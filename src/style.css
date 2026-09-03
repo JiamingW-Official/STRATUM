@@ -4601,3 +4601,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* Data age doubles as the link indicator. */
 #hud-updated.is-stale { color: var(--accent); }
 #hud-updated.is-dead { color: var(--danger); }
+
+/* The comparison after the unseen count: quiet, numbers in mono. */
+.hud-sky-cmp { color: var(--text-3); }

@@ -1770,6 +1770,57 @@ function _toggleGhostLayer() {
 }
 document.getElementById("hud-sky-unseen-btn")?.addEventListener("click", _toggleGhostLayer);
 
+// ── The visibility index, read back ─────────────────────────────────────────
+// The Worker's warm pass counts, for every airspace it visits, how many
+// aircraft asked not to be shown. Read here, that count becomes a comparison:
+// this sky's share against the sky where the share is most different, named.
+// The point is not the number but that it differs -- LADD and PIA are FAA
+// programmes, so an American sky can hide what a European one cannot.
+let _visIndex = null;
+let _visFetchedAt = 0;
+let _lastSky = { total: 0, unseen: 0 };
+async function _loadVisibility() {
+  if (Date.now() - _visFetchedAt < 300000) return;
+  _visFetchedAt = Date.now();
+  try {
+    const r = await fetch("/api/visibility", { signal: AbortSignal.timeout(8000) });
+    _visIndex = r.ok ? await r.json() : null;
+  } catch { _visIndex = null; }
+  _renderVisibilityCmp();
+}
+function _nearestCityName(lat, lon) {
+  let best = null, bd = Infinity;
+  for (const c of CITIES) {
+    const d = Math.abs(c.lat - lat) + Math.abs(c.lon - lon);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best && bd < 0.6 ? best.name.replace(/\s+[A-Z]{3}$/, "") : null;
+}
+function _renderVisibilityCmp() {
+  const el = document.getElementById("hud-sky-cmp");
+  if (!el) return;
+  const cells = _visIndex?.cells ? Object.values(_visIndex.cells) : [];
+  const here = getUserLocation();
+  const eligible = cells.filter((c) => c.samples >= 3 && c.total >= 300);
+  if (!eligible.length || !_lastSky.total) { el.textContent = ""; return; }
+  const share = _lastSky.unseen / _lastSky.total;
+  // The comparison: the eligible sky farthest from this share, on the other
+  // side of an ocean where possible, so the contrast is between jurisdictions
+  // and not between two neighbouring fields.
+  let cmp = null, gap = -1;
+  for (const c of eligible) {
+    if (Math.abs(c.lat - here.lat) < 0.6 && Math.abs(c.lon - here.lon) < 0.6) continue;
+    const s = c.masked / c.total;
+    const far = Math.abs(c.lon - here.lon) > 40 ? 1 : 0.35;
+    const g = Math.abs(s - share) * far;
+    if (g > gap) { gap = g; cmp = c; }
+  }
+  const name = cmp ? _nearestCityName(cmp.lat, cmp.lon) : null;
+  if (!cmp || !name || gap < 0.03) { el.textContent = ""; return; }
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  el.textContent = ` · ${pct(share)} here · ${pct(cmp.masked / cmp.total)} over ${name}`;
+}
+
 function _skyStats(list) {
   let people = 0, unseen = 0;
   const cities = new Set();
@@ -1782,6 +1833,7 @@ function _skyStats(list) {
     if (dest) cities.add(dest);
     if (d.masked) unseen++;
   }
+  _lastSky = { total: list.length, unseen };
   return { people: Math.round(people), cities: cities.size, unseen };
 }
 
@@ -1797,6 +1849,8 @@ function handleData(dataList) {
     const count = aircraftManager.getCount();
     updateHUD(count, lat, lon);
     updateHUDSky(_skyStats(dataList));
+    _renderVisibilityCmp();
+    _loadVisibility();
     updateCoverageShadow(dataList, lat, lon);
     // Throttle detail refresh to 1Hz — data arrives at 4-10Hz but UI update > 1Hz is wasted
     const _now = Date.now();

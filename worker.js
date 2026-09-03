@@ -478,6 +478,19 @@ async function handleProxy(request, prefix, target, url) {
 
 // ── /api/enrich — Parallel aircraft detail aggregation ──
 // Fetches trace + route + hex detail in ONE round-trip from the edge
+// ── Visibility index ──────────────────────────────────────────────────────────
+// The running tally the cron writes. Public, cached five minutes at the edge.
+async function handleVisibility(env) {
+  const cacheKey = new Request("https://cache.internal/visibility");
+  const cached = await cacheGet(cacheKey);
+  if (cached) return corsResponse(cached);
+  let body = "null";
+  try { body = (await env?.AIRPORT_CACHE?.get("vis:index")) || "null"; } catch {}
+  const out = new Response(body, { headers: { "Content-Type": "application/json" } });
+  await cachePut(cacheKey, out.clone(), 300, 300);
+  return corsResponse(out);
+}
+
 // ── Trail history ────────────────────────────────────────────────────────────
 // The upstream offers two trace files and neither is the one a map wants.
 // trace_recent is capped at 92 points, which is six to fourteen minutes
@@ -1354,9 +1367,39 @@ export default {
         env,
       ).catch(() => null);
 
+    // ── The visibility index ─────────────────────────────────────────────
+    // Every warm pass already fetches the sky over seventy-odd airports. Each
+    // answer says, per aircraft, how it was heard and whether it asked not to be
+    // shown. Counted here and kept as a running tally per airspace, that turns a
+    // curiosity on one screen into a comparison across skies: the share of
+    // aircraft asking not to be seen is a property of a jurisdiction (LADD and
+    // PIA are FAA programmes) and of who flies there. One KV write per run.
+    const tally = new Map();
+    const count = async (key, lat, lon, resP) => {
+      const res = await resP;
+      if (!res || !res.ok) return;
+      let j = null;
+      try { j = await res.clone().json(); } catch { return; }
+      const list = (j?.positions?.ac) || j?.ac || [];
+      if (!Array.isArray(list) || list.length < 5) return;
+      let masked = 0, mlat = 0, tisb = 0;
+      for (const ac of list) {
+        if ((ac.dbFlags || 0) & 12) masked++;
+        const t = ac.type || "";
+        if (t.startsWith("mlat")) mlat++;
+        else if (t.startsWith("tisb")) tisb++;
+      }
+      tally.set(key, { lat, lon, total: list.length, masked, mlat, tisb });
+    };
+    const warmCounted = ([lat, lon]) => {
+      const key = `${(+lat).toFixed(2)},${(+lon).toFixed(2)}`;
+      const p = warm([lat, lon]);
+      return count(key, +lat, +lon, p).catch(() => null);
+    };
+
     // The busiest airports refresh every run. These are almost always cache
     // reads, so they can go wide.
-    await Promise.allSettled(WARM_CITIES.map((c) => warm([c.lat, c.lon])));
+    await Promise.allSettled(WARM_CITIES.map((c) => warmCounted([c.lat, c.lon])));
 
     // The rest of the catalogue is walked a few at a time. overpass-api.de gives
     // a client IP two concurrent slots, and every warm request leaves through the
@@ -1372,7 +1415,23 @@ export default {
         WARM_AIRPORTS[(start + i) % WARM_AIRPORTS.length],
         WARM_AIRPORTS[(start + i + 1) % WARM_AIRPORTS.length],
       ];
-      await Promise.allSettled(pair.map(warm));
+      await Promise.allSettled(pair.map(warmCounted));
+    }
+
+    // Merge this run into the running index and write it once. Sums, not
+    // averages, so a busy sky and a quiet one weigh as what they are.
+    if (tally.size && env?.AIRPORT_CACHE) {
+      let idx = null;
+      try { idx = JSON.parse((await env.AIRPORT_CACHE.get("vis:index")) || "null"); } catch {}
+      if (!idx || typeof idx !== "object" || !idx.cells) idx = { cells: {}, runs: 0, since: Date.now() };
+      for (const [key, t] of tally) {
+        const c = idx.cells[key] || { lat: t.lat, lon: t.lon, samples: 0, total: 0, masked: 0, mlat: 0, tisb: 0 };
+        c.samples += 1; c.total += t.total; c.masked += t.masked; c.mlat += t.mlat; c.tisb += t.tisb;
+        idx.cells[key] = c;
+      }
+      idx.runs = (idx.runs || 0) + 1;
+      idx.updated = Date.now();
+      await env.AIRPORT_CACHE.put("vis:index", JSON.stringify(idx)).catch(() => {});
     }
   },
 
@@ -1393,6 +1452,7 @@ export default {
     if (url.pathname === "/api/routes") return handleRoutes(url, env);
     if (url.pathname === "/api/enrich") return handleEnrich(url, env);
     if (url.pathname === "/api/trail") return handleTrail(url);
+    if (url.pathname === "/api/visibility") return handleVisibility(env);
     if (url.pathname === "/api/weather") return handleWeather(url);
     if (url.pathname === "/api/atlas") return handleAtlas();
 
