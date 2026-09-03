@@ -1045,6 +1045,7 @@ function handleAircraftSelect(ac) {
   ac.data.isHolding = isHolding;
   if (isHolding) _renderHoldingOval(ac);
   showDetail(ac, lat, lon);
+  _recordContact(ac);
   // T3-13: Add to flight history
   addToHistory(ac.getDisplayData());
   aircraftManager.selectAircraft(ac);
@@ -1766,6 +1767,7 @@ function _toggleGhostLayer() {
     refreshDetail(aircraftManager, lat, lon);
     _syncFollowPill();
   }
+  _renderContacts();
   return on;
 }
 document.getElementById("hud-sky-unseen-btn")?.addEventListener("click", _toggleGhostLayer);
@@ -1863,6 +1865,75 @@ function _renderVisibilityCmp() {
   el.textContent = `${pct(share)} of this sky · ${pct(cmp.masked / cmp.total)} over ${name}`;
 }
 
+// ── Contacts ────────────────────────────────────────────────────────────────
+// The layer becomes a task. A ringed aircraft can be located, heard and typed
+// but never named; clicking one logs a contact, the way a scope operator logs
+// a return. The count sits under the unseen line: "3 of 12 contacted", and
+// when they are all found, "all 12 contacted · none named". The rules of the
+// game are the argument.
+const _contacts = new Set();
+let _blipCtx = null;
+function _blip() {
+  try {
+    _blipCtx ??= new (window.AudioContext || window.webkitAudioContext)();
+    const c = _blipCtx, t = c.currentTime;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = "sine"; o.frequency.setValueAtTime(1240, t); o.frequency.exponentialRampToValueAtTime(880, t + 0.09);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.06, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.12);
+  } catch {}
+}
+function _recordContact(ac) {
+  if (!ac?.data?.masked || !isGhostMode()) return;
+  const id = ac.data.icao24;
+  if (_contacts.has(id)) return;
+  _contacts.add(id);
+  ac.contactPulse?.();
+  _blip();
+  _renderContacts();
+}
+function _renderContacts() {
+  const el = document.getElementById("hud-sky-contacts");
+  if (!el) return;
+  const total = _lastSky.unseen;
+  if (!isGhostMode() || !total) { el.textContent = ""; return; }
+  const seenNow = aircraftManager ? [...aircraftManager.aircraft.values()].filter((a) => a.data.masked && _contacts.has(a.data.icao24)).length : 0;
+  el.textContent = seenNow >= total
+    ? `all ${total} contacted · none named`
+    : seenNow ? `${seenNow} of ${total} contacted` : `${total} to find · click a ring`;
+}
+
+// The first thing after the boot screen is a descent: the camera starts high
+// and far and settles onto the airport over four seconds, so the sky is
+// arrived at as a place rather than switched on as a picture. One time only;
+// any input from the visitor ends it at once.
+let _introDone = false;
+function _introDescent() {
+  if (_introDone || !camera || !controls) return;
+  _introDone = true;
+  const end = camera.position.clone();
+  const start = end.clone().multiplyScalar(2.6);
+  start.y = end.y * 3.2;
+  camera.position.copy(start);
+  controls.enabled = false;
+  const t0 = performance.now();
+  const D = 4200;
+  let cancelled = false;
+  const cancel = () => { cancelled = true; };
+  window.addEventListener("pointerdown", cancel, { once: true });
+  window.addEventListener("wheel", cancel, { once: true, passive: true });
+  window.addEventListener("keydown", cancel, { once: true });
+  const step = () => {
+    const u = Math.min(1, (performance.now() - t0) / D);
+    const e = 1 - Math.pow(1 - u, 3);
+    if (!cancelled) camera.position.lerpVectors(start, end, e);
+    controls.update();
+    if (u < 1 && !cancelled) requestAnimationFrame(step);
+    else { camera.position.copy(end); controls.enabled = true; controls.update(); }
+  };
+  requestAnimationFrame(step);
+}
+
 function _skyStats(list) {
   let people = 0, unseen = 0;
   const cities = new Set();
@@ -1892,6 +1963,7 @@ function handleData(dataList) {
     updateHUD(count, lat, lon);
     updateHUDSky(_skyStats(dataList));
     _renderVisibilityCmp();
+    _renderContacts();
     _loadVisibility();
     updateCoverageShadow(dataList, lat, lon);
     // Throttle detail refresh to 1Hz — data arrives at 4-10Hz but UI update > 1Hz is wasted
@@ -13438,6 +13510,7 @@ function initSearch() {
     if (ac) {
       const { lat, lon } = getUserLocation();
       showDetail(ac, lat, lon);
+      _recordContact(ac);
       aircraftManager.selectAircraft(ac);
       flyToThenFollow(ac);
       input.value = "";
@@ -13776,6 +13849,7 @@ async function init() {
     sceneTrans.style.transition = "opacity 0.8s ease";
     sceneTrans.style.opacity = "0";
     sceneTrans.style.pointerEvents = "";
+    _introDescent();
   }
 
   // Show post-boot loading pill if not fully loaded yet

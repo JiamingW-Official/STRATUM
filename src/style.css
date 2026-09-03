@@ -4604,3 +4604,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* The comparison after the unseen count: quiet, numbers in mono. */
 .hud-sky-cmp { display: block; margin-top: 2px; color: var(--text-3); }
+
+/* The contact count under the unseen line. */
+.hud-sky-contacts { color: var(--text-2); }

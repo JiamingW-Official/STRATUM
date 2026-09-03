@@ -62,7 +62,7 @@
        wireframe without reading the code. Shown once, then remembered. -->
   <div id="ghost-hint" class="ghost-hint hidden" role="status">
     <span class="ghost-hint-title">Ghost layer</span>
-    <span class="ghost-hint-text">Aircraft that asked not to be seen are ringed and drawn as wireframes — present, positioned, unnamed. Press <kbd>V</kbd> to toggle.</span>
+    <span class="ghost-hint-text">Aircraft that asked not to be seen are ringed and drawn as wireframes — present, positioned, unnamed. Click one to log a contact; you can find them all and name none. <kbd>V</kbd> toggles the layer.</span>
   </div>
   <!-- Post-boot loading status pill -->
   <div id="load-status" class="load-status hidden">
@@ -119,7 +119,7 @@
          where they are going, and how many aircraft have asked not to be seen. -->
     <div id="hud-sky" class="hud-sky hidden">
       <span class="hud-sky-line"><span id="hud-sky-people">--</span> people overhead, bound for <span id="hud-sky-cities">--</span> cities</span>
-      <button type="button" class="hud-sky-line hud-sky-unseen" id="hud-sky-unseen-btn" title="Show them — V"><span id="hud-sky-unseen">0</span> asked not to be seen<span id="hud-sky-cmp" class="hud-sky-cmp"></span></button>
+      <button type="button" class="hud-sky-line hud-sky-unseen" id="hud-sky-unseen-btn" title="Show them — V"><span id="hud-sky-unseen">0</span> asked not to be seen<span id="hud-sky-cmp" class="hud-sky-cmp"></span><span id="hud-sky-contacts" class="hud-sky-cmp hud-sky-contacts"></span></button>
       <!-- Tower audio: the only trace an unseen aircraft still leaves. Source is
            LiveATC, credited here; the button is the user gesture browsers need. -->
       <div id="hud-atc" class="hud-atc hidden">

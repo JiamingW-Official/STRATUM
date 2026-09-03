@@ -1303,6 +1303,9 @@ class AircraftObject {
     if (ghost && !this._ghostRing) {
       this._ghostRing = _ghostRing();
       this.group.add(this._ghostRing);
+      // A ring that has just appeared swells once and settles: the eye is
+      // drawn to a new contact the way a scope operator's is.
+      this._ringPulse = 1;
     } else if (!ghost && this._ghostRing) {
       this.group.remove(this._ghostRing);
       this._ghostRing = null;
@@ -1778,7 +1781,17 @@ class AircraftObject {
     this.fadeProgress = 1;
   }
 
+  // The moment of contact: the ring swells and settles again.
+  contactPulse() { this._ringPulse = 1; }
+
   animate(delta, elapsed, highlightSet, filterSet) {
+    if (this._ghostRing && this._ringPulse > 0) {
+      const k = this._ringPulse;
+      const sc = 0.028 * (1 + 1.1 * k * k);
+      this._ghostRing.scale.set(sc, sc, 1);
+      this._ringPulse = Math.max(0, k - delta / 1.1);
+      if (this._ringPulse === 0) this._ghostRing.scale.set(0.028, 0.028, 1);
+    }
     if (this.fadingIn) {
       this.fadeProgress = Math.min(this.fadeProgress + delta * 1.2, 1);
       if (this.fadeProgress >= 1) this.fadingIn = false;
