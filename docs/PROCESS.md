@@ -407,3 +407,22 @@ by 60 s on a cold city, all nine by the next reading; 9.5 MB across fifteen
 exports the first time a city is asked, then cached. The cost is real --
 about 250 MB of texture on the GPU -- which is why none of it happens on
 small screens or under save-data.
+
+Then the owner sent a screenshot from low over Queens, outside the rings,
+and it was still soft. Nothing fixed can be sharp at every altitude: a
+mosaic that reads at the default framing is ten times too coarse when the
+camera comes down over a suburb. So the camera decides. Every ground layer
+registers its resolution as it lands. When the camera rests for 400 ms, the
+ground under the screen centre is compared with what the screen can show --
+seen at a shallow angle, it wants two to three texels per pixel -- and if
+the screen could show more, a 2048 export sized to that need is fetched for
+the cell under the centre and then its four neighbours, laid in above the
+mosaic and below the airport rings. Cells sit on a ladder of four sizes so a
+view seen twice is fetched once; twenty-four a city, then it stops. The
+first version of this called a 12-metre ring sharp enough at an altitude
+where it plainly was not, because it compared at one texel per pixel and
+fetched one tile the size of the whole footprint, which could not beat the
+ring anyway. Measured on the live site, low over Queens: the screen wanted
+8.4 metres a pixel, the target came out at 3, four 10.7-kilometre tiles at
+about 5 metres a pixel landed within a minute, and the streets under the
+camera had names.
