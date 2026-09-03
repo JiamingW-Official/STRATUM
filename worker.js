@@ -231,7 +231,13 @@ async function handleAirports(url, env, cacheOnly = false) {
   const north = (lat + r).toFixed(4);
   const west = (lon - r).toFixed(4);
   const east = (lon + r).toFixed(4);
-  const query = `[out:json][timeout:15];(way["aeroway"="runway"](${south},${west},${north},${east});way["aeroway"="taxiway"](${south},${west},${north},${east});way["aeroway"="terminal"](${south},${west},${north},${east});node["aeroway"="aerodrome"](${south},${west},${north},${east});way["aeroway"="aerodrome"](${south},${west},${north},${east});relation["aeroway"="aerodrome"](${south},${west},${north},${east}););out body geom;`;
+  // Runways and aerodromes for the whole box; taxiways and terminals only
+  // within about 28km of the centre, where the camera can see them. Over
+  // Beijing, Shanghai or Guangzhou the full box of taxiways ran past the
+  // 15-second limit on every mirror and the airport came back as nothing.
+  const ch = 0.25, cw = 0.25 / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  const cs = (lat - ch).toFixed(4), cn = (lat + ch).toFixed(4), cwst = (lon - cw).toFixed(4), ces = (lon + cw).toFixed(4);
+  const query = `[out:json][timeout:40];(way["aeroway"="runway"](${south},${west},${north},${east});node["aeroway"="aerodrome"](${south},${west},${north},${east});way["aeroway"="aerodrome"](${south},${west},${north},${east});relation["aeroway"="aerodrome"](${south},${west},${north},${east});way["aeroway"="taxiway"](${cs},${cwst},${cn},${ces});way["aeroway"="terminal"](${cs},${cwst},${cn},${ces}););out body geom;`;
   const body = `data=${encodeURIComponent(query)}`;
 
   // overpass-api.de reports "Rate limit: 2" — two concurrent slots per client IP.
