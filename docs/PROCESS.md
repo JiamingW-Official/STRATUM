@@ -447,3 +447,36 @@ held a second time; it is now in the generic proxy as well. The view loader's
 target eased from 3 to 5 metres a pixel -- half the requests, and the source
 has little more to give below that -- and street-grid detail exists only
 where the camera actually is.
+
+## 10. Two questions from the owner, and what they turned up
+
+*Can the tower audio reach LaGuardia?* It could -- KLGA has had a feed since
+the harvest -- but only by switching the airspace. Over New York the feeds
+within sixty kilometres are JFK, LaGuardia, Newark and White Plains: one
+sky, several towers. A small control beside the tower button now cycles
+through them, nearest first, and the label says which and how far. Checked
+live: JFK → KLGA 17 km → KEWR 33 km → KHPN 48 km, each on its own mirror.
+
+*Why do Chinese airports show no arrivals and no information?* My first
+answer was wrong, and instructively so. I probed the airport endpoint and
+read back "zero runways" for Beijing, Shanghai and Guangzhou, and went
+looking for an Overpass failure. There was one to find -- overpass-api.de
+had begun answering every request through the relay with 406, its egress
+on their blocklist, and kumi was overloaded, so every airport not already
+in KV was failing, in China and in North Dakota alike; mail.ru's mirror now
+goes first, and the 502 names which mirror failed and how. But that was not
+the Chinese airports' problem. My probe had counted a field the endpoint
+does not return. Read properly: Beijing has 36 runways and 2,032 taxiways
+on the map, Shanghai 24, Guangzhou 31. What those skies lack is aircraft.
+Shanghai's hundred-mile box held none; Beijing's held twenty-two, where an
+American hub's holds two hundred. Mainland China restricts public sharing
+of ADS-B, the volunteer network barely hears it, and with no aircraft there
+are no arrivals to list. The project already carried a note explaining
+this; it fired only below three aircraft, so twenty-two looked like an
+empty, silent, unexplained airport. It now fires when a hub's sky holds
+fewer than forty, once per city.
+
+The lesson is the one from section 5, in the other direction: last time I
+mistook my own bad technique for a refusal by the infrastructure; this time
+I found a real refusal and nearly pinned the wrong symptom on it. Both times
+the correction came from reading the actual bytes.

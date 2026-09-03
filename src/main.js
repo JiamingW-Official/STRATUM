@@ -13772,11 +13772,20 @@ function _showNoCoverageDialog(info) {
   backdrop.classList.remove("hidden");
 }
 
+const _lowCoverageShown = new Set();
 function _checkLowCoverage(city) {
   const info = _LOW_COVERAGE[city.country];
   if (!info) return;
   const count = aircraftManager ? aircraftManager.getCount() : 0;
-  if (count < 3) _showNoCoverageDialog(info);
+  // Beijing shows twenty-odd aircraft in a box that holds two hundred over an
+  // American city of the same size. Twenty is not "no coverage", so the old
+  // threshold of three never fired and the sky simply looked empty of events
+  // -- no arrivals, no departures -- with nothing to say why. Judged against
+  // what a hub's sky normally holds, once per city.
+  if (count < 40 && !_lowCoverageShown.has(city.code)) {
+    _lowCoverageShown.add(city.code);
+    _showNoCoverageDialog(info);
+  }
 }
 
 async function init() {
