@@ -426,3 +426,24 @@ ring anyway. Measured on the live site, low over Queens: the screen wanted
 8.4 metres a pixel, the target came out at 3, four 10.7-kilometre tiles at
 about 5 metres a pixel landed within a minute, and the streets under the
 camera had names.
+
+**Rendered once, for everyone.** The owner's next message was that it was
+all still too slow, and that a street grid everywhere was not the point --
+no jaggedness, no low-pixel feel was the point. The slowness was structural:
+the source takes 4 to 30 seconds to rasterise each image, and every visitor
+was paying it, city by city. The images now go through the Worker on the
+same origin and are cached at the edge for a week; the bbox is rounded to
+integer metres so the URL is deterministic. Then the cron warms them: two
+cities a run, rotating through the busiest seventy, the fifteen images a
+visitor's first minute asks for, built with the same mercator, scale and
+rounding as the client. Checked on the live site: the client's URL for the
+JFK base and the Worker's are the same byte for byte; a cold image took 4.1 s
+and the next two requests for it 2.3 s, all of which is this machine's proxy
+and none of which is rendering. What made the cache not work the first time
+is a bug this project had met before: the proxy stored its result without
+awaiting the write, and the runtime cancels a pending write once the
+response has gone out, so every image was a miss. The lesson from section 2
+held a second time; it is now in the generic proxy as well. The view loader's
+target eased from 3 to 5 metres a pixel -- half the requests, and the source
+has little more to give below that -- and street-grid detail exists only
+where the camera actually is.
