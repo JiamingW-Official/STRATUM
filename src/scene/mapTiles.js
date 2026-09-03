@@ -454,7 +454,11 @@ async function loadProgressiveAsync(
       window.innerWidth >= 900 &&
       !(navigator.connection && navigator.connection.saveData);
     if (wantSharp && onUpgrade) {
-      const r2 = await loadTilesForRegion(centerLat, centerLon, half, 11, EXPORT_MAX_PX, signal);
+      // Straight to the rasteriser with the pixel size: loadTilesForRegion's
+      // fifth argument is a tile budget, and it chooses 1024 for this zoom
+      // itself -- the first attempt at this produced the same URL as the base
+      // and swapped the same image back in.
+      const r2 = await loadRegionViaExport(centerLat, centerLon, half, signal, EXPORT_MAX_PX);
       if (r2 && !signal.aborted)
         onUpgrade(createTextureFromRegion(r2, lonMin, lonMax, latMin, latMax), null);
     }
