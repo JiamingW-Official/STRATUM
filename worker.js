@@ -22,6 +22,10 @@ const PROXY_ROUTES = {
   "/api/opensky/": "https://opensky-network.org/",
   "/api/ovp-de/": `${RELAY_ORIGIN}/api/ovp-de/`,
   "/api/ovp-kumi/": `${RELAY_ORIGIN}/api/ovp-kumi/`,
+  // Basemap rasteriser. Each image takes the source 4-30s to render and does
+  // not change; cached at the edge for a week so a city is rendered once for
+  // everyone. Attributed on screen (Esri).
+  "/map/export/": "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/export",
   // '/api/ovp-ru/' removed — consistent 403 errors
   "/api/adsbdb/": "https://api.adsbdb.com/",
   "/api/fir/":
@@ -52,6 +56,7 @@ const CACHE_TTLS = {
   "/api/adsbdb/": 3600, // Route data — 1 hour
   "/api/fir/": 604800, // FIR boundaries — 7 days
   "/api/navaids/": 604800, // Navaids — 7 days
+  "/map/export/": 604800, // Basemap images — 7 days
 };
 
 // ── Overpass endpoints for smart routing ──

@@ -62,6 +62,7 @@ const WORKER_ROUTES = [
   "/api/enrich",
   "/api/trail",
   "/api/visibility",
+  "/map/export",
   "/api/weather",
   "/api/atlas",
   "/api/routes",

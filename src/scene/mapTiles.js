@@ -22,9 +22,12 @@ const PROVIDERS = {
     // MapServer can rasterise an arbitrary bbox in one request. Stitching the
     // same ground from 256px tiles costs hundreds of round trips, which is ruinous
     // behind a proxy where per-connection overhead dwarfs transfer time.
+    // Same origin, through the Worker: the edge caches each rendered image
+    // for a week, so the 20-30s the rasteriser takes is paid once per city
+    // for everyone. The bbox is integer metres so the URL is deterministic
+    // and the warm pass can ask for exactly the same image.
     exportUrl: (mercBbox, w, h) =>
-      `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/export` +
-      `?bbox=${mercBbox.join(",")}&bboxSR=102100&imageSR=102100&size=${w},${h}` +
+      `/map/export/?bbox=${mercBbox.map((v) => Math.round(v)).join(",")}&bboxSR=102100&imageSR=102100&size=${w},${h}` +
       `&format=png&transparent=false&f=image`,
     // Measured against CARTO dark_all: Esri's land fill sits at luma 71 and its
     // brightest roads at ~104, so the curve maps 71 -> 9 and 100+ -> ~150.
@@ -589,7 +592,7 @@ function _startViewLoader(centerLat, centerLon, onUpgrade, signal) {
     // The ground is seen at a shallow angle, so it wants two to three texels
     // per screen pixel before it reads as sharp; and below about 3m a pixel
     // the source itself has nothing more to give.
-    const targetMpp = Math.max(3, Math.min(14, needMpp * 0.35));
+    const targetMpp = Math.max(5, Math.min(14, needMpp * 0.4));
     if (_bestMppAt(lat, lon) <= targetMpp * 1.3) { window.__viewLoader = { lat, lon, needMpp, targetMpp, best: _bestMppAt(lat, lon), skip: true }; return; }
     const wantHalf = (targetMpp * 2048) / (2 * 111000 * cosLat);
     const half = VIEW_LADDER.find((h) => h >= wantHalf) || VIEW_LADDER[VIEW_LADDER.length - 1];

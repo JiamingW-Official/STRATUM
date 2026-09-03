@@ -1,5 +1,5 @@
 // STRATUM Service Worker — smart caching by resource type
-const CACHE_NAME = "stratum-v8";
+const CACHE_NAME = "stratum-v9";
 const TILE_CACHE = "stratum-tiles-v1";
 const RADIO_CACHE = "stratum-radio-v1";
 
@@ -47,7 +47,8 @@ self.addEventListener("fetch", (e) => {
   // ── Map tiles: cache-first (immutable by zoom/x/y) ──
   if (
     url.hostname.endsWith("basemaps.cartocdn.com") ||
-    url.hostname === "server.arcgisonline.com"
+    url.hostname === "server.arcgisonline.com" ||
+    url.pathname.startsWith("/map/export/")
   ) {
     e.respondWith(
       caches.open(TILE_CACHE).then((cache) =>
