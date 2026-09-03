@@ -10035,7 +10035,8 @@ class GlobeView {
     }
     // Three passes: 0=unmatched dim, 1=matched airports, 2=selected/hovered (always on top)
     for (let pass = 0; pass < 3; pass++) {
-      for (let i = 0; i < CITIES.length; i++) {
+      this._unseenLabels = [];
+    for (let i = 0; i < CITIES.length; i++) {
         const p = projected[i];
         if (!p.visible) continue;
         const c = CITIES[i];
@@ -10111,6 +10112,7 @@ class GlobeView {
         } else if (matches) {
           const tier = this._dotSizes ? this._dotSizes[i] : 0;
           if (this._unseenMode) {
+            if (!this._unseenLabels) this._unseenLabels = [];
             // The thesis as a picture: every measured sky a dot, size by how
             // many aircraft stood behind the measurement, colour by the share
             // that asked not to be seen -- cool where almost none did, warm
@@ -10134,7 +10136,16 @@ class GlobeView {
               ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
               ctx.fillStyle = `rgba(${r},${g},${b},${0.85 * d + 0.1})`;
               ctx.fill();
-              this._label(ctx, p, `${c.code}  ${Math.round(v.share * 100)}%`, `rgba(${r},${g},${b},0.95)`, false);
+              // One label per patch of screen: the West Coast and the New York
+              // fields sit a few pixels apart at this zoom, and a stack of
+              // overlapping percentages says less than one.
+              const placed = this._unseenLabels;
+              let clear = true;
+              for (const q of placed) { if (Math.abs(q.x - p.x) < 34 && Math.abs(q.y - p.y) < 14) { clear = false; break; } }
+              if (clear) {
+                placed.push({ x: p.x, y: p.y });
+                this._label(ctx, p, `${c.code}  ${Math.round(v.share * 100)}%`, `rgba(${r},${g},${b},0.95)`, false);
+              }
             }
           } else if (tier === 2) {
             // MEGA HUB — wide atmosphere bloom + bright core + outer ring
