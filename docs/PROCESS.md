@@ -476,6 +476,11 @@ this; it fired only below three aircraft, so twenty-two looked like an
 empty, silent, unexplained airport. It now fires when a hub's sky holds
 fewer than forty, once per city.
 
+And one more thing, found last: mainland China was not in the picker at all.
+Hong Kong, Macau and Taipei were; Beijing, Shanghai and Guangzhou were not,
+though their runways were in the cache and their metadata in the table.
+Twenty-four mainland hubs are listed now, and warmed like the rest.
+
 The lesson is the one from section 5, in the other direction: last time I
 mistook my own bad technique for a refusal by the infrastructure; this time
 I found a real refusal and nearly pinned the wrong symptom on it. Both times
