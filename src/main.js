@@ -1778,6 +1778,7 @@ document.getElementById("hud-sky-unseen-btn")?.addEventListener("click", _toggle
 // programmes, so an American sky can hide what a European one cannot.
 let _visIndex = null;
 let _visFetchedAt = 0;
+setTimeout(() => _loadVisibility(), 0);
 let _lastSky = { total: 0, unseen: 0 };
 async function _loadVisibility() {
   if (Date.now() - _visFetchedAt < 300000) return;
@@ -1787,7 +1788,38 @@ async function _loadVisibility() {
     _visIndex = r.ok ? await r.json() : null;
   } catch { _visIndex = null; }
   _renderVisibilityCmp();
+  _bootThesisFromIndex();
+  if (typeof _onVisibilityIndex === "function") _onVisibilityIndex();
 }
+let _onVisibilityIndex = null;
+// The index, read for one place: the nearest measured sky within 0.6 degrees,
+// if it has three samples and three hundred aircraft behind it.
+function _visShareFor(lat, lon) {
+  const cells = _visIndex?.cells ? Object.values(_visIndex.cells) : [];
+  let best = null, bd = 0.6;
+  for (const c of cells) {
+    if (c.samples < 3 || c.total < 300) continue;
+    const d = Math.abs(c.lat - lat) + Math.abs(c.lon - lon);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best ? { share: best.masked / best.total, total: best.total } : null;
+}
+// The claim on the boot screen, with the index's own numbers when it has them:
+// American skies against European ones, each as a sum over its measured cells.
+function _bootThesisFromIndex() {
+  const el = document.getElementById("boot-thesis");
+  if (!el || !_visIndex?.cells) return;
+  let us = [0, 0], eu = [0, 0];
+  for (const c of Object.values(_visIndex.cells)) {
+    if (c.samples < 3 || c.total < 300) continue;
+    if (c.lon < -60 && c.lat > 24) { us[0] += c.masked; us[1] += c.total; }
+    else if (c.lon >= -12 && c.lon <= 45 && c.lat > 34) { eu[0] += c.masked; eu[1] += c.total; }
+  }
+  if (us[1] < 2000 || eu[1] < 1000) return;
+  const one = (m, t) => { const r = Math.round(t / Math.max(1, m)); return r >= 100 ? "almost none" : `about one in ${r}`; };
+  el.innerHTML = `Every aircraft here says how it was heard. Some asked not to be.<br>In American skies, ${one(us[0], us[1])}. In European skies, ${one(eu[0], eu[1])}.`;
+}
+
 function _nearestCityName(lat, lon) {
   let best = null, bd = Infinity;
   for (const c of CITIES) {
@@ -9747,6 +9779,7 @@ class GlobeView {
     this._landCacheLat = NaN;
     this._landCacheR = NaN;
     this._dotSizes = null;
+    this._unseenMode = false;
     this._sinLat = null;
     this._cosLat = null;
     this._sinLon = null;
@@ -10077,7 +10110,33 @@ class GlobeView {
           );
         } else if (matches) {
           const tier = this._dotSizes ? this._dotSizes[i] : 0;
-          if (tier === 2) {
+          if (this._unseenMode) {
+            // The thesis as a picture: every measured sky a dot, size by how
+            // many aircraft stood behind the measurement, colour by the share
+            // that asked not to be seen -- cool where almost none did, warm
+            // where one in seven did. Skies not yet measured stay faint, so
+            // "no data" is never drawn as "no one hides here".
+            const v = _visShareFor(c.lat, c.lon);
+            if (!v) {
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, 1.1 + zoom * 0.1, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(150,160,180,${0.22 * d})`;
+              ctx.fill();
+            } else {
+              const t = Math.min(1, v.share / 0.15);
+              const r = Math.round(120 + 135 * t), g = Math.round(150 + 50 * t), b = Math.round(190 - 110 * t);
+              const coreR = 1.8 + zoom * 0.25 + Math.log10(Math.max(10, v.total)) * 0.9;
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, coreR + 4, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(${r},${g},${b},${0.10 * d})`;
+              ctx.fill();
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(${r},${g},${b},${0.85 * d + 0.1})`;
+              ctx.fill();
+              this._label(ctx, p, `${c.code}  ${Math.round(v.share * 100)}%`, `rgba(${r},${g},${b},0.95)`, false);
+            }
+          } else if (tier === 2) {
             // MEGA HUB — wide atmosphere bloom + bright core + outer ring
             const coreR = 2.4 + zoom * 0.3;
             // Wide soft bloom
@@ -10676,6 +10735,10 @@ class GlobeView {
     this._zoom += (this._targetZoom - this._zoom) * 0.12;
     this.R = this._baseR * this._zoom;
     this._draw();
+  }
+
+  setUnseenMode(on) {
+    this._unseenMode = !!on;
   }
 
   setFilter(region, query) {
@@ -12787,6 +12850,19 @@ function initCityPicker() {
 
   // ── Elements ──────────────────────────────────────────────────────────────
   const searchInput = document.getElementById("city-search-input");
+  const modeChips = document.getElementById("city-mode-chips");
+  modeChips?.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-mode]");
+    if (!btn) return;
+    showMode = btn.dataset.mode;
+    modeChips.querySelectorAll(".tier-chip").forEach((b) => b.classList.toggle("active", b === btn));
+    _globeView?.setUnseenMode(showMode === "unseen");
+    const sel = document.getElementById("city-sort-select");
+    if (showMode === "unseen" && sel && sel.value !== "unseen") { sel.value = "unseen"; sortBy = "unseen"; }
+    renderList();
+  });
+  // When the index lands after the picker is already open, repaint.
+  _onVisibilityIndex = () => { if (showMode === "unseen") { _globeView?.setUnseenMode(true); renderList(); } };
   const tierChips = document.getElementById("city-tier-chips");
   const regionChips = document.getElementById("city-region-chips");
   const sortSelect = document.getElementById("city-sort-select");
@@ -12797,7 +12873,8 @@ function initCityPicker() {
   let searchQuery = "";
   let activeTier = "all"; // all | mega | major | regional
   let activeRegion = "All"; // All | Americas | Europe | ...
-  let sortBy = "pax"; // pax | name | runways | elevation | country
+  let sortBy = "pax"; // pax | unseen | name | runways | elevation | country
+  let showMode = "traffic"; // traffic | unseen
   let _selectedIdx = -1;
   let _focusedIdx = -1;
 
@@ -12953,6 +13030,10 @@ function initCityPicker() {
     // Sort
     if (sortBy === "pax") {
       results = results.slice().sort((a, b) => b.pax - a.pax);
+    } else if (sortBy === "unseen") {
+      // Measured skies by share, most hidden first; the unmeasured after them.
+      const sh = (e) => { const c = CITIES[e.i]; const v = _visShareFor(c.lat, c.lon); return v ? v.share : -1; };
+      results = results.slice().sort((a, b) => sh(b) - sh(a) || b.pax - a.pax);
     } else if (sortBy === "runways") {
       results = results.slice().sort((a, b) => b.rwys - a.rwys);
     } else if (sortBy === "elevation") {
@@ -13033,15 +13114,21 @@ function initCityPicker() {
     // tier is already the filter directly above the list. The same fact is worth
     // more as a length: a bar scaled to annual passengers, against the busiest
     // airport in the world, so every row differs from the one above it.
-    const paxStr = e.pax > 0 ? `${e.pax}M` : "";
-    const paxPct = e.pax > 0 ? Math.min(100, Math.round((e.pax / 105) * 100)) : 0;
+    let paxStr = e.pax > 0 ? `${e.pax}M` : "";
+    let paxPct = e.pax > 0 ? Math.min(100, Math.round((e.pax / 105) * 100)) : 0;
+    if (showMode === "unseen") {
+      // The bar becomes the share that asked not to be seen, on a 0-20% scale.
+      const v = _visShareFor(c.lat, c.lon);
+      paxStr = v ? `${Math.round(v.share * 100)}%` : "";
+      paxPct = v ? Math.min(100, Math.round((v.share / 0.2) * 100)) : 0;
+    }
     return `<div class="city-list-item${e.i === _selectedIdx ? " active" : ""}" data-idx="${e.i}">
       <span class="cli-code">${c.code}</span>
       <div class="cli-info">
         <span class="cli-name">${c.name}</span>
         <span class="cli-sub">${c.country || ""}${icao ? " · " + icao : ""}</span>
       </div>
-      <span class="cli-load" title="${paxStr ? paxStr + " passengers a year" : "no traffic figure"}">
+      <span class="cli-load" title="${showMode === "unseen" ? (paxStr ? paxStr + " of aircraft here asked not to be seen" : "not measured yet") : (paxStr ? paxStr + " passengers a year" : "no traffic figure")}">
         <span class="cli-load-bar"><i style="width:${paxPct}%"></i></span>
         <span class="cli-pax">${paxStr}</span>
       </span>

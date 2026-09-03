@@ -54,7 +54,7 @@
       </div>
       <!-- The argument, once, at the moment of arrival. Everything on the map
            is a field the feed already carried; this is where it is said. -->
-      <p class="boot-thesis">Every aircraft here says how it was heard.<br>Some asked not to be.</p>
+      <p class="boot-thesis" id="boot-thesis">Every aircraft here says how it was heard.<br>Some asked not to be.</p>
     </div>
   </div>
 
@@ -523,10 +523,18 @@
                 <button type="button" class="region-chip" data-region="Pacific">Pacific</button>
               </div>
             </div>
+            <div class="city-filter-row">
+              <span class="city-filter-key">SHOW</span>
+              <div class="city-tier-chips" id="city-mode-chips">
+                <button type="button" class="tier-chip active" data-mode="traffic" title="Dots sized by annual passengers">Traffic</button>
+                <button type="button" class="tier-chip" data-mode="unseen" title="Dots coloured by the share of aircraft that asked not to be seen — measured skies only">Unseen</button>
+              </div>
+            </div>
             <div class="city-sort-row">
               <span class="city-sort-label">SORT</span>
               <select id="city-sort-select" class="city-sort-select" aria-label="Sort airports" title="Sort airports">
                 <option value="pax" selected>Busiest first</option>
+                <option value="unseen">Most unseen first</option>
                 <option value="name">Name A-Z</option>
                 <option value="runways">Runways ↓</option>
                 <option value="elevation">Elevation ↓</option>
