@@ -130,6 +130,7 @@ function loadImage(url, signal) {
     }
     const img = new Image();
     img.crossOrigin = "anonymous";
+    if ("fetchPriority" in img) img.fetchPriority = "low";
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
     if (signal) {
@@ -462,9 +463,33 @@ async function loadProgressiveAsync(
       const hd = 0.9;
       const r2 = await loadRegionViaExport(centerLat, centerLon, hd, signal, 4096);
       if (r2 && !signal.aborted) {
-        const b = { lonMin: centerLon - hd, lonMax: centerLon + hd, latMin: centerLat - hd, latMax: centerLat + hd, under: true };
+        const b = { lonMin: centerLon - hd, lonMax: centerLon + hd, latMin: centerLat - hd, latMax: centerLat + hd, under: 1 };
         onUpgrade(createTextureFromRegion(r2, b.lonMin, b.lonMax, b.latMin, b.latMax), b);
       }
+
+      // Then the surroundings proper. One export is capped at 4096, so the
+      // 78km square around the airport is fetched as a 3x3 mosaic of 2048s:
+      // 26km a tile, about 13m a pixel -- four times the disc. Three at a
+      // time, each laid in as it lands, above the disc and below the rings,
+      // all after the visitor already has a map. About 4MB, once per city.
+      const mh = 0.35, n = 3, step = (2 * mh) / n;
+      const tiles = [];
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+        const cLon = centerLon - mh + step * (i + 0.5), cLat = centerLat - mh + step * (j + 0.5);
+        tiles.push({ cLon, cLat, d: Math.hypot(i - (n - 1) / 2, j - (n - 1) / 2) });
+      }
+      tiles.sort((a, b) => a.d - b.d); // centre first
+      let idx = 0;
+      const worker = async () => {
+        while (idx < tiles.length && !signal.aborted) {
+          const t = tiles[idx++];
+          const r = await loadRegionViaExport(t.cLat, t.cLon, step / 2, signal, 2048);
+          if (!r || signal.aborted) continue;
+          const b = { lonMin: t.cLon - step / 2, lonMax: t.cLon + step / 2, latMin: t.cLat - step / 2, latMax: t.cLat + step / 2, under: 2 };
+          onUpgrade(createTextureFromRegion(r, b.lonMin, b.lonMax, b.latMin, b.latMax), b);
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
     }
   } catch (err) {
     if (!signal.aborted)
