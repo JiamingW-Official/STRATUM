@@ -250,30 +250,38 @@ async function handleAirports(url, env, cacheOnly = false) {
   // the whole pool contend with itself, which is what turned cold airports into
   // 502s. Try mirrors in order and only fall through when one actually fails.
   async function askOverpass() {
-    let lastErr;
+    // Every mirror's failure is kept and reported in the 502, because a
+    // failure that says only "all mirrors failed" cost a day: the mirrors
+    // were answering 406 to this Worker's own user agent, and nothing said so.
+    const errors = [];
     for (const endpoint of OVERPASS_URLS) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 40000); // the query itself allows 40s
+      const t0 = Date.now();
       try {
         const res = await fetch(endpoint, {
           method: "POST",
           body,
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "STRATUM/1.0",
-            "Accept-Encoding": "gzip, br",
+            // Public Overpass mirrors treat bare tool agents harshly; this is
+            // the same agent a browser would send, with the project named.
+            "User-Agent": "Mozilla/5.0 (compatible; STRATUM/1.0; +https://stratum.jiamingwofficial.workers.dev)",
+            "Accept": "application/json, */*",
           },
           signal: ctrl.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res;
       } catch (err) {
-        lastErr = err;
+        errors.push(`${endpoint.split("/api/")[1].split("/")[0]}: ${err?.name === "AbortError" ? "timeout" : err.message} (${Date.now() - t0}ms)`);
       } finally {
         clearTimeout(timer);
       }
     }
-    throw lastErr || new Error("all Overpass mirrors failed");
+    const e = new Error("all Overpass mirrors failed: " + errors.join("; "));
+    e.mirrors = errors;
+    throw e;
   }
 
   try {
@@ -309,8 +317,8 @@ async function handleAirports(url, env, cacheOnly = false) {
         },
       }),
     );
-  } catch {
-    return new Response("All Overpass endpoints failed", {
+  } catch (err) {
+    return new Response("All Overpass endpoints failed: " + (err?.message || "unknown"), {
       status: 502,
       headers: corsHeaders(),
     });
