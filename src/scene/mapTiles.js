@@ -175,8 +175,8 @@ function _bestMppAt(lat, lon) {
   return best;
 }
 export function setViewCamera(camera) { _viewCam = camera; }
-const VIEW_TILE_LIMIT = 12;
-const VIEW_LADDER = [0.006, 0.012, 0.024, 0.048, 0.096, 0.19]; // half-degrees
+const VIEW_TILE_LIMIT = 24;
+const VIEW_LADDER = [0.012, 0.024, 0.048, 0.096]; // half-degrees: 2.7 to 21km tiles
 const EXPORT_BASE_PX = 1024;
 const EXPORT_PREVIEW_PX = 512;
 
@@ -549,39 +549,16 @@ function _startViewLoader(centerLat, centerLon, onUpgrade, signal) {
   if (!_viewCam) return;
   const loaded = new Set();
   let count = 0, inFlight = 0;
-  let lastKey = null, restSince = 0, lastPos = null;
-  const tick = async () => {
-    if (signal.aborted) { clearInterval(timer); return; }
-    if (count >= VIEW_TILE_LIMIT || inFlight > 0) return;
-    const cam = _viewCam;
-    // ground point under the screen centre
-    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
-    if (dir.y >= -0.05) return; // looking at the horizon
-    const t = -cam.position.y / dir.y;
-    const gx = cam.position.x + dir.x * t, gz = cam.position.z + dir.z * t;
-    const dist = Math.hypot(dir.x * t, cam.position.y, dir.z * t);
-    // camera at rest?
-    const pos = [cam.position.x, cam.position.y, cam.position.z, gx, gz].map((v) => Math.round(v * 100) / 100).join(",");
-    if (pos !== lastPos) { lastPos = pos; restSince = performance.now(); return; }
-    if (performance.now() - restSince < 400) return;
-    // footprint: half-height of the view on the ground, in degrees of latitude
-    const fov = ((cam.fov || 50) * Math.PI) / 180;
-    const halfUnits = dist * Math.tan(fov / 2) * 1.2;
-    const halfDeg = halfUnits / 40; // GEO_SCALE
-    const cosLat = Math.cos((centerLat * Math.PI) / 180);
-    const lat = centerLat - gz / 40, lon = centerLon + gx / (40 * cosLat);
-    const screenH = Math.max(600, window.innerHeight);
-    const needMpp = (2 * halfDeg * 111000) / screenH; // metres per screen pixel on the ground
-    if (_bestMppAt(lat, lon) <= needMpp * 1.5) return; // already sharp enough here
-    // pick the ladder step that gives 2048px at about the footprint
-    const half = VIEW_LADDER.find((h) => h >= halfDeg) || VIEW_LADDER[VIEW_LADDER.length - 1];
-    if (halfDeg > VIEW_LADDER[VIEW_LADDER.length - 1]) return; // too high up; the mosaic serves
+  let restSince = 0, lastPos = null;
+  const cosLat = Math.cos((centerLat * Math.PI) / 180);
+  const fetchCell = async (half, ci, cj) => {
     const size = 2 * half;
-    const ci = Math.floor(lon / size), cj = Math.floor(lat / size);
     const key = `${half}:${ci}:${cj}`;
-    if (loaded.has(key)) return;
-    loaded.add(key); lastKey = key; inFlight++; count++;
+    if (loaded.has(key) || count >= VIEW_TILE_LIMIT) return;
     const cLon = (ci + 0.5) * size, cLat = (cj + 0.5) * size;
+    const target = (size * 111000 * cosLat) / 2048;
+    if (_bestMppAt(cLat, cLon) <= target * 1.3) return; // this cell is already that sharp
+    loaded.add(key); count++; inFlight++;
     try {
       const r = await loadRegionViaExport(cLat, cLon, half, signal, 2048);
       if (r && !signal.aborted) {
@@ -590,6 +567,42 @@ function _startViewLoader(centerLat, centerLon, onUpgrade, signal) {
         onUpgrade(createTextureFromRegion(r, b.lonMin, b.lonMax, b.latMin, b.latMax), b);
       }
     } finally { inFlight--; }
+  };
+  const tick = () => {
+    if (signal.aborted) { clearInterval(timer); return; }
+    if (count >= VIEW_TILE_LIMIT || inFlight > 0) return;
+    const cam = _viewCam;
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    if (dir.y >= -0.05) return; // looking at the horizon
+    const t = -cam.position.y / dir.y;
+    const gx = cam.position.x + dir.x * t, gz = cam.position.z + dir.z * t;
+    const dist = Math.hypot(dir.x * t, cam.position.y, dir.z * t);
+    const pos = [cam.position.x, cam.position.y, cam.position.z].map((v) => Math.round(v * 100) / 100).join(",");
+    if (pos !== lastPos) { lastPos = pos; restSince = performance.now(); return; }
+    if (performance.now() - restSince < 400) return;
+    const fov = ((cam.fov || 50) * Math.PI) / 180;
+    const halfUnits = dist * Math.tan(fov / 2);
+    const halfDeg = halfUnits / 40; // GEO_SCALE
+    const lat = centerLat - gz / 40, lon = centerLon + gx / (40 * cosLat);
+    const screenH = Math.max(600, window.innerHeight);
+    const needMpp = (2 * halfDeg * 111000) / screenH; // ground metres per screen pixel at the centre
+    // The ground is seen at a shallow angle, so it wants two to three texels
+    // per screen pixel before it reads as sharp; and below about 3m a pixel
+    // the source itself has nothing more to give.
+    const targetMpp = Math.max(3, Math.min(14, needMpp * 0.35));
+    if (_bestMppAt(lat, lon) <= targetMpp * 1.3) { window.__viewLoader = { lat, lon, needMpp, targetMpp, best: _bestMppAt(lat, lon), skip: true }; return; }
+    const wantHalf = (targetMpp * 2048) / (2 * 111000 * cosLat);
+    const half = VIEW_LADDER.find((h) => h >= wantHalf) || VIEW_LADDER[VIEW_LADDER.length - 1];
+    if (halfDeg > 0.5) return; // high enough that the mosaic serves
+    const size = 2 * half;
+    const ci = Math.floor(lon / size), cj = Math.floor(lat / size);
+    window.__viewLoader = { lat, lon, needMpp, targetMpp, best: _bestMppAt(lat, lon), half, count };
+    // The cell under the centre first, then its four neighbours: what the
+    // visitor is looking at gets sharp before what is beside it.
+    (async () => {
+      await fetchCell(half, ci, cj);
+      await Promise.all([fetchCell(half, ci + 1, cj), fetchCell(half, ci - 1, cj), fetchCell(half, ci, cj + 1), fetchCell(half, ci, cj - 1)]);
+    })();
   };
   const timer = setInterval(tick, 250);
   signal.addEventListener("abort", () => clearInterval(timer), { once: true });
