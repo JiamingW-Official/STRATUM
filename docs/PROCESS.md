@@ -267,3 +267,51 @@ withholds what the owner asked to withhold; V reveals it, immediately, so V is
 an act and not a style. Verified on a Sikorsky S-92 on the FAA's limiting
 list: UNSEEN / withheld with the layer on, N314RG with it off, UNSEEN again,
 each within a frame.
+
+## 8. From an instrument to a measurement
+
+The owner's next brief was the sharpest yet: *a teacher should like this,
+and it should read like a thesis, not a display.* A map that shows one city's
+sky beautifully is a display. What makes it a thesis is a question the map
+can answer that nothing else can.
+
+The question was already on screen. The HUD counts aircraft that asked not to
+be seen. Those aircraft are on the FAA's LADD list or fly under a PIA
+address -- American programmes, with no equivalent in Europe. If that is so,
+the share of a sky that asks for privacy is not a curiosity of one screen; it
+is a property of a jurisdiction, and of who flies there. STRATUM was the only
+thing in the room positioned to measure it, because its Worker already pulls
+the sky over seventy-odd airports every five minutes to keep them warm.
+
+So the warm pass counts. For every airspace it fetches, it tallies aircraft,
+how each was heard, and how many asked not to be shown, and writes one
+running index to KV per run. `/api/visibility` reads it back. Nothing shows
+until a sky has three samples and three hundred aircraft behind it; a
+comparison under three points is not said.
+
+**What it found, in the first hours.** Across 14 American skies and 101,357
+aircraft-observations: 9.4% asked not to be seen. Denver 15.0%, New York
+11.2%, Los Angeles 10.9%, Las Vegas 9.6% -- the business-aviation cities --
+against Phoenix 5.2%, Orlando 6.3%, Chicago 7.1%, Atlanta 7.2%. The
+European cells, sampled only once or twice at the time of writing: Frankfurt
+2.0%, Eindhoven 2.3%, Paris 0.0%, Luton 1.0%. The gap is the finding, and it
+is the one an admissions reader can carry out of the room in a sentence: *in
+an American sky, the rich can ask not to be seen; in a European one, nobody
+can.* Eighteen skies outside the United States are now counted every run so
+that sentence rests on more than two samples; the figures above will be
+replaced by the settled ones.
+
+**Where it lives.** No panel. The HUD's \"N asked not to be seen\" now carries
+the comparison in the same breath: *21 asked not to be seen · 14% here · 2%
+over Frankfurt.* The comparison sky is the eligible one whose share differs
+most, across an ocean where possible so the contrast is between jurisdictions
+and not between two neighbouring fields, named by the nearest city. Click the
+line and the ghost layer opens on the aircraft it counts.
+
+**What it is not.** It is not a claim about individuals: the index is sums
+per airspace, never a list. It is not a claim about intent: LADD covers
+corporate fleets, medical flights and private owners alike. And it is not a
+finished number: the American figure rests on a hundred thousand
+observations and the European one, today, on a few hundred. The method is
+the contribution -- the sky was already being fetched; the finding was in
+fields that were being thrown away.
