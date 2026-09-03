@@ -64,6 +64,11 @@
     <span class="ghost-hint-title">Ghost layer</span>
     <span class="ghost-hint-text">Aircraft that asked not to be seen are ringed and drawn as wireframes — present, positioned, unnamed. Click one to log a contact; you can find them all and name none. <kbd>V</kbd> toggles the layer.</span>
   </div>
+  <!-- Read the sky (L): leader lines from real objects on screen to one line each -->
+  <div id="sky-legend" class="sky-legend hidden" aria-hidden="true"></div>
+  <!-- Ground School (T): six lessons anchored to the live map -->
+  <svg id="school-line" class="sky-legend-lines school-line" aria-hidden="true"></svg>
+  <div id="school-card" class="school-card hidden" role="dialog" aria-label="Ground school"></div>
   <!-- Post-boot loading status pill -->
   <div id="load-status" class="load-status hidden">
     <div class="load-status-spinner"></div>
@@ -625,6 +630,8 @@
       <div class="help-row"><kbd>B</kbd><span>Bloom cycle</span></div>
       <div class="help-row"><kbd>G</kbd><span>Distance rings</span></div>
       <div class="help-row"><kbd>V</kbd><span>Ghost layer — aircraft by how they are seen</span></div>
+      <div class="help-row"><kbd>K</kbd><span>Key — what the symbols on screen are</span></div>
+      <div class="help-row"><kbd>T</kbd><span>Ground school — six short lessons, one question each</span></div>
       <div class="help-row"><kbd>F</kbd><span>Filter panel</span></div>
       <div class="help-row"><kbd>P</kbd><span>Screenshot mode</span></div>
       <div class="help-row"><kbd>R</kbd><span>Radio</span></div>

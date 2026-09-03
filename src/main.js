@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { initSchool, toggleSkyLegend, toggleSchool, schoolKey } from "./ui/school.js";
 // Postprocessing is lazy-loaded after first render to keep critical-path JS small
 import {
   createEnvironment,
@@ -27,6 +28,7 @@ import {
   renderFuelRangeRing,
   clearFuelRangeRing,
   getRunwayThresholdTargets,
+  getChartFixes,
   getNavHitTargets,
   updateRouteOverlay,
   clearRouteOverlay,
@@ -2467,6 +2469,8 @@ if (_radioToggleBtn) {
 }
 
 document.addEventListener("keydown", (e) => {
+  // An open lesson takes 1-3, the arrows, Enter and Escape before anything else.
+  if (schoolKey(e)) { e.preventDefault(); return; }
   if (document.activeElement.tagName === "INPUT") return;
   if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
     e.preventDefault();
@@ -2550,6 +2554,8 @@ document.addEventListener("keydown", (e) => {
     _toggleGhostLayer();
     return;
   }
+  else if (k === "k" && !e.ctrlKey && !e.metaKey) { toggleSkyLegend(); return; }
+  else if (k === "t" && !e.ctrlKey && !e.metaKey) { toggleSchool(); return; }
 
   // T2-18: Distance rings toggle
   else if (k === "g") {
@@ -13857,6 +13863,14 @@ async function init() {
     sceneTrans.style.opacity = "0";
     sceneTrans.style.pointerEvents = "";
     _introDescent();
+    initSchool({
+      camera, canvas,
+      getAircraft: () => (aircraftManager ? [...aircraftManager.aircraft.values()] : []),
+      getFixes: getChartFixes,
+      getNavaids: getNavHitTargets,
+      getThresholds: getRunwayThresholdTargets,
+      getRingsVisible: () => distanceRingsVisible,
+    });
   }
 
   // Show post-boot loading pill if not fully loaded yet

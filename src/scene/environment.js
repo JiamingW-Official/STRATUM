@@ -2874,6 +2874,7 @@ async function loadNavChart(scene, lat, lon) {
   const fixTriPositions = [];
   const fixDotPositions = [];
   const fixScenePos = []; // for labels + future route building
+  _chartFixes = [];
 
   for (const [name, fix] of allFixes) {
     const pos = geoToScene(fix.lat, fix.lon, lat, lon);
@@ -2909,6 +2910,7 @@ async function loadNavChart(scene, lat, lon) {
     fixDotPositions.push(pos.x, Y_FIX + 0.001, pos.z);
 
     fixScenePos.push({ name, fix, pos });
+    _chartFixes.push({ name, type: fix.type || "WP", pos: pos.clone() });
   }
 
   if (fixTriPositions.length > 0) {
@@ -3574,7 +3576,15 @@ export function getNavHitTargets() {
   return _navHitTargets;
 }
 
+// Named fixes currently drawn, with their scene positions -- what a lesson
+// can point at.
+let _chartFixes = [];
+export function getChartFixes() {
+  return _chartFixes;
+}
+
 export function clearNavChart(scene) {
+  _chartFixes = [];
   _clearNavChart(scene);
 }
 
