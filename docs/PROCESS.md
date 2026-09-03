@@ -394,3 +394,16 @@ three-metre imagery stays on top. Not on small screens, and not when the
 browser says the visitor is saving data. Anisotropic filtering went from 8
 to 16 at the same time: the camera looks across the ground at a shallow
 angle, and that is what keeps the middle distance legible.
+
+The owner's answer was that 49 metres a pixel was still too low, and that
+the load must not slow down. One export is capped at 4096, so the next step
+is a mosaic: the 78-kilometre square around the airport as nine 2048-pixel
+tiles, 26 kilometres each, about 13 metres a pixel -- four times the disc.
+They are fetched three at a time, centre first, after the disc, each laid in
+as it lands, above the disc and below the airport rings, at low fetch
+priority so none of them ever queues ahead of a position poll. Measured on
+the live site: first paint unchanged at 0.7 s, eight of nine tiles in place
+by 60 s on a cold city, all nine by the next reading; 9.5 MB across fifteen
+exports the first time a city is asked, then cached. The cost is real --
+about 250 MB of texture on the GPU -- which is why none of it happens on
+small screens or under save-data.
