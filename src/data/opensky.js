@@ -382,8 +382,10 @@ async function fetchTraceAsync(icao24, deep = false) {
     const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!response.ok) {
       // 404 just means this aircraft has no trace; only treat blocks/outages as
-      // evidence the host itself is unusable.
-      if (response.status !== 404) _noteTraceFailure(`HTTP ${response.status}`);
+      // evidence the host itself is unusable. Remember the absence, or the poll
+      // loop queues the same aircraft again two seconds later, forever.
+      if (response.status === 404) trackCache.set(icao24, { path: [], fetchedAt: Date.now(), empty: true });
+      else _noteTraceFailure(`HTTP ${response.status}`);
       return;
     }
     _traceFailStreak = 0;
@@ -416,6 +418,12 @@ async function fetchTraceAsync(icao24, deep = false) {
       });
     }
 
+    if (waypoints.length === 0) {
+      // An aircraft with no usable history is still an answer. Without this
+      // entry it was re-fetched on every poll: three such aircraft over JFK
+      // produced 5,400 requests an hour from one visitor.
+      trackCache.set(icao24, { path: [], fetchedAt: Date.now(), empty: true });
+    }
     if (waypoints.length >= 1) {
       trackCache.set(icao24, {
         path: waypoints,
