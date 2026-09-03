@@ -204,12 +204,14 @@ export async function loadGroundMap(lat, lon) {
             ((bounds.lonMin + bounds.lonMax) / 2 - lon) * GEO_SCALE * _cosLat;
           const cz = -((bounds.latMin + bounds.latMax) / 2 - lat) * GEO_SCALE;
 
-          const yLevel = 0.003 + hiResOverlays.length * 0.002;
+          // A wide sharp layer arrives after the detail rings and must sit
+          // below them, or the airport's 3m imagery would be covered by 49m.
+          const yLevel = bounds.under ? 0.0015 : 0.003 + hiResOverlays.length * 0.002;
           const geo = new THREE.PlaneGeometry(sizeX, sizeZ);
           const mat = new THREE.MeshBasicMaterial({
             map: upgradedTexture,
             transparent: true,
-            opacity: 0.95,
+            opacity: bounds.under ? 1 : 0.95,
             color: 0xffffff,
             depthWrite: false,
           });

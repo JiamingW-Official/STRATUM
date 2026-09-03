@@ -380,10 +380,17 @@ and the tests turned up more than the features did:
 
 **Sharper ground, after first paint.** The map outside the airport's detail
 rings was a single 600-pixel export of the whole hundred-mile area -- about
-500 metres a pixel -- and it read as soft at every zoom. It still loads
-first, because it is 60 kB and the first picture matters more than the
-sharp one. Once the detail rings are on, the same area is fetched again at
-2048 pixels (554 kB, measured, against 148 kB at 1024) and swapped in
-underneath them: one more request, after the visitor already has a map,
-cached by the service worker so a city pays it once. Not on small screens,
-and not when the browser says the visitor is saving data.
+500 metres a pixel -- and it read as soft at every zoom. The first attempt
+re-fetched the same area at 2048: 290 metres a pixel, still stretched two
+and a half times across a screen at the default framing, and the owner said
+so. The server caps an export at 4096, and spending that on the whole area
+only halves the blur; spent on the 200-kilometre disc the camera actually
+frames, it is 49 metres a pixel, the same as the first detail ring. That is
+what ships: the small base still loads first, because the first picture
+matters more than the sharp one; the disc is fetched after the rings (2.2 MB,
+about thirty seconds to rasterise the first time a city is asked, then
+cached by the service worker) and laid under them, so the airport's
+three-metre imagery stays on top. Not on small screens, and not when the
+browser says the visitor is saving data. Anisotropic filtering went from 8
+to 16 at the same time: the camera looks across the ground at a shallow
+angle, and that is what keeps the middle distance legible.

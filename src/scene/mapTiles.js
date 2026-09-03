@@ -310,7 +310,10 @@ function createTextureFromRegion(result, lonMin, lonMax, latMin, latMax) {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8; // 8× sufficient — halves memory bandwidth vs 16×
+  // The camera looks across the ground at a shallow angle, which squeezes
+  // texels in the distance; 16x anisotropy is what keeps the middle distance
+  // legible, and the GPU clamps it if it cannot.
+  texture.anisotropy = 16;
 
   const uOffset =
     (lonMin - result.canvasLonMin) /
@@ -443,24 +446,25 @@ async function loadProgressiveAsync(
 
     await applyHighRes(rings, centerLat, centerLon, onUpgrade, signal);
 
-    // The base under everything outside the detail rings was a 600px export
-    // of the whole area -- about 500m per pixel, soft at any zoom. Once the
-    // rings are on, fetch it again at 2048px (measured 554kB against 148kB at
-    // 1024) and swap it under them: one request, after first paint, cached by
-    // the service worker so a city pays it once. Not on small screens or
-    // when the visitor has asked to save data.
+    // Outside the detail rings the ground was a 2048px export of the whole
+    // 445km area -- 290m a pixel, stretched two and a half times across a
+    // screen at the default framing. The server caps an export at 4096, so
+    // spending that on the whole area only halves the blur. Spent on the
+    // 200km disc the camera actually frames it is 49m a pixel, the same as the
+    // first detail ring. Fetched after the rings, laid *under* them so the
+    // sharper airport imagery stays on top, cached by the service worker. Not
+    // on small screens or under save-data.
     const wantSharp =
       !signal.aborted &&
       window.innerWidth >= 900 &&
       !(navigator.connection && navigator.connection.saveData);
     if (wantSharp && onUpgrade) {
-      // Straight to the rasteriser with the pixel size: loadTilesForRegion's
-      // fifth argument is a tile budget, and it chooses 1024 for this zoom
-      // itself -- the first attempt at this produced the same URL as the base
-      // and swapped the same image back in.
-      const r2 = await loadRegionViaExport(centerLat, centerLon, half, signal, EXPORT_MAX_PX);
-      if (r2 && !signal.aborted)
-        onUpgrade(createTextureFromRegion(r2, lonMin, lonMax, latMin, latMax), null);
+      const hd = 0.9;
+      const r2 = await loadRegionViaExport(centerLat, centerLon, hd, signal, 4096);
+      if (r2 && !signal.aborted) {
+        const b = { lonMin: centerLon - hd, lonMax: centerLon + hd, latMin: centerLat - hd, latMax: centerLat + hd, under: true };
+        onUpgrade(createTextureFromRegion(r2, b.lonMin, b.lonMax, b.latMin, b.latMax), b);
+      }
     }
   } catch (err) {
     if (!signal.aborted)
