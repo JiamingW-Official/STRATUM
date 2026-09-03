@@ -2491,12 +2491,10 @@ document.addEventListener("keydown", (e) => {
       (ac) => !ac.fadingOut,
     );
     if (all.length === 0) return;
-    // Sort by distance from camera
-    all.sort((a, b) => {
-      const da = a.group.position.distanceToSquared(camera.position);
-      const db = b.group.position.distanceToSquared(camera.position);
-      return da - db;
-    });
+    // Sort by distance from the airport, not from the camera: the camera is
+    // flying toward whatever was just selected, so a camera-relative order
+    // changed under every press and the far aircraft were never reached.
+    all.sort((a, b) => a.group.position.lengthSq() - b.group.position.lengthSq());
     const currentIdx = followTarget ? all.indexOf(followTarget) : -1;
     let nextIdx;
     if (e.key === "]") nextIdx = (currentIdx + 1) % all.length;
