@@ -442,6 +442,22 @@ async function loadProgressiveAsync(
     }
 
     await applyHighRes(rings, centerLat, centerLon, onUpgrade, signal);
+
+    // The base under everything outside the detail rings was a 600px export
+    // of the whole area -- about 500m per pixel, soft at any zoom. Once the
+    // rings are on, fetch it again at 2048px (measured 554kB against 148kB at
+    // 1024) and swap it under them: one request, after first paint, cached by
+    // the service worker so a city pays it once. Not on small screens or
+    // when the visitor has asked to save data.
+    const wantSharp =
+      !signal.aborted &&
+      window.innerWidth >= 900 &&
+      !(navigator.connection && navigator.connection.saveData);
+    if (wantSharp && onUpgrade) {
+      const r2 = await loadTilesForRegion(centerLat, centerLon, half, 11, EXPORT_MAX_PX, signal);
+      if (r2 && !signal.aborted)
+        onUpgrade(createTextureFromRegion(r2, lonMin, lonMax, latMin, latMax), null);
+    }
   } catch (err) {
     if (!signal.aborted)
       console.warn("[MapTiles] Progressive load failed:", err.message);

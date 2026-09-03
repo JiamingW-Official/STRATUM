@@ -323,3 +323,67 @@ finished number: the American figure rests on a hundred thousand
 observations and the European one, today, on a few hundred. The method is
 the contribution -- the sky was already being fetched; the finding was in
 fields that were being thrown away.
+
+## 9. Participation: the layer becomes a task, and the map teaches itself
+
+**Contacts.** The ghost layer was something to look at. It is now something
+to do. A ringed aircraft can be located, heard and typed but never named;
+clicking one logs a contact, the way a scope operator logs a return -- the
+ring swells once and settles, a short synthesised blip, and a count under
+the unseen line: *3 of 12 contacted*, and when they are all found, *all 12
+contacted · none named*. The rules of the game are the argument. A ring
+that has just entered the airspace swells the same way, so a new contact
+draws the eye without a label.
+
+**Arrival.** After the boot screen the camera no longer cuts to the airport.
+It starts high and far and settles over four seconds, so the sky is a place
+you descend into; any input ends the descent at once. The first version was
+never seen: the airspace load resets the camera to its cinematic framing on
+its own schedule, and whichever ran second won. The descent now owns that
+framing, and the load's reset stands aside while it runs.
+
+**Read the sky, and Ground School.** The owner asked for a classroom. I
+argued against one -- a classroom takes the knowledge out of the scene and
+tells it again in a panel -- and the owner asked for it anyway, with
+lessons and tests. What shipped is both, taught from the thing in front of
+you. K draws a leader line from six or seven real objects on screen -- a
+named fix, a runway number, a VOR, the fastest trail, a ringed aircraft,
+the 25-mile ring -- to one line each, and leaves at the first touch. T opens
+Ground School: six short lessons, each anchored to a real object on the map
+with a line to it, each with one question answered on the spot; progress is
+kept in the browser. The six lessons are the six questions the map itself
+raises: how an aircraft is heard, how a runway is named, what a fix is, what
+the trail colour says, who asked not to be seen, and why distance is in
+nautical miles.
+
+**What the checking found.** Every one of these shipped with a live test,
+and the tests turned up more than the features did:
+
+- The fix registry called `clone()` on a plain point, which threw inside the
+  nav-chart build: no fixes drawn, and the key had nothing to point at.
+- The caption under runway 13 said 122 degrees -- the true heading stored
+  with the geometry -- beside a lesson that says 13 points about 130. The
+  number is magnetic; the caption derives from it now.
+- `[` and `]` sorted aircraft by distance from a camera that was flying
+  toward whatever was just selected, so the order changed under every press
+  and the far aircraft were never reached. Sorted from the airport now.
+- Three aircraft with no usable trace were re-requested every two seconds
+  without end -- 5,400 trail requests an hour from one visitor, and the
+  likeliest source of the 429s in the console. An empty answer is now an
+  answer, cached like a full one.
+- A visitor was running a bundle three deployments old. The service worker
+  fetched the HTML shell network-first but in the default cache mode, so the
+  browser's own cache returned a copy it had been told was good for a while,
+  naming the old assets. The shell is fetched with `no-cache`. Several
+  earlier "this change did nothing" moments, including some of my own
+  checks, were this.
+
+**Sharper ground, after first paint.** The map outside the airport's detail
+rings was a single 600-pixel export of the whole hundred-mile area -- about
+500 metres a pixel -- and it read as soft at every zoom. It still loads
+first, because it is 60 kB and the first picture matters more than the
+sharp one. Once the detail rings are on, the same area is fetched again at
+2048 pixels (554 kB, measured, against 148 kB at 1024) and swapped in
+underneath them: one more request, after the visitor already has a map,
+cached by the service worker so a city pays it once. Not on small screens,
+and not when the browser says the visitor is saving data.
