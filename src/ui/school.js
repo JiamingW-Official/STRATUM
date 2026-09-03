@@ -82,7 +82,13 @@ function _landmarks() {
   const fix = fixes.slice().sort((a, b) => a.pos.lengthSq() - b.pos.lengthSq()).find((f) => /^[A-Z]{5}$/.test(f.name));
   if (fix) push('fix', fix.pos, `▲ ${fix.name}`, 'a named point in the sky pilots are told to fly to');
   const thr = (_get.getThresholds?.() || []).find((m) => m.userData?.runwayThreshold?.designator);
-  if (thr) { const d = thr.userData.runwayThreshold; push('threshold', thr.position, `${d.designator}`, `runway heading about ${d.heading}°${/[LRC]$/.test(d.designator) ? ', one of a parallel pair' : ''}`); }
+  if (thr) {
+    const d = thr.userData.runwayThreshold;
+    // The number is the magnetic heading in tens; say that, not the true
+    // heading stored with the geometry, or the caption contradicts the lesson.
+    const mag = (parseInt(d.designator, 10) * 10) % 360;
+    push('threshold', thr.position, `${d.designator}`, `runway heading about ${mag}° magnetic${/[LRC]$/.test(d.designator) ? ', one of a parallel pair' : ''}`);
+  }
   const nav = (_get.getNavaids?.() || []).find((m) => /VOR/.test(m.userData?.navaid?.type || ''));
   if (nav) push('vor', nav.position, `${nav.userData.navaid.ident} VOR`, 'a ground beacon; headings are measured from it');
   const acs = _get.getAircraft?.() || [];
