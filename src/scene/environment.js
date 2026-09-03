@@ -207,7 +207,7 @@ export async function loadGroundMap(lat, lon) {
           // A wide sharp layer arrives after the detail rings and must sit
           // below them, or the airport's 3m imagery would be covered by 49m.
           // under: 1 is the wide disc, 2 the mosaic above it; the rings start at 0.003.
-          const yLevel = bounds.under === 1 ? 0.0015 : bounds.under === 2 ? 0.0022 : 0.003 + hiResOverlays.length * 0.002;
+          const yLevel = bounds.under === 1 ? 0.0015 : bounds.under === 2 ? 0.0022 : bounds.under === 3 ? 0.0026 + (hiResOverlays.length % 7) * 0.00005 : 0.003 + hiResOverlays.length * 0.002;
           const geo = new THREE.PlaneGeometry(sizeX, sizeZ);
           const mat = new THREE.MeshBasicMaterial({
             map: upgradedTexture,

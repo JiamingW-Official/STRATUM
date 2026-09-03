@@ -156,6 +156,27 @@ const latToMerc = (lat) =>
 // Longest edge of a single rasterised region. 2048 costs one ~10s request; the
 // tiled equivalent is several hundred requests for the same ground.
 const EXPORT_MAX_PX = 2048;
+
+// ── Coverage and the view loader ─────────────────────────────────────────────
+// Every layer that lands is registered with its ground resolution, so the
+// loader below can tell whether the ground under the camera is already as
+// sharp as the screen can show. When it is not, and the camera has come to
+// rest, one export sized to the view is fetched for the cell under it.
+let _coverage = []; // { lonMin, lonMax, latMin, latMax, mpp }
+let _viewCam = null;
+function _registerCoverage(b, widthPx) {
+  const m = ((b.lonMax - b.lonMin) * 111000 * Math.cos((((b.latMin + b.latMax) / 2) * Math.PI) / 180)) / widthPx;
+  _coverage.push({ ...b, mpp: m });
+}
+function _bestMppAt(lat, lon) {
+  let best = 300; // the base, roughly
+  for (const c of _coverage)
+    if (lon >= c.lonMin && lon <= c.lonMax && lat >= c.latMin && lat <= c.latMax && c.mpp < best) best = c.mpp;
+  return best;
+}
+export function setViewCamera(camera) { _viewCam = camera; }
+const VIEW_TILE_LIMIT = 12;
+const VIEW_LADDER = [0.006, 0.012, 0.024, 0.048, 0.096, 0.19]; // half-degrees
 const EXPORT_BASE_PX = 1024;
 const EXPORT_PREVIEW_PX = 512;
 
@@ -426,6 +447,7 @@ async function loadProgressiveAsync(
     // Full-area refinement and the detail rings go out together; only the order
     // in which their results are applied matters, since each ring is layered on
     // top of the last.
+    _coverage = [];
     const basePromise = loadTilesForRegion(
       centerLat,
       centerLon,
@@ -464,6 +486,7 @@ async function loadProgressiveAsync(
       const r2 = await loadRegionViaExport(centerLat, centerLon, hd, signal, 4096);
       if (r2 && !signal.aborted) {
         const b = { lonMin: centerLon - hd, lonMax: centerLon + hd, latMin: centerLat - hd, latMax: centerLat + hd, under: 1 };
+        _registerCoverage(b, 4096);
         onUpgrade(createTextureFromRegion(r2, b.lonMin, b.lonMax, b.latMin, b.latMax), b);
       }
 
@@ -486,10 +509,20 @@ async function loadProgressiveAsync(
           const r = await loadRegionViaExport(t.cLat, t.cLon, step / 2, signal, 2048);
           if (!r || signal.aborted) continue;
           const b = { lonMin: t.cLon - step / 2, lonMax: t.cLon + step / 2, latMin: t.cLat - step / 2, latMax: t.cLat + step / 2, under: 2 };
+          _registerCoverage(b, 2048);
           onUpgrade(createTextureFromRegion(r, b.lonMin, b.lonMax, b.latMin, b.latMax), b);
         }
       };
       await Promise.all([worker(), worker(), worker()]);
+
+      // From here on, the camera decides. Nothing fixed can be sharp at every
+      // altitude: a mosaic that reads at the default framing is still ten
+      // times too coarse when the camera comes down over a suburb outside
+      // the rings. So when the camera rests, the ground under it is compared
+      // with what the screen can show, and if the screen could show more, one
+      // export sized to the view is fetched for that cell and laid in. Twelve
+      // such tiles a city, then it stops.
+      _startViewLoader(centerLat, centerLon, onUpgrade, signal);
     }
   } catch (err) {
     if (!signal.aborted)
@@ -512,6 +545,56 @@ const DETAIL_LEVELS = [
 // Rasterised rings are one request each, so they all go out immediately and only
 // their application is ordered. The tiled path stays lazy — overlapping it would
 // put thousands of tile requests in flight at once — so it hands back thunks.
+function _startViewLoader(centerLat, centerLon, onUpgrade, signal) {
+  if (!_viewCam) return;
+  const loaded = new Set();
+  let count = 0, inFlight = 0;
+  let lastKey = null, restSince = 0, lastPos = null;
+  const tick = async () => {
+    if (signal.aborted) { clearInterval(timer); return; }
+    if (count >= VIEW_TILE_LIMIT || inFlight > 0) return;
+    const cam = _viewCam;
+    // ground point under the screen centre
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    if (dir.y >= -0.05) return; // looking at the horizon
+    const t = -cam.position.y / dir.y;
+    const gx = cam.position.x + dir.x * t, gz = cam.position.z + dir.z * t;
+    const dist = Math.hypot(dir.x * t, cam.position.y, dir.z * t);
+    // camera at rest?
+    const pos = [cam.position.x, cam.position.y, cam.position.z, gx, gz].map((v) => Math.round(v * 100) / 100).join(",");
+    if (pos !== lastPos) { lastPos = pos; restSince = performance.now(); return; }
+    if (performance.now() - restSince < 400) return;
+    // footprint: half-height of the view on the ground, in degrees of latitude
+    const fov = ((cam.fov || 50) * Math.PI) / 180;
+    const halfUnits = dist * Math.tan(fov / 2) * 1.2;
+    const halfDeg = halfUnits / 40; // GEO_SCALE
+    const cosLat = Math.cos((centerLat * Math.PI) / 180);
+    const lat = centerLat - gz / 40, lon = centerLon + gx / (40 * cosLat);
+    const screenH = Math.max(600, window.innerHeight);
+    const needMpp = (2 * halfDeg * 111000) / screenH; // metres per screen pixel on the ground
+    if (_bestMppAt(lat, lon) <= needMpp * 1.5) return; // already sharp enough here
+    // pick the ladder step that gives 2048px at about the footprint
+    const half = VIEW_LADDER.find((h) => h >= halfDeg) || VIEW_LADDER[VIEW_LADDER.length - 1];
+    if (halfDeg > VIEW_LADDER[VIEW_LADDER.length - 1]) return; // too high up; the mosaic serves
+    const size = 2 * half;
+    const ci = Math.floor(lon / size), cj = Math.floor(lat / size);
+    const key = `${half}:${ci}:${cj}`;
+    if (loaded.has(key)) return;
+    loaded.add(key); lastKey = key; inFlight++; count++;
+    const cLon = (ci + 0.5) * size, cLat = (cj + 0.5) * size;
+    try {
+      const r = await loadRegionViaExport(cLat, cLon, half, signal, 2048);
+      if (r && !signal.aborted) {
+        const b = { lonMin: cLon - half, lonMax: cLon + half, latMin: cLat - half, latMax: cLat + half, under: 3 };
+        _registerCoverage(b, 2048);
+        onUpgrade(createTextureFromRegion(r, b.lonMin, b.lonMax, b.latMin, b.latMax), b);
+      }
+    } finally { inFlight--; }
+  };
+  const timer = setInterval(tick, 250);
+  signal.addEventListener("abort", () => clearInterval(timer), { once: true });
+}
+
 function startHighResFetches(centerLat, centerLon, half, signal) {
   const overlap = !!PROVIDER.exportUrl;
   return DETAIL_LEVELS.map((level) => {
@@ -542,6 +625,7 @@ async function applyHighRes(rings, centerLat, centerLon, onUpgrade, signal) {
         latMin: centerLat - h,
         latMax: centerLat + h,
       };
+      _registerCoverage(bounds, region.canvas ? region.canvas.width : 2048);
       onUpgrade(
         createTextureFromRegion(
           region,

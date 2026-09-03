@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { initSchool, toggleSkyLegend, toggleSchool, schoolKey } from "./ui/school.js";
+import { setViewCamera } from "./scene/mapTiles.js";
 // Postprocessing is lazy-loaded after first render to keep critical-path JS small
 import {
   createEnvironment,
@@ -263,6 +264,7 @@ camera.lookAt(0, 0, 0);
 
 // --- Controls ---
 const controls = new OrbitControls(camera, canvas);
+setViewCamera(camera);
 controls.enableDamping = true;
 controls.dampingFactor = 0.09;
 controls.target.set(0, 0, 0);
