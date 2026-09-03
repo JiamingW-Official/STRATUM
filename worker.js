@@ -412,7 +412,10 @@ async function handleProxy(request, prefix, target, url) {
         headers: upstream.headers,
       });
       toCache.headers.set("Access-Control-Allow-Origin", "*");
-      cachePut(new Request(proxyUrl), toCache, ttl);
+      // Awaited: the runtime cancels a pending write once the response has
+      // gone out, and this one was never landing -- every basemap image was
+      // a miss, and the rasteriser was paid by every visitor.
+      await cachePut(new Request(proxyUrl), toCache, ttl);
 
       return response;
     }
@@ -1216,6 +1219,45 @@ async function handleBoot(url, env) {
 // Paid plan includes cron triggers — run every 5 min to keep cache hot.
 // When a real user visits any of these cities, data is already cached = 0ms API latency.
 // Airport data has a 24h edge cache so handleAirports is a no-op after first warm.
+// ── Basemap warm: the same images the client will ask for, byte for byte ──
+// Mirrors loadRegionViaExport in src/scene/mapTiles.js: the client computes
+// the mercator bbox from centre and half-extent, scales to the pixel budget,
+// rounds the bbox to integer metres. Any drift here and the warm renders an
+// image nobody ever requests.
+const MERC_MAX = 20037508.34;
+const _lonToMerc = (lon) => (lon * MERC_MAX) / 180;
+const _latToMerc = (lat) => (Math.log(Math.tan(((90 + lat) * Math.PI) / 360)) / (Math.PI / 180)) * (MERC_MAX / 180);
+function _exportPath(centerLat, centerLon, halfDeg, maxPx) {
+  const bbox = [_lonToMerc(centerLon - halfDeg), _latToMerc(centerLat - halfDeg), _lonToMerc(centerLon + halfDeg), _latToMerc(centerLat + halfDeg)];
+  const mercW = bbox[2] - bbox[0], mercH = bbox[3] - bbox[1];
+  const scale = maxPx / Math.max(mercW, mercH);
+  const w = Math.max(1, Math.round(mercW * scale)), h = Math.max(1, Math.round(mercH * scale));
+  return `/map/export/?bbox=${bbox.map((v) => Math.round(v)).join(",")}&bboxSR=102100&imageSR=102100&size=${w},${h}&format=png&transparent=false&f=image`;
+}
+// Everything the client fetches for a city before the camera moves: preview,
+// base, three detail rings, the 200km disc, the 3x3 mosaic. Fifteen images.
+function _cityImagePaths(lat, lon) {
+  const out = [_exportPath(lat, lon, 2.0, 512), _exportPath(lat, lon, 2.0, 1024)];
+  for (const h of [0.45, 0.11, 0.03]) out.push(_exportPath(lat, lon, h, 2048));
+  out.push(_exportPath(lat, lon, 0.9, 4096));
+  const mh = 0.35, n = 3, step = (2 * mh) / n;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++)
+    out.push(_exportPath(lat - mh + step * (j + 0.5), lon - mh + step * (i + 0.5), step / 2, 2048));
+  return out;
+}
+async function _warmCityImages(lat, lon) {
+  const paths = _cityImagePaths(lat, lon);
+  let i = 0;
+  const one = async () => {
+    while (i < paths.length) {
+      const path = paths[i++];
+      const url = new URL("https://cache.internal" + path);
+      try { await handleProxy(new Request(url.toString()), "/map/export/", PROXY_ROUTES["/map/export/"], url); } catch {}
+    }
+  };
+  await Promise.all([one(), one()]);
+}
+
 const WARM_CITIES = [
   // ── USA ──
   { lat: 40.71, lon: -74.01 }, // NYC center — matches speculative /api/boot cache key exactly
@@ -1440,6 +1482,15 @@ export default {
         WARM_AIRPORTS[(start + i + 1) % WARM_AIRPORTS.length],
       ];
       await Promise.allSettled(pair.map(warmCounted));
+    }
+
+    // Two cities' basemap images per run, rotating through the busiest
+    // seventy: a cold image costs the rasteriser 4-30s, so a visitor should
+    // never be the one to pay it. Fifteen images a city, two in flight.
+    const wc = Math.floor(Date.now() / 300000);
+    for (let k = 0; k < 2; k++) {
+      const c = WARM_CITIES[(wc * 2 + k) % WARM_CITIES.length];
+      if (c) await _warmCityImages(c.lat, c.lon);
     }
 
     // Merge this run into the running index and write it once. Sums, not
