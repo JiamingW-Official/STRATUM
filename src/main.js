@@ -1820,6 +1820,16 @@ function _bootThesisFromIndex() {
   el.innerHTML = `Every aircraft here says how it was heard. Some asked not to be.<br>In American skies, ${one(us[0], us[1])}. In European skies, ${one(eu[0], eu[1])}.`;
 }
 
+// Per-city share, computed once per index load.
+let _visShareCache = null, _visShareCacheAt = 0;
+function _visShareCached(i) {
+  if (!_visShareCache || _visShareCacheAt !== _visFetchedAt) {
+    _visShareCache = CITIES.map((c) => _visShareFor(c.lat, c.lon));
+    _visShareCacheAt = _visFetchedAt;
+  }
+  return _visShareCache[i];
+}
+
 function _nearestCityName(lat, lon) {
   let best = null, bd = Infinity;
   for (const c of CITIES) {
@@ -10118,7 +10128,7 @@ class GlobeView {
             // that asked not to be seen -- cool where almost none did, warm
             // where one in seven did. Skies not yet measured stay faint, so
             // "no data" is never drawn as "no one hides here".
-            const v = _visShareFor(c.lat, c.lon);
+            const v = this._unseenByCity ? this._unseenByCity[i] : null;
             if (!v) {
               ctx.beginPath();
               ctx.arc(p.x, p.y, 1.1 + zoom * 0.1, 0, Math.PI * 2);
@@ -10750,6 +10760,10 @@ class GlobeView {
 
   setUnseenMode(on) {
     this._unseenMode = !!on;
+    // One nearest-cell lookup per city, here, not per city per frame: with
+    // 1,623 cities and a few hundred cells that was twenty-odd million
+    // comparisons a second for a picture that only changes when the index does.
+    this._unseenByCity = this._unseenMode ? CITIES.map((c) => _visShareFor(c.lat, c.lon)) : null;
   }
 
   setFilter(region, query) {
@@ -13046,7 +13060,7 @@ function initCityPicker() {
       results = results.slice().sort((a, b) => b.pax - a.pax);
     } else if (sortBy === "unseen") {
       // Measured skies by share, most hidden first; the unmeasured after them.
-      const sh = (e) => { const c = CITIES[e.i]; const v = _visShareFor(c.lat, c.lon); return v ? v.share : -1; };
+      const sh = (e) => { const v = _visShareCached(e.i); return v ? v.share : -1; };
       results = results.slice().sort((a, b) => sh(b) - sh(a) || b.pax - a.pax);
     } else if (sortBy === "runways") {
       results = results.slice().sort((a, b) => b.rwys - a.rwys);
@@ -13132,7 +13146,7 @@ function initCityPicker() {
     let paxPct = e.pax > 0 ? Math.min(100, Math.round((e.pax / 105) * 100)) : 0;
     if (showMode === "unseen") {
       // The bar becomes the share that asked not to be seen, on a 0-20% scale.
-      const v = _visShareFor(c.lat, c.lon);
+      const v = _visShareCached(e.i);
       paxStr = v ? `${Math.round(v.share * 100)}%` : "";
       paxPct = v ? Math.min(100, Math.round((v.share / 0.2) * 100)) : 0;
     }

@@ -25,7 +25,31 @@ let _icao = null;
 // answer 200 with an empty content-type and no CORS header, so cycling through
 // them turned one transient hiccup into "feed unavailable"; s1-bos is kept as a
 // single alternate because it mirrors most mounts.
-const MIRRORS = ['s1-bos'];
+// Both answer this project's mounts as audio/mpeg today (checked by range
+// request); s1-lax and s1-dal do not, and are not listed.
+const MIRRORS = ['s1-bos', 's1-fmt2'];
+// A stream that connects and never starts is the failure the user actually
+// sees: the label said TUNING for as long as they cared to wait. Ten seconds
+// without a first frame moves to the next mirror; after the last, say so.
+const STALL_MS = 10000;
+let _stallTimer = null;
+function _armStall() {
+  clearTimeout(_stallTimer);
+  _stallTimer = setTimeout(() => {
+    if (!_wanted || !_audio || !_audio.paused && _audio.readyState >= 3) return;
+    _nextMirrorOrFail();
+  }, STALL_MS);
+}
+function _nextMirrorOrFail() {
+  const f = _entry(_heard);
+  const order = f ? [f.server, ...MIRRORS.filter((m) => m !== f.server)] : MIRRORS;
+  if (_mirrorIdx < order.length - 1) {
+    _mirrorIdx++;
+    const url = feedFor(_icao);
+    if (url && _audio) { _audio.src = url; _render('loading'); _audio.play().catch(() => {}); _armStall(); return; }
+  }
+  _wanted = false; _mirrorIdx = 0; clearTimeout(_stallTimer); _render('error');
+}
 let _mirrorIdx = 0;
 let _nearby = null; // set when the feed belongs to a neighbouring airport
 let _btn = null, _label = null, _wrap = null;
@@ -83,9 +107,10 @@ function _render(state) {
     // "click"; the dot carries live / tuning / dead, and the width stops jumping.
     const where = _heard || _icao || '';
     const near = _nearby ? ` · ${_nearby.km}KM` : '';
+    const host = (() => { const f = _entry(_heard); const order = f ? [f.server, ...MIRRORS.filter((m) => m !== f.server)] : MIRRORS; return order[_mirrorIdx % order.length]; })();
     const suffix =
-      state === 'loading' ? ' · TUNING' :
-      state === 'error'   ? ' · NO FEED' : '';
+      state === 'loading' ? ` · TUNING ${host.toUpperCase()}` :
+      state === 'error'   ? ' · NO FEED · RETRY' : '';
     _label.textContent =
       `${where} ${kindFor(_heard).toUpperCase()}${near}${suffix}`;
   }
@@ -101,17 +126,10 @@ function _ensureAudio() {
   // No crossOrigin: we only play the stream, never read its samples, and
   // requesting CORS mode makes an otherwise playable stream fail.
   _audio.volume = 0.7;
-  _audio.addEventListener('playing', () => _render('playing'));
-  _audio.addEventListener('waiting', () => _render('loading'));
-  _audio.addEventListener('error', () => {
-    // One alternate mirror, then report honestly.
-    if (_wanted && _mirrorIdx < MIRRORS.length) {
-      _mirrorIdx++;
-      const url = feedFor(_icao);
-      if (url) { _audio.src = url; _audio.play().catch(() => {}); return; }
-    }
-    _wanted = false; _mirrorIdx = 0; _render('error');
-  });
+  _audio.addEventListener('playing', () => { clearTimeout(_stallTimer); _render('playing'); });
+  _audio.addEventListener('waiting', () => { _render('loading'); if (_wanted) _armStall(); });
+  _audio.addEventListener('error', () => { if (_wanted) _nextMirrorOrFail(); else _render('idle'); });
+  window._atcAudio = _audio; // for anyone diagnosing a silent stream from the console
   _audio.addEventListener('pause', () => { if (!_wanted) _render('idle'); });
   return _audio;
 }
@@ -192,12 +210,14 @@ export function startATC() {
   const a = _ensureAudio();
   if (a.src !== url) a.src = url;
   _render('loading');
-  a.play().catch(() => { _wanted = false; _render('error'); });
+  a.play().catch(() => { if (_wanted) _nextMirrorOrFail(); });
+  _armStall();
 }
 
 export function stopATC() {
   _wanted = false;
   _mirrorIdx = 0;
+  clearTimeout(_stallTimer);
   if (_audio) { _audio.pause(); _audio.removeAttribute('src'); _audio.load(); }
   _render('idle');
 }
