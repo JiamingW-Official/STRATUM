@@ -1,5 +1,5 @@
 // STRATUM Service Worker — smart caching by resource type
-const CACHE_NAME = "stratum-v7";
+const CACHE_NAME = "stratum-v8";
 const TILE_CACHE = "stratum-tiles-v1";
 const RADIO_CACHE = "stratum-radio-v1";
 
@@ -117,8 +117,12 @@ self.addEventListener("fetch", (e) => {
   }
 
   // ── HTML + SW itself: network-first (picks up new deployments) ──
+  // 'no-cache' so the browser's own HTTP cache revalidates with the edge
+  // instead of answering from a copy it was told was good for a while: a
+  // visitor was still running a bundle three deployments old because the
+  // shell that named it came back from disk.
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: "no-cache" })
       .then((res) => {
         if (res.ok) {
           const clone = res.clone();
