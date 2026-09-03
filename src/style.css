@@ -4643,3 +4643,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .school-btn { background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 9px; color: var(--text-2); font-family: var(--font-sans); font-size: var(--fs-label); cursor: pointer; }
 .school-btn:disabled { opacity: 0.35; cursor: default; }
 .school-score { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-3); letter-spacing: 0; }
+
+/* Cycle through the towers within reach of this sky. */
+.hud-atc-next { background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm); color: var(--text-3); font-size: var(--fs-value); line-height: 1; padding: 1px 7px 3px; margin-left: 6px; cursor: pointer; }
+.hud-atc-next:hover { color: var(--text); border-color: var(--hairline-strong); }
+.hud-atc-next.hidden { display: none; }

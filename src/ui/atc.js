@@ -81,6 +81,42 @@ function _nearestWithFeed(icao) {
   return bestKm <= 400 ? { code: best, km: Math.round(bestKm) } : null;
 }
 
+// Every feed within reach of the active airspace, nearest first. Over New
+// York that is JFK, LaGuardia, Newark, Teterboro and White Plains: one sky,
+// five towers, and the visitor can listen to any of them.
+const NEARBY_KM = 60;
+function _nearbyFeeds() {
+  const here = (_icao && (FEEDS[_icao] || (AIRPORTS && AIRPORTS[_icao]))) || null;
+  if (!here || here.lat === undefined) return [];
+  const out = [];
+  for (const code of Object.keys(FEEDS)) {
+    const f = FEEDS[code];
+    if (f.lat === undefined) continue;
+    const dLat = (f.lat - here.lat) * 111;
+    const dLon = (f.lon - here.lon) * 111 * Math.cos((here.lat * Math.PI) / 180);
+    const km = Math.hypot(dLat, dLon);
+    if (km <= NEARBY_KM) out.push({ code, km: Math.round(km) });
+  }
+  return out.sort((a, b) => a.km - b.km);
+}
+export function nextTower() {
+  const list = _nearbyFeeds();
+  if (list.length < 2) return;
+  const i = Math.max(0, list.findIndex((x) => x.code === _heard));
+  const n = list[(i + 1) % list.length];
+  _heard = n.code;
+  _nearby = n.code === _icao ? null : n;
+  _mirrorIdx = 0;
+  _preconnect(FEEDS[n.code].server);
+  const url = feedFor(_icao);
+  if (url) {
+    const a = _ensureAudio();
+    if (a.src !== url) a.src = url;
+    if (_wanted) { _render('loading'); a.play().catch(() => _nextMirrorOrFail()); _armStall(); }
+  }
+  _render(_wanted ? 'loading' : _armed ? 'armed' : 'idle');
+}
+
 function feedFor(icao) {
   const f = _entry(_heard);
   if (!f) return null;
@@ -99,6 +135,8 @@ function _render(state) {
   if (state === 'idle' && _armed && !_wanted) state = 'armed';
   const has = !!feedFor(_icao);
   _wrap.classList.toggle('hidden', !has);
+  const nx = document.getElementById('hud-atc-next');
+  if (nx) nx.classList.toggle('hidden', _nearbyFeeds().length < 2);
   _btn?.classList.toggle('is-live', state === 'playing');
   _btn?.classList.toggle('is-busy', state === 'loading');
   if (_label) {
@@ -156,6 +194,8 @@ export function initATC() {
   _label = document.getElementById('hud-atc-label');
   if (!_btn) return;
   _btn.addEventListener('click', () => (_wanted ? stopATC() : startATC()));
+  const nx = document.getElementById('hud-atc-next');
+  if (nx) nx.addEventListener('click', (e) => { e.stopPropagation(); nextTower(); });
   _render('idle');
 }
 
