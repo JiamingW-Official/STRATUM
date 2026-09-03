@@ -1908,12 +1908,18 @@ function _renderContacts() {
 // arrived at as a place rather than switched on as a picture. One time only;
 // any input from the visitor ends it at once.
 let _introDone = false;
+let _introRunning = false;
 function _introDescent() {
   if (_introDone || !camera || !controls) return;
   _introDone = true;
-  const end = camera.position.clone();
+  _introRunning = true;
+  // The descent owns the camera: it ends on the cinematic framing every
+  // airspace load uses, and that load's own reset stands aside while it runs,
+  // whichever of the two happens first.
+  const end = new THREE.Vector3(8, 9, 12);
   const start = end.clone().multiplyScalar(2.6);
   start.y = end.y * 3.2;
+  controls.target.set(0, 1, 0);
   camera.position.copy(start);
   controls.enabled = false;
   const t0 = performance.now();
@@ -1929,7 +1935,7 @@ function _introDescent() {
     if (!cancelled) camera.position.lerpVectors(start, end, e);
     controls.update();
     if (u < 1 && !cancelled) requestAnimationFrame(step);
-    else { camera.position.copy(end); controls.enabled = true; controls.update(); }
+    else { camera.position.copy(end); controls.enabled = true; controls.update(); _introRunning = false; }
   };
   requestAnimationFrame(step);
 }
@@ -9600,12 +9606,15 @@ async function switchCity(city) {
   setATCAirport(AIRPORT_DATA[city.code]?.icao || null);
   updateHUDAirports(0);
 
-  // Reset camera to cinematic angle
-  controls.enabled = false;
-  camera.position.set(8, 9, 12);
-  controls.target.set(0, 1, 0);
-  controls.update();
-  controls.enabled = true;
+  // Reset camera to cinematic angle -- unless the boot descent is already
+  // on its way there.
+  if (!_introRunning) {
+    controls.enabled = false;
+    camera.position.set(8, 9, 12);
+    controls.target.set(0, 1, 0);
+    controls.update();
+    controls.enabled = true;
+  }
 
   // 4. Load ground map + airports + FIR in parallel; nav chart after airports
   const mapP = loadGroundMap(city.lat, city.lon);
