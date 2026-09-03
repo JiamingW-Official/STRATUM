@@ -107,7 +107,10 @@ function _render(state) {
     // "click"; the dot carries live / tuning / dead, and the width stops jumping.
     const where = _heard || _icao || '';
     const near = _nearby ? ` · ${_nearby.km}KM` : '';
-    const host = (() => { const f = _entry(_heard); const order = f ? [f.server, ...MIRRORS.filter((m) => m !== f.server)] : MIRRORS; return order[_mirrorIdx % order.length]; })();
+    // Name the host the element is actually on, not the one the index points at;
+    // the two differed for a beat after a mirror switch.
+    const host = (_audio && _audio.src && _audio.src.split('/')[2]?.split('.')[0]) ||
+      (() => { const f = _entry(_heard); const order = f ? [f.server, ...MIRRORS.filter((m) => m !== f.server)] : MIRRORS; return order[_mirrorIdx % order.length]; })();
     const suffix =
       state === 'loading' ? ` · TUNING ${host.toUpperCase()}` :
       state === 'error'   ? ' · NO FEED · RETRY' : '';
