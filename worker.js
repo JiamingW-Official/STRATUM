@@ -1401,6 +1401,25 @@ export default {
     // reads, so they can go wide.
     await Promise.allSettled(WARM_CITIES.map((c) => warmCounted([c.lat, c.lon])));
 
+    // The comparison the index exists to make is across jurisdictions, and the
+    // every-run list above is almost entirely American. These skies are counted
+    // every run too -- positions only, which is one cheap fetch each; their
+    // runway geometry is left to the slow walk below.
+    const VIS_ANCHORS = [
+      [51.47, -0.46], [49.01, 2.55], [50.04, 8.56], [52.31, 4.76], [40.47, -3.56],
+      [41.80, 12.24], [47.46, 8.55], [55.62, 12.65], [41.28, 28.75],
+      [35.55, 139.78], [37.46, 126.44], [1.36, 103.99], [22.31, 113.92],
+      [25.25, 55.36], [-33.94, 151.18], [43.68, -79.63], [19.44, -99.07], [-23.43, -46.47],
+    ];
+    await Promise.allSettled(
+      VIS_ANCHORS.map(([lat, lon]) =>
+        count(
+          `${lat.toFixed(2)},${lon.toFixed(2)}`, lat, lon,
+          handlePositions(new URL(`https://cache.internal/api/positions?lat=${lat}&lon=${lon}&r=100`)).catch(() => null),
+        ).catch(() => null),
+      ),
+    );
+
     // The rest of the catalogue is walked a few at a time. overpass-api.de gives
     // a client IP two concurrent slots, and every warm request leaves through the
     // same relay address, so a wide fan-out here just makes the pool contend with
