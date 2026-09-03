@@ -60,7 +60,12 @@ const CACHE_TTLS = {
 };
 
 // ── Overpass endpoints for smart routing ──
+// overpass-api.de now answers every request that arrives through the relay
+// with 406 -- the relay's egress is on its blocklist -- and kumi is overloaded
+// most hours. mail.ru's mirror answers the same query in 17s through the
+// relay (6.6s direct), so it goes first; the other two stay as fallbacks.
 const OVERPASS_URLS = [
+  `${RELAY_ORIGIN}/api/ovp-ru/api/interpreter`,
   `${RELAY_ORIGIN}/api/ovp-de/api/interpreter`,
   `${RELAY_ORIGIN}/api/ovp-kumi/api/interpreter`,
 ];
@@ -248,7 +253,7 @@ async function handleAirports(url, env, cacheOnly = false) {
     let lastErr;
     for (const endpoint of OVERPASS_URLS) {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 25000);
+      const timer = setTimeout(() => ctrl.abort(), 40000); // the query itself allows 40s
       try {
         const res = await fetch(endpoint, {
           method: "POST",
