@@ -289,17 +289,25 @@ running index to KV per run. `/api/visibility` reads it back. Nothing shows
 until a sky has three samples and three hundred aircraft behind it; a
 comparison under three points is not said.
 
-**What it found, in the first hours.** Across 14 American skies and 101,357
-aircraft-observations: 9.4% asked not to be seen. Denver 15.0%, New York
-11.2%, Los Angeles 10.9%, Las Vegas 9.6% -- the business-aviation cities --
-against Phoenix 5.2%, Orlando 6.3%, Chicago 7.1%, Atlanta 7.2%. The
-European cells, sampled only once or twice at the time of writing: Frankfurt
-2.0%, Eindhoven 2.3%, Paris 0.0%, Luton 1.0%. The gap is the finding, and it
-is the one an admissions reader can carry out of the room in a sentence: *in
-an American sky, the rich can ask not to be seen; in a European one, nobody
-can.* Eighteen skies outside the United States are now counted every run so
-that sentence rests on more than two samples; the figures above will be
-replaced by the settled ones.
+**What it found.** After 141 warm runs over roughly twenty hours (from
+2026-09-02 16:45Z), counting only skies with three samples and three hundred
+aircraft behind them: across 14 American skies and 119,333
+aircraft-observations, 9.0% asked not to be seen -- one in eleven. Denver
+15.0%, New York 11.2%, Los Angeles 10.9%, Las Vegas 9.6%, White Plains 14% --
+the business-aviation fields -- against Phoenix 5.2%, Orlando 6.3%, Chicago
+7.1%, Atlanta 7.2%. Across the three European skies that had qualified by
+then -- Frankfurt (938 observations, 1.5%), Istanbul (361, 1.1%), Paris (336,
+1.2%) -- 1,635 observations and 1.3%: one in seventy-four. The gap is the
+finding, and it is the one an admissions reader can carry out of the room in
+a sentence: *in an American sky, the rich can ask not to be seen; in a
+European one, nobody can.* Eighteen skies outside the United States are
+counted every run so that sentence keeps resting on more than it did the day
+it was first said; the European figure will move as London, Amsterdam and
+the Asian anchors qualify.
+
+The boot screen now says it in the product's own words, from the same sums:
+*In American skies, about one in 11. In European skies, about one in 74.*
+It says nothing of the kind until both sides have enough behind them.
 
 **Where it lives.** No panel. The HUD's \"N asked not to be seen\" now carries
 the comparison in the same breath: *21 asked not to be seen · 14% here · 2%
