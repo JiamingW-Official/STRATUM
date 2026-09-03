@@ -66,6 +66,7 @@ export function initSchool(opts) {
   _legendEl = document.getElementById('sky-legend');
   _cardEl = document.getElementById('school-card');
   try { _state = JSON.parse(localStorage.getItem('stratum:school') || 'null') || _state; } catch {}
+  window.__school = { landmarks: _landmarks, show: showLegend, hide: hideLegend };
   const stop = () => { if (_legendActive) hideLegend(); };
   window.addEventListener('pointerdown', stop, true);
   window.addEventListener('wheel', stop, { passive: true, capture: true });

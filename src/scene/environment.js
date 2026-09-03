@@ -2910,7 +2910,7 @@ async function loadNavChart(scene, lat, lon) {
     fixDotPositions.push(pos.x, Y_FIX + 0.001, pos.z);
 
     fixScenePos.push({ name, fix, pos });
-    _chartFixes.push({ name, type: fix.type || "WP", pos: pos.clone() });
+    _chartFixes.push({ name, type: fix.type || "WP", pos: new THREE.Vector3(pos.x, pos.y, pos.z) });
   }
 
   if (fixTriPositions.length > 0) {
