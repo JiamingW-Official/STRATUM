@@ -749,6 +749,9 @@
   <div id="detail-airline-deep" class="airline-deep hidden"></div>
 
   <script type="module" src="/src/main.js"></script>
-  <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')</script>
+  <!-- updateViaCache:'none' — without it the browser can answer the sw.js
+       request from its own HTTP cache, so a new worker (and the new bundle it
+       names) is never seen. update() re-checks on every load. -->
+  <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{})</script>
 </body>
 </html>

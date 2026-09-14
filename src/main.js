@@ -1963,7 +1963,7 @@ function _buildTicker() {
     const cls = vs > 100 ? "tk-up" : vs < -100 ? "tk-dn" : "tk-flat";
     const mark = vs > 100 ? "\u25b2" : vs < -100 ? "\u25bc" : "\u2500";
     const chg = Math.abs(vs) > 100 ? `${mark} ${Math.abs(vs).toLocaleString()}` : mark;
-    const sym = _ghostMode && d.masked ? "UNSEEN" : d.callsign;
+    const sym = isGhostMode() && d.masked ? "UNSEEN" : d.callsign;
     items.push(`<span class="tk"><span class="tk-sym">${sym}</span><span class="tk-val">${lvl}</span><span class="tk-chg ${cls}">${chg}</span></span>`);
   }
   if (_lastSky.total) {
