@@ -1435,6 +1435,27 @@ export function deselectAirport(scene) {
 
 // ---- Pulse animation (called from main loop) ----
 
+// Airport lights are additive points with no distance dimming: pull the camera
+// back and tens of thousands of them land on a handful of pixels, add to pure
+// white, and the bloom pass spreads that into a disc over the airport. Their
+// brightness now falls with camera height -- full among the runways, a quarter
+// at map zoom -- so what reads from far away is a bright mark, not a ball.
+let _lightFadeApplied = -1;
+export function updateAirportLightFalloff(camera) {
+  if (!airportGroup || !camera) return;
+  const y = camera.position.y;
+  const t = Math.min(1, Math.max(0, (y - 2.5) / 14));
+  const mul = 1 - 0.78 * t * t;
+  if (Math.abs(mul - _lightFadeApplied) < 0.01) return;
+  _lightFadeApplied = mul;
+  airportGroup.traverse((o) => {
+    if (!o.isPoints || !o.material) return;
+    if (o.material.userData.baseOpacity === undefined)
+      o.material.userData.baseOpacity = o.material.opacity;
+    o.material.opacity = o.material.userData.baseOpacity * mul;
+  });
+}
+
 export function updatePulse(scene, time) {
   // Airport beacon pulse — iterate cached array, no forEach with string compare
   const beaconOpacity = 0.15 + 0.1 * Math.sin(time * 1.5);

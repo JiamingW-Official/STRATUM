@@ -265,14 +265,14 @@ function loadModel(path) {
   return _modelCache[path];
 }
 
-// Pre-load all unique model files
-const _uniqueModelPaths = new Set(Object.values(MODEL_FILES));
-for (const path of Object.values(TYPE_CODE_MODEL_OVERRIDE)) {
-  _uniqueModelPaths.add(path);
-}
-for (const path of _uniqueModelPaths) {
-  loadModel(path);
-}
+// Seven GLB files, 10.7MB, were fetched the moment this module was imported --
+// before a single aircraft was known, and whatever was overhead. An aircraft
+// already loads its own model on creation (see the constructor) and flies a
+// procedural shape until it arrives, so the eager pass bought nothing but a
+// ten-megabyte stall on every visit. Only the narrowbody is warmed, because it
+// is the fallback for every unrecognised type and the most common thing in any
+// sky; the rest arrive as their types do, once, then sit in the HTTP cache.
+loadModel(MODEL_FILES[TYPE_NARROW]);
 
 function cloneModelForAircraft(typeCode) {
   const path = getModelPath(typeCode);

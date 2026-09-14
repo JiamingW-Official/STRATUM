@@ -6,6 +6,7 @@ import { setViewCamera } from "./scene/mapTiles.js";
 import {
   createEnvironment,
   updatePulse,
+  updateAirportLightFalloff,
   loadGroundMap,
   loadAirports,
   clearGroundMap,
@@ -4533,6 +4534,7 @@ function animate() {
   }
 
   updatePulse(scene, _elapsed);
+  updateAirportLightFalloff(camera);
   animateAirportLoading(_elapsed);
   updateCompass(_elapsed);
 
