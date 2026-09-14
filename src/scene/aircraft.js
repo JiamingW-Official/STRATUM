@@ -1094,14 +1094,17 @@ class AircraftObject {
       if (i > 0) {
         const prev = rawPoints[i - 1];
         const dt = wp.time - prev.time;
-        if (dt > GAP_THRESHOLD) {
+        const dlat = (wp.latitude - prev.latitude) * 111000;
+        const dlon = (wp.longitude - prev.longitude) * 111000 * Math.cos(wp.latitude * DEG_TO_RAD);
+        const dist = Math.sqrt(dlat * dlat + dlon * dlon);
+        if (dt > 0) speed = dist / dt;
+        // A gap in time, or a jump no aircraft could have flown. The second test
+        // catches what the first cannot: a single bad fix, which lands far away
+        // between two good ones and drew a spike, and a re-acquisition somewhere
+        // else after a short silence. 400 m/s is 780 knots over the ground --
+        // above anything civil, jetstream included.
+        if (dt > GAP_THRESHOLD || (dt > 0 && dist / dt > 400) || (dt <= 0 && dist > 2000)) {
           isGapStart = true;
-        }
-        if (dt > 0) {
-          const dlat = (wp.latitude - prev.latitude) * 111000;
-          const dlon = (wp.longitude - prev.longitude) * 111000 * Math.cos(wp.latitude * DEG_TO_RAD);
-          const dist = Math.sqrt(dlat * dlat + dlon * dlon);
-          speed = dist / dt;
         }
       }
       withSpeed.push({ pos: waypointToScenePos(wp, this.userLat, this.userLon).clone(), speed, isGapStart });
@@ -1560,6 +1563,29 @@ class AircraftObject {
     const positions = new Float32Array(n * 3);
     const colors = new Float32Array(n * 3);
 
+    // Where the track was bridged, the solid line is not drawn. The segments are
+    // splined separately and then concatenated, so the polyline ran straight
+    // from the last point heard before a silence to the first one after it --
+    // the acute corner that appears when an aircraft turns while out of range.
+    // The dashed connector already says a jump happened; this stops the solid
+    // line from claiming it flew that way. Matched by position, because the
+    // smoothing passes above change how many points there are.
+    const blank = new Uint8Array(n);
+    if (this._gaps && this._gaps.length) {
+      for (const g of this._gaps) {
+        let iFrom = -1, iTo = -1, dFrom = Infinity, dTo = Infinity;
+        for (let i = 0; i < n; i++) {
+          const dx = srcX[i] - g.from.x, dz = srcZ[i] - g.from.z;
+          const a = dx * dx + dz * dz;
+          if (a < dFrom) { dFrom = a; iFrom = i; }
+          const ex = srcX[i] - g.to.x, ez = srcZ[i] - g.to.z;
+          const b = ex * ex + ez * ez;
+          if (b < dTo) { dTo = b; iTo = i; }
+        }
+        if (iFrom >= 0 && iTo > iFrom) for (let i = iFrom; i <= iTo; i++) blank[i] = 1;
+      }
+    }
+
     for (let i = 0; i < n; i++) {
       const i3 = i * 3;
       positions[i3] = srcX[i];
@@ -1575,9 +1601,10 @@ class AircraftObject {
       const t = i / (n - 1);
       const fade = 0.04 + 0.96 * t * t * t;
       const sc = getSpeedColor(smoothedSpeed[i]);
-      colors[i3] = sc.r * fade;
-      colors[i3 + 1] = sc.g * fade;
-      colors[i3 + 2] = sc.b * fade;
+      const f = blank[i] ? 0 : fade;
+      colors[i3] = sc.r * f;
+      colors[i3 + 1] = sc.g * f;
+      colors[i3 + 2] = sc.b * f;
     }
 
     if (this.trailLine) {
