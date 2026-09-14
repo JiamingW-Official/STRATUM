@@ -505,6 +505,65 @@ async function handleProxy(request, prefix, target, url) {
 
 // ── /api/enrich — Parallel aircraft detail aggregation ──
 // Fetches trace + route + hex detail in ONE round-trip from the edge
+// ── /map/export/ — basemap images, edge cache over a global one ──
+// The edge cache is per-datacentre. The cron warms whichever one it runs in,
+// so a visitor arriving days later through a different PoP pays the
+// rasteriser's twenty to thirty seconds and, until it answers, sees nothing.
+// KV is global and these images never change -- a fixed bbox and size always
+// render the same -- so the five a city needs before it can be drawn at all
+// are kept there without an expiry. The sharpening layers (the 200km disc,
+// the mosaic, the camera's own tiles) stay best-effort in the edge cache: a
+// city should never be blank for want of them.
+const MAP_KV_MAX = 2000000;
+async function handleMapExport(url, env) {
+  const qs = url.search;
+  const cacheKey = new Request("https://cache.internal/map" + qs);
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    const r = corsResponse(cached);
+    r.headers.set("X-Cache", "HIT");
+    return r;
+  }
+
+  const essential = url.searchParams.get("kv") === "1";
+  const kvKey = "map:v1:" + qs.slice(1);
+  if (essential && env?.AIRPORT_CACHE) {
+    let buf = null;
+    try { buf = await env.AIRPORT_CACHE.get(kvKey, { type: "arrayBuffer" }); } catch {}
+    if (buf) {
+      const res = new Response(buf, { headers: { "Content-Type": "image/png" } });
+      await cachePut(cacheKey, res.clone(), 2592000);
+      const r = corsResponse(res);
+      r.headers.set("X-Cache", "KV");
+      return r;
+    }
+  }
+
+  let body;
+  try {
+    const upstream = await fetch(PROXY_ROUTES["/map/export/"] + qs, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; STRATUM/1.0)" },
+      signal: AbortSignal.timeout(55000),
+    });
+    if (!upstream.ok) throw new Error("HTTP " + upstream.status);
+    body = await upstream.arrayBuffer();
+  } catch (err) {
+    return new Response("map upstream failed: " + (err?.message || "unknown"), {
+      status: 502,
+      headers: corsHeaders(),
+    });
+  }
+
+  const res = new Response(body, { headers: { "Content-Type": "image/png" } });
+  await cachePut(cacheKey, res.clone(), 2592000);
+  if (essential && env?.AIRPORT_CACHE && body.byteLength <= MAP_KV_MAX) {
+    try { await env.AIRPORT_CACHE.put(kvKey, body); } catch {}
+  }
+  const r = corsResponse(res);
+  r.headers.set("X-Cache", "MISS");
+  return r;
+}
+
 // ── Visibility index ──────────────────────────────────────────────────────────
 // The running tally the cron writes. Public, cached five minutes at the edge.
 async function handleVisibility(env) {
@@ -1246,32 +1305,32 @@ async function handleBoot(url, env) {
 const MERC_MAX = 20037508.34;
 const _lonToMerc = (lon) => (lon * MERC_MAX) / 180;
 const _latToMerc = (lat) => (Math.log(Math.tan(((90 + lat) * Math.PI) / 360)) / (Math.PI / 180)) * (MERC_MAX / 180);
-function _exportPath(centerLat, centerLon, halfDeg, maxPx) {
+function _exportPath(centerLat, centerLon, halfDeg, maxPx, essential) {
   const bbox = [_lonToMerc(centerLon - halfDeg), _latToMerc(centerLat - halfDeg), _lonToMerc(centerLon + halfDeg), _latToMerc(centerLat + halfDeg)];
   const mercW = bbox[2] - bbox[0], mercH = bbox[3] - bbox[1];
   const scale = maxPx / Math.max(mercW, mercH);
   const w = Math.max(1, Math.round(mercW * scale)), h = Math.max(1, Math.round(mercH * scale));
-  return `/map/export/?bbox=${bbox.map((v) => Math.round(v)).join(",")}&bboxSR=102100&imageSR=102100&size=${w},${h}&format=png&transparent=false&f=image`;
+  return `/map/export/?bbox=${bbox.map((v) => Math.round(v)).join(",")}&bboxSR=102100&imageSR=102100&size=${w},${h}&format=png&transparent=false&f=image${essential ? "&kv=1" : ""}`;
 }
 // Everything the client fetches for a city before the camera moves: preview,
 // base, three detail rings, the 200km disc, the 3x3 mosaic. Fifteen images.
 function _cityImagePaths(lat, lon) {
-  const out = [_exportPath(lat, lon, 2.0, 512), _exportPath(lat, lon, 2.0, 1024)];
-  for (const h of [0.45, 0.11, 0.03]) out.push(_exportPath(lat, lon, h, 2048));
+  const out = [_exportPath(lat, lon, 2.0, 512, true), _exportPath(lat, lon, 2.0, 1024, true)];
+  for (const h of [0.45, 0.11, 0.03]) out.push(_exportPath(lat, lon, h, 2048, true));
   out.push(_exportPath(lat, lon, 0.9, 4096));
   const mh = 0.35, n = 3, step = (2 * mh) / n;
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++)
     out.push(_exportPath(lat - mh + step * (j + 0.5), lon - mh + step * (i + 0.5), step / 2, 2048));
   return out;
 }
-async function _warmCityImages(lat, lon) {
+async function _warmCityImages(lat, lon, env) {
   const paths = _cityImagePaths(lat, lon);
   let i = 0;
   const one = async () => {
     while (i < paths.length) {
       const path = paths[i++];
       const url = new URL("https://cache.internal" + path);
-      try { await handleProxy(new Request(url.toString()), "/map/export/", PROXY_ROUTES["/map/export/"], url); } catch {}
+      try { await handleMapExport(url, env); } catch {}
     }
   };
   await Promise.all([one(), one()]);
@@ -1509,7 +1568,7 @@ export default {
     const wc = Math.floor(Date.now() / 300000);
     for (let k = 0; k < 2; k++) {
       const c = WARM_CITIES[(wc * 2 + k) % WARM_CITIES.length];
-      if (c) await _warmCityImages(c.lat, c.lon);
+      if (c) await _warmCityImages(c.lat, c.lon, env);
     }
 
     // Merge this run into the running index and write it once. Sums, not
@@ -1547,6 +1606,7 @@ export default {
     if (url.pathname === "/api/enrich") return handleEnrich(url, env);
     if (url.pathname === "/api/trail") return handleTrail(url);
     if (url.pathname === "/api/visibility") return handleVisibility(env);
+    if (url.pathname.startsWith("/map/export/")) return handleMapExport(url, env);
     if (url.pathname === "/api/weather") return handleWeather(url);
     if (url.pathname === "/api/atlas") return handleAtlas();
 

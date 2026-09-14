@@ -26,9 +26,12 @@ const PROVIDERS = {
     // for a week, so the 20-30s the rasteriser takes is paid once per city
     // for everyone. The bbox is integer metres so the URL is deterministic
     // and the warm pass can ask for exactly the same image.
-    exportUrl: (mercBbox, w, h) =>
+    // kv=1 marks the images a city cannot be drawn without, so the Worker keeps
+    // them in its global store rather than only in the datacentre it was asked
+    // through. The sharpening layers leave it off.
+    exportUrl: (mercBbox, w, h, essential) =>
       `/map/export/?bbox=${mercBbox.map((v) => Math.round(v)).join(",")}&bboxSR=102100&imageSR=102100&size=${w},${h}` +
-      `&format=png&transparent=false&f=image`,
+      `&format=png&transparent=false&f=image${essential ? "&kv=1" : ""}`,
     // Measured against CARTO dark_all: Esri's land fill sits at luma 71 and its
     // brightest roads at ~104, so the curve maps 71 -> 9 and 100+ -> ~150.
     // The knee at `land` keeps landuse fills from lifting off the background
@@ -192,6 +195,7 @@ async function loadRegionViaExport(
   halfDeg,
   signal,
   maxPx,
+  essential,
 ) {
   if (signal?.aborted) return null;
 
@@ -212,7 +216,7 @@ async function loadRegionViaExport(
   const w = Math.max(1, Math.round(mercW * scale));
   const h = Math.max(1, Math.round(mercH * scale));
 
-  const img = await loadImage(PROVIDER.exportUrl(bbox, w, h), signal);
+  const img = await loadImage(PROVIDER.exportUrl(bbox, w, h, essential), signal);
   if (!img || signal?.aborted) return null;
 
   const canvas = document.createElement("canvas");
@@ -258,6 +262,7 @@ async function loadTilesForRegion(
         : zoom <= 11
           ? EXPORT_BASE_PX
           : EXPORT_MAX_PX,
+      true,
     );
   }
   if (signal?.aborted) return null;
