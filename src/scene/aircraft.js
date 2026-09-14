@@ -64,10 +64,6 @@ function getSpeedLineWidth(speed) {
   return 1.6;
 }
 
-// T2-19: Contrail constants
-const CONTRAIL_ALT_THRESHOLD = 9144; // FL300 in meters
-const CONTRAIL_MAX_PARTICLES = 30;
-const CONTRAIL_LIFETIME = 8.0; // seconds
 
 // Aircraft shadow projection — sun-aware ground shadows
 let _sunAzimuth = 0;   // radians, 0 = north, clockwise
@@ -944,9 +940,9 @@ class AircraftObject {
     const tailX    = dims ? dims.tailX * 0.85 : -MODEL_SCALE * 0.35;
     // Wingtip lights sat at the model's origin, level with the middle of the
     // fuselage. On an aircraft they are at the trailing edge of the wingtip,
-    // which is a little aft of that -- far enough back to read as on the wing,
-    // not so far as to leave it. Aft is -X, the direction tailX points.
-    const wingTipX = tailX * 0.3;
+    // which is well aft of the middle: halfway to the tail reads as the back of
+    // the wing without leaving it. Aft is -X, the direction tailX points.
+    const wingTipX = tailX * 0.5;
     this._navLights = [];
 
     // Port (red) — left wingtip (+Z), at wing height (~center Y of model)
@@ -1020,12 +1016,6 @@ class AircraftObject {
     this._initTrail(position, data);
     this.rebuildTrail();
 
-    // T2-19: Contrail particle system (initialized lazily when above FL300)
-    this._contrailPoints = null;  // Points mesh
-    this._contrailGeo = null;
-    this._contrailMat = null;
-    this._contrailParticles = []; // { age, worldPos }
-    this._contrailActive = false;
 
     // Aircraft shadow on ground — shared geometry, cloned material for per-instance opacity
     this._shadowMat = _getSharedShadowMat().clone();
@@ -1674,94 +1664,7 @@ class AircraftObject {
     this.dropGeometry.getAttribute('position').needsUpdate = true;
   }
 
-  // T2-19: Contrail particle system for high-altitude aircraft
-  _initContrail() {
-    if (this._contrailGeo) return; // already initialized
-    this._contrailGeo = new THREE.BufferGeometry();
-    const positions = new Float32Array(CONTRAIL_MAX_PARTICLES * 3);
-    const opacities = new Float32Array(CONTRAIL_MAX_PARTICLES);
-    this._contrailGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    this._contrailGeo.setAttribute('alpha', new THREE.BufferAttribute(opacities, 1));
-    this._contrailMat = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 0.08,
-      transparent: true,
-      opacity: 0.6,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      sizeAttenuation: true,
-    });
-    this._contrailPoints = new THREE.Points(this._contrailGeo, this._contrailMat);
-    this._contrailPoints.frustumCulled = false;
-    this._contrailPoints.renderOrder = 997;
-    this.scene.add(this._contrailPoints);
-    this._contrailActive = true;
-  }
 
-  _updateContrail(delta) {
-    // Throttle contrail updates to every other frame (~30Hz) — visually identical
-    this._contrailSkip = (this._contrailSkip || 0) + 1;
-    if (this._contrailSkip < 2) return;
-    this._contrailSkip = 0;
-    const dt2 = delta * 2; // compensate for skipped frame
-
-    const alt = this.data.baroAltitude;
-    const aboveFL300 = alt != null && alt > CONTRAIL_ALT_THRESHOLD;
-
-    if (!aboveFL300) {
-      // Below FL300 — age out existing particles but don't spawn new ones
-      if (!this._contrailActive) return;
-      if (this._contrailParticles.length === 0) {
-        this._disposeContrail();
-        return;
-      }
-    } else if (!this._contrailActive) {
-      this._initContrail();
-    }
-
-    if (!this._contrailGeo) return;
-
-    // Spawn a new particle at the aircraft's current world position (behind it)
-    if (aboveFL300 && this._contrailParticles.length < CONTRAIL_MAX_PARTICLES) {
-      this._contrailParticles.push({
-        age: 0,
-        x: this.group.position.x,
-        y: this.group.position.y,
-        z: this.group.position.z,
-      });
-    }
-
-    // Age and remove expired particles
-    const posAttr = this._contrailGeo.getAttribute('position');
-    const alphaAttr = this._contrailGeo.getAttribute('alpha');
-    let writeIdx = 0;
-    for (let i = 0; i < this._contrailParticles.length; i++) {
-      const p = this._contrailParticles[i];
-      p.age += dt2;
-      if (p.age >= CONTRAIL_LIFETIME) continue;
-      this._contrailParticles[writeIdx] = p;
-      const i3 = writeIdx * 3;
-      posAttr.array[i3] = p.x;
-      posAttr.array[i3 + 1] = p.y;
-      posAttr.array[i3 + 2] = p.z;
-      // Fade out over lifetime
-      alphaAttr.array[writeIdx] = 1.0 - (p.age / CONTRAIL_LIFETIME);
-      writeIdx++;
-    }
-    this._contrailParticles.length = writeIdx;
-
-    // Zero out unused slots
-    for (let i = writeIdx; i < CONTRAIL_MAX_PARTICLES; i++) {
-      const i3 = i * 3;
-      posAttr.array[i3] = 0; posAttr.array[i3 + 1] = 0; posAttr.array[i3 + 2] = 0;
-      alphaAttr.array[i] = 0;
-    }
-
-    posAttr.needsUpdate = true;
-    alphaAttr.needsUpdate = true;
-    this._contrailGeo.setDrawRange(0, writeIdx);
-    this._contrailMat.opacity = this.masterOpacity * 0.6;
-  }
 
   _updateShadow() {
     if (!this._shadow) return;
@@ -1794,18 +1697,6 @@ class AircraftObject {
     this._shadowMat.opacity = _sunDayFactor * elevFactor * this.masterOpacity * 0.5;
   }
 
-  _disposeContrail() {
-    if (this._contrailPoints) {
-      this.scene.remove(this._contrailPoints);
-    }
-    if (this._contrailGeo) this._contrailGeo.dispose();
-    if (this._contrailMat) this._contrailMat.dispose();
-    this._contrailPoints = null;
-    this._contrailGeo = null;
-    this._contrailMat = null;
-    this._contrailParticles = [];
-    this._contrailActive = false;
-  }
 
   startFadeOut() {
     if (this.fadingOut) return;
@@ -1933,10 +1824,6 @@ class AircraftObject {
     const dist2 = cp ? this.group.position.distanceToSquared(cp) : 0;
     const isNear = dist2 < 400; // ~20 units = ~55km
 
-    // Contrails: only near aircraft, throttle to every 2nd frame for far
-    if (isNear || (fc & 1) === 0) {
-      this._updateContrail(delta);
-    }
 
     // Shadow: throttle to every 3rd frame (sun moves slowly)
     if ((fc % 3) === 0) {
@@ -1982,8 +1869,6 @@ class AircraftObject {
     for (const nl of this._navLights) {
       nl.material.dispose();
     }
-    // T2-19: Clean up contrail particles
-    this._disposeContrail();
     // Shadow cleanup — geometry is shared, only dispose cloned material
     if (this._shadow) {
       scene.remove(this._shadow);
