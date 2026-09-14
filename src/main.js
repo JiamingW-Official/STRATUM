@@ -1862,7 +1862,7 @@ function _renderVisibilityCmp() {
   const name = cmp ? _nearestCityName(cmp.lat, cmp.lon) : null;
   if (!cmp || !name || gap < 0.03) { el.textContent = ""; return; }
   const pct = (x) => `${Math.round(x * 100)}%`;
-  el.textContent = `${pct(share)} here · ${pct(cmp.masked / cmp.total)} ${name}`;
+  el.textContent = `${pct(share)} here · ${pct(cmp.masked / cmp.total)} over ${name}`;
 }
 
 // ── Contacts ────────────────────────────────────────────────────────────────
@@ -1898,9 +1898,11 @@ function _renderContacts() {
   const total = _lastSky.unseen;
   if (!isGhostMode() || !total) { el.textContent = ""; return; }
   const seenNow = aircraftManager ? [...aircraftManager.aircraft.values()].filter((a) => a.data.masked && _contacts.has(a.data.icao24)).length : 0;
+  // The hero above already states the total, so this line carries progress
+  // only. It used to repeat the number directly under itself.
   el.textContent = seenNow >= total
-    ? `all ${total} contacted · none named`
-    : seenNow ? `${seenNow} of ${total} contacted` : `${total} to find`;
+    ? `all contacted · none named`
+    : seenNow ? `${seenNow} of ${total} contacted` : `none contacted yet`;
 }
 
 // The first thing after the boot screen is a descent: the camera starts high

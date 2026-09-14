@@ -207,20 +207,43 @@ html, body {
 }
 .hud-divider.hidden { display: none; }
 
-.hud-stats { display: flex; gap: 28px; padding: 4px 0; }
-
-.hud-stat { display: flex; flex-direction: column; gap: 2px; }
-
-.hud-stat-value { font-size: var(--fs-hero); font-weight: 400;
-  color: var(--text); font-variant-numeric: tabular-nums;
-  line-height: 1; letter-spacing: -0.02em;
-  transition: color 0.3s;
-  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.9);
-  font-family: var(--font-mono);
+/* ── The hero ──
+   One number at hero size in this panel, and it is the withheld count. The
+   traffic count, the airport count and the clock sit under it at label size:
+   they are the denominator, not the subject. Pressing the hero reveals the
+   aircraft it counts, so the largest thing on the panel is also the one
+   control worth finding. */
+.hud-hero {
+  display: flex; flex-direction: column; gap: 2px; padding: 4px 0 0;
+  background: none; border: none; text-align: left; cursor: pointer;
+  pointer-events: auto; color: inherit;
 }
-
-.hud-stat-label { font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: var(--track-label); color: var(--text-3); text-transform: uppercase;
+.hud-hero-value {
+  font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+  line-height: 1; letter-spacing: -0.02em;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.9);
+  transition: color 0.3s;
+}
+.hud-hero-label {
+  font-family: var(--font-sans); font-size: var(--fs-label);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--text-2);
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9);
+}
+.hud-hero:hover .hud-hero-label { color: var(--text); }
+/* A sky where nobody may hide is a finding, not an empty state — it keeps the
+   hero slot and loses only its colour. */
+.hud-hero.is-zero .hud-hero-value { color: var(--text-3); }
+
+.hud-context { padding: 7px 0 1px; }
+.hud-ctx-line {
+  font-family: var(--font-sans); font-size: var(--fs-label);
+  color: var(--text-3); letter-spacing: 0;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9);
+}
+.hud-ctx-line #hud-count, .hud-ctx-line #hud-airports, .hud-ctx-line #hud-zulu {
+  font-family: var(--font-mono); color: var(--text-2); font-variant-numeric: tabular-nums;
 }
 
 .hud-meta { display: flex; flex-direction: column; gap: 3px; }
@@ -2863,12 +2886,6 @@ html, body {
 }
 
 /* ── T1-05: UTC / Local Clock ── */
-.hud-stat-clock {
-  overflow: hidden;
-}
-.hud-stat-clock .hud-stat-value { font-size: var(--fs-value); letter-spacing: var(--track-label);
-  color: var(--text-2);
-}
 @keyframes clockSlideIn {
   0%   { opacity: 0; transform: translateY(8px); }
   100% { opacity: 1; transform: translateY(0); }
@@ -3730,8 +3747,7 @@ html, body {
     border-radius: 0 0 var(--r) 0;
     top: 0; left: 0;
   }
-  .hud-stat-value { font-size: var(--fs-value); }
-  .hud-stats { gap: 14px; }
+  .hud-hero-value { font-size: var(--fs-value); }
   .hud-brand { font-size: var(--fs-label); letter-spacing: var(--track-label); }
   .hud-wx-detail { display: none; }
   .hud-city-btn { font-size: var(--fs-label); padding: 5px 7px; }
@@ -3898,7 +3914,7 @@ html, body {
 /* ── Small phone (375px) ── */
 @media (max-width: 400px) {
   #hud { width: 180px; padding: 8px 10px; }
-  .hud-stat-value { font-size: var(--fs-value); }
+  .hud-hero-value { font-size: var(--fs-value); }
   .detail-callsign { font-size: var(--fs-value); }
   .detail-value { font-size: var(--fs-body); }
   .detail-panel { max-height: 50vh; }
@@ -4475,7 +4491,16 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .aw-seq-edu { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); line-height: 1.45; padding: 6px 16px 8px; }
 
 /* Zulu clock is a reading, not the headline count beside it. */
-#hud-zulu { font-size: var(--fs-value); font-weight: 500; letter-spacing: 0; }
+/* The clock sits in the context line now, at context size. It kept a
+   16px/500 rule from the retired hero row, which made it shout over the
+   figure it is meant to sit beside. */
+#hud-zulu { font-size: var(--fs-label); font-weight: 400; letter-spacing: 0; }
+#hud-clock-label { color: var(--text-3); }
+.hud-clock {
+  background: none; border: none; padding: 0; margin: 0; cursor: pointer;
+  pointer-events: auto; font: inherit; color: inherit; letter-spacing: inherit;
+}
+.hud-clock:hover #hud-zulu, .hud-clock:hover #hud-clock-label { color: var(--text); }
 
 /* Flight list rows carry a hairline, not a resting tint. */
 .aw-flight-item { background: none; border-top: 1px solid var(--hairline); padding: 6px 0; }
@@ -4526,12 +4551,13 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* HUD — sky as people. Two plain sentences under the counters; the "unseen"
    line carries the accent because it is the claim the whole layer makes. */
 .hud-sky { display: flex; flex-direction: column; gap: 3px; padding: 8px 0 2px; border-top: 1px solid var(--hairline); }
+.hud-sky-cmp:empty { display: none; }
+/* Layer on: the hero brightens, because what it counts is now drawn. */
+.ghost-mode .hud-hero-value { color: var(--accent-bright); }
+.ghost-mode .hud-hero-label { color: var(--text); }
 .hud-sky.hidden { display: none; }
 .hud-sky-line { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-2); letter-spacing: 0; }
-.hud-sky-line #hud-sky-people, .hud-sky-line #hud-sky-cities, .hud-sky-line #hud-sky-unseen { font-family: var(--font-mono); color: var(--text); }
-.hud-sky-unseen #hud-sky-unseen { color: var(--accent); }
-.hud-sky-unseen.is-zero { color: var(--text-3); }
-.hud-sky-unseen.is-zero #hud-sky-unseen { color: var(--text-3); }
+.hud-sky-line #hud-sky-people, .hud-sky-line #hud-sky-cities { font-family: var(--font-mono); color: var(--text); }
 
 /* Tower audio control — a text button with a live dot, not a media player. */
 .hud-atc { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
@@ -4576,15 +4602,11 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    wrap; give it the width it needs instead. */
 @media (max-width: 768px) {
   #hud { min-width: 232px; }
-  .hud-stat-value, .hud-stat-label, .hud-atc-btn, .hud-atc-credit,
+  .hud-hero-value, .hud-hero-label, .hud-ctx-line, .hud-atc-btn, .hud-atc-credit,
   .hud-wx-line, .hud-wx-wind { white-space: nowrap; }
   .hud-sky-line { white-space: normal; }
 }
 
-/* The unseen count is a control now, styled as the line it was. */
-.hud-sky-unseen { background: none; border: none; padding: 0; margin: 0; text-align: left; cursor: pointer; font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-2); }
-.hud-sky-unseen:hover #hud-sky-unseen { text-decoration: underline; text-underline-offset: 2px; }
-.ghost-mode .hud-sky-unseen #hud-sky-unseen { color: var(--text); }
 
 /* One sentence under the callsign: how this position reached us. */
 .detail-heard { margin: 2px 16px 6px; font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.5; color: var(--text-3); letter-spacing: 0; }

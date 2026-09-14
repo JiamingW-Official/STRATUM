@@ -74,9 +74,13 @@ export function updateHUDAirports(count) {
 // ── UTC / Local time cycling ──
 let _utcOffsetSec = 0;
 let _tzAbbr = '';
+// The clock used to flip itself between UTC and local every 15 seconds, with a
+// slide. That was defensible when it was a hero stat with its own label; it is
+// not, now that it is the tail of a quiet context line, where the motion pulls
+// the eye off the one number this panel is about and jitters the line's width
+// twice a minute. It shows Zulu, which is the unit every timestamp in ADS-B
+// actually arrives in, and swaps to local only when someone asks it to.
 let _showLocal = false;
-let _lastToggle = 0;
-const TOGGLE_INTERVAL = 15000; // cycle every 15 seconds
 
 export function setLocalTimezone(offsetSeconds, abbr) {
   _utcOffsetSec = offsetSeconds || 0;
@@ -113,27 +117,6 @@ export function updateHUDTimer() {
 
   if (!hudZulu) return;
 
-  const now = Date.now();
-
-  // Auto-toggle between UTC and local every TOGGLE_INTERVAL
-  if (_utcOffsetSec !== 0 && now - _lastToggle > TOGGLE_INTERVAL) {
-    _lastToggle = now;
-    const wasLocal = _showLocal;
-    _showLocal = !_showLocal;
-
-    // Trigger slide animation
-    if (hudZulu) {
-      hudZulu.classList.remove('clock-slide-in');
-      void hudZulu.offsetWidth;
-      hudZulu.classList.add('clock-slide-in');
-    }
-    if (hudClockLabel) {
-      hudClockLabel.classList.remove('clock-slide-in');
-      void hudClockLabel.offsetWidth;
-      hudClockLabel.classList.add('clock-slide-in');
-    }
-  }
-
   const d = new Date();
 
   if (_showLocal && _utcOffsetSec !== 0) {
@@ -146,7 +129,8 @@ export function updateHUDTimer() {
     if (hudClockLabel) hudClockLabel.textContent = _tzAbbr || 'LCL';
   } else {
     hudZulu.textContent = `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}Z`;
-    if (hudClockLabel) hudClockLabel.textContent = 'UTC';
+    // The Z already says UTC. "14:41Z UTC" said it twice.
+    if (hudClockLabel) hudClockLabel.textContent = '';
   }
 }
 
@@ -180,9 +164,11 @@ export function showSignalLost(show) {
 
 // ── Sky as people / visibility ──
 const hudSky = document.getElementById('hud-sky');
-const hudSkyLine = document.querySelector('.hud-sky-line');
+// Addressed by id, not by ".hud-sky-line": that class is on three lines now
+// and querySelector would silently pick whichever one is written first.
+const hudSkyLine = document.getElementById('hud-sky-people-line');
 const hudSkyUnseen = document.getElementById('hud-sky-unseen');
-const hudSkyUnseenLine = document.querySelector('.hud-sky-unseen');
+const hudSkyUnseenLine = document.querySelector('.hud-hero');
 
 /** people: estimated seats overhead; cities: distinct destinations; unseen: LADD/PIA count */
 export function updateHUDSky({ people, cities, unseen }) {
@@ -197,3 +183,13 @@ export function updateHUDSky({ people, cities, unseen }) {
   hudSkyUnseen.textContent = String(unseen);
   hudSkyUnseenLine.classList.toggle('is-zero', unseen === 0);
 }
+
+// The swap is a gesture now, not a timer.
+(() => {
+  const el = document.getElementById('hud-clock');
+  if (!el) return;
+  el.addEventListener('click', () => {
+    if (_utcOffsetSec === 0) return;
+    _showLocal = !_showLocal;
+  });
+})();

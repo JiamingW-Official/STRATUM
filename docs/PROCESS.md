@@ -528,3 +528,44 @@ partly heard and partly guessed, legible in every line on the screen.
 The one lesson added to Ground School since is the only place the rule is
 spelled out, and it is spelled out last, for the reader who wants confirming
 rather than teaching.
+
+## 12. The hierarchy was arguing against the thesis
+
+The panel in the corner opened with three numbers at the same size: aircraft,
+airports, clock. That is the masthead of every flight tracker ever built, and I
+had reproduced it without noticing, in a piece whose whole claim is that the
+interesting part of this sky is the part you are not shown.
+
+The test is to squint at the screen until only contrast survives. What survived
+was `273` — the traffic count. The argument, *thirty-four asked not to be
+seen*, was set two sizes down in grey, below the fold of attention. A reviewer
+reading only the shapes would have read a tracker.
+
+So the panel has one protagonist now. The withheld count is at hero size in the
+accent colour; the traffic count, the airport count and the clock sit under it
+in one line at label size, prefixed "of" — they are the denominator, not the
+subject. The hero is also the control: pressing it draws the aircraft it
+counts, so the largest thing on the panel is the one gesture worth finding.
+
+A sky where the count is zero keeps the hero slot and loses only its colour. In
+a Chinese or European airspace `0 asked not to be seen` is not an empty state,
+it is the finding — those jurisdictions have no programme to ask through — and
+the comparison line underneath names the contrast.
+
+Three smaller things fell out of the same pass, all of them deletions:
+
+The clock had been flipping itself between Zulu and local every fifteen seconds
+with a slide animation. As a hero stat with its own label that was defensible.
+As the tail of a quiet context line it pulled the eye off the one number the
+panel is about and jittered the line's width twice a minute. It shows Zulu now,
+which is the unit every ADS-B timestamp actually arrives in, and swaps on a
+click. A gesture, not a timer.
+
+It also read `14:41Z UTC`, which says the same thing twice; the Z is the label.
+
+And the contact counter sat directly under the hero reading `34 to find`, one
+line below a `34` four times its size. It carries progress only now.
+
+The generalisation I would take to the next project: a layout is an argument
+about what matters, and it is made before anyone reads a word. If the biggest
+thing on the screen is not the thesis, the thesis is decoration.
