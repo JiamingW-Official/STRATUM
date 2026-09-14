@@ -7,6 +7,7 @@ import { getTrack, getTrackVersion, getRoute, getHexDetail, TRACE_HISTORY_SEC } 
 import { getAircraftSpecs } from '../data/aircraftDb.js';
 import { getAircraftMeta, queueHexLookup } from '../data/hexdb.js';
 import { triggerInference, getInferredRoute, detectHoldingPattern } from '../data/routeInfer.js';
+import { nameFor } from '../ui/commons.js';
 
 const METERS_TO_FEET = 3.28084;
 const MS_TO_KMH = 3.6;
@@ -71,9 +72,17 @@ const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
 // the stutter you feel as the camera turns. A shared budget spends them over
 // the following frames instead: at sixty frames a second this still refreshes
 // every label twice a second, and nothing arrives all at once.
-let _labelBudget = 0;
-let _trailBudget = 0;
 const LABEL_PER_FRAME = 6;
+
+// Keep the `cap` stalest entries, longest wait first. The list is six long, so
+// a linear insert is cheaper than any cleverness.
+function _keepStalest(list, ac, wait, cap) {
+  let i = 0;
+  while (i < list.length && list[i].wait >= wait) i++;
+  if (i >= cap) return;
+  list.splice(i, 0, { ac, wait });
+  if (list.length > cap) list.length = cap;
+}
 const TRAIL_PER_FRAME = 4;
 // Beyond this the label is a few dozen pixels wide and the compass is a dot;
 // the heading reads as a number there instead.
@@ -539,6 +548,11 @@ function _restyleAll() {
     ac._setModelColor(getSpeedColor(ac.data.velocity));
   }
 }
+// The commons changed under us -- a name arrived from the index, or this
+// visitor just gave one. Only the ringed labels can be affected.
+export function refreshGhostNames() {
+  for (const ac of _live) if (ac.data && ac.data.masked) ac._labelDirty = true;
+}
 export function setGhostMode(on) { _ghostMode = !!on; _restyleAll(); }
 export function isGhostMode() { return _ghostMode; }
 export function toggleGhostMode() { _ghostMode = !_ghostMode; _restyleAll(); return _ghostMode; }
@@ -627,9 +641,15 @@ export class AircraftManager {
   }
 
   animate(delta, elapsed, camera) {
-    // One budget for the whole flock, spent by whichever aircraft ask first.
-    _labelBudget = LABEL_PER_FRAME;
-    _trailBudget = TRAIL_PER_FRAME;
+    // One budget for the whole flock, handed out before the loop rather than
+    // claimed inside it. First-come looked fair and was not: every position
+    // update re-dirties every label, so the handful of aircraft sitting at the
+    // head of the map ate all six rebuilds every frame and the rest never came
+    // up at all -- measured at two hundred and sixty-two labels out of two
+    // hundred and ninety-one that had never been redrawn once. The budget goes
+    // to whoever has waited longest, which is the only ordering that cannot
+    // starve anybody.
+    this._grantTickets(elapsed);
     // Frame counter for throttled per-aircraft operations
     this._frameCount = (this._frameCount || 0) + 1;
     const camPos = camera ? camera.position : null;
@@ -645,6 +665,28 @@ export class AircraftManager {
       this._lastLabelCullTime = elapsed;
       this._cullLabels(camera);
     }
+  }
+
+  // The stalest few dirty labels and trails, and nobody else this frame.
+  _grantTickets(elapsed) {
+    const lab = this._labTop || (this._labTop = []);
+    const tr = this._trTop || (this._trTop = []);
+    lab.length = 0; tr.length = 0;
+    for (const ac of this.aircraft.values()) {
+      ac._labelTicket = false;
+      ac._trailTicket = false;
+      if (ac._labelDirty) {
+        const iv = (ac.group.position.lengthSq() > 2500) ? 8 : LABEL_UPDATE_INTERVAL;
+        const wait = elapsed - (ac._lastLabelUpdate || 0);
+        if (wait >= iv) _keepStalest(lab, ac, wait, LABEL_PER_FRAME);
+      }
+      if (ac._trailDirty) {
+        const wait = elapsed - (ac._lastTrailRebuildTime || 0);
+        if (wait >= TRAIL_REBUILD_INTERVAL) _keepStalest(tr, ac, wait, TRAIL_PER_FRAME);
+      }
+    }
+    for (let i = 0; i < lab.length; i++) lab[i].ac._labelTicket = true;
+    for (let i = 0; i < tr.length; i++) tr[i].ac._trailTicket = true;
   }
 
   // T2-13: Hide labels that overlap nearer aircraft labels in screen space
@@ -1298,7 +1340,12 @@ class AircraftObject {
     };
 
     // ── Row 1: who ──
-    const callsign = ghost ? 'UNSEEN' : (data.callsign || data.icao24);
+    // A ringed aircraft the commons has named wears that name here. It is not
+    // the aircraft's name and never becomes one; it is what the people who
+    // heard it agreed to call it, and it is why an airspace you have never
+    // opened is already inhabited.
+    const given = ghost ? nameFor(data.icao24) : null;
+    const callsign = ghost ? (given ? given.toUpperCase() : 'UNSEEN') : (data.callsign || data.icao24);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.font = 'bold 46px JetBrains Mono, monospace';
@@ -1893,17 +1940,17 @@ class AircraftObject {
     }
 
     // Rebuild trail geometry at throttled rate
-    if (this._trailDirty && elapsed - this._lastTrailRebuildTime >= TRAIL_REBUILD_INTERVAL && _trailBudget > 0) {
-      _trailBudget--;
+    if (this._trailTicket) {
+      this._trailTicket = false;
       this._lastTrailRebuildTime = elapsed;
       this._trailDirty = false;
       this.rebuildTrail();
     }
 
-    // Refresh info label — distant aircraft update less frequently (saves canvas textures)
-    const labelInterval = (this.group.position.lengthSq() > 2500) ? 8 : LABEL_UPDATE_INTERVAL;
-    if (this._labelDirty && elapsed - this._lastLabelUpdate >= labelInterval && _labelBudget > 0) {
-      _labelBudget--;
+    // Refresh info label. The distance throttle lives in _grantTickets now,
+    // with the rest of the scheduling.
+    if (this._labelTicket) {
+      this._labelTicket = false;
       this._lastLabelUpdate = elapsed;
       this._refreshInfoLabel();
     }

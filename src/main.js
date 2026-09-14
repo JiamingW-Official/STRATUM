@@ -46,6 +46,7 @@ import {
   setSunState,
   haversineDistance,
   toggleGhostMode,
+  refreshGhostNames,
   isGhostMode,
 } from "./scene/aircraft.js";
 import {
@@ -74,7 +75,11 @@ import {
   getSelectedAircraft,
   showDetailLoading,
   reseedChartData,
+  offerNaming,
+  setCommonsPlace,
+  onNamed,
 } from "./ui/detail.js";
+import { ghostRecord, ghostContact, refreshIndex, nameFor } from "./ui/commons.js";
 // Cockpit HUD — lazy-loaded, only needed when user presses V in follow mode
 let _cockpitMod = null;
 async function _getCockpit() {
@@ -379,7 +384,10 @@ function _syncFollowPill() {
   if (!followIndicator || !followTarget) return;
   const d = followTarget.getDisplayData();
   const withheld = isGhostMode() && followTarget.data && followTarget.data.masked;
-  followCallsignEl.textContent = withheld ? "UNSEEN" : (d.callsign || d.icao24);
+  const given = withheld ? nameFor(followTarget.data.icao24) : null;
+  followCallsignEl.textContent = withheld
+    ? (given ? given.toUpperCase() : "UNSEEN")
+    : (d.callsign || d.icao24);
 }
 
 function stopFollow() {
@@ -1771,6 +1779,8 @@ function _toggleGhostLayer() {
   return on;
 }
 document.getElementById("hud-sky-unseen-btn")?.addEventListener("click", _toggleGhostLayer);
+// A name just landed: the pill and the ticker are carrying the old word.
+onNamed(() => { _syncFollowPill(); _tickerAt = 0; });
 
 // ── The visibility index, read back ─────────────────────────────────────────
 // The Worker's warm pass counts, for every airspace it visits, how many
@@ -1891,6 +1901,14 @@ function _recordContact(ac) {
   ac.contactPulse?.();
   _blip();
   _renderContacts();
+  // The contact joins the commons. If the airframe already has a name this
+  // records one more listener; if it has none, the dossier offers the three
+  // words its address allows and the choice is written for everybody.
+  ghostRecord(id).then((rec) => {
+    if (rec && rec.named) ghostContact(id).then(() => { offerNaming(id); refreshGhostNames(); });
+    else offerNaming(id);
+    _renderContacts();
+  });
 }
 function _renderContacts() {
   const el = document.getElementById("hud-sky-contacts");
@@ -1965,7 +1983,7 @@ function _buildTicker() {
     const cls = vs > 100 ? "tk-up" : vs < -100 ? "tk-dn" : "tk-flat";
     const mark = vs > 100 ? "\u25b2" : vs < -100 ? "\u25bc" : "\u2500";
     const chg = Math.abs(vs) > 100 ? `${mark} ${Math.abs(vs).toLocaleString()}` : mark;
-    const sym = isGhostMode() && d.masked ? "UNSEEN" : d.callsign;
+    const sym = isGhostMode() && d.masked ? (nameFor(d.icao24) || "UNSEEN").toUpperCase() : d.callsign;
     items.push(`<span class="tk"><span class="tk-sym">${sym}</span><span class="tk-val">${lvl}</span><span class="tk-chg ${cls}">${chg}</span></span>`);
   }
   if (_lastSky.total) {
@@ -2014,6 +2032,7 @@ function handleData(dataList) {
     updateHUD(count, lat, lon);
     updateHUDSky(_skyStats(dataList));
     if (Date.now() - _tickerAt > 20000) { _tickerAt = Date.now(); _buildTicker(); }
+    refreshIndex().then((changed) => { if (changed) refreshGhostNames(); });
     _renderVisibilityCmp();
     _renderContacts();
     _loadVisibility();
@@ -9850,6 +9869,7 @@ async function switchCity(city) {
   restartPolling(); // Immediately re-poll with new city coordinates
   if (aircraftManager) aircraftManager.updateUserLocation(city.lat, city.lon);
   updateHUDCity(city.name, city.code);
+  setCommonsPlace(city.name);
   setATCAirport(AIRPORT_DATA[city.code]?.icao || null);
   updateHUDAirports(0);
 
@@ -14054,6 +14074,7 @@ async function init() {
   activeCity = defaultCity;
   setUserLocation(defaultCity.lat, defaultCity.lon);
   updateHUDCity(defaultCity.name, defaultCity.code);
+  setCommonsPlace(defaultCity.name);
   initATC();
   setATCAirport(AIRPORT_DATA[defaultCity.code]?.icao || null);
   armATCAutoplay();

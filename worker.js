@@ -577,6 +577,145 @@ async function handleVisibility(env) {
   return corsResponse(out);
 }
 
+// ── The naming commons ───────────────────────────────────────────────────────
+// Some aircraft broadcast a position and withhold a name: the FAA's LADD list
+// and privacy ICAO addresses let an owner be located but not identified. The
+// map has always drawn them as UNSEEN, which is accurate and a dead end.
+//
+// So the people watching name them instead. The first person ever to contact
+// an airframe picks its name from three offered words; that name is global and
+// permanent, and everyone who meets the aircraft afterwards meets it by that
+// name and is told how many have heard it before them.
+//
+// The name is fictional and is never derived from the registration, the owner
+// or the operator. That is the point rather than a limitation: the commons
+// gets a record and the owner keeps the privacy they asked for, because the
+// name the crowd gives is precisely not the aircraft's name. Nothing here
+// deanonymises anybody, and nothing here is free text, so there is no
+// moderation surface: both halves of the name come from fixed lists below.
+//
+// Scale, honestly. Claims are one write per airframe in the history of the
+// project, which KV is built for. The "heard by" counter is a read-modify-write
+// on a single key, and KV allows about one write per second per key and settles
+// eventually, so on a busy airframe some increments are lost and the count is a
+// floor, not a census. The copy says "have heard it", never "exactly". A real
+// count wants a Durable Object per airframe; that is the migration, not a
+// rewrite, because the client only ever reads `c`.
+const GHOST_ADJ = [
+  "pale", "slate", "quiet", "long", "north", "first", "far", "low",
+  "winter", "salt", "iron", "amber", "still", "thin", "grey", "open",
+];
+const GHOST_NOUN = [
+  "heron", "ember", "vesper", "current", "meridian", "lantern", "kestrel",
+  "harbour", "signal", "compass", "anvil", "drift", "beacon", "thermal",
+  "pennant", "cirrus",
+];
+
+// The three candidates are derived from the address, so two people who contact
+// the same airframe in the same minute are choosing from the same three words
+// rather than from two private shortlists. Whoever lands first wins, and the
+// other one recognises the name they were about to pick.
+function ghostCandidates(hex) {
+  let h = 0;
+  for (let i = 0; i < hex.length; i++) h = (h * 31 + hex.charCodeAt(i)) >>> 0;
+  const out = [];
+  for (let i = 0; i < 3; i++) {
+    const a = GHOST_ADJ[(h >>> (i * 3)) % GHOST_ADJ.length];
+    const n = GHOST_NOUN[(h >>> (i * 5 + 7)) % GHOST_NOUN.length];
+    const name = `${a} ${n}`;
+    if (!out.includes(name)) out.push(name);
+  }
+  // Collisions in the shift pattern are possible; fill deterministically.
+  for (let k = 0; out.length < 3; k++) {
+    const name = `${GHOST_ADJ[(h + k) % GHOST_ADJ.length]} ${GHOST_NOUN[(h + k * 7) % GHOST_NOUN.length]}`;
+    if (!out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
+const GHOST_HEX = /^[0-9a-f]{6}$/;
+
+// The whole commons as one object, so a client can render every name in the
+// sky without asking about aircraft one at a time. This is the difference
+// between one KV read per edge per minute and forty per visitor per poll,
+// which is the difference between this working at ten thousand people and not.
+// A claim is rare -- once per airframe in the history of the project -- so the
+// read-modify-write here is not a hot path, and the blob stays small: even
+// fifty thousand named airframes is about a megabyte against a 25MB limit.
+// Past that, this is the piece that becomes a Durable Object.
+async function handleGhostIndex(env) {
+  const cacheKey = new Request("https://cache.internal/ghostindex");
+  const cached = await cacheGet(cacheKey);
+  if (cached) return corsResponse(cached);
+  let body = "{}";
+  try { body = (await env?.AIRPORT_CACHE?.get("ghost:index")) || "{}"; } catch {}
+  const out = new Response(body, { headers: { "Content-Type": "application/json" } });
+  await cachePut(cacheKey, out.clone(), 60, 60);
+  return corsResponse(out);
+}
+
+async function handleGhost(request, url, env) {
+  const kv = env?.AIRPORT_CACHE;
+  const hex = (url.searchParams.get("hex") || "").toLowerCase();
+  if (!GHOST_HEX.test(hex)) return corsResponse(jsonOut({ error: "bad hex" }, 400));
+  if (!kv) return corsResponse(jsonOut({ error: "no store" }, 503));
+  const key = `ghost:${hex}`;
+
+  if (request.method === "GET") {
+    const rec = await kvJson(kv, key);
+    return corsResponse(jsonOut(rec ? { named: true, ...rec } : { named: false, candidates: ghostCandidates(hex) }));
+  }
+
+  if (request.method === "POST") {
+    let body = {};
+    try { body = await request.json(); } catch {}
+    const existing = await kvJson(kv, key);
+
+    // Already named: this is a re-encounter, not a claim. Count it and hand
+    // back the record whoever wrote it.
+    if (existing) {
+      existing.c = (existing.c | 0) + 1;
+      await kv.put(key, JSON.stringify(existing));
+      // Self-heal: a record written before the index existed, or lost to a
+      // collision on the index key, is put back the next time anyone hears it.
+      try {
+        const idx = (await kvJson(kv, "ghost:index")) || {};
+        if (idx[hex] !== existing.n) { idx[hex] = existing.n; await kv.put("ghost:index", JSON.stringify(idx)); }
+      } catch {}
+      return corsResponse(jsonOut({ named: true, mine: false, ...existing }));
+    }
+
+    // A claim. The name has to be one of the three this address offers, which
+    // makes an arbitrary string impossible without checking a string at all.
+    const name = String(body.name || "").toLowerCase().slice(0, 24);
+    if (!ghostCandidates(hex).includes(name)) {
+      return corsResponse(jsonOut({ error: "not a candidate" }, 400));
+    }
+    const place = String(body.place || "").replace(/[^\p{L}\p{N} .,'-]/gu, "").slice(0, 40);
+    const rec = { n: name, at: Date.now(), p: place, c: 1 };
+    await kv.put(key, JSON.stringify(rec));
+    try {
+      const idx = (await kvJson(kv, "ghost:index")) || {};
+      idx[hex] = name;
+      await kv.put("ghost:index", JSON.stringify(idx));
+    } catch {}
+    return corsResponse(jsonOut({ named: true, mine: true, ...rec }));
+  }
+
+  return corsResponse(jsonOut({ error: "method" }, 405));
+}
+
+async function kvJson(kv, key) {
+  try { return JSON.parse((await kv.get(key)) || "null"); } catch { return null; }
+}
+
+function jsonOut(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}
+
 // ── Trail history ────────────────────────────────────────────────────────────
 // The upstream offers two trace files and neither is the one a map wants.
 // trace_recent is capped at 92 points, which is six to fourteen minutes
@@ -1606,6 +1745,8 @@ export default {
     if (url.pathname === "/api/enrich") return handleEnrich(url, env);
     if (url.pathname === "/api/trail") return handleTrail(url);
     if (url.pathname === "/api/visibility") return handleVisibility(env);
+    if (url.pathname === "/api/ghost/index") return handleGhostIndex(env);
+    if (url.pathname === "/api/ghost") return handleGhost(request, url, env);
     if (url.pathname.startsWith("/map/export/")) return handleMapExport(url, env);
     if (url.pathname === "/api/weather") return handleWeather(url);
     if (url.pathname === "/api/atlas") return handleAtlas();

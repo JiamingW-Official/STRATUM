@@ -569,3 +569,79 @@ line below a `34` four times its size. It carries progress only now.
 The generalisation I would take to the next project: a layout is an argument
 about what matters, and it is made before anyone reads a word. If the biggest
 thing on the screen is not the thesis, the thesis is decoration.
+
+## 13. The game was already in the data
+
+The brief was to make this play like something you would buy, and to make it
+mean something that tens of thousands of people are inside it at once. The easy
+version of that is a cliché I can name in advance: experience points, levels,
+daily streaks, badges, a leaderboard of aircraft spotted. That bolts a generic
+economy onto a specific subject, and the subject stops mattering — you could
+swap the aircraft for mushrooms and the loop would be unchanged.
+
+So I looked for the game already present in the material, and there is exactly
+one thing here that is structurally a game: **some aircraft can be seen and
+cannot be named.** Position, altitude, type and tower audio are all public; the
+identity is withheld by an FAA programme. That is not a missing feature. It is a
+puzzle with a fixed, honest, unsolvable centre.
+
+And the multiplayer needs no lobby, because the premise is already true:
+everyone looking at this airspace at 14:44Z is looking at the same two hundred
+and sixty-nine aircraft. It is the rarest thing in multiplayer design — a shared
+world that costs nothing to host, because it is the actual sky.
+
+**The mechanic.** The data refuses to name these aircraft, so the people
+watching name them. The first person ever to contact an airframe is offered
+three words derived from its own address; whichever they choose is written
+globally and permanently. Everyone who meets the aircraft afterwards meets it by
+that name, on the map, in the dossier, in the tracking pill and in the ticker,
+and is told how many heard it first. There is no score, no level and no
+leaderboard. What accumulates is a public record, and your line in it.
+
+**Why this is not a privacy violation, and why that is the point.** The name is
+fictional and never touches the registration, the operator or the owner. The
+commons gets a record and the owner keeps exactly the privacy they asked for,
+because the name the crowd gives is precisely *not* the aircraft's name. The
+dossier says so under every one: *a name the listeners gave it. Not its name.*
+The two claims do not trade against each other, and the piece would be worth
+less if they did.
+
+Both halves of every name come from fixed lists, so there is no free text and
+therefore no moderation surface — a decision made for safety that also made the
+naming better, because a constrained vocabulary in the register of storm names
+and ship names produces *pale heron* and *iron lantern* rather than whatever a
+text field would have produced.
+
+**Scale, stated honestly.** Claims are one write per airframe in the history of
+the project, which is what KV is for. The "heard by" counter is a
+read-modify-write on one key, and KV allows about a write a second per key and
+settles eventually, so on a busy airframe some increments are lost: the count is
+a floor and the copy never says "exactly". Reading is the part that had to be
+right at scale, and the whole commons is served as one object, cached sixty
+seconds at the edge — one read per datacentre per minute regardless of how many
+people are watching, instead of forty lookups per visitor per poll. Past about
+fifty thousand named airframes this becomes a Durable Object per aircraft; the
+client only ever reads a name, so that is a migration and not a rewrite.
+
+### The regression this uncovered
+
+Wiring the names into the map labels surfaced something worse than the feature.
+The per-frame rebuild budget from §12's pass — six labels a frame, to stop three
+hundred canvas redraws landing on the same frame as a rotation — was being
+claimed first-come, inside the per-aircraft loop. Every position update
+re-dirties every label, so the few aircraft at the head of the map ate all six
+rebuilds every frame and nothing behind them ever came up. Measured: **262 of
+291 labels had never been redrawn once**, and eight seconds of watching did not
+change the number by one.
+
+So it was not showing the names, and it had not been showing altitudes either.
+The fix is to hand the budget out before the loop rather than let it be claimed
+inside: the manager grants tickets to the stalest few dirty labels, which is the
+only ordering that cannot starve anybody. Same 262 aircraft, same eight seconds,
+after: **2**.
+
+The lesson is the one this project keeps relearning in different costumes. A
+throttle is a scheduler whether or not you write one, and if you do not choose
+the order, insertion order chooses it for you — which is never the order you
+wanted. It took a new feature failing visibly to expose an old feature that had
+been failing invisibly for a week.

@@ -4695,3 +4695,36 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .tk-flat { color: rgba(var(--text-rgb), 0.32); }
 .tk-note { color: rgba(var(--text-rgb), 0.34); }
 .screenshot-mode .ticker { display: none; }
+
+/* ── The naming commons ──
+   This sits in the dossier, under the sentence that explains why the name is
+   missing, and it is the answer to that sentence. It gets no surface of its
+   own: a hairline above it is enough to say a different kind of thing starts
+   here. The three words are set in the display face at reading size, not as
+   buttons — the gesture is choosing a name, and a name is a word, so the word
+   is the target. The accent is spent on exactly one thing, the chosen name. */
+.detail-commons {
+  margin: 2px 16px 10px; padding-top: 9px;
+  border-top: 1px solid var(--hairline);
+}
+.detail-commons.hidden { display: none; }
+.commons-line {
+  font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.55;
+  color: var(--text-2); letter-spacing: 0;
+}
+.commons-note {
+  font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.5;
+  color: var(--text-3); letter-spacing: 0; margin-top: 5px;
+}
+.commons-choice { display: flex; flex-wrap: wrap; gap: 6px 8px; margin-top: 8px; }
+.commons-word {
+  background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm);
+  padding: 5px 10px; cursor: pointer;
+  font-family: var(--font-display); font-size: var(--fs-body);
+  color: var(--text-2); letter-spacing: 0.01em; text-transform: lowercase;
+  transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.commons-word:hover:not(:disabled) { color: var(--accent-bright); border-color: var(--border-accent); }
+/* Pressed: the others do not grey out and slink away, they simply stop being
+   available. The one being written is the only thing that moves. */
+.commons-word:disabled { cursor: default; opacity: 0.3; }

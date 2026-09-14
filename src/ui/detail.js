@@ -1,4 +1,5 @@
-import { haversineDistance, isGhostMode } from '../scene/aircraft.js';
+import { haversineDistance, isGhostMode, refreshGhostNames } from '../scene/aircraft.js';
+import { ghostRecord, ghostClaim, cachedRecord, namedByMe, sinceWords, ordinal } from './commons.js';
 import { getAirlineName } from '../data/airlineDb.js';
 import { getAirlineSync, getAirline, getAirlineFleet, getAirlineFinancials, getAirlineRoutes } from '../data/airlines.js';
 import { computeDensityAltitude, fetchDestinationWeather, estimateTurbulence } from '../data/weather.js';
@@ -1353,7 +1354,14 @@ export function showDetail(aircraftObj, userLat, userLon) {
   // the layer a costume. While the layer is on, the panel withholds what the
   // owner asked to withhold; V reveals it, so V is an act and not a style.
   const withheld = !!(isGhostMode() && aircraftObj.data && aircraftObj.data.masked);
-  elCallsign.textContent = withheld ? 'UNSEEN' : (d.callsign || d.icao24);
+  // If the commons has already named this airframe, the slot carries that name
+  // rather than the word UNSEEN. It is still not the aircraft's name, and the
+  // line underneath says so.
+  const _known = withheld ? cachedRecord(d.icao24) : null;
+  elCallsign.textContent = withheld
+    ? (_known && _known.named ? _known.n.toUpperCase() : 'UNSEEN')
+    : (d.callsign || d.icao24);
+  _renderCommons(withheld ? d.icao24 : null);
 
   // How this position reached us. Every point in the feed says so; it was
   // being thrown away. A masked aircraft gets the second sentence.
@@ -2813,3 +2821,77 @@ function _bindPhaseTip(container) {
     if (node && !node.contains(e.relatedTarget)) _hidePhaseTip();
   });
 }
+
+
+// ── The naming commons, in the dossier ──────────────────────────────────────
+// Three states, one slot. Nothing has been contacted: silent. Contacted and
+// unnamed: the three words this address offers. Named: who first heard it,
+// where, when, and how many have heard it since.
+let _commonsEl = null;
+const _offered = new Set();   // hexes this visitor has contacted this session
+let _placeName = '';
+
+/** main.js hands the airspace name over so a claim can record where it was heard. */
+export function setCommonsPlace(name) { _placeName = name || ''; }
+
+let _onNamed = null;
+/** main.js relights the pill and the ticker when a name lands. */
+export function onNamed(fn) { _onNamed = fn; }
+
+/** A ringed aircraft was contacted: from here the slot has something to say. */
+export function offerNaming(hex) {
+  if (!hex) return;
+  _offered.add(String(hex).toLowerCase());
+  ghostRecord(hex).then(() => _renderCommons(hex));
+}
+
+function _renderCommons(hex) {
+  _commonsEl ||= document.getElementById('detail-commons');
+  if (!_commonsEl) return;
+  const h = hex ? String(hex).toLowerCase() : null;
+  if (!h || !_offered.has(h)) { _commonsEl.classList.add('hidden'); _commonsEl.innerHTML = ''; return; }
+
+  const rec = cachedRecord(h);
+  if (!rec) { _commonsEl.classList.add('hidden'); return; }
+  _commonsEl.classList.remove('hidden');
+
+  if (rec.named) {
+    const mine = namedByMe(h);
+    // "New York JFK" is the airspace; "over New York" is where you were.
+    const place = String(rec.p || '').replace(/\s+[A-Z]{3,4}$/, '');
+    const where = place ? ` over ${_esc(place)}` : '';
+    const line = mine
+      ? `You named this aircraft${where}, ${sinceWords(rec.at)}.`
+      : `Named by a listener${where}, ${sinceWords(rec.at)}.`;
+    // The queue only means something to someone who arrived after the name.
+    const queue = mine ? '' : (rec.c > 1 ? ` You are the ${ordinal(rec.c)} to hear it.` : '');
+    _commonsEl.innerHTML =
+      `<div class="commons-line">${line}${queue}</div>` +
+      `<div class="commons-note">A name the listeners gave it. Not its name.</div>`;
+    return;
+  }
+
+  const cands = rec.candidates || [];
+  _commonsEl.innerHTML =
+    `<div class="commons-line">No one has ever named this aircraft. You are the first to hear it.</div>` +
+    `<div class="commons-choice">` +
+    cands.map((c) => `<button type="button" class="commons-word" data-name="${_esc(c)}">${_esc(c)}</button>`).join('') +
+    `</div><div class="commons-note">Whatever you choose is what everyone sees, from now on.</div>`;
+
+  for (const b of _commonsEl.querySelectorAll('.commons-word')) {
+    b.addEventListener('click', () => {
+      for (const x of _commonsEl.querySelectorAll('.commons-word')) x.disabled = true;
+      ghostClaim(h, b.dataset.name, _placeName).then(() => {
+        _renderCommons(h);
+        const rec2 = cachedRecord(h);
+        if (rec2 && rec2.named && elCallsign) elCallsign.textContent = rec2.n.toUpperCase();
+        // The name has to appear on the aircraft itself, not only in the
+        // dossier. That is the moment the gesture is for.
+        refreshGhostNames();
+        _onNamed?.();
+      });
+    });
+  }
+}
+
+function _esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
