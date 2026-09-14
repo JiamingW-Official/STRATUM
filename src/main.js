@@ -434,8 +434,6 @@ function updateFollow(delta) {
 }
 
 // --- Compass ---
-const compassNeedle = document.getElementById("compass-needle");
-const compassHeading = document.getElementById("compass-heading");
 let cameraHeading = 0;
 const _compassDir = new THREE.Vector3();
 
@@ -451,9 +449,6 @@ function updateCompass(elapsed) {
   // Skip DOM writes if heading unchanged
   if (rounded === _lastCompassDeg) return;
   _lastCompassDeg = rounded;
-  if (compassNeedle)
-    compassNeedle.setAttribute("transform", `rotate(${deg}, 30, 30)`);
-  if (compassHeading) compassHeading.textContent = `${rounded}°`;
   // Hidden touch: compass glows subtly when facing north (±15°)
   const compassEl = document.querySelector(".compass");
   if (compassEl) {
@@ -1867,7 +1862,7 @@ function _renderVisibilityCmp() {
   const name = cmp ? _nearestCityName(cmp.lat, cmp.lon) : null;
   if (!cmp || !name || gap < 0.03) { el.textContent = ""; return; }
   const pct = (x) => `${Math.round(x * 100)}%`;
-  el.textContent = `${pct(share)} of this sky · ${pct(cmp.masked / cmp.total)} over ${name}`;
+  el.textContent = `${pct(share)} here · ${pct(cmp.masked / cmp.total)} ${name}`;
 }
 
 // ── Contacts ────────────────────────────────────────────────────────────────
@@ -1905,7 +1900,7 @@ function _renderContacts() {
   const seenNow = aircraftManager ? [...aircraftManager.aircraft.values()].filter((a) => a.data.masked && _contacts.has(a.data.icao24)).length : 0;
   el.textContent = seenNow >= total
     ? `all ${total} contacted · none named`
-    : seenNow ? `${seenNow} of ${total} contacted` : `${total} to find · click a ring`;
+    : seenNow ? `${seenNow} of ${total} contacted` : `${total} to find`;
 }
 
 // The first thing after the boot screen is a descent: the camera starts high
@@ -1945,6 +1940,49 @@ function _introDescent() {
   requestAnimationFrame(step);
 }
 
+// ── Ticker ────────────────────────────────────────────────────────────────
+// A quote board reads: name, value, change. An aircraft reads the same way --
+// callsign, flight level, and the rate it is leaving that level at -- so the
+// sky can be carried along the bottom of the screen in the grammar a trading
+// floor already taught everyone. Rebuilt from live data every twenty seconds;
+// the strip itself never stops, because the sky does not.
+let _tickerAt = 0;
+function _buildTicker() {
+  const track = document.getElementById("ticker-track");
+  if (!track || !aircraftManager) return;
+  const list = [...aircraftManager.aircraft.values()]
+    .filter((a) => a.data.callsign && a.data.baroAltitude != null)
+    .sort((a, b) => (b.data.baroAltitude || 0) - (a.data.baroAltitude || 0))
+    .slice(0, 26);
+  const items = [];
+  for (const a of list) {
+    const d = a.data;
+    const ft = Math.round(d.baroAltitude * 3.28084);
+    const lvl = ft >= 18000 ? `FL${String(Math.round(ft / 100)).padStart(3, "0")}` : `${ft.toLocaleString()}ft`;
+    const vs = d.verticalRate != null ? Math.round(d.verticalRate * 3.28084 * 60) : 0;
+    const cls = vs > 100 ? "tk-up" : vs < -100 ? "tk-dn" : "tk-flat";
+    const mark = vs > 100 ? "\u25b2" : vs < -100 ? "\u25bc" : "\u2500";
+    const chg = Math.abs(vs) > 100 ? `${mark} ${Math.abs(vs).toLocaleString()}` : mark;
+    const sym = _ghostMode && d.masked ? "UNSEEN" : d.callsign;
+    items.push(`<span class="tk"><span class="tk-sym">${sym}</span><span class="tk-val">${lvl}</span><span class="tk-chg ${cls}">${chg}</span></span>`);
+  }
+  if (_lastSky.total) {
+    items.push(`<span class="tk"><span class="tk-sym">UNSEEN</span><span class="tk-val">${Math.round((_lastSky.unseen / _lastSky.total) * 100)}%</span><span class="tk-chg tk-flat">of this sky</span></span>`);
+  }
+  items.push('<span class="tk tk-note">live ADS-B via volunteer receivers &nbsp;·&nbsp; audio LiveATC &nbsp;·&nbsp; map Esri</span>');
+  if (!items.length) return;
+  // Doubled, so the same strip can scroll into itself without a seam.
+  track.innerHTML = items.join("") + items.join("");
+  track._half = 0;
+}
+function _animateTicker(dtMs) {
+  const track = document.getElementById("ticker-track");
+  if (!track || !track.children.length) return;
+  if (!track._half) track._half = track.scrollWidth / 2;
+  track._x = ((track._x || 0) - dtMs * 0.045) % -track._half;
+  track.style.transform = `translateX(${track._x}px)`;
+}
+
 function _skyStats(list) {
   let people = 0, unseen = 0;
   const cities = new Set();
@@ -1973,6 +2011,7 @@ function handleData(dataList) {
     const count = aircraftManager.getCount();
     updateHUD(count, lat, lon);
     updateHUDSky(_skyStats(dataList));
+    if (Date.now() - _tickerAt > 20000) { _tickerAt = Date.now(); _buildTicker(); }
     _renderVisibilityCmp();
     _renderContacts();
     _loadVisibility();
@@ -4534,6 +4573,7 @@ function animate() {
   }
 
   updateAirportLightFalloff(camera);
+  _animateTicker(delta * 1000);
   updatePulse(scene, _elapsed);
   animateAirportLoading(_elapsed);
   updateCompass(_elapsed);

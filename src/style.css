@@ -2001,17 +2001,6 @@ html, body {
 }
 .fir-hover-widget.fade-out { opacity: 0 !important; }
 
-.compass {
-  position: fixed;
-  bottom: var(--edge); right: calc(var(--edge) + 48px);
-  width: 50px; height: 50px;
-  z-index: 10; pointer-events: none;
-  opacity: 0.45; animation: fadein 1s var(--ease) 1s both;
-  transition: opacity 0.3s;
-  filter: drop-shadow(0 0 8px rgba(var(--accent-rgb), 0.08));
-}
-.compass:hover { opacity: 0.75; }
-.compass-svg { width: 100%; height: 100%; }
 
 /* ── Achievement Toast ── */
 .toast {
@@ -2996,7 +2985,6 @@ html, body {
 .screenshot-mode .detail-panel,
 .screenshot-mode .search-bar,
 .screenshot-mode .search-hint,
-.screenshot-mode .compass,
 .screenshot-mode .follow-indicator,
 .screenshot-mode .airport-widget,
 .screenshot-mode .help-panel,
@@ -3801,7 +3789,6 @@ html, body {
 
   /* Hide less important elements */
   .help-panel { display: none !important; }
-  .compass { width: 36px; height: 36px; }
   .search-hint { display: none; }
 
   /* Search bar — full width at bottom, safe area aware */
@@ -4648,3 +4635,30 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-atc-next { background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm); color: var(--text-3); font-size: var(--fs-value); line-height: 1; padding: 1px 7px 3px; margin-left: 6px; cursor: pointer; }
 .hud-atc-next:hover { color: var(--text); border-color: var(--hairline-strong); }
 .hud-atc-next.hidden { display: none; }
+
+/* ── Ticker ──
+   A financial screen's strip, carrying the sky. Symbol, value, change: the
+   grammar is a quote board's because the content is the same shape -- a name,
+   a level, and which way it is going. It sits along the bottom, clear of the
+   controls on the right, and runs whether or not anyone is watching it. */
+.ticker {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 30px; z-index: 44;
+  overflow: hidden; pointer-events: none;
+  background: linear-gradient(to top, rgba(6,9,16,0.94), rgba(6,9,16,0.72));
+  border-top: 1px solid var(--hairline);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 84%, transparent 94%);
+  mask-image: linear-gradient(to right, transparent, #000 3%, #000 84%, transparent 94%);
+}
+.ticker-track {
+  display: inline-flex; align-items: center; gap: 30px;
+  height: 100%; white-space: nowrap; will-change: transform;
+}
+.tk { display: inline-flex; align-items: baseline; gap: 7px; font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0; }
+.tk-sym { color: rgba(var(--text-rgb), 0.92); font-weight: 600; }
+.tk-val { color: rgba(var(--text-rgb), 0.5); }
+.tk-chg { font-variant-numeric: tabular-nums; }
+.tk-up { color: #ffb066; }
+.tk-dn { color: #66bfff; }
+.tk-flat { color: rgba(var(--text-rgb), 0.32); }
+.tk-note { color: rgba(var(--text-rgb), 0.34); }
+.screenshot-mode .ticker { display: none; }

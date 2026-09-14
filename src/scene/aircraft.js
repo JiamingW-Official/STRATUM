@@ -54,6 +54,18 @@ const TRAIL_REBUILD_INTERVAL = 2.0;     // rebuild geometry every 2s — reduces
 const TRACK_REFRESH_INTERVAL = 45;      // re-check track API every 45s for followed/selected aircraft
 const TRACK_INITIAL_CHECK_INTERVAL = 0.2; // check every 200ms until track arrives
 const LABEL_UPDATE_INTERVAL = 3;        // refresh info label every 3s
+// Every aircraft's data arrives in the same poll, so their refresh timers line
+// up and two hundred canvas redraws and geometry rebuilds land in one frame --
+// the stutter you feel as the camera turns. A shared budget spends them over
+// the following frames instead: at sixty frames a second this still refreshes
+// every label twice a second, and nothing arrives all at once.
+let _labelBudget = 0;
+let _trailBudget = 0;
+const LABEL_PER_FRAME = 6;
+const TRAIL_PER_FRAME = 4;
+// Beyond this the label is a few dozen pixels wide and the compass is a dot;
+// the heading reads as a number there instead.
+const COMPASS_MAX_DIST2 = 900;
 
 // T2-11: Speed-based trail width (m/s → linewidth) — thin, precise lines
 function getSpeedLineWidth(speed) {
@@ -603,6 +615,9 @@ export class AircraftManager {
   }
 
   animate(delta, elapsed, camera) {
+    // One budget for the whole flock, spent by whichever aircraft ask first.
+    _labelBudget = LABEL_PER_FRAME;
+    _trailBudget = TRAIL_PER_FRAME;
     // Frame counter for throttled per-aircraft operations
     this._frameCount = (this._frameCount || 0) + 1;
     const camPos = camera ? camera.position : null;
@@ -1326,7 +1341,17 @@ class AircraftObject {
       field('alt', climbing, altText, trend);
     }
     if (speedKts != null) field('spd', 0, String(speedKts), dim);
-    if (hdg != null) field('hdg', hdg, String(hdg).padStart(3, '0'), dim);
+    if (hdg != null) {
+      const txt = String(hdg).padStart(3, '0');
+      if (this._labelFar) {
+        halo((strokePass) => {
+          if (strokePass) ctx.strokeText(txt + '\u00b0', x, ROW + 8);
+          else { ctx.fillStyle = dim; ctx.fillText(txt + '\u00b0', x, ROW + 8); }
+        });
+      } else {
+        field('hdg', hdg, txt, dim);
+      }
+    }
   }
 
   _refreshInfoLabel() {
@@ -1855,7 +1880,8 @@ class AircraftObject {
     }
 
     // Rebuild trail geometry at throttled rate
-    if (this._trailDirty && elapsed - this._lastTrailRebuildTime >= TRAIL_REBUILD_INTERVAL) {
+    if (this._trailDirty && elapsed - this._lastTrailRebuildTime >= TRAIL_REBUILD_INTERVAL && _trailBudget > 0) {
+      _trailBudget--;
       this._lastTrailRebuildTime = elapsed;
       this._trailDirty = false;
       this.rebuildTrail();
@@ -1863,7 +1889,8 @@ class AircraftObject {
 
     // Refresh info label — distant aircraft update less frequently (saves canvas textures)
     const labelInterval = (this.group.position.lengthSq() > 2500) ? 8 : LABEL_UPDATE_INTERVAL;
-    if (this._labelDirty && elapsed - this._lastLabelUpdate >= labelInterval) {
+    if (this._labelDirty && elapsed - this._lastLabelUpdate >= labelInterval && _labelBudget > 0) {
+      _labelBudget--;
       this._lastLabelUpdate = elapsed;
       this._refreshInfoLabel();
     }
@@ -1874,6 +1901,8 @@ class AircraftObject {
     const fc = this._frameCount || 0;
     const cp = this._camPos;
     const dist2 = cp ? this.group.position.distanceToSquared(cp) : 0;
+    const far = dist2 > COMPASS_MAX_DIST2;
+    if (far !== this._labelFar) { this._labelFar = far; this._labelDirty = true; }
     const isNear = dist2 < 400; // ~20 units = ~55km
 
 
