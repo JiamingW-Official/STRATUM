@@ -1440,19 +1440,22 @@ export function deselectAirport(scene) {
 // white, and the bloom pass spreads that into a disc over the airport. Their
 // brightness now falls with camera height -- full among the runways, a quarter
 // at map zoom -- so what reads from far away is a bright mark, not a ball.
+let _lightFade = 1;
 let _lightFadeApplied = -1;
 export function updateAirportLightFalloff(camera) {
-  if (!airportGroup || !camera) return;
-  const y = camera.position.y;
-  const t = Math.min(1, Math.max(0, (y - 2.5) / 14));
-  const mul = 1 - 0.78 * t * t;
-  if (Math.abs(mul - _lightFadeApplied) < 0.01) return;
-  _lightFadeApplied = mul;
+  if (!camera) return;
+  const t = Math.min(1, Math.max(0, (camera.position.y - 2.5) / 14));
+  _lightFade = 1 - 0.78 * t * t;
+  // The animated layers read _lightFade every frame in updatePulse. The rest --
+  // centreline, PAPI, approach bars that do not twinkle -- are written here,
+  // and only when the value has actually moved.
+  if (!airportGroup || Math.abs(_lightFade - _lightFadeApplied) < 0.01) return;
+  _lightFadeApplied = _lightFade;
   airportGroup.traverse((o) => {
-    if (!o.isPoints || !o.material) return;
+    if (!o.isPoints || !o.material || o.material.userData.pulsed) return;
     if (o.material.userData.baseOpacity === undefined)
       o.material.userData.baseOpacity = o.material.opacity;
-    o.material.opacity = o.material.userData.baseOpacity * mul;
+    o.material.opacity = o.material.userData.baseOpacity * _lightFade;
   });
 }
 
@@ -1460,29 +1463,34 @@ export function updatePulse(scene, time) {
   // Airport beacon pulse — iterate cached array, no forEach with string compare
   const beaconOpacity = 0.15 + 0.1 * Math.sin(time * 1.5);
   for (let i = 0; i < _aptBeacons.length; i++) {
-    _aptBeacons[i].material.opacity = beaconOpacity;
+    _aptBeacons[i].material.opacity = beaconOpacity * _lightFade;
+    _aptBeacons[i].material.userData.pulsed = true;
   }
 
   // Approach light shimmer — one value shared across all approach light batches
   const approachOpacity = 0.4 + 0.2 * Math.sin(time * 2);
   for (let i = 0; i < _approachLightMeshes.length; i++) {
-    _approachLightMeshes[i].material.opacity = approachOpacity;
+    _approachLightMeshes[i].material.opacity = approachOpacity * _lightFade;
+    _approachLightMeshes[i].material.userData.pulsed = true;
   }
 
   // Runway edge lights — single batched mesh
   if (_runwayEdgeLightMesh) {
     _runwayEdgeLightMesh.material.opacity =
-      0.35 + 0.15 * Math.sin(time * 1.8 + 0.5);
+      (0.35 + 0.15 * Math.sin(time * 1.8 + 0.5)) * _lightFade;
+    _runwayEdgeLightMesh.material.userData.pulsed = true;
   }
 
   // Taxiway lights — single batched mesh
   if (_taxiwayLightMesh) {
-    _taxiwayLightMesh.material.opacity = 0.25 + 0.1 * Math.sin(time * 1.2 + 1);
+    _taxiwayLightMesh.material.opacity = (0.25 + 0.1 * Math.sin(time * 1.2 + 1)) * _lightFade;
+    _taxiwayLightMesh.material.userData.pulsed = true;
   }
 
   // Threshold bar lights — steady green glow
   if (_thresholdBarMesh) {
-    _thresholdBarMesh.material.opacity = 0.6 + 0.1 * Math.sin(time * 1.5 + 0.3);
+    _thresholdBarMesh.material.opacity = (0.6 + 0.1 * Math.sin(time * 1.5 + 0.3)) * _lightFade;
+    _thresholdBarMesh.material.userData.pulsed = true;
   }
 
   // Selection pulse — _selPulse is always index 1 when present

@@ -4533,8 +4533,8 @@ function animate() {
     camera.position.z = Math.max(-_LIM, Math.min(_LIM, camera.position.z));
   }
 
-  updatePulse(scene, _elapsed);
   updateAirportLightFalloff(camera);
+  updatePulse(scene, _elapsed);
   animateAirportLoading(_elapsed);
   updateCompass(_elapsed);
 
