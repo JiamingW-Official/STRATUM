@@ -1206,81 +1206,127 @@ class AircraftObject {
     return sprite;
   }
 
+  // ── The aircraft's data block ──
+  // It used to be three stacked lines in three type sizes inside a rounded box,
+  // with a drop shadow on every string: a list of readings, not a reading. It is
+  // two rows now. The first says who, the second what it is doing, and the units
+  // are drawn rather than spelled -- one glyph set at one stroke weight, so the
+  // numbers line up and the row reads as a band instead of a sentence. Heading
+  // is a compass with a needle, which is the one field you can take in without
+  // reading it. The box is gone; a dark halo behind the strokes does the work it
+  // was doing, the way a map label carries itself over whatever is beneath.
+  _glyph(ctx, kind, x, y, arg) {
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (kind === 'alt') {
+      // A flight level: the bar the aircraft sits on, with the trend above or
+      // below it when it is leaving.
+      ctx.moveTo(x - 11, y + 8); ctx.lineTo(x + 11, y + 8);
+      if (arg > 0) { ctx.moveTo(x - 6, y - 1); ctx.lineTo(x, y - 8); ctx.lineTo(x + 6, y - 1); }
+      else if (arg < 0) { ctx.moveTo(x - 6, y - 8); ctx.lineTo(x, y - 1); ctx.lineTo(x + 6, y - 8); }
+      ctx.stroke();
+    } else if (kind === 'spd') {
+      ctx.moveTo(x - 9, y - 8); ctx.lineTo(x - 1, y); ctx.lineTo(x - 9, y + 8);
+      ctx.moveTo(x + 1, y - 8); ctx.lineTo(x + 9, y); ctx.lineTo(x + 1, y + 8);
+      ctx.stroke();
+    } else if (kind === 'hdg') {
+      ctx.arc(x, y, 11, 0, Math.PI * 2);
+      ctx.stroke();
+      const a = ((arg || 0) - 90) * Math.PI / 180;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a) * 10, y + Math.sin(a) * 10);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   _drawInfoLabel(data) {
     const ctx = this._labelCtx;
     const w = this._labelCanvas.width;
     const h = this._labelCanvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // Subtle backdrop for readability against any background
-    ctx.fillStyle = 'rgba(4,6,12,0.35)';
-    const rx = 10, ry = 6, rw = w - 20, rh = 180, cr = 12;
-    ctx.beginPath();
-    ctx.moveTo(rx + cr, ry); ctx.lineTo(rx + rw - cr, ry);
-    ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + cr);
-    ctx.lineTo(rx + rw, ry + rh - cr);
-    ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - cr, ry + rh);
-    ctx.lineTo(rx + cr, ry + rh);
-    ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - cr);
-    ctx.lineTo(rx, ry + cr);
-    ctx.quadraticCurveTo(rx, ry, rx + cr, ry);
-    ctx.fill();
-
     const altM = bestAlt(data);
     const altFt = altM ? Math.round(altM * METERS_TO_FEET) : null;
     const speedKts = data.velocity != null ? Math.round(data.velocity * 1.94384) : null;
     const hdg = data.trueTrack != null ? Math.round(data.trueTrack) : null;
     const vsFtMin = data.verticalRate != null ? Math.round(data.verticalRate * METERS_TO_FEET * 60) : null;
-
-    // Text shadow for all text
-    ctx.shadowColor = 'rgba(0,0,0,0.6)';
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
-
+    const climbing = vsFtMin != null && Math.abs(vsFtMin) > 100 ? Math.sign(vsFtMin) : 0;
     const ghost = _ghostMode && data.masked;
 
-    // Line 1: Callsign + Type — or, for a ghost, only what it cannot hide.
-    ctx.font = 'bold 44px JetBrains Mono, monospace';
-    ctx.fillStyle = ghost ? 'rgba(200,205,215,0.55)' : '#f0f0f0';
+    const X = 22;
+    // Halo: a dark stroke under everything, so a label stays legible over the
+    // lit part of an airport without a panel behind it.
+    const halo = (fn) => {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(3,5,10,0.85)';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 7;
+      fn(true);
+      ctx.restore();
+      fn(false);
+    };
+
+    // ── Row 1: who ──
+    const callsign = ghost ? 'UNSEEN' : (data.callsign || data.icao24);
     ctx.textAlign = 'left';
-    let line1 = ghost
-      ? `UNSEEN${data.aircraftType ? `  ${data.aircraftType}` : ''}`
-      : (data.callsign || data.icao24) + (data.aircraftType ? `  ${data.aircraftType}` : '');
-    // How the position reached us, when it was not the aircraft speaking for
-    // itself: volunteers triangulating (MLAT), a state relay (TIS-B), or a
-    // rebroadcast (ADS-R). Only in ghost mode — it is that layer's question.
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold 46px JetBrains Mono, monospace';
+    halo((strokePass) => {
+      if (strokePass) ctx.strokeText(callsign, X, 68);
+      else { ctx.fillStyle = ghost ? 'rgba(205,210,220,0.6)' : '#ffffff'; ctx.fillText(callsign, X, 68); }
+    });
+    let cx = X + ctx.measureText(callsign).width + 20;
+
+    ctx.font = '38px JetBrains Mono, monospace';
     const via = _ghostMode ? _SENSING_TAG[data.sensing] : null;
-    if (via) line1 += `  · ${via}`;
-    ctx.fillText(line1, 22, 52);
-
-    // Line 2: Route + Alt + Speed + Heading
-    ctx.font = '36px JetBrains Mono, monospace';
-    ctx.fillStyle = 'rgba(170,205,255,0.92)';
-    let line2 = '';
     const route = ghost ? null : getRoute(data.callsign);
-    const labelOrigin = ghost ? null : (data.origin || (route && route.origin) || null);
-    const labelDest = ghost ? null : (data.destination || (route && route.destination) || null);
-    if (labelOrigin || labelDest) {
-      line2 += `${labelOrigin || '?'}\u2192${labelDest || '?'} `;
+    const org = ghost ? null : (data.origin || (route && route.origin) || null);
+    const dst = ghost ? null : (data.destination || (route && route.destination) || null);
+    const sub = [
+      data.aircraftType || null,
+      org || dst ? `${org || '?'}\u2192${dst || '?'}` : null,
+      via,
+    ].filter(Boolean).join('  \u00b7  ');
+    if (sub) {
+      halo((strokePass) => {
+        if (strokePass) ctx.strokeText(sub, cx, 66);
+        else { ctx.fillStyle = 'rgba(255,255,255,0.52)'; ctx.fillText(sub, cx, 66); }
+      });
     }
+
+    // ── Row 2: what it is doing ──
+    const ROW = 146;
+    ctx.font = '40px JetBrains Mono, monospace';
+    let x = X + 14;
+    const field = (kind, arg, text, colour) => {
+      if (text == null) return;
+      halo((strokePass) => {
+        if (strokePass) { ctx.strokeStyle = 'rgba(3,5,10,0.85)'; this._glyph(ctx, kind, x, ROW - 6, arg); }
+        else { ctx.strokeStyle = colour; this._glyph(ctx, kind, x, ROW - 6, arg); }
+      });
+      x += 22;
+      halo((strokePass) => {
+        if (strokePass) ctx.strokeText(text, x, ROW + 8);
+        else { ctx.fillStyle = colour; ctx.fillText(text, x, ROW + 8); }
+      });
+      x += ctx.measureText(text).width + 34;
+    };
+
+    const dim = 'rgba(178,208,246,0.95)';
+    const trend = climbing > 0 ? '#ffb066' : climbing < 0 ? '#66bfff' : dim;
     if (altFt != null) {
-      line2 += altFt >= 18000 ? `FL${String(Math.round(altFt / 100)).padStart(3, '0')}` : `${altFt.toLocaleString()}ft`;
+      const altText = altFt >= 18000
+        ? `FL${String(Math.round(altFt / 100)).padStart(3, '0')}`
+        : altFt.toLocaleString();
+      field('alt', climbing, altText, trend);
     }
-    if (speedKts != null) line2 += ` ${speedKts}kt`;
-    if (hdg != null) line2 += ` ${String(hdg).padStart(3, '0')}\u00b0`;
-    ctx.fillText(line2, 22, 108);
-
-    // Line 3: Vertical speed
-    if (vsFtMin != null && Math.abs(vsFtMin) > 100) {
-      ctx.font = '34px JetBrains Mono, monospace';
-      const arrow = vsFtMin > 0 ? '\u2191' : '\u2193';
-      ctx.fillStyle = vsFtMin > 0 ? '#ffaa55' : '#55bbff';
-      ctx.fillText(`${arrow}${Math.abs(vsFtMin).toLocaleString()} fpm`, 22, 160);
-    }
-
-    // Reset shadow
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    if (speedKts != null) field('spd', 0, String(speedKts), dim);
+    if (hdg != null) field('hdg', hdg, String(hdg).padStart(3, '0'), dim);
   }
 
   _refreshInfoLabel() {
