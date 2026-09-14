@@ -244,7 +244,12 @@ function loadModel(path) {
         const rotSize = rotBox.getSize(new THREE.Vector3());
         _modelDimensions[path] = {
           halfSpan: rotSize.z / 2,                       // wingtip ±Z from center
-          tailX: rotBox.min.x,                           // tail end (negative X)
+          // Measured, not assumed: binning this model's vertices along X shows
+          // the half-width tapering to nothing at min X (the nose) and rising
+          // again at max X, where the horizontal stabiliser is. The comment
+          // that used to sit here said the opposite, and the tail strobe spent
+          // its life on the nose because of it.
+          tailX: rotBox.max.x,                           // tail end (+X; nose is -X)
           wingY: rotBox.min.y + rotSize.y * 0.45,        // wing height (slightly below center)
         };
         console.log(`[STRATUM] Model loaded: ${path} (${rotSize.x.toFixed(3)}×${rotSize.y.toFixed(3)}×${rotSize.z.toFixed(3)}, halfSpan=${_modelDimensions[path].halfSpan.toFixed(3)})`);
@@ -937,11 +942,11 @@ class AircraftObject {
     const modelPath = getModelPath(data.aircraftType);
     const dims = _modelDimensions[modelPath];
     const halfSpan = dims ? dims.halfSpan * 0.98 : MODEL_SCALE * 0.38; // slight inset from bbox edge
-    const tailX    = dims ? dims.tailX * 0.85 : -MODEL_SCALE * 0.35;
+    const tailX    = dims ? dims.tailX * 0.85 : MODEL_SCALE * 0.35;
     // Wingtip lights sat at the model's origin, level with the middle of the
     // fuselage. On an aircraft they are at the trailing edge of the wingtip,
     // which is well aft of the middle: halfway to the tail reads as the back of
-    // the wing without leaving it. Aft is -X, the direction tailX points.
+    // the wing without leaving it. Aft is +X, the direction tailX points.
     const wingTipX = tailX * 0.5;
     this._navLights = [];
 
