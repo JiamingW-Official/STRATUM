@@ -522,7 +522,18 @@ html, body {
   flex-shrink: 0; opacity: 0.55; margin: 0 8px;
   filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.15));
 }
-/* Estimated route indicator — subtle dashed border */
+/* ── The dash rule, in the interface ──
+   Same claim the scene makes with dashed lines: this number was computed, not
+   received. The seat count behind "people overhead" comes from a fleet table
+   keyed on aircraft type — nobody on board was counted. A reader who has seen
+   a dashed trail already knows what the underline means, so it needs no key. */
+.inferred {
+  border-bottom: 1px dashed rgba(var(--text-rgb), 0.28);
+  padding-bottom: 1px;
+  cursor: help;
+}
+
+/* Estimated route indicator — the same rule, on a whole block */
 .detail-route.estimated {
   border-style: dashed;
   position: relative;
@@ -2289,7 +2300,7 @@ html, body {
   padding: 20px 20px 14px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.no-coverage-icon-wrap { font-size: 30px; line-height: 1; flex-shrink: 0; opacity: 0.65; }
+.no-coverage-icon-wrap { line-height: 0; flex-shrink: 0; opacity: 0.65; color: rgba(var(--accent-rgb), 0.9); }
 .no-coverage-eyebrow {
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
   color: rgba(var(--accent-rgb), 0.5); text-transform: uppercase; margin-bottom: 4px;

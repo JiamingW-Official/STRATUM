@@ -24,6 +24,18 @@ const COLOR_CRUISE = new THREE.Color(0xffffff);
 const COLOR_CLIMB = new THREE.Color(0xff9d4d);
 const COLOR_DESCEND = new THREE.Color(0x4db8ff);
 
+// ── The dash rule ──
+// A dashed line in this scene means exactly one thing: nobody measured this.
+// It is drawn where the aircraft went but no receiver heard it (a gap), and
+// where the aircraft is about to go but has not gone yet (the prediction).
+// Both are the same claim — computed, not observed — so they are the same
+// mark, in the same rhythm, in the same colour. Anything the data actually
+// contains is drawn solid, however faintly. The drop line used to be dashed
+// and broke this: it carries a measured altitude down to the ground.
+const COLOR_INFERRED = 0x7f93a8;
+const DASH_SIZE = 0.15;
+const DASH_GAP = 0.2;
+
 // Speed-based trail colors (m/s thresholds) — smooth gradient, aviation-inspired
 // Taxi/slow → approach → cruise → fast cruise → overspeed
 const SPEED_STOPS = [
@@ -752,8 +764,8 @@ export class AircraftManager {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     const mat = new THREE.LineDashedMaterial({
-      color: 0x5aacff, transparent: true, opacity: 0.3,
-      dashSize: 0.15, gapSize: 0.1,
+      color: COLOR_INFERRED, transparent: true, opacity: 0.3,
+      dashSize: DASH_SIZE, gapSize: DASH_GAP,
       depthWrite: false, fog: false,
     });
     const line = new THREE.Line(geo, mat);
@@ -1019,14 +1031,13 @@ class AircraftObject {
     this._dropPosArray = new Float32Array(6);
     this.dropGeometry = new THREE.BufferGeometry();
     this.dropGeometry.setAttribute('position', new THREE.BufferAttribute(this._dropPosArray, 3));
-    this.dropMaterial = new THREE.LineDashedMaterial({
+    // Solid: the altitude it measures is measured. See the dash rule above.
+    this.dropMaterial = new THREE.LineBasicMaterial({
       color: 0x3a6a9f, transparent: true, opacity: 0,
-      dashSize: 0.15, gapSize: 0.25,
       depthTest: false, depthWrite: false,
     });
     this.dropLine = new THREE.LineSegments(this.dropGeometry, this.dropMaterial);
     this.dropLine.renderOrder = 998;
-    this.dropLine.computeLineDistances();
 
     // Gap line — dashed gray for ADS-B signal gaps
     this._gapLine = null;
@@ -1720,8 +1731,8 @@ class AircraftObject {
     const gapGeo = new THREE.BufferGeometry();
     gapGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     const gapMat = new THREE.LineDashedMaterial({
-      color: 0x667788, transparent: true, opacity: 0.3,
-      dashSize: 0.15, gapSize: 0.2,
+      color: COLOR_INFERRED, transparent: true, opacity: 0.3,
+      dashSize: DASH_SIZE, gapSize: DASH_GAP,
       depthTest: false, depthWrite: false,
     });
     this._gapLine = new THREE.LineSegments(gapGeo, gapMat);
@@ -1830,7 +1841,9 @@ class AircraftObject {
       this._setModelOpacity(this.masterOpacity);
       if (this._labelMat) this._labelMat.opacity = this.masterOpacity * 0.75;
       if (this.trailLineMat) this.trailLineMat.opacity = this.masterOpacity * 0.85 * (this._trailOpacityMult || 1.0);
-      if (this.dropMaterial) this.dropMaterial.opacity = this.masterOpacity * 0.15;
+      // 0.09 solid ≈ 0.15 dashed in perceived weight: a dashed line is only
+      // drawing about half the time. Same presence, one fewer meaning.
+      if (this.dropMaterial) this.dropMaterial.opacity = this.masterOpacity * 0.09;
       if (this._gapLine) this._gapLine.material.opacity = this.masterOpacity * 0.3;
       for (const nl of this._navLights) nl.material.opacity = this.masterOpacity * 0.55;
     }

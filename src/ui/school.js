@@ -46,6 +46,13 @@ const LESSONS = [
     answer: 1,
   },
   {
+    id: 'dash', anchor: 'fast', title: 'Solid was heard, dashed was not',
+    body: 'One rule runs through everything drawn here. A solid line is a position a receiver actually heard. A dashed line is one nobody heard: the grey bridge across a trail is where the signal was lost and the track had to be guessed, and the line reaching ahead of a selected aircraft is where it will be in a minute if nothing changes. The underline under an estimated number in the corner means the same thing.',
+    q: 'A trail has a dashed grey segment in the middle of it. That means',
+    options: ['The aircraft flew through cloud', 'No receiver heard the aircraft there, so the path is a guess', 'The aircraft changed altitude'],
+    answer: 1,
+  },
+  {
     id: 'unseen', anchor: 'ring', title: 'The ones that asked not to be seen',
     body: 'A ringed aircraft has asked, through an FAA programme, that its identity not be published. You can see where it is, hear its tower, and read its type and altitude; the name is withheld. There is no such programme in Europe -- in an American sky about one in ten asks; in a European one almost none can.',
     q: 'What can you learn about a ringed aircraft on this map?',

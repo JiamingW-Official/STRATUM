@@ -485,3 +485,46 @@ The lesson is the one from section 5, in the other direction: last time I
 mistook my own bad technique for a refusal by the infrastructure; this time
 I found a real refusal and nearly pinned the wrong symptom on it. Both times
 the correction came from reading the actual bytes.
+
+## 11. One mark, one meaning
+
+Late on, I audited the drawing rather than the code, and found the piece had
+been saying the same thing four ways and four things one way.
+
+A dashed line appeared in four places: the bridge across a gap in a trail, the
+prediction reaching ahead of a selected aircraft, the leader line dropping from
+an aircraft to the ground, and the border around an estimated route in the
+dossier. Three of those are the same claim — *this was computed, not received*.
+The fourth is not: the drop line carries an altitude the aircraft broadcast.
+Its dash rhythm was 0.15/0.25, the gap line's 0.15/0.20, the prediction's
+0.15/0.10. Three rhythms, two meanings, no rule.
+
+So I wrote the rule down, in the file where the marks are made:
+
+> A dashed line means exactly one thing: nobody measured this.
+
+Then I made the drawing obey it. The gap and the prediction became the same
+mark — one dash rhythm, one colour, stated once as `COLOR_INFERRED`,
+`DASH_SIZE`, `DASH_GAP` — because they are the same claim pointing in opposite
+directions in time. The drop line went solid, and lost a third of its opacity
+to compensate: a dashed line is only drawing about half the time, so solid at
+0.09 sits where dashed at 0.15 sat. Same presence, one fewer meaning.
+
+Then the rule left the scene. The passenger figure in the corner is not a
+count of anybody; it is a seat table keyed on aircraft type. It now carries a
+dashed underline. The "no coverage" dialog had been opening with a satellite-
+dish emoji — a picture of the equipment, which is not what the dialog is about.
+It opens with a dashed ring now, which is the project's own word for *nobody
+measured this*, and is exactly what the dialog goes on to say.
+
+The test I want this to pass is that nothing above needs a key. A reader who
+has watched one trail break and reconnect has already learned the underline.
+That is the difference I was reaching for between a legend and a language: a
+legend is a list you consult, a language is a rule you absorb once and then
+read with. It is also the cheapest argument in the project — it adds no panel,
+no toggle and no text, and it makes the piece's central claim, that this sky is
+partly heard and partly guessed, legible in every line on the screen.
+
+The one lesson added to Ground School since is the only place the rule is
+spelled out, and it is spelled out last, for the reader who wants confirming
+rather than teaching.

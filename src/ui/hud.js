@@ -192,8 +192,8 @@ export function updateHUDSky({ people, cities, unseen }) {
   // Rebuilt from a template every time: routes resolve a few seconds after
   // positions, so the "bound for" clause appears once there is something to say.
   hudSkyLine.innerHTML = cities > 0
-    ? `<span id="hud-sky-people">${n}</span> people overhead, bound for <span id="hud-sky-cities">${cities}</span> cities`
-    : `<span id="hud-sky-people">${n}</span> people overhead`;
+    ? `<span id="hud-sky-people" class="inferred" title="Estimated: seats for this aircraft type, not a passenger count">${n}</span> people overhead, bound for <span id="hud-sky-cities">${cities}</span> cities`
+    : `<span id="hud-sky-people" class="inferred" title="Estimated: seats for this aircraft type, not a passenger count">${n}</span> people overhead`;
   hudSkyUnseen.textContent = String(unseen);
   hudSkyUnseenLine.classList.toggle('is-zero', unseen === 0);
 }
