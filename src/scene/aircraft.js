@@ -945,9 +945,10 @@ class AircraftObject {
     const tailX    = dims ? dims.tailX * 0.85 : MODEL_SCALE * 0.35;
     // Wingtip lights sat at the model's origin, level with the middle of the
     // fuselage. On an aircraft they are at the trailing edge of the wingtip,
-    // which is well aft of the middle: halfway to the tail reads as the back of
-    // the wing without leaving it. Aft is +X, the direction tailX points.
-    const wingTipX = tailX * 0.5;
+    // which is a little aft of the middle. Measured on the models, the wing
+    // occupies roughly the first fifth aft of centre; a third of the way to the
+    // tail sits on it rather than behind it. Aft is +X, the way tailX points.
+    const wingTipX = tailX * 0.35;
     this._navLights = [];
 
     // Port (red) — left wingtip (+Z), at wing height (~center Y of model)
