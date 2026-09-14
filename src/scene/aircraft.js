@@ -942,6 +942,11 @@ class AircraftObject {
     const dims = _modelDimensions[modelPath];
     const halfSpan = dims ? dims.halfSpan * 0.98 : MODEL_SCALE * 0.38; // slight inset from bbox edge
     const tailX    = dims ? dims.tailX * 0.85 : -MODEL_SCALE * 0.35;
+    // Wingtip lights sat at the model's origin, level with the middle of the
+    // fuselage. On an aircraft they are at the trailing edge of the wingtip,
+    // which is a little aft of that -- far enough back to read as on the wing,
+    // not so far as to leave it. Aft is -X, the direction tailX points.
+    const wingTipX = tailX * 0.3;
     this._navLights = [];
 
     // Port (red) — left wingtip (+Z), at wing height (~center Y of model)
@@ -950,7 +955,7 @@ class AircraftObject {
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     portLight.scale.set(0.035, 0.035, 1);
-    portLight.position.set(0, 0, halfSpan);
+    portLight.position.set(wingTipX, 0, halfSpan);
     this.group.add(portLight);
     this._navLights.push(portLight);
 
@@ -960,7 +965,7 @@ class AircraftObject {
       depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     starboardLight.scale.set(0.035, 0.035, 1);
-    starboardLight.position.set(0, 0, -halfSpan);
+    starboardLight.position.set(wingTipX, 0, -halfSpan);
     this.group.add(starboardLight);
     this._navLights.push(starboardLight);
 
