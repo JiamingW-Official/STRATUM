@@ -1923,6 +1923,35 @@ function _recordContact(ac) {
 const _greeted = new Set();
 let _reunion = null;
 
+// ── While you were away ─────────────────────────────────────────────────────
+// The commons is shared, and the only evidence of that from inside a single
+// visit is a number in the ticker that never visibly moves. Between visits it
+// does. Holding the size at the last visit costs one integer and turns coming
+// back into news: other people were here, and the sky has more names in it
+// than it did. Said once, in the same slot the reunions use, before them.
+const COMMONS_SEEN_KEY = "stratum:commons-seen";
+let _awayChecked = false;
+function _checkWhileAway() {
+  if (_awayChecked) return;
+  const now = indexSize();
+  if (!now) return;          // index has not loaded yet; try again next poll
+  _awayChecked = true;
+  let before = null;
+  try {
+    const raw = localStorage.getItem(COMMONS_SEEN_KEY);
+    before = raw === null ? null : Number(raw);
+    localStorage.setItem(COMMONS_SEEN_KEY, String(now));
+  } catch { return; }
+  // Nothing to say on a first visit: there is no "away" to have been in.
+  if (before === null || !(now > before)) return;
+  const n = now - before;
+  _reunion = {
+    text: `${n} aircraft ${n === 1 ? "was" : "were"} named while you were away`,
+    until: Date.now() + 12000,
+  };
+  _renderContacts();
+}
+
 function _checkReturns() {
   if (!aircraftManager || !isGhostMode()) return;
   // Wait for the slot. Several of your aircraft can be overhead at once, and
@@ -1956,7 +1985,8 @@ function _renderContacts() {
       // phrase -- measures 234. The pronoun is the part that can go: this line
       // only ever appears for a name you gave. "is back" is the register, too;
       // a reunion, not a notification.
-      el.textContent = `${_reunion.name.toUpperCase()} is back · named ${sinceWords(_reunion.at)}`;
+      el.textContent = _reunion.text
+        || `${_reunion.name.toUpperCase()} is back · named ${sinceWords(_reunion.at)}`;
       el.classList.add("is-reunion");
       return;
     }
@@ -1981,9 +2011,34 @@ function _renderContacts() {
 // any input from the visitor ends it at once.
 let _introDone = false;
 let _introRunning = false;
+// The descent is the piece's opening: the sky is arrived at as a place rather
+// than switched on as a picture. That is worth four seconds from someone
+// meeting it, and it is a toll on someone who left ten minutes ago and came
+// back -- and the toll is paid on every single entry, because the flag that
+// suppressed a repeat lived in module scope and died with the page.
+//
+// So it plays on a real arrival and not on a return. Six hours, because by
+// then you have been away long enough that landing here again is an arrival;
+// under it, you know where you are and want the sky, not the overture.
+const ARRIVAL_KEY = "stratum:arrived";
+const ARRIVAL_GAP = 6 * 60 * 60 * 1000;
+function _isReturning() {
+  try {
+    const last = Number(localStorage.getItem(ARRIVAL_KEY) || 0);
+    localStorage.setItem(ARRIVAL_KEY, String(Date.now()));
+    return last > 0 && Date.now() - last < ARRIVAL_GAP;
+  } catch { return false; }
+}
+
 function _introDescent() {
   if (_introDone || !camera || !controls) return;
   _introDone = true;
+  if (_isReturning()) {
+    camera.position.set(8, 9, 12);
+    controls.target.set(0, 1, 0);
+    controls.update();
+    return;
+  }
   _introRunning = true;
   // The descent owns the camera: it ends on the cinematic framing every
   // airspace load uses, and that load's own reset stands aside while it runs,
@@ -2092,6 +2147,7 @@ function handleData(dataList) {
     updateHUDSky(_skyStats(dataList));
     if (Date.now() - _tickerAt > 20000) { _tickerAt = Date.now(); _buildTicker(); }
     refreshIndex().then((changed) => { if (changed) refreshGhostNames(); });
+    _checkWhileAway();
     _checkReturns();
     _renderVisibilityCmp();
     _renderContacts();
@@ -14179,6 +14235,13 @@ async function init() {
       _onAptLoaded();
     },
   );
+  // Start the commons with everything else rather than waiting for a poll, so
+  // the names are on the ringed labels the first time they are drawn instead of
+  // appearing a beat later. It does not move the "while you were away" line,
+  // which is computed on the first data and therefore lands when the boot
+  // splash lifts -- measured at eight seconds, which is where it belongs: any
+  // earlier and it would be playing to a covered screen.
+  refreshIndex(true).then((changed) => { if (changed) refreshGhostNames(); });
   startPolling(handleData, handleError);
 
   // ── 5. Await geo + first data arrival in parallel ──

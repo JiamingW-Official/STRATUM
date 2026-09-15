@@ -695,3 +695,69 @@ What I would keep from this: the strongest mechanic in a piece built on live
 data is usually the one you have to wait for rather than the one you can ship.
 It costs almost nothing to implement and it cannot be faked, because the sky
 has to actually bring the thing back.
+
+## 15. Coming back should be cheap
+
+The piece was built to be arrived at. It was not built to be returned to, and
+returning is what anyone who actually likes it will do.
+
+So I measured a return visit instead of guessing at it. The shell was fine —
+289ms to first byte, interactive in 783ms. Then it spent **fourteen more
+seconds** finishing, and the tail was almost entirely one thing:
+
+| | requests | cumulative time |
+|---|---|---|
+| `/api/trail` | 148 | 35.5s |
+| aircraft models | 7 | ~6.8s |
+
+None of it cached between visits, because the service worker opened with
+`if (url.pathname.startsWith("/api/")) return;` — a blanket bail-out written
+when the only `/api/` route was live positions, and never revisited when trails
+arrived. And the models sat outside the cache-first list next to `/assets/`,
+`/cifp/` and `/atc/`, so four megabytes of static geometry was re-fetched every
+time.
+
+A trail is history, which is exactly the thing that is safe to show slightly
+old: it paints from cache instantly and is corrected within the second by the
+revalidation already in flight. Capped at ten minutes, past which the aircraft
+has moved far enough that a stale trail would be a visible lie rather than a
+head start.
+
+| | before | after |
+|---|---|---|
+| trail, cumulative | 35.5s | 3.5s |
+| trail, average | 240ms | 37ms |
+| models, cumulative | ~6.8s | 43ms |
+
+124 of 129 trails now answer in under 60ms.
+
+### The overture became a toll
+
+The other cost was mine, not the network's. The opening descent — four and a
+bit seconds of camera settling onto the airport, so the sky is arrived at as a
+place rather than switched on as a picture — played on **every** entry, because
+the flag that suppressed a repeat lived in module scope and died with the page.
+
+That is worth four seconds from someone meeting the piece and it is a toll on
+someone who left ten minutes ago. It now plays on a real arrival and not on a
+return: six hours away and you get the overture, under it you get the sky. The
+flag is a timestamp in local storage, which is the only place a fact about
+*this visitor's last visit* can honestly live.
+
+### And then coming back was worth something
+
+Making returns fast is only half of it; a fast return to an unchanged world is
+still nothing. The commons is shared, but from inside a single session the only
+evidence is a number in the ticker that never visibly moves. Between visits it
+does. Holding that number from last time costs one integer:
+
+    4 aircraft were named while you were away
+
+It lands as the boot splash lifts, about eight seconds in, which is where it
+belongs — I checked whether it could be earlier and it cannot usefully be, since
+earlier means playing to a covered screen. It says nothing on a first visit,
+because there is no away to have been in.
+
+The generalisation: I had measured this project's first load many times and its
+second load never once, and the second load is the one that decides whether
+anybody has a third.

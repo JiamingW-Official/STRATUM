@@ -1,7 +1,21 @@
 // STRATUM Service Worker — smart caching by resource type
-const CACHE_NAME = "stratum-v9";
+const CACHE_NAME = "stratum-v10";
 const TILE_CACHE = "stratum-tiles-v1";
 const RADIO_CACHE = "stratum-radio-v1";
+const TRAIL_CACHE = "stratum-trails-v1";
+
+// Ten minutes: long enough that leaving and coming back paints the sky at once,
+// short enough that nothing on screen is meaningfully behind where it was.
+const TRAIL_MAX_AGE = 10 * 60 * 1000;
+// One airspace is a few hundred aircraft; this holds a couple of them and then
+// drops the oldest, so the cache cannot grow for the life of the browser.
+const MAX_TRAIL_ENTRIES = 600;
+
+async function _trimTrailCache(cache) {
+  const keys = await cache.keys();
+  if (keys.length <= MAX_TRAIL_ENTRIES) return;
+  for (const k of keys.slice(0, keys.length - MAX_TRAIL_ENTRIES)) await cache.delete(k);
+}
 
 // Sized for rasterised region images (~600KB each), not the 7KB tiles this cache
 // originally held: 400 entries is roughly 240MB and covers ~80 cities at five
@@ -26,7 +40,7 @@ self.addEventListener("install", (e) => {
   );
 });
 self.addEventListener("activate", (e) => {
-  const keep = new Set([CACHE_NAME, TILE_CACHE, RADIO_CACHE]);
+  const keep = new Set([CACHE_NAME, TILE_CACHE, RADIO_CACHE, TRAIL_CACHE]);
   e.waitUntil(
     caches
       .keys()
@@ -42,6 +56,47 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (url.protocol !== "http:" && url.protocol !== "https:") return;
+  // ── Trails: stale-while-revalidate ──────────────────────────────────────
+  // Measured on a return visit: 148 requests to /api/trail, 35.5 seconds of
+  // cumulative request time, and not one of them cached across visits, because
+  // the blanket /api/ bail-out below skipped them. The shell was interactive in
+  // 0.8s and the sky then took fourteen more seconds to grow its trails.
+  //
+  // A trail is history, so unlike a position it is safe to show a slightly old
+  // copy: it is drawn instantly from cache and corrected within a second by the
+  // revalidation that is already in flight. Capped at ten minutes -- past that
+  // the aircraft has moved far enough that a stale trail would be a visible lie
+  // rather than a head start, and the network answer is worth waiting for.
+  if (url.pathname.startsWith("/api/trail")) {
+    e.respondWith(
+      caches.open(TRAIL_CACHE).then(async (cache) => {
+        const hit = await cache.match(e.request);
+        const fresh = fetch(e.request)
+          .then((res) => {
+            if (res.ok) {
+              const clone = res.clone();
+              const stamped = new Response(clone.body, {
+                status: res.status,
+                headers: (() => {
+                  const h = new Headers(res.headers);
+                  h.set("x-stratum-cached-at", String(Date.now()));
+                  return h;
+                })(),
+              });
+              cache.put(e.request, stamped).then(() => _trimTrailCache(cache));
+            }
+            return res;
+          })
+          .catch(() => hit || Response.error());
+        if (!hit) return fresh;
+        const at = Number(hit.headers.get("x-stratum-cached-at") || 0);
+        if (Date.now() - at > TRAIL_MAX_AGE) return fresh;
+        return hit;
+      }),
+    );
+    return;
+  }
+
   if (url.pathname.startsWith("/api/")) return;
 
   // ── Map tiles: cache-first (immutable by zoom/x/y) ──
@@ -101,7 +156,13 @@ self.addEventListener("fetch", (e) => {
   if (
     url.pathname.startsWith("/assets/") ||
     url.pathname.startsWith("/cifp/") ||
-    url.pathname.startsWith("/atc/")
+    url.pathname.startsWith("/atc/") ||
+    // The aircraft models and the fleet tables: four megabytes of static bytes
+    // that were re-fetched on every visit because they sat outside this list.
+    // Measured at 1.5-2.6s each on a return visit, and they gate the moment an
+    // aircraft stops being a dot and becomes an aeroplane.
+    url.pathname.startsWith("/airplane_model/") ||
+    url.pathname.startsWith("/airlines/")
   ) {
     e.respondWith(
       caches.open(CACHE_NAME).then((cache) =>
