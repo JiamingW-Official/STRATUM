@@ -62,6 +62,9 @@ const WORKER_ROUTES = [
   "/api/enrich",
   "/api/trail",
   "/api/visibility",
+  // The naming commons. Missing here, dev served the SPA shell for it and every
+  // claim came back as HTML.
+  "/api/ghost",
   "/map/export",
   "/api/weather",
   "/api/atlas",

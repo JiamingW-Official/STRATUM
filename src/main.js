@@ -2148,8 +2148,18 @@ function handleError(err, consecutiveErrors) {
     err.message,
     `(${consecutiveErrors} consecutive)`,
   );
-  // A failed poll is logged and nothing more. The HUD's own "Ns ago" decides
-  // when a silence has gone on long enough to say so, from one clock.
+  // A failed poll is logged and nothing more -- once data has arrived. The
+  // HUD's own "Ns ago" decides when a silence has gone on long enough to say
+  // so, from one clock.
+  //
+  // Before the first aircraft ever lands, there is no clock to read and the
+  // pill sits on "Awaiting aircraft data…" forever, which describes a wait and
+  // not a failure. Someone whose dev server or network is down reads that for
+  // several minutes before suspecting anything is wrong. After three failed
+  // polls, say which half is broken.
+  if (!_aircraftArrived && consecutiveErrors >= 3) {
+    _setLoadStatus("No reply from any aircraft feed — retrying");
+  }
 }
 
 // --- Window resize ---
@@ -13968,12 +13978,18 @@ function _resetBootSteps() {
 }
 
 // ── Post-boot loading status pill ────────────────────────────────────────────
-const _loadStatusEl = document.getElementById("load-status");
-const _loadStatusTextEl = document.getElementById("load-status-text");
+// Looked up on use, not captured at module scope. Captured, these were null
+// whenever this module happened to evaluate before the element existed, and
+// every later call to _setLoadStatus returned at its own guard -- silently, so
+// the pill kept whatever the markup said and no status ever reached anyone.
+let _loadStatusEl = null;
+let _loadStatusTextEl = null;
 let _aptLoadDone = false;
 let _aircraftArrived = false;
 
 function _setLoadStatus(text) {
+  _loadStatusEl ||= document.getElementById("load-status");
+  _loadStatusTextEl ||= document.getElementById("load-status-text");
   if (!_loadStatusEl) return;
   if (text) {
     if (_loadStatusTextEl) _loadStatusTextEl.textContent = text;
