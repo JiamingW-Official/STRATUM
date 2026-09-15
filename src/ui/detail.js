@@ -2864,7 +2864,10 @@ function _renderCommons(hex) {
       ? `You named this aircraft${where}, ${sinceWords(rec.at)}.`
       : `Named by a listener${where}, ${sinceWords(rec.at)}.`;
     // The queue only means something to someone who arrived after the name.
-    const queue = mine ? '' : (rec.c > 1 ? ` You are the ${ordinal(rec.c)} to hear it.` : '');
+    // "here", deliberately. The count is how many people met this airframe
+    // through this project, not how many exist in the world, and a bare "you
+    // are the 2nd to hear it" would claim a rarity the data cannot support.
+    const queue = mine ? '' : (rec.c > 1 ? ` You are the ${ordinal(rec.c)} person here to hear it.` : '');
     _commonsEl.innerHTML =
       `<div class="commons-line">${line}${queue}</div>` +
       `<div class="commons-note">A name the listeners gave it. Not its name.</div>`;

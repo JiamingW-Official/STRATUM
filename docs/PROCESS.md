@@ -645,3 +645,53 @@ throttle is a scheduler whether or not you write one, and if you do not choose
 the order, insertion order chooses it for you — which is never the order you
 wanted. It took a new feature failing visibly to expose an old feature that had
 been failing invisibly for a week.
+
+## 14. The part that cannot be designed
+
+The naming mechanic in §13 had a hole I did not see until I had played with it
+for an afternoon: it is a one-way gesture. You give an airframe a word, and
+then nothing. No reason to open the page tomorrow.
+
+The instinct at that point is to add a reason — a streak, a daily goal, a
+collection with empty slots asking to be filled. Every one of those is an
+invented appetite, and inventing appetites is what I said in §13 I would not do.
+
+The reason was already in the material, and it is the best thing in the project
+because it is the one thing in it I could not design. These are real airframes
+flying real routes. **The one you named last week flies over again.** All the
+piece has to do is notice, and say so.
+
+    SALT ANVIL is back · named 3 days ago
+
+It says it on the line that already tracks your relationship to the unseen, for
+twelve seconds, while that aircraft's own ring pulses so you can find it in the
+sky. Once per airframe per session, because a greeting repeated is a
+notification. No sound: the contact blip already owns that, and a reunion that
+beeps is a reunion asking for credit.
+
+Two things had to be got right, and both were wrong first.
+
+**They queued badly.** Several of your aircraft can be overhead at once, and
+greeting them one poll apart meant each overwrote the last before it could be
+read — four names in eight seconds, none of them legible. They wait for the
+slot now.
+
+**The line wrapped.** *SALT ANVIL is back · you named it 3 days ago* renders at
+240px in a 238px slot, so for twelve seconds it pushed the tower button and the
+weather row down and then pulled them back. I measured rather than guessed:
+without the pronoun, the worst case the word lists can produce measures 234.
+The pronoun is the part that can go, because this line only ever appears for a
+name you gave.
+
+Two smaller additions from the same pass. The ticker carries how many airframes
+the commons has named, so a visitor can tell whether they are the fifth person
+here or the fifty thousandth — without it the naming reads as a private toy
+rather than a shared record. And the dossier now says you are the *n*th person
+**here** to hear an aircraft: the count is how many met it through this project,
+not how many exist, and the bare version claimed a rarity the data cannot
+support.
+
+What I would keep from this: the strongest mechanic in a piece built on live
+data is usually the one you have to wait for rather than the one you can ship.
+It costs almost nothing to implement and it cannot be faked, because the sky
+has to actually bring the thing back.

@@ -79,7 +79,7 @@ import {
   setCommonsPlace,
   onNamed,
 } from "./ui/detail.js";
-import { ghostRecord, ghostContact, refreshIndex, nameFor } from "./ui/commons.js";
+import { ghostRecord, ghostContact, refreshIndex, nameFor, myNames, indexSize, sinceWords } from "./ui/commons.js";
 // Cockpit HUD — lazy-loaded, only needed when user presses V in follow mode
 let _cockpitMod = null;
 async function _getCockpit() {
@@ -1910,9 +1910,59 @@ function _recordContact(ac) {
     _renderContacts();
   });
 }
+// ── The return ──────────────────────────────────────────────────────────────
+// Naming an aircraft was a one-way gesture: you gave it a word and never heard
+// from it again, so there was nothing to come back for. But these are real
+// airframes flying real routes, and the one you named last week flies over
+// again. That reunion is the only thing in this project that could not be
+// designed -- it has to be waited for -- and it was going unsaid.
+//
+// Said on the line that already tracks your relationship to the unseen, for
+// twelve seconds, while the aircraft's own ring pulses so you can find it.
+// Once per airframe per session: a greeting repeated is a notification.
+const _greeted = new Set();
+let _reunion = null;
+
+function _checkReturns() {
+  if (!aircraftManager || !isGhostMode()) return;
+  // Wait for the slot. Several of your aircraft can be overhead at once, and
+  // greeting them a poll apart made each one overwrite the last before anyone
+  // could read it. They queue instead, twelve seconds each.
+  if (_reunion && Date.now() < _reunion.until) return;
+  const mine = myNames();
+  for (const ac of aircraftManager.aircraft.values()) {
+    const hex = ac.data?.icao24;
+    if (!ac.data?.masked || !hex || _greeted.has(hex)) continue;
+    const rec = mine[hex];
+    if (!rec) continue;
+    _greeted.add(hex);
+    _reunion = { name: rec.n, at: rec.at, until: Date.now() + 12000 };
+    ac.contactPulse?.();
+    _renderContacts();
+    break; // one reunion at a time; the rest keep until the next poll
+  }
+}
+
 function _renderContacts() {
   const el = document.getElementById("hud-sky-contacts");
   if (!el) return;
+  if (_reunion) {
+    if (Date.now() < _reunion.until) {
+      // One line, measured rather than guessed: the slot is 238px and "... is
+      // back · you named it 3 days ago" renders at 240, so it wrapped and shoved
+      // the tower button and the weather row down for twelve seconds before
+      // pulling them back. Without the pronoun the worst case -- the longest
+      // adjective and noun the word lists can produce, with the longest elapsed
+      // phrase -- measures 234. The pronoun is the part that can go: this line
+      // only ever appears for a name you gave. "is back" is the register, too;
+      // a reunion, not a notification.
+      el.textContent = `${_reunion.name.toUpperCase()} is back · named ${sinceWords(_reunion.at)}`;
+      el.classList.add("is-reunion");
+      return;
+    }
+    _reunion = null;
+    el.classList.remove("is-reunion");
+  }
   const total = _lastSky.unseen;
   if (!isGhostMode() || !total) { el.textContent = ""; return; }
   const seenNow = aircraftManager ? [...aircraftManager.aircraft.values()].filter((a) => a.data.masked && _contacts.has(a.data.icao24)).length : 0;
@@ -1920,7 +1970,9 @@ function _renderContacts() {
   // only. It used to repeat the number directly under itself.
   el.textContent = seenNow >= total
     ? `all contacted · none named`
-    : seenNow ? `${seenNow} of ${total} contacted` : `none contacted yet`;
+    // The empty state was a fact about nothing. It is the one line with room
+    // to say how any of this starts.
+    : seenNow ? `${seenNow} of ${total} contacted` : `none contacted yet · click a ring`;
 }
 
 // The first thing after the boot screen is a descent: the camera starts high
@@ -1989,6 +2041,13 @@ function _buildTicker() {
   if (_lastSky.total) {
     items.push(`<span class="tk"><span class="tk-sym">UNSEEN</span><span class="tk-val">${Math.round((_lastSky.unseen / _lastSky.total) * 100)}%</span><span class="tk-chg tk-flat">of this sky</span></span>`);
   }
+  // How big the commons is. Without it a visitor has no way to tell whether
+  // they are the fifth person here or the fifty thousandth, and the naming
+  // reads as a private toy rather than a shared record.
+  const named = indexSize();
+  if (named) {
+    items.push(`<span class="tk"><span class="tk-sym">NAMED</span><span class="tk-val">${named.toLocaleString()}</span><span class="tk-chg tk-flat">by listeners</span></span>`);
+  }
   items.push('<span class="tk tk-note">live ADS-B via volunteer receivers &nbsp;·&nbsp; audio LiveATC &nbsp;·&nbsp; map Esri</span>');
   if (!items.length) return;
   // Doubled, so the same strip can scroll into itself without a seam.
@@ -2033,6 +2092,7 @@ function handleData(dataList) {
     updateHUDSky(_skyStats(dataList));
     if (Date.now() - _tickerAt > 20000) { _tickerAt = Date.now(); _buildTicker(); }
     refreshIndex().then((changed) => { if (changed) refreshGhostNames(); });
+    _checkReturns();
     _renderVisibilityCmp();
     _renderContacts();
     _loadVisibility();

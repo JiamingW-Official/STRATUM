@@ -4728,3 +4728,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* Pressed: the others do not grey out and slink away, they simply stop being
    available. The one being written is the only thing that moves. */
 .commons-word:disabled { cursor: default; opacity: 0.3; }
+
+/* The return. The one line in this panel that reports something that happened
+   rather than something that is true, so it gets the accent for the twelve
+   seconds it is up and then hands the slot back. */
+.hud-sky-contacts.is-reunion { color: var(--accent-bright); }
