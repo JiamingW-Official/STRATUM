@@ -6582,3 +6582,17 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    down by tightening the lines rather than by lowering a minimum. */
 .hud-mod--traffic .hud-sky-line, .hud-mod--hero .hud-sky-line { line-height: 1.32; }
 .hud-meta.hud-mod { padding: 7px 9px; }
+
+/* ── The top row stops standing taller than it needs to ───────────────────
+   The rule under the airport count was separating two things a 7px gap
+   already separates, and it was buying that redundancy with 11px of padding
+   above it. Both go. What is left is tightened by line-height rather than by
+   dropping anything: these two tiles carry the project's argument and there
+   is nothing in them to cut. */
+.hud-sky { border-top: none; padding: 3px 0 0; gap: 2px; }
+.hud-cities.hidden { display: none; }
+.hud-mod--traffic .hud-sky-line,
+.hud-mod--hero .hud-sky-line { line-height: 1.26; }
+.hud-mod--hero .hud-hero-label { line-height: 1.2; margin-top: 3px; }
+.hud-mod--traffic .hud-mod-sub, .hud-mod--hero .hud-mod-sub { margin-top: 3px; }
+.hud-mod--traffic .hud-clock { padding-top: 2px; }

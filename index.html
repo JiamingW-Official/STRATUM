@@ -123,7 +123,10 @@
     <div class="hud-mod hud-mod--traffic">
       <span class="hud-mod-top"><span class="hud-mod-label">aircraft</span></span>
       <span class="hud-mod-value" id="hud-count">0</span>
-      <span class="hud-mod-sub"><span id="hud-airports">--</span> airports</span>
+      <!-- Airports and destinations are both counts of places, so they share a
+           line; the people estimate then fits on one instead of two, which is
+           the whole reason this tile stood taller than it had to. -->
+      <span class="hud-mod-sub"><span id="hud-airports">--</span> airports<span class="hud-cities hidden" id="hud-cities-wrap"> · <span id="hud-sky-cities">--</span> cities</span></span>
       <!-- The people estimate and the destination count belong to the traffic,
            so they live in its tile instead of in a band of their own. -->
       <div id="hud-sky" class="hud-sky hidden">

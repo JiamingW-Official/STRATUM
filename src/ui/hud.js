@@ -187,9 +187,12 @@ export function updateHUDSky({ people, cities, unseen }) {
   const n = people >= 1000 ? `≈${(people / 1000).toFixed(1)}k` : `≈${people}`;
   // Rebuilt from a template every time: routes resolve a few seconds after
   // positions, so the "bound for" clause appears once there is something to say.
-  hudSkyLine.innerHTML = cities > 0
-    ? `<span id="hud-sky-people" class="inferred" title="Estimated: seats for this aircraft type, not a passenger count">${n}</span> people overhead, bound for <span id="hud-sky-cities">${cities}</span> cities`
-    : `<span id="hud-sky-people" class="inferred" title="Estimated: seats for this aircraft type, not a passenger count">${n}</span> people overhead`;
+  hudSkyLine.innerHTML = `<span id="hud-sky-people" class="inferred" title="Estimated: seats for this aircraft type, not a passenger count">${n}</span> people overhead`;
+  // The destination count sits with the airport count now, one line up.
+  const citiesWrap = document.getElementById('hud-cities-wrap');
+  const citiesEl = document.getElementById('hud-sky-cities');
+  if (citiesEl) citiesEl.textContent = String(cities);
+  citiesWrap?.classList.toggle('hidden', !(cities > 0));
   hudSkyUnseen.textContent = String(unseen);
   hudSkyUnseenLine?.classList.toggle('is-zero', unseen === 0);
 }
