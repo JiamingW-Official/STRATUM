@@ -107,44 +107,48 @@
 
   <!-- HUD — top left, compact glass panel -->
   <header id="hud" class="glass-panel" role="banner" aria-label="Flight status">
-    <div class="hud-title">
+    <div class="hud-title hud-span">
       <span class="hud-brand">STRATUM</span>
       <div class="hud-status">
         <span class="hud-live-dot"></span>
         <span class="hud-live-text">LIVE</span>
       </div>
     </div>
-    <div class="hud-divider"></div>
-    <!-- One protagonist. Every flight tracker makes the aircraft count the
-         hero number; this piece is about what the sky withholds, so the
-         withheld count is the hero and the traffic count is context beneath
-         it. Squint at the panel and the argument is what survives.
+
+    <!-- One protagonist, now with its denominator beside it rather than under
+         it. The hero is still the only thing at hero size; putting the traffic
+         count alongside makes the ratio readable in one glance instead of two,
+         and it is what turns this panel from a stack into a layout.
          The hero is also the control: pressing it reveals them. -->
-    <button type="button" id="hud-sky-unseen-btn" class="hud-hero" title="Show them — V">
+    <button type="button" id="hud-sky-unseen-btn" class="hud-mod hud-mod--hero" title="Show them — V">
       <span class="hud-hero-value" id="hud-sky-unseen">--</span>
       <span class="hud-hero-label">asked not to be seen</span>
     </button>
-    <div class="hud-context">
-      <span class="hud-ctx-line">of <span id="hud-count">0</span> aircraft · <span id="hud-airports">--</span> airports · <button type="button" id="hud-clock" class="hud-clock" title="Show local time"><span id="hud-zulu">--:--Z</span> <span id="hud-clock-label">UTC</span></button></span>
+
+    <div class="hud-mod hud-mod--traffic">
+      <span class="hud-mod-value" id="hud-count">0</span>
+      <span class="hud-mod-label">aircraft</span>
+      <span class="hud-mod-sub"><span id="hud-airports">--</span> airports</span>
+      <button type="button" id="hud-clock" class="hud-clock" title="Show local time"><span id="hud-zulu">--:--Z</span> <span id="hud-clock-label">UTC</span></button>
     </div>
+
     <!-- The sky as people, and as a visibility regime. -->
-    <div id="hud-sky" class="hud-sky hidden">
+    <div id="hud-sky" class="hud-mod hud-span hud-sky hidden">
       <span class="hud-sky-line" id="hud-sky-people-line"><span id="hud-sky-people" class="inferred" title="Estimated: seats for this aircraft type, not a passenger count">--</span> people overhead, bound for <span id="hud-sky-cities">--</span> cities</span>
       <span class="hud-sky-line hud-sky-cmp" id="hud-sky-cmp"></span>
       <span class="hud-sky-line hud-sky-cmp hud-sky-contacts" id="hud-sky-contacts"></span>
-      <!-- Tower audio: the only trace an unseen aircraft still leaves. Source is
-           LiveATC, credited here; the button is the user gesture browsers need. -->
-      <div id="hud-atc" class="hud-atc hidden">
-        <button type="button" id="hud-atc-btn" class="hud-atc-btn" aria-label="Toggle tower audio">
-          <span class="hud-atc-dot"></span><span id="hud-atc-label">Hear the tower</span>
-        </button>
-        <button type="button" id="hud-atc-next" class="hud-atc-next hidden" title="Next tower nearby" aria-label="Next tower">›</button>
-      </div>
     </div>
-    <!-- Weather — hidden until the first METAR lands. A dashed placeholder here
-         reads as broken rather than pending, and the panel floats, so there is
-         no layout to reserve. -->
-    <div id="hud-weather" class="hud-weather is-empty">
+
+    <!-- Tower audio: the only trace an unseen aircraft still leaves. Source is
+         LiveATC, credited in the ticker; the button is the gesture browsers need. -->
+    <div id="hud-atc" class="hud-mod hud-atc hidden">
+      <button type="button" id="hud-atc-btn" class="hud-atc-btn" aria-label="Toggle tower audio">
+        <span class="hud-atc-dot"></span><span id="hud-atc-label">Hear the tower</span>
+      </button>
+      <button type="button" id="hud-atc-next" class="hud-atc-next hidden" title="Next tower nearby" aria-label="Next tower">›</button>
+    </div>
+
+    <div id="hud-weather" class="hud-mod hud-weather is-empty">
       <div class="hud-wx-line" id="hud-wx-toggle">
         <span class="hud-wx-icon" id="hud-wx-icon"></span>
         <span class="hud-wx-temp" id="hud-wx-temp"></span>
@@ -185,8 +189,7 @@
         <div id="hud-wx-daily" class="hud-wx-daily"></div>
       </div>
     </div>
-    <div class="hud-divider"></div>
-    <div class="hud-meta">
+    <div class="hud-mod hud-span hud-meta">
       <button type="button" id="hud-city-btn" class="hud-city-btn" title="Change airspace (C)">
         <div class="hud-city-btn-text">
           <span id="hud-location" class="hud-coord">Locating...</span>

@@ -4927,3 +4927,117 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   box-shadow: var(--relief-inset-sm);
   border: none;
 }
+
+/* ── The HUD as modules ──
+   It was ten rows stacked in a 280px column, separated by hairlines. That is a
+   list, and a list says every line matters the same amount, which was never
+   true here. Now it is a two-column grid of tiles with real edges and real
+   gaps: the hero sits beside its own denominator so the ratio reads in one
+   glance, and the tower sits beside the weather because both are conditions
+   rather than counts. Things that belong together share a tile; things that do
+   not are separated by space instead of by a line.
+
+   A tile is a raised face, which is also why the hairline dividers are gone:
+   a gap between two objects that each cast a shadow is already a division. */
+#hud.glass-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 336px;
+  padding: 14px;
+  align-items: stretch;
+}
+.hud-span { grid-column: 1 / -1; }
+#hud .hud-divider { display: none; }
+
+.hud-mod {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--relief-face);
+  box-shadow: var(--relief-raised-sm);
+  pointer-events: auto;
+  text-align: left;
+  color: inherit;
+  min-width: 0;   /* grid children default to min-content and overflow long text */
+}
+.hud-mod.hidden { display: none; }
+
+/* The hero keeps its size; only its neighbours changed. */
+.hud-mod--hero { cursor: pointer; justify-content: space-between; }
+.hud-mod--hero:hover .hud-hero-label { color: var(--text); }
+.hud-mod--hero.is-zero .hud-hero-value { color: var(--text-3); }
+
+.hud-mod--traffic { justify-content: space-between; }
+.hud-mod-value {
+  font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400;
+  color: var(--text-2); font-variant-numeric: tabular-nums;
+  line-height: 1; letter-spacing: -0.02em;
+}
+.hud-mod-label {
+  font-family: var(--font-sans); font-size: var(--fs-label);
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  color: var(--text-3);
+}
+.hud-mod-sub {
+  font-family: var(--font-sans); font-size: var(--fs-label);
+  color: var(--text-3); letter-spacing: 0; margin-top: 4px;
+}
+.hud-mod-sub #hud-airports { font-family: var(--font-mono); color: var(--text-2); }
+.hud-mod--traffic .hud-clock { margin-top: 2px; align-self: flex-start; }
+
+/* The two conditions sit side by side and have to agree on height. */
+#hud-atc.hud-mod { justify-content: center; }
+#hud-weather.hud-mod { justify-content: center; gap: 4px; }
+#hud-weather.hud-mod.is-empty { display: none; }
+
+/* The footer is a control, so it reads as one rather than as a caption. */
+.hud-meta.hud-mod { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+.hud-meta.hud-mod .hud-city-btn { padding: 0; background: none; box-shadow: none; border: none; flex: 1; min-width: 0; }
+.hud-meta.hud-mod .hud-time { flex-shrink: 0; }
+
+/* Sizing the grid, measured rather than guessed: at 336px the columns came out
+   150px, which left the hero's label 126px to say "asked not to be seen" and
+   it wrapped to three lines and set the height of the whole row. 380px with a
+   slightly wider first column gives the argument the room it needs and leaves
+   the counts, which are short, in the narrower one. */
+#hud.glass-panel {
+  width: 380px;
+  grid-template-columns: 1.14fr 1fr;
+}
+.hud-mod--hero .hud-hero-label { line-height: 1.25; }
+.hud-mod--hero .hud-hero-value { margin-bottom: 4px; }
+
+/* The tower's next-tower chevron belongs beside the button, not under it. */
+#hud-atc.hud-mod { flex-direction: row; align-items: center; gap: 6px; }
+#hud-atc .hud-atc-btn { flex: 1; min-width: 0; justify-content: flex-start; }
+#hud-atc .hud-atc-next { flex-shrink: 0; }
+
+/* Conditions read across, not down. */
+#hud-weather .hud-wx-line {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px;
+}
+#hud-weather .hud-wx-wind { white-space: nowrap; }
+
+/* The hero's number and label belong together at the top of the tile. With
+   space-between they were pushed to opposite ends of a height set by the
+   busier tile beside them, which put a void through the middle of the one
+   thing this panel is about. */
+.hud-mod--hero { justify-content: flex-start; }
+.hud-mod--traffic { justify-content: flex-start; }
+.hud-mod--traffic .hud-clock { margin-top: auto; }
+
+/* The flight category is a verdict, not another measurement, so when the line
+   runs out of room it is the thing that gets its own row. */
+#hud-weather .hud-wx-cat { margin-left: auto; }
+
+/* Narrow screens: two columns of 160px is not a layout, it is a squeeze. */
+@media (max-width: 560px) {
+  #hud.glass-panel {
+    grid-template-columns: 1fr;
+    width: min(92vw, 340px);
+  }
+}
