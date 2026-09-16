@@ -209,10 +209,11 @@ export async function loadGroundMap(lat, lon) {
           // under: 1 is the wide disc, 2 the mosaic above it; the rings start at 0.003.
           const yLevel = bounds.under === 1 ? 0.0015 : bounds.under === 2 ? 0.0022 : bounds.under === 3 ? 0.0026 + (hiResOverlays.length % 7) * 0.00005 : 0.003 + hiResOverlays.length * 0.002;
           const geo = new THREE.PlaneGeometry(sizeX, sizeZ);
+          const targetOpacity = bounds.under ? 1 : 0.95;
           const mat = new THREE.MeshBasicMaterial({
             map: upgradedTexture,
             transparent: true,
-            opacity: bounds.under ? 1 : 0.95,
+            opacity: 0,
             color: 0xffffff,
             depthWrite: false,
           });
@@ -221,6 +222,7 @@ export async function loadGroundMap(lat, lon) {
           overlay.position.set(cx, yLevel, cz);
           scene.add(overlay);
           hiResOverlays.push(overlay);
+          _fadeInOverlay(mat, targetOpacity);
         } else if (groundMaterial) {
           // Full-area upgrade (zoom 12)
           upgraded = true;
@@ -300,6 +302,24 @@ function _removeLoadingPlaceholder(scene) {
   }
 }
 // Called from animate loop — animate the loading ring
+// Sharper imagery used to arrive by replacement: one frame the ground was 49m
+// per pixel, the next it was 3m, and the step was a visible slap in the middle
+// of an otherwise still scene. Six tenths of a second of fade is below the
+// threshold at which anyone reads it as an animation and above the one at which
+// they read it as a jump -- the ground appears to resolve rather than to switch.
+//
+// Each layer owns its own fade instead of a shared per-frame pass, because a
+// layer fades once in its life and then costs nothing for the rest of it.
+function _fadeInOverlay(mat, target, ms = 600) {
+  const t0 = performance.now();
+  const step = () => {
+    const u = Math.min(1, (performance.now() - t0) / ms);
+    mat.opacity = target * (1 - Math.pow(1 - u, 3));
+    if (u < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 export function animateAirportLoading(elapsed) {
   if (!_loadingPlaceholder) return;
   const pulse = 0.08 + 0.08 * Math.sin(elapsed * 3);

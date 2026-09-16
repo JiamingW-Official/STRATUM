@@ -4733,3 +4733,24 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    rather than something that is true, so it gets the accent for the twelve
    seconds it is up and then hands the slot back. */
 .hud-sky-contacts.is-reunion { color: var(--accent-bright); }
+
+/* ── Ticker: the rest of the row ──
+   A financial tape earns its density by ranking, not by shouting: the symbol
+   is the only thing at full weight, everything after it steps down. The badge
+   is the one boxed element because it is a category, not a measurement, and on
+   a ringed aircraft it names the programme withholding the callsign — the one
+   row you cannot fully read tells you why in the slot the others use for
+   their model. */
+.tk-tag {
+  font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: rgba(var(--text-rgb), 0.45);
+  border: 1px solid rgba(var(--text-rgb), 0.16);
+  border-radius: 3px; padding: 1px 4px;
+  align-self: center;
+}
+.tk-tag--masked {
+  color: rgba(var(--accent-rgb), 0.85);
+  border-color: rgba(var(--accent-rgb), 0.3);
+}
+.tk-sub { color: rgba(var(--text-rgb), 0.38); font-variant-numeric: tabular-nums; }
+.tk-dest { color: rgba(var(--text-rgb), 0.55); }

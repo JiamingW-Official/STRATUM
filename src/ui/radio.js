@@ -81,7 +81,10 @@ const _FREQS = ['88.3', '91.7', '96.5', '103.1'];
 
 // ── State ──
 let _audio = null;
-let _stationIdx = 0;
+// The track order was already shuffled, but the station was not: every session
+// opened on the same one, so "the radio" was in practice a single channel with
+// its songs reordered. Start somewhere at random and it behaves like tuning in.
+let _stationIdx = Math.floor(Math.random() * STATIONS.length);
 let _trackIdx = 0;
 let _shuffled = [];
 let _playing = false;

@@ -80,6 +80,7 @@ import {
   onNamed,
 } from "./ui/detail.js";
 import { ghostRecord, ghostContact, refreshIndex, nameFor, myNames, indexSize, sinceWords } from "./ui/commons.js";
+import { toggleAmbience, updateAmbience, initAmbience } from "./ui/ambience.js";
 // Cockpit HUD — lazy-loaded, only needed when user presses V in follow mode
 let _cockpitMod = null;
 async function _getCockpit() {
@@ -275,7 +276,15 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.09;
 controls.target.set(0, 0, 0);
 controls.minDistance = 0.05;
-controls.maxDistance = 60;
+// 60 let the airspace shrink to a smudge with nothing readable in it, and with
+// no lower polar bound you could also rise to a flat overhead plan view, which
+// throws away the one thing a 3D map has: altitude you can see. 40 keeps the
+// whole ring in frame at its widest, and 24 degrees off vertical keeps the sky
+// a volume rather than a diagram. The opening descent starts inside 40 on
+// purpose -- OrbitControls.update() clamps distance even while disabled, so a
+// start beyond this would be yanked in on the first frame.
+controls.maxDistance = 40;
+controls.minPolarAngle = (24 * Math.PI) / 180;
 controls.maxPolarAngle = Math.PI / 2 - (20 * Math.PI) / 180;
 controls.autoRotate = false;
 controls.autoRotateSpeed = 0.3;
@@ -2044,8 +2053,8 @@ function _introDescent() {
   // airspace load uses, and that load's own reset stands aside while it runs,
   // whichever of the two happens first.
   const end = new THREE.Vector3(8, 9, 12);
-  const start = end.clone().multiplyScalar(2.6);
-  start.y = end.y * 3.2;
+  const start = end.clone().multiplyScalar(2.2);
+  start.y = end.y * 2.6;   // |start| ~= 39.4, inside controls.maxDistance
   controls.target.set(0, 1, 0);
   camera.position.copy(start);
   controls.enabled = false;
@@ -2074,6 +2083,9 @@ function _introDescent() {
 // floor already taught everyone. Rebuilt from live data every twenty seconds;
 // the strip itself never stops, because the sky does not.
 let _tickerAt = 0;
+const esc = (v) =>
+  String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 function _buildTicker() {
   const track = document.getElementById("ticker-track");
   if (!track || !aircraftManager) return;
@@ -2091,7 +2103,30 @@ function _buildTicker() {
     const mark = vs > 100 ? "\u25b2" : vs < -100 ? "\u25bc" : "\u2500";
     const chg = Math.abs(vs) > 100 ? `${mark} ${Math.abs(vs).toLocaleString()}` : mark;
     const sym = isGhostMode() && d.masked ? (nameFor(d.icao24) || "UNSEEN").toUpperCase() : d.callsign;
-    items.push(`<span class="tk"><span class="tk-sym">${sym}</span><span class="tk-val">${lvl}</span><span class="tk-chg ${cls}">${chg}</span></span>`);
+    // A row was a callsign, a level and a trend, which is three facts about
+    // where an aircraft is and none about what it is or where it is going.
+    // The badge is the type for an ordinary aircraft and the programme that
+    // withholds its name for a ringed one -- so the one row you cannot fully
+    // read says why, in the same slot the others use for their model.
+    const badge = d.masked
+      ? (d.maskReason === "PIA" ? "PIA" : "LADD")
+      : (d.aircraftType || "").toUpperCase().slice(0, 4);
+    const kts = d.velocity != null ? Math.round(d.velocity * 1.94384) : null;
+    // The route lives in its own cache keyed on callsign, not on the aircraft
+    // record: reading d.destination got null for the whole flock and the
+    // arrow never appeared once.
+    const rt = d.callsign ? getRoute(d.callsign) : null;
+    const dest = rt?.destination ? String(rt.destination).toUpperCase().slice(0, 4) : null;
+    items.push(
+      `<span class="tk">` +
+        `<span class="tk-sym">${esc(sym)}</span>` +
+        (badge ? `<span class="tk-tag${d.masked ? " tk-tag--masked" : ""}">${esc(badge)}</span>` : "") +
+        `<span class="tk-val">${lvl}</span>` +
+        `<span class="tk-chg ${cls}">${chg}</span>` +
+        (kts ? `<span class="tk-sub">${kts}kt</span>` : "") +
+        (dest ? `<span class="tk-dest">→ ${esc(dest)}</span>` : "") +
+      `</span>`,
+    );
   }
   if (_lastSky.total) {
     items.push(`<span class="tk"><span class="tk-sym">UNSEEN</span><span class="tk-val">${Math.round((_lastSky.unseen / _lastSky.total) * 100)}%</span><span class="tk-chg tk-flat">of this sky</span></span>`);
@@ -2680,6 +2715,17 @@ document.addEventListener("keydown", (e) => {
   } else if (k === "c") {
     e.preventDefault();
     openCityPicker();
+    return;
+  } else if (k === "m") {
+    e.preventDefault();
+    const on = toggleAmbience();
+    const t = document.getElementById("toast");
+    if (t) {
+      t.textContent = on ? "Ambience on" : "Ambience off";
+      t.classList.remove("hidden");
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => t.classList.add("hidden"), 2000);
+    }
     return;
   }
 
@@ -4720,6 +4766,7 @@ function animate() {
   }
 
   updateAirportLightFalloff(camera);
+  updateAmbience(camera, _elapsed);
   _animateTicker(delta * 1000);
   updatePulse(scene, _elapsed);
   animateAirportLoading(_elapsed);
@@ -14242,6 +14289,7 @@ async function init() {
   // splash lifts -- measured at eight seconds, which is where it belongs: any
   // earlier and it would be playing to a covered screen.
   refreshIndex(true).then((changed) => { if (changed) refreshGhostNames(); });
+  initAmbience();
   startPolling(handleData, handleError);
 
   // ── 5. Await geo + first data arrival in parallel ──
