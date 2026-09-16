@@ -5041,3 +5041,66 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
     width: min(92vw, 340px);
   }
 }
+
+/* ── The weather module, expanded ──
+   Collapsed it is one line and sits happily in a 161px column. Expanded it is
+   a wind rose, a six-cell METAR grid, a comfort row, a 24h chart and a 7-day
+   list -- three internal columns of roughly fifty pixels each. It overflowed
+   the panel, wrapped "DEW PT" onto two lines, and pushed the footer off the
+   bottom. So it takes the full width when it opens, which is the only honest
+   place to put it. */
+#hud-weather:has(.hud-wx-detail.open) { grid-column: 1 / -1; }
+
+/* Tiles size to their own content. Stretching them to the tallest in the row
+   turned the tower into a large empty box with a button adrift in the middle
+   of it the moment the weather expanded. */
+#hud.glass-panel { align-items: start; }
+
+/* Grid cells default to min-content and will happily push past their track. */
+.hud-wx-atis, .hud-wx-comfort { min-width: 0; }
+.hud-wx-atis .hud-wx-cell, .hud-wx-comfort .hud-wx-cell { min-width: 0; }
+.hud-wx-v, .hud-wx-k { overflow-wrap: anywhere; }
+
+/* ── The dossier as modules ──
+   Same argument as the HUD: edge-to-edge blocks separated by hairlines read as
+   one long list where every band matters equally. These are different kinds of
+   thing -- a provenance sentence, an operator, a route, a set of readings --
+   so they get edges and space instead of rules between them.
+
+   Done from the stylesheet rather than by rewriting the markup: every block
+   already exists and already carries its own padding, so this only adds the
+   inset, the face and the shadow. The blocks keep their own internal layout,
+   which is already horizontal where it should be -- the route reads across,
+   the flight data is a two-column grid. */
+.detail-panel .detail-heard,
+.detail-panel .detail-commons,
+.detail-panel .detail-airline-row,
+.detail-panel .detail-route,
+.detail-panel .detail-section-body {
+  margin: 6px 10px;
+  border-radius: var(--r-sm);
+  background: var(--relief-face);
+  box-shadow: var(--relief-raised-sm);
+  border: none;
+}
+.detail-panel .detail-heard { padding: 9px 12px; }
+.detail-panel .detail-commons { padding-left: 12px; padding-right: 12px; padding-bottom: 10px; }
+.detail-panel .detail-airline-row { margin: 6px 10px; }
+
+/* The route and its progress bar are one fact seen twice, so they share a
+   tile rather than sitting in two. */
+.detail-panel .detail-route { margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; box-shadow: none; }
+.detail-panel .detail-progress {
+  margin: 0 10px 6px;
+  border-radius: 0 0 var(--r-sm) var(--r-sm);
+  background: var(--relief-face);
+  box-shadow: var(--relief-raised-sm);
+}
+
+/* A section header labels the tile under it, so it stops being a full-width
+   band with its own rule and becomes a caption sitting just above one. */
+.detail-panel .detail-section-header {
+  margin: 10px 14px 0;
+  border: none;
+  background: none;
+}
