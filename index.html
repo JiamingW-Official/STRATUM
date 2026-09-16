@@ -124,6 +124,11 @@
       <span class="hud-mod-top"><span class="hud-mod-label">aircraft</span></span>
       <span class="hud-mod-value" id="hud-count">0</span>
       <span class="hud-mod-sub"><span id="hud-airports">--</span> airports</span>
+      <!-- The people estimate and the destination count belong to the traffic,
+           so they live in its tile instead of in a band of their own. -->
+      <div id="hud-sky" class="hud-sky hidden">
+        <span class="hud-mod-sub hud-sky-line" id="hud-sky-people-line"><span id="hud-sky-people" class="inferred" title="Estimated: seats for this aircraft type, not a passenger count">--</span> people overhead, bound for <span id="hud-sky-cities">--</span> cities</span>
+      </div>
       <button type="button" id="hud-clock" class="hud-clock" title="Show local time"><span id="hud-zulu">--:--Z</span> <span id="hud-clock-label">UTC</span><span class="hud-mod-cue hud-mod-cue--inline" aria-hidden="true">⇄</span></button>
     </div>
 
@@ -134,14 +139,12 @@
       </span>
       <span class="hud-mod-value hud-hero-value" id="hud-sky-unseen">--</span>
       <span class="hud-mod-sub hud-hero-label">asked not to be seen</span>
+      <!-- The finding and the progress against it are about the unseen, so
+           they sit in the unseen tile rather than in a row underneath both. -->
+      <span class="hud-mod-sub hud-sky-line hud-sky-cmp" id="hud-sky-cmp"></span>
+      <span class="hud-mod-sub hud-sky-line hud-sky-cmp hud-sky-contacts" id="hud-sky-contacts"></span>
     </button>
 
-    <!-- The sky as people, and as a visibility regime. -->
-    <div id="hud-sky" class="hud-mod hud-span hud-sky hidden">
-      <span class="hud-sky-line" id="hud-sky-people-line"><span id="hud-sky-people" class="inferred" title="Estimated: seats for this aircraft type, not a passenger count">--</span> people overhead, bound for <span id="hud-sky-cities">--</span> cities</span>
-      <span class="hud-sky-line hud-sky-cmp" id="hud-sky-cmp"></span>
-      <span class="hud-sky-line hud-sky-cmp hud-sky-contacts" id="hud-sky-contacts"></span>
-    </div>
 
     <!-- Tower audio: the only trace an unseen aircraft still leaves. Source is
          LiveATC, credited in the ticker; the button is the gesture browsers need. -->

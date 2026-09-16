@@ -5596,3 +5596,43 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod--traffic, .hud-mod--hero { min-height: 96px; }
 .hud-sky-line { min-height: 15px; }
 #hud-sky.hud-mod { min-height: 34px; }
+
+/* ── Corner radius, at the size the reference uses ──
+   10px on a 330px panel is a rounded rectangle; the widgets it is being
+   compared to are closer to a squircle, and the roundness is most of why they
+   read as objects rather than as regions of a page. The inner radius is set
+   below the outer one on purpose: nested corners that share a radius look
+   wrong because the inner one sits inside the outer one's curve, and the eye
+   reads the gap as a mistake. */
+:root { --r: 20px; --r-sm: 14px; }
+#hud.glass-panel, .detail-panel, .radio-panel, .city-overlay-content,
+.help-panel, .no-coverage-panel { border-radius: 20px; }
+.hud-mod, .school-q, .city-globe-pane, .city-list-pane,
+.detail-panel .detail-section-body, .detail-panel .detail-heard,
+.detail-panel .detail-commons, .detail-panel .detail-airline-row {
+  border-radius: 14px;
+}
+.detail-panel .detail-route { border-radius: 14px 14px 0 0; }
+.detail-panel .detail-progress { border-radius: 0 0 14px 14px; }
+.fab-btn { border-radius: 13px; }
+.radio-power-btn, .radio-vol-btn, .radio-close-btn { border-radius: 10px; }
+.radio-tuner { border-radius: 10px; }
+.search-input { border-radius: 12px; }
+
+/* ── The two top tiles carry their own detail now ──
+   The people estimate sat in a band under both tiles, which made it look like
+   a caption for the pair when it only describes the traffic. The comparison
+   and the contact count moved the same way, into the tile whose number they
+   qualify. One band fewer and two tiles that say something. */
+.hud-mod--traffic .hud-sky, .hud-mod--hero .hud-sky-cmp { min-width: 0; }
+.hud-mod--traffic .hud-sky.hidden { display: none; }
+.hud-mod--traffic .hud-sky-line,
+.hud-mod--hero .hud-sky-line {
+  display: block; margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.hud-mod--hero .hud-sky-cmp:empty { display: none; }
+/* Room for four lines of content without the tiles changing height as the
+   later ones arrive. */
+.hud-mod--traffic, .hud-mod--hero { min-height: 128px; }
+.hud-mod--traffic .hud-clock { margin-top: auto; }
