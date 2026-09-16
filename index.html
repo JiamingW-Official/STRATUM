@@ -815,12 +815,22 @@
        aircraft as a quote, its vertical rate as the change. -->
   <div id="ticker" class="ticker" aria-hidden="true"><div class="ticker-track" id="ticker-track"></div></div>
 
+  <!-- The rail's radio control is a thumbnail of the receiver, not an icon for
+       it: once something is on the air it shows the frequency it is on and the
+       station's own colour, the way a preset button on a tuner does. Before
+       that there is nothing to report, so it is just the headphones. -->
   <button type="button" id="radio-toggle-btn" class="radio-toggle-btn" title="Radio (R)" aria-label="Toggle radio">
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M4 15V9a8 8 0 0116 0v6"/>
-      <path d="M2 15.5a2.5 2.5 0 015 0v2a2.5 2.5 0 01-5 0v-2z"/>
-      <path d="M17 15.5a2.5 2.5 0 015 0v2a2.5 2.5 0 01-5 0v-2z"/>
-    </svg>
+    <span class="rt-idle" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 15V9a8 8 0 0116 0v6"/>
+        <path d="M2 15.5a2.5 2.5 0 015 0v2a2.5 2.5 0 01-5 0v-2z"/>
+        <path d="M17 15.5a2.5 2.5 0 015 0v2a2.5 2.5 0 01-5 0v-2z"/>
+      </svg>
+    </span>
+    <span class="rt-live" aria-hidden="true">
+      <span class="rt-sig"><i></i><i></i><i></i></span>
+      <span class="rt-dial"><span class="rt-freq" id="radio-toggle-freq">--</span><span class="rt-band">FM</span></span>
+    </span>
   </button>
 
   <!-- ── Airline deep info — standalone overlay ── -->

@@ -6021,20 +6021,48 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   width: auto; max-width: 340px;
   padding: 0;
 }
-.radio-panel.is-compact .radio-header,
 .radio-panel.is-compact .radio-dial,
 .radio-panel.is-compact .radio-progress-wrap,
 .radio-panel.is-compact .radio-eq,
 .radio-panel.is-compact .radio-bottom { display: none; }
 
+/* ── The bar is a receiver, not a now-playing card ──
+   Collapsed, it had been showing a station name and a track title and nothing
+   else, which is the shape of a streaming player: a thing that plays what you
+   picked. A radio's first fact is the frequency it is sitting on and whether
+   the signal is any good, and both of those were in the header, which the
+   collapse hid. They come back as the bar's left column, with the station and
+   the track beside them — the number leads, the song follows, which is the
+   right way round for a receiver. */
+.radio-panel.is-compact .radio-header {
+  display: flex; flex-direction: column; align-items: flex-start;
+  gap: 3px; padding: 0 0 0 14px; flex-shrink: 0;
+}
+.radio-panel.is-compact .radio-header-label { display: none; }
+.radio-panel.is-compact .radio-header-freq {
+  font-size: 15px; font-weight: 500; letter-spacing: 0.01em;
+  color: var(--text); opacity: 1;
+  font-variant-numeric: tabular-nums; line-height: 1;
+}
+.radio-panel.is-compact .radio-sig { margin: 0; height: 7px; }
+.radio-panel.is-compact .radio-sig i:nth-child(1) { height: 2px; }
+.radio-panel.is-compact .radio-sig i:nth-child(2) { height: 4px; }
+.radio-panel.is-compact .radio-sig i:nth-child(3) { height: 5px; }
+.radio-panel.is-compact .radio-sig i:nth-child(4) { height: 7px; }
+
+/* Station over track, stacked, so the frequency beside them has something to
+   line up against and the two lines read as one caption for it. */
 .radio-panel.is-compact .radio-display {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px 9px 14px; min-width: 0;
+  display: flex; flex-direction: column; align-items: flex-start;
+  justify-content: center; gap: 2px;
+  padding: 9px 10px 9px 12px; min-width: 0; flex: 1;
+  border-top: none;
 }
 .radio-panel.is-compact .radio-station-name {
-  font-size: 9px; letter-spacing: 0.1em; margin: 0; flex-shrink: 0;
+  font-size: 9px; letter-spacing: 0.12em; margin: 0; flex-shrink: 0;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.radio-panel.is-compact .radio-now-playing { min-width: 0; flex: 1; text-align: left; }
+.radio-panel.is-compact .radio-now-playing { min-width: 0; max-width: 100%; text-align: left; margin: 0; }
 .radio-panel.is-compact .radio-track-title {
   font-size: var(--fs-label); margin: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -6284,3 +6312,71 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-sky-came.is-empty { color: var(--text-3); }
 .hud-sky-came.hidden { display: none; }
 .hud-door-end { white-space: nowrap; }
+
+/* ── The rail's radio control, as a thumbnail of the receiver ──
+   It was a headphone glyph: an icon for the idea of audio, saying nothing
+   about what is on. Once something is playing it becomes the smallest honest
+   version of the panel — the frequency, the band, and three bars moving in the
+   station's own colour. Off, there is nothing to report and it goes back to
+   being headphones, which is also why it is narrow then and wider now: the
+   width is the content, not a style. */
+.radio-toggle-btn {
+  width: auto; min-width: 38px; height: 38px;
+  border-radius: 13px;
+  padding: 0 11px;
+  gap: 8px;
+  background: var(--relief-face), var(--surface);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.3);
+  backdrop-filter: blur(var(--blur)) saturate(1.3);
+  border: none;
+  box-shadow: var(--relief-raised-sm);
+  transition: color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.radio-toggle-btn:hover { transform: none; box-shadow: var(--relief-raised-sm), 0 0 14px rgba(var(--accent-rgb), 0.1); }
+/* The pulse was standing in for "something is happening". The meter does that
+   now, and does it truthfully. */
+.radio-toggle-btn.active { animation: none; }
+.radio-toggle-btn .rt-idle { display: flex; align-items: center; }
+.radio-toggle-btn .rt-live { display: none; align-items: center; gap: 7px; }
+.radio-toggle-btn.is-live .rt-idle { display: none; }
+.radio-toggle-btn.is-live .rt-live { display: flex; }
+.radio-toggle-btn.is-live { color: var(--text); }
+
+.rt-dial { display: flex; align-items: baseline; gap: 3px; }
+.rt-freq {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+  font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+  color: var(--text); line-height: 1;
+}
+.rt-band {
+  font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em;
+  color: var(--text-3); line-height: 1;
+}
+/* Three bars, each on its own beat, in the station's colour. Not a level
+   meter — there is no analysis behind it — so it stays small enough to read as
+   a sign that the set is on rather than as a measurement. */
+.rt-sig { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.rt-sig i {
+  width: 2px; border-radius: 1px; height: 100%;
+  background: var(--rt-color, var(--accent));
+  transform-origin: bottom;
+  animation: rt-bar 1.1s ease-in-out infinite;
+}
+.rt-sig i:nth-child(2) { animation-duration: 0.83s; animation-delay: -0.2s; }
+.rt-sig i:nth-child(3) { animation-duration: 1.37s; animation-delay: -0.5s; }
+@keyframes rt-bar {
+  0%, 100% { transform: scaleY(0.28); }
+  50%      { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rt-sig i { animation: none; transform: scaleY(0.6); }
+}
+
+/* Measured: the old circle's bottom edge sat at 847 with the ticker starting
+   at 837, so the control had always been ten pixels under it. That cost
+   nothing while it was a headphone glyph and costs a digit now that it is a
+   number worth reading, so it clears the ticker the way the search and filter
+   bars do. The rail follows, keeping the same air above it — a thumbnail is a
+   surface, and two surfaces that nearly touch read as one badly made one. */
+.radio-toggle-btn { bottom: calc(30px + var(--edge)); }
+.fab-toolbar { bottom: calc(30px + var(--edge) + 38px + 20px); }

@@ -471,10 +471,12 @@ function _createPanel() {
     <!-- Transport, centred, the way a now-playing card carries it. Previous and
          next are stations rather than tracks: you can move across the band but
          you do not get to skip a song, which has been the rule since the first
-         version of this panel. -->
+         version of this panel. The glyphs say so — a double triangle with no
+         bar is the seek of a physical tuner, where the bar is the skip-track of
+         a player, and the pair had been drawn with the bar. -->
     <div class="radio-transport">
-      <button type="button" class="radio-tp" id="radio-prev" title="Previous station" aria-label="Previous station">
-        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M13 3.2v9.6L6.4 8zM5 3.2h1.6v9.6H5z"/></svg>
+      <button type="button" class="radio-tp" id="radio-prev" title="Tune down the band" aria-label="Tune down the band">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M7.4 3.4v9.2L2 8zM14 3.4v9.2L8.6 8z"/></svg>
       </button>
       <button type="button" class="radio-tp radio-tp--main" id="radio-power-btn" title="Play / stop" aria-label="Play or stop">
         <svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true">
@@ -482,8 +484,8 @@ function _createPanel() {
           <rect class="radio-tp-stop" x="4.4" y="4.4" width="7.2" height="7.2" rx="1.2"/>
         </svg>
       </button>
-      <button type="button" class="radio-tp" id="radio-next" title="Next station" aria-label="Next station">
-        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M3 3.2v9.6L9.6 8zM9.4 3.2H11v9.6H9.4z"/></svg>
+      <button type="button" class="radio-tp" id="radio-next" title="Tune up the band" aria-label="Tune up the band">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M8.6 3.4v9.2L14 8zM2 3.4v9.2L7.4 8z"/></svg>
       </button>
     </div>
     <div class="radio-bottom">
@@ -689,6 +691,19 @@ function _updateUI() {
   _panelEl.querySelector("#radio-freq").textContent =
     _FREQS[_stationIdx] + " FM";
 
+  // The rail's button is a thumbnail of this same receiver, so it is written
+  // here rather than polled from outside: whatever the dial says, it says.
+  const toggle = document.getElementById("radio-toggle-btn");
+  if (toggle) {
+    toggle.style.setProperty("--rt-color", st.color);
+    const f = toggle.querySelector("#radio-toggle-freq");
+    if (f) f.textContent = _FREQS[_stationIdx];
+    // Only while the bar is away. With the bar open the two sit inches apart
+    // saying the same number, and the thumbnail's whole job is to report when
+    // the panel is not there to.
+    toggle.classList.toggle("is-live", _playing && !_visible);
+  }
+
   // Track info
   if (_playing && _shuffled.length > 0) {
     const { artist, title } = _parseTrackName(_currentTrack());
@@ -742,6 +757,8 @@ export function hideRadio() {
     _panelEl.classList.add("hidden");
   }
   _visible = false;
+  // The thumbnail takes over the reporting the moment the bar stops doing it.
+  if (_panelEl) _updateUI();
 }
 
 export function toggleRadio() {
