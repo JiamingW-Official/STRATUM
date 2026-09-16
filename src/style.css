@@ -5683,3 +5683,24 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* The bottom row is volume and dismissal only now. */
 .radio-bottom { padding-top: 0; }
+
+/* ── The tower is a second receiver, so it looks like one ──
+   Same transport controls as the radio, same round faces, same play-to-stop
+   swap. They stay two players rather than one on purpose: the tower ducks the
+   music instead of replacing it, and a single transport could only ever be
+   playing one of the two. Sharing the vocabulary is the part worth having;
+   sharing the mechanism would cost the thing that makes them worth pairing. */
+.hud-atc-transport {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: auto; padding-top: 6px;
+}
+#hud-atc .radio-tp--main { width: 32px; height: 32px; }
+#hud-atc .radio-tp { width: 26px; height: 26px; }
+#hud-atc .hud-atc-stop { display: none; }
+#hud-atc.is-on .hud-atc-play { display: none; }
+#hud-atc.is-on .hud-atc-stop { display: block; }
+#hud-atc.is-on .radio-tp--main { color: var(--accent-bright); }
+#hud-atc .hud-atc-next.hidden { display: none; }
+
+/* The level meter reports from the label row, where the radio puts its own. */
+.hud-mod-top .hud-atc-level { height: 8px; }

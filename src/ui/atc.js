@@ -169,6 +169,9 @@ function _render(state) {
     lvlEl.classList.toggle('is-live', state === 'playing');
     lvlEl.classList.toggle('is-busy', state === 'loading');
   }
+  // The glyph swap keys off the tile rather than :has() on the button, since
+  // the meter no longer lives inside it.
+  _wrap?.classList.toggle('is-on', state === 'playing' || state === 'loading');
   if (_label) {
     // Name the host the element is actually on, not the one the index points at;
     // the two differed for a beat after a mirror switch.
