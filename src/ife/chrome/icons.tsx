@@ -27,9 +27,14 @@ export const IconHome = ({ size = 24 }: P) => (
   </svg>
 );
 
+/** Flight map: a globe with its meridian and equator. The first drawing was a
+ *  swept aircraft seen from above, which at icon size collapsed into an ✕ and
+ *  said nothing about a map. */
 export const IconMap = ({ size = 24 }: P) => (
   <svg {...base(size)} aria-hidden="true">
-    <path d="M21 5 13.5 12 21 19l-9-4-9 4 7.5-7L3 5l9 4z" />
+    <circle cx="12" cy="12" r="8.6" />
+    <path d="M3.4 12h17.2" />
+    <path d="M12 3.4c2.9 3.3 2.9 13.9 0 17.2-2.9-3.3-2.9-13.9 0-17.2z" />
   </svg>
 );
 
@@ -54,5 +59,41 @@ export const IconCall = ({ size = 24 }: P) => (
   <svg {...base(size)} aria-hidden="true">
     <circle cx="12" cy="6.2" r="2.4" />
     <path d="M7 20v-4.5a5 5 0 0 1 10 0V20" />
+  </svg>
+);
+
+/** Flight information: an instrument dial, not a lower-case "i". */
+export const IconGauge = ({ size = 24 }: P) => (
+  <svg {...base(size)} aria-hidden="true">
+    <path d="M4 17a8 8 0 1 1 16 0" />
+    <path d="m12 17 4.2-5" />
+    <circle cx="12" cy="17" r="1.1" />
+  </svg>
+);
+
+export const IconMusic = ({ size = 24 }: P) => (
+  <svg {...base(size)} aria-hidden="true">
+    <path d="M9 17.5V6.2l10-1.7v11" />
+    <circle cx="6.6" cy="17.6" r="2.4" />
+    <circle cx="16.6" cy="15.6" r="2.4" />
+  </svg>
+);
+
+/** Movies: a strip of film with its sprockets. The first drawing was a gate
+ *  with two verticals and a horizontal, which at rail size read as a window. */
+export const IconFilm = ({ size = 24 }: P) => (
+  <svg {...base(size)} aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" rx="1.5" />
+    <path d="M3 8.6h2.6M3 12h2.6M3 15.4h2.6M18.4 8.6H21M18.4 12H21M18.4 15.4H21" />
+    <path d="M8.2 5v14M15.8 5v14" />
+  </svg>
+);
+
+export const IconGames = ({ size = 24 }: P) => (
+  <svg {...base(size)} aria-hidden="true">
+    <path d="M7.5 8h9a4.5 4.5 0 0 1 4.4 5.4l-.5 2.4A2.6 2.6 0 0 1 16 16.6L15 15H9l-1 1.6a2.6 2.6 0 0 1-4.4-.8l-.5-2.4A4.5 4.5 0 0 1 7.5 8z" />
+    <path d="M7.4 10.6v2.2M6.3 11.7h2.2" />
+    <circle cx="15.6" cy="11.3" r=".9" />
+    <circle cx="17.4" cy="13" r=".9" />
   </svg>
 );

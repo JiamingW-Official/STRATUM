@@ -1,37 +1,81 @@
-import { useCabin, useFlight, useSelf } from "../../flight-state/store";
+import { useFlight, useSelf } from "../../flight-state/store";
 import type { ScreenName } from "../../flight-state/types";
-import { duration, localTime } from "../format";
+import { fmtInt, localDay, localTime } from "../format";
 import { pick, useT, type Key } from "../i18n";
 import { useDestination } from "../destination";
 import { conditionKey, useWeather } from "../weather";
+import { STATIONS } from "../stations";
+import {
+  IconFilm,
+  IconGames,
+  IconGauge,
+  IconMap,
+  IconMusic,
+} from "../chrome/icons";
 
-const ENTRIES: Array<{ screen: ScreenName; key: Key; soon?: boolean }> = [
-  { screen: "map", key: "flightMap" },
-  { screen: "flightInfo", key: "flightInformation" },
-  { screen: "music", key: "music" },
-  { screen: "movies", key: "movies", soon: true },
-  { screen: "games", key: "games", soon: true },
-];
-
-export function Home({ seat }: { seat: string }) {
+/**
+ * Home is the destination. There is no separate city page: clicking a
+ * photograph to be shown the same photograph one screen deeper was a click
+ * that bought nothing, and it split the two things a passenger wants at a
+ * glance — where am I going, and what can I do — across two screens.
+ *
+ * So the screen is cut once, down the middle. Left is the place: its picture,
+ * its name, what it is, and what the weather is doing there. Right is the
+ * panel of things to do, two rows of squares that push sideways. Nothing on
+ * the left is a control and nothing on the right is prose, which is what keeps
+ * the two halves from arguing.
+ */
+export function Home() {
   const setScreen = useSelf((s) => s.setScreen);
-  const cabinClass = useCabin((s) => s.seats[seat]?.cabinClass ?? "economy");
-  const { route, etaUtc, etaInferred, phase } = useFlight();
+  const { route, position, etaUtc } = useFlight();
   const { t, lang } = useT();
   const dest = useDestination(route.to);
   const wx = useWeather(route.to);
-  const remaining = Date.parse(etaUtc) - Date.now();
+
+  const tiles: Array<{
+    screen: ScreenName;
+    key: Key;
+    icon: React.ReactNode;
+    note: string;
+    soon?: boolean;
+  }> = [
+    {
+      screen: "map",
+      key: "flightMap",
+      icon: <IconMap size={64} />,
+      note: `${fmtInt(position.altFt)} ft`,
+    },
+    {
+      screen: "flightInfo",
+      key: "flightInformation",
+      icon: <IconGauge size={64} />,
+      note: `${fmtInt(position.gsKt)} kt`,
+    },
+    {
+      screen: "music",
+      key: "music",
+      icon: <IconMusic size={64} />,
+      note: `${STATIONS.length} ${lang === "zh" ? "个频道" : "stations"}`,
+    },
+    {
+      screen: "movies",
+      key: "movies",
+      icon: <IconFilm size={64} />,
+      note: t("later"),
+      soon: true,
+    },
+    {
+      screen: "games",
+      key: "games",
+      icon: <IconGames size={64} />,
+      note: t("later"),
+      soon: true,
+    },
+  ];
 
   return (
     <div className="ife-home">
-      {/* The city, as a photograph, with the facts a passenger checks laid
-          over its foot. This is where the colour in the cabin comes from —
-          not from tinting the chrome, which would only make it louder. */}
-      <button
-        className="ife-home-hero"
-        onClick={() => setScreen("destination")}
-        aria-label={t("exploreDestination")}
-      >
+      <div className="ife-home-place">
         {dest?.image && (
           <div
             className="ife-photo"
@@ -39,76 +83,87 @@ export function Home({ seat }: { seat: string }) {
           />
         )}
         <div className="ife-photo-scrim" />
-        <div className="ife-home-hero-body">
+
+        <div className="ife-home-place-body">
           <div className="ife-cap">{t("arriving")}</div>
-          <div className="ife-home-city" style={{ marginTop: 12 }}>
-            {pick(route.to.city, lang)}
+          <div className="ife-home-city">{pick(route.to.city, lang)}</div>
+          <div className="ife-home-airport">
+            {pick(route.to.name, lang)} · {route.to.icao} · {route.to.iata}
           </div>
+          {dest?.extract && (
+            <p className="ife-home-extract">
+              {firstSentences(dest.extract, 2)}
+            </p>
+          )}
 
-          <div className="ife-home-facts">
-            <div>
-              <div className="ife-cap">
-                {phase === "landed" ? t("arrived") : t("timeRemaining")}
+          {/* The weather sits on the photograph's dark foot rather than in a
+              box of its own: down here the gradient is already doing the work
+              a panel would have to do. */}
+          <div className="ife-home-wx">
+            <div className="ife-home-wx-temp ife-mono">
+              {wx ? `${Math.round(wx.tempC)}°` : "--°"}
+            </div>
+            <div className="ife-home-wx-facts">
+              <div className="ife-home-wx-cond">
+                {wx ? conditionKey(wx.code)[lang === "zh" ? 1 : 0] : "--"}
               </div>
-              <div
-                className={`ife-home-fact-value ife-mono${
-                  etaInferred && phase !== "landed" ? " ife-inferred" : ""
-                }`}
-              >
-                {phase === "landed" ? "——" : duration(remaining, lang)}
+              <div className="ife-home-wx-line">
+                {t("feelsLike")}{" "}
+                <span className="ife-mono">
+                  {wx ? `${Math.round(wx.feelsC)}°` : "--"}
+                </span>
+                {"   ·   "}
+                {t("wind")}{" "}
+                <span className="ife-mono">
+                  {wx ? `${Math.round(wx.windKph)} km/h` : "--"}
+                </span>
               </div>
             </div>
-            <div>
+            <div className="ife-home-wx-clock">
               <div className="ife-cap">{t("localTime")}</div>
-              <div className="ife-home-fact-value ife-mono">
-                {localTime(etaUtc, route.to)}
+              <div className="ife-home-wx-time ife-mono">
+                {localTime(new Date().toISOString(), route.to)}
               </div>
+              <div className="ife-cap">{localDay(etaUtc, route.to)}</div>
             </div>
-            {wx && (
-              <div>
-                <div className="ife-cap">{t("weather")}</div>
-                <div className="ife-home-fact-value ife-mono">
-                  {Math.round(wx.tempC)}°
-                  <span className="ife-home-fact-unit">
-                    {conditionKey(wx.code)[lang === "zh" ? 1 : 0]}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="ife-home-explore">
-            {t("exploreDestination")}
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <path d="m9 5 7 7-7 7" />
-            </svg>
-          </div>
-        </div>
-      </button>
-
-      <div className="ife-home-menu">
-        <div className="ife-home-ident">
-          <div className="ife-cap">{t("seat")}</div>
-          <div className="ife-home-seat ife-mono">{seat}</div>
-          <div className="ife-home-class ife-cap">
-            {t(cabinClass === "business" ? "businessClass" : "economyClass")}
           </div>
         </div>
 
-        <nav className="ife-menu">
-          {ENTRIES.map((e) => (
+        {dest?.credit && (
+          <div className="ife-credit">Wikimedia Commons · {dest.credit}</div>
+        )}
+      </div>
+
+      {/* Two rows, pushed sideways with a thumb. The column beyond the edge is
+          left half-visible on purpose: a cut square says "more this way"
+          without an arrow that has to be aimed at. */}
+      <div className="ife-panel">
+        <div className="ife-tiles" role="navigation">
+          {tiles.map((tile) => (
             <button
-              key={e.screen}
-              className="ife-menu-item"
-              data-soon={!!e.soon}
-              onClick={() => setScreen(e.screen)}
+              key={tile.screen}
+              className="ife-tile"
+              data-soon={!!tile.soon}
+              onClick={() => setScreen(tile.screen)}
             >
-              <span className="ife-menu-label">{t(e.key)}</span>
-              {e.soon && <span className="ife-menu-note">{t("later")}</span>}
+              <span className="ife-tile-icon">{tile.icon}</span>
+              <span className="ife-tile-name">{t(tile.key)}</span>
+              <span className="ife-tile-note ife-mono">{tile.note}</span>
             </button>
           ))}
-        </nav>
+        </div>
       </div>
     </div>
   );
+}
+
+/**
+ * Two sentences, cut at a full stop that is actually a full stop. Splitting on
+ * ". " alone breaks "9.14 million" in half, which is how a destination screen
+ * ends up telling a passenger the population is nine.
+ */
+function firstSentences(text: string, n: number) {
+  const parts = text.split(/(?<![0-9])\.\s+/);
+  const out = parts.slice(0, n).join(". ").trim();
+  return out.endsWith(".") ? out : out + ".";
 }

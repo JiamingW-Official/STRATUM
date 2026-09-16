@@ -38,8 +38,17 @@ export function BottomRail({
     setVolume(steps[(i + 1) % steps.length]);
   };
 
+  const cabinClass = self?.cabinClass ?? "economy";
+
   return (
     <div className="ife-rail">
+      <div className="ife-seat-chip">
+        <span className="ife-seat-chip-no">{seat}</span>
+        <span className="ife-cap">
+          {t(cabinClass === "business" ? "business" : "economy")}
+        </span>
+      </div>
+
       <button
         className="ife-tool"
         onClick={go("home")}

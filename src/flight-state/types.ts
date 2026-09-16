@@ -95,7 +95,6 @@ export type ScreenName =
   | "home"
   | "map"
   | "flightInfo"
-  | "destination"
   | "movies"
   | "music"
   | "games";

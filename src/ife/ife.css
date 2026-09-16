@@ -37,13 +37,16 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   /* Four sizes. Anything wanting a fifth is asking for a layout instead. */
-  --t-hero: 172px;
-  --t-xl: 58px;
-  --t-md: 25px;
-  --t-cap: 15px;
+  /* Four sizes, all a step up from the first pass. The reference is arm's
+     length on a ~15-inch panel in a dark cabin, not a monitor at desk
+     distance — at that range the old 25px body was the size of a caption. */
+  --t-hero: 190px;
+  --t-xl: 72px;
+  --t-md: 32px;
+  --t-cap: 19px;
 
-  --strip-h: 112px;
-  --rail-h: 100px;
+  --strip-h: 124px;
+  --rail-h: 116px;
   --gutter: 72px;
 
   position: relative;
@@ -114,7 +117,7 @@
 
 .ife-strip-city {
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: 38px;
   font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -123,7 +126,7 @@
 .ife-strip-city-zh {
   font-family: var(--font-sans);
   color: var(--faint);
-  font-size: 17px;
+  font-size: 21px;
   letter-spacing: 0.04em;
   margin-left: 12px;
 }
@@ -142,7 +145,7 @@
   transform: translateX(-50%);
   white-space: nowrap;
   color: var(--dim);
-  font-size: 21px;
+  font-size: 26px;
 }
 
 .ife-strip-end {
@@ -168,7 +171,7 @@
 }
 
 .ife-strip-arrival-time {
-  font-size: 52px;
+  font-size: 62px;
   font-weight: 400;
   letter-spacing: -0.01em;
 }
@@ -190,15 +193,35 @@
   flex: 1;
 }
 
+/* The seat, printed on the glass the way it is printed on a real bezel. It is
+   your identity aboard and should not disappear when you open a menu — and
+   keeping it here frees the home screen of a block it had to carry. */
+.ife-seat-chip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 26px 0 16px;
+  margin-right: 10px;
+  border-right: 1px solid var(--line);
+  align-self: stretch;
+}
+
+.ife-seat-chip-no {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
 .ife-tool {
   appearance: none;
   background: transparent;
   border: 0;
   color: var(--dim);
   font: inherit;
-  font-size: 19px;
-  height: 64px;
-  padding: 0 20px;
+  font-size: 24px;
+  height: 76px;
+  padding: 0 22px;
   border-radius: 4px;
   cursor: pointer;
   display: inline-flex;
@@ -248,8 +271,8 @@
   border: 0;
   color: var(--faint);
   font: inherit;
-  font-size: 18px;
-  padding: 12px 18px;
+  font-size: 22px;
+  padding: 14px 20px;
   cursor: pointer;
   transition: color 130ms ease, background-color 130ms ease;
 }
@@ -298,9 +321,9 @@
 
 .ife-credit {
   position: absolute;
-  right: var(--gutter);
-  bottom: 18px;
-  font-size: 12px;
+  right: 56px;
+  bottom: 14px;
+  font-size: 14px;
   letter-spacing: 0.06em;
   color: rgba(var(--text-rgb), 0.34);
   max-width: 620px;
@@ -386,7 +409,7 @@
 }
 
 .ife-idle-city-sub {
-  font-size: 28px;
+  font-size: 32px;
   color: var(--dim);
   margin-top: 14px;
 }
@@ -428,228 +451,202 @@
   letter-spacing: -0.01em;
 }
 
-/* ── Home ────────────────────────────────────────────────────────────── */
+/* ── Home ────────────────────────────────────────────────────────────────
+   Home is the destination. A separate city page meant clicking a photograph
+   to be shown the same photograph one screen deeper, which bought nothing and
+   split the two things a passenger wants at a glance — where am I going, and
+   what can I do — across two screens.
+
+   So the screen is cut once. Left is the place; right is the panel of things
+   to do. Nothing on the left is a control and nothing on the right is prose,
+   which is what keeps the two halves from arguing. */
 .ife-home {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: 7fr 5fr;
+  grid-template-columns: 1fr 800px;
+  overflow: hidden;
 }
 
-/* Left: the city, as a photograph, with the facts a passenger checks laid
-   over its foot. This is where the colour in the cabin comes from — not from
-   tinting the chrome, which would only make the chrome louder. */
-.ife-home-hero {
+.ife-home-place {
   position: relative;
   overflow: hidden;
-  cursor: pointer;
 }
 
-.ife-home-hero .ife-photo-scrim {
-  background: linear-gradient(
-    to top,
-    rgba(7, 8, 11, 0.95) 0%,
-    rgba(7, 8, 11, 0.62) 30%,
-    rgba(7, 8, 11, 0.06) 66%
-  );
+.ife-home-place .ife-photo-scrim {
+  /* The prose sits low and left, so the darkness is banked there and the sky
+     at the top right is left alone. */
+  background:
+    linear-gradient(to top, rgba(7, 8, 11, 0.96) 4%, rgba(7, 8, 11, 0.3) 46%, rgba(7, 8, 11, 0.05) 78%),
+    linear-gradient(to right, rgba(7, 8, 11, 0.72) 0%, rgba(7, 8, 11, 0.12) 62%, transparent 100%);
 }
 
-.ife-home-hero-body {
+.ife-home-place-body {
   position: absolute;
   left: var(--gutter);
-  right: 48px;
-  bottom: 52px;
+  right: 56px;
+  bottom: 54px;
 }
 
 .ife-home-city {
   font-family: var(--font-display);
-  font-size: 72px;
+  font-size: 112px;
   font-weight: 500;
-  letter-spacing: -0.03em;
-  line-height: 1.02;
+  letter-spacing: -0.038em;
+  line-height: 1;
+  margin-top: 14px;
 }
 
-.ife-home-facts {
-  display: flex;
-  gap: 56px;
-  margin-top: 30px;
-  align-items: flex-end;
-}
-
-.ife-home-fact-value {
-  font-size: 40px;
-  margin-top: 6px;
-  display: inline-block;
-}
-
-.ife-home-fact-unit {
-  font-size: 19px;
+.ife-home-airport {
+  font-size: 27px;
   color: var(--dim);
-  margin-left: 6px;
+  margin-top: 18px;
+  letter-spacing: 0.02em;
 }
 
-.ife-home-explore {
-  margin-top: 30px;
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  color: var(--accent-bright);
-  font-size: 21px;
+.ife-home-extract {
+  margin-top: 24px;
+  color: var(--dim);
+  max-width: 40ch;
+  font-size: 29px;
+  line-height: 1.4;
+  /* Three lines and stop. Wikipedia's opening runs as long as it likes; the
+     weather below it is not negotiable. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
-/* Right: a list, not a grid of cards. At arm's length a full-width line of
-   32px type is a far larger target than a tile, and it does not pretend five
-   unequal things are five equal squares. */
-.ife-home-menu {
-  border-left: 1px solid var(--line);
-  padding: 0 var(--gutter) 0 56px;
+.ife-home-wx {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 34px;
+  margin-top: 40px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line-strong);
 }
 
-.ife-home-ident {
-  padding: 46px 0 34px;
-  border-bottom: 1px solid var(--line);
-}
-
-.ife-home-seat {
-  font-family: var(--font-display);
+.ife-home-wx-temp {
   font-size: 84px;
-  font-weight: 600;
+  font-weight: 300;
   letter-spacing: -0.04em;
   line-height: 1;
 }
 
-.ife-home-class {
-  margin-top: 14px;
+.ife-home-wx-facts {
+  flex: 1;
+  min-width: 0;
 }
 
-.ife-menu {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
+.ife-home-wx-cond {
+  color: var(--accent-bright);
+  font-size: 30px;
 }
 
-.ife-menu-item {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  color: var(--fg);
-  font: inherit;
-  font-size: 31px;
-  text-align: left;
-  padding: 0 10px;
-  flex: 1;
+.ife-home-wx-line {
+  color: var(--dim);
+  font-size: 23px;
+  margin-top: 10px;
+  white-space: pre;
+}
+
+.ife-home-wx-clock {
+  text-align: right;
+}
+
+.ife-home-wx-time {
+  font-size: 46px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  margin: 6px 0 4px;
+}
+
+/* ── The panel ───────────────────────────────────────────────────────── */
+.ife-panel {
+  position: relative;
+  border-left: 1px solid var(--line);
+  background: rgba(9, 11, 15, 0.86);
   display: flex;
   align-items: center;
-  gap: 22px;
-  cursor: pointer;
-  transition:
-    padding-left 170ms ease,
-    color 130ms ease;
-}
-
-.ife-menu-item:last-child {
-  border-bottom: 0;
-}
-
-.ife-menu-item:hover {
-  padding-left: 26px;
-}
-
-.ife-menu-item[data-soon="true"] {
-  color: var(--dim);
-}
-
-.ife-menu-label {
-  display: flex;
-  align-items: baseline;
-  gap: 20px;
-}
-
-.ife-menu-note {
-  margin-left: auto;
-  font-size: var(--t-cap);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-
-/* ── Destination ─────────────────────────────────────────────────────── */
-.ife-dest {
-  position: absolute;
-  inset: 0;
   overflow: hidden;
 }
 
-.ife-dest .ife-photo-scrim {
-  background:
-    linear-gradient(to top, rgba(7, 8, 11, 0.97) 2%, rgba(7, 8, 11, 0.1) 54%),
-    linear-gradient(to right, rgba(7, 8, 11, 0.78) 0%, transparent 46%);
-}
-
-.ife-dest-body {
-  position: absolute;
-  left: var(--gutter);
-  right: var(--gutter);
-  bottom: 56px;
+/* Two rows, pushed sideways with a thumb. Square because the icon and the
+   label want different axes and a square is the only shape that owes neither
+   of them anything; a small radius because an injection-moulded panel has a
+   ~6 mm corner, not a phone's. No shadows — hierarchy comes from the hairline
+   and the brass, not from fake depth. */
+.ife-tiles {
   display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: end;
-  gap: 80px;
+  grid-template-rows: repeat(2, 300px);
+  grid-auto-flow: column;
+  grid-auto-columns: 300px;
+  gap: 22px;
+  padding: 0 56px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
 }
 
-.ife-dest-city {
-  font-family: var(--font-display);
-  font-size: 92px;
-  font-weight: 500;
-  letter-spacing: -0.035em;
-  line-height: 1;
+.ife-tiles::-webkit-scrollbar {
+  display: none;
 }
 
-.ife-dest-extract {
-  margin-top: 26px;
-  color: var(--dim);
-  max-width: 62ch;
-  font-size: 24px;
-}
-
-/* Weather needs its own ground. A hairline was enough when the picture behind
-   it was dark, but a lit skyline at dusk is not a background — it is a wall of
-   small bright shapes, and 20px type loses to it. This is the sky view's own
-   glass, at the same recipe, rather than a new invention. */
-.ife-dest-side {
-  min-width: 400px;
-  padding: 34px 40px 38px;
-  border-radius: 10px;
-  background: rgba(7, 8, 11, 0.62);
-  -webkit-backdrop-filter: blur(26px) saturate(1.4);
-  backdrop-filter: blur(26px) saturate(1.4);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.ife-dest-temp {
-  font-size: 88px;
-  font-weight: 300;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  margin-top: 10px;
-}
-
-.ife-dest-cond {
-  color: var(--accent-bright);
-  margin-top: 12px;
-  font-size: 24px;
-}
-
-.ife-dest-row {
+.ife-tile {
+  appearance: none;
+  scroll-snap-align: start;
+  background: rgba(var(--text-rgb), 0.035);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
   display: flex;
-  justify-content: space-between;
-  gap: 32px;
-  margin-top: 20px;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 34px 32px 30px;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.ife-tile:hover {
+  border-color: var(--accent);
+  background: rgba(var(--text-rgb), 0.07);
+}
+
+.ife-tile[data-soon="true"] {
   color: var(--dim);
-  font-size: 20px;
+  background: transparent;
+}
+
+.ife-tile-icon {
+  color: var(--accent-bright);
+  display: block;
+}
+
+.ife-tile[data-soon="true"] .ife-tile-icon {
+  color: var(--faint);
+}
+
+.ife-tile-name {
+  margin-top: auto;
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  text-align: left;
+  line-height: 1.1;
+}
+
+.ife-tile-note {
+  margin-top: 10px;
+  font-size: 21px;
+  color: var(--faint);
 }
 
 /* ── Flight info ─────────────────────────────────────────────────────── */
@@ -668,7 +665,7 @@
 }
 
 .ife-figure-unit {
-  font-size: 22px;
+  font-size: 26px;
   color: var(--dim);
   margin-left: 10px;
 }
@@ -784,14 +781,14 @@
 
 .ife-station-name {
   font-family: var(--font-display);
-  font-size: 34px;
+  font-size: 40px;
   font-weight: 500;
   letter-spacing: -0.01em;
 }
 
 .ife-station-count {
   color: var(--faint);
-  font-size: 18px;
+  font-size: 22px;
 }
 
 .ife-music-now {
@@ -807,7 +804,7 @@
 
 .ife-music-track {
   font-family: var(--font-display);
-  font-size: 44px;
+  font-size: 52px;
   font-weight: 500;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -816,7 +813,7 @@
 .ife-music-artist {
   color: var(--dim);
   margin-top: 12px;
-  font-size: 24px;
+  font-size: 28px;
 }
 
 .ife-music-controls {
@@ -862,7 +859,7 @@
   border-bottom: 1px solid var(--line);
   color: var(--dim);
   font: inherit;
-  font-size: 22px;
+  font-size: 26px;
   width: 100%;
   text-align: left;
   padding: 19px 8px;
@@ -883,7 +880,7 @@
 }
 
 .ife-track-n {
-  font-size: 17px;
+  font-size: 20px;
   color: var(--faint);
 }
 
@@ -898,7 +895,7 @@
 }
 
 .ife-track-artist {
-  font-size: 18px;
+  font-size: 21px;
   color: var(--faint);
   white-space: nowrap;
 }
@@ -909,9 +906,9 @@
   border: 1px solid var(--line-strong);
   color: var(--fg);
   font: inherit;
-  font-size: 20px;
-  height: 58px;
-  padding: 0 28px;
+  font-size: 24px;
+  height: 66px;
+  padding: 0 32px;
   border-radius: 4px;
   cursor: pointer;
   display: inline-flex;
@@ -954,8 +951,8 @@
 .ife-pa-body {
   color: var(--dim);
   margin-top: 34px;
-  max-width: 1080px;
-  font-size: 27px;
+  max-width: 1180px;
+  font-size: 32px;
 }
 
 .ife-pa-foot {

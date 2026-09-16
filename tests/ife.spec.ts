@@ -158,27 +158,42 @@ test.describe("IFE bench", () => {
     expect(await screenName(page)).toBe("flightInfo");
   });
 
-  test("the destination screen carries the city, its weather and a credit", async ({
+  test("home is the destination: city, weather, credit and a tile panel", async ({
     page,
   }) => {
     await openBench(page);
     await page.locator(".ife-idle").click();
+    expect(await screenName(page)).toBe("home");
 
-    await page.getByRole("button", { name: "Explore the destination" }).click();
-    expect(await screenName(page)).toBe("destination");
-    await expect(page.locator(".ife-dest-city")).toHaveText("London");
+    await expect(page.locator(".ife-home-city")).toHaveText("London");
 
     // Weather comes from the Worker route the sky view already uses.
-    await expect(page.locator(".ife-dest-temp")).not.toHaveText("--°", {
+    await expect(page.locator(".ife-home-wx-temp")).not.toHaveText("--°", {
       timeout: 30_000,
     });
+
     // A Wikimedia photograph is credited or it is not shown.
-    const photo = page.locator(".ife-dest .ife-photo");
-    if (await photo.count()) {
-      await expect(page.locator(".ife-dest .ife-credit")).toContainText(
+    if (await page.locator(".ife-home .ife-photo").count()) {
+      await expect(page.locator(".ife-credit")).toContainText(
         "Wikimedia Commons",
       );
     }
+
+    // Two rows of squares that scroll sideways, and the squares are square
+    // enough that the icon and the label each get their own axis.
+    const tiles = page.locator(".ife-tile");
+    await expect(tiles).toHaveCount(5);
+    const first = await tiles.first().boundingBox();
+    expect(first!.width / first!.height).toBeCloseTo(1, 1);
+
+    const rail = page.locator(".ife-tiles");
+    const scroll = await rail.evaluate((el) => ({
+      w: el.clientWidth,
+      sw: el.scrollWidth,
+    }));
+    expect(scroll.sw, "the panel should have more tiles than it shows").toBeGreaterThan(
+      scroll.w,
+    );
   });
 
   test("the language switch reaches every surface", async ({ page }) => {
@@ -189,7 +204,7 @@ test.describe("IFE bench", () => {
     await page.getByRole("button", { name: "中文" }).click();
     // Chrome, menu and the journey strip all follow.
     await expect(page.locator(".ife-rail")).toContainText("阅读灯");
-    await expect(page.locator(".ife-menu")).toContainText("航班信息");
+    await expect(page.locator(".ife-tiles")).toContainText("航班信息");
     await expect(page.locator(".ife-strip")).toContainText("还有");
     // Including the units inside a duration, which is where a half-translated
     // interface always shows.

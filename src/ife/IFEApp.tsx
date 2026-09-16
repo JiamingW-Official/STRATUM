@@ -7,7 +7,6 @@ import { Idle } from "./screens/Idle";
 import { Home } from "./screens/Home";
 import { MapScreen } from "./screens/MapScreen";
 import { FlightInfo } from "./screens/FlightInfo";
-import { Destination } from "./screens/Destination";
 import { Music } from "./screens/Music";
 import { Placeholder } from "./screens/Placeholder";
 import { PAOverlay } from "./screens/PAOverlay";
@@ -84,10 +83,9 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
         onBack={() => setScreen(screen === "home" ? "idle" : "home")}
       />
       <div className="ife-stage">
-        {screen === "home" && <Home seat={seat} />}
+        {screen === "home" && <Home />}
         {screen === "map" && <MapScreen />}
         {screen === "flightInfo" && <FlightInfo />}
-        {screen === "destination" && <Destination />}
         {screen === "music" && <Music />}
         {screen === "movies" && <Placeholder titleKey="movies" />}
         {screen === "games" && <Placeholder titleKey="games" />}
