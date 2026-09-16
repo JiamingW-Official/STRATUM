@@ -3751,6 +3751,27 @@ function _startWxRotation() {
   step();
 }
 
+// Anything that is not the weather closes the weather. An expanded forecast is
+// 450px of panel sitting on top of four tiles that are the reason the panel is
+// there, so it should not need its own dismissal: pressing another tile, or
+// the map, or anywhere else, means you are done with it. Capture phase, so the
+// tile it came from is folded before that tile's own handler runs and the two
+// do not fight over the same press.
+function _collapseWeather() {
+  if (!_wxExpanded) return;
+  _wxExpanded = false;
+  document.getElementById("hud-wx-detail")?.classList.remove("open");
+}
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (!_wxExpanded) return;
+    if (e.target.closest && e.target.closest("#hud-weather")) return;
+    _collapseWeather();
+  },
+  true,
+);
+
 function initWeatherPanel() {
   // The whole tile opens it, not just the temperature row. A widget that
   // responds on one line of itself reads as broken everywhere else.
