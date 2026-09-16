@@ -1,6 +1,8 @@
 import { useCabin, useSelf } from "../../flight-state/store";
 import type { IFEBridge, ScreenName } from "../../flight-state/types";
+import { useEffect } from "react";
 import { useT } from "../i18n";
+import { currentTrack, usePlayer } from "../player";
 import { IconCall, IconHome, IconLight, IconMap, IconVolume } from "./icons";
 
 /**
@@ -40,6 +42,14 @@ export function BottomRail({
 
   const cabinClass = self?.cabinClass ?? "economy";
 
+  const { stationIdx, trackIdx, playing } = usePlayer();
+  const togglePlay = usePlayer((s) => s.toggle);
+  const setPlayerVolume = usePlayer((s) => s.setVolume);
+  const now = currentTrack(stationIdx, trackIdx);
+
+  // The volume in the rail used to be a number with nothing behind it.
+  useEffect(() => setPlayerVolume(volume), [volume, setPlayerVolume]);
+
   return (
     <div className="ife-rail">
       <div className="ife-seat-chip">
@@ -67,6 +77,28 @@ export function BottomRail({
       </button>
 
       <div className="ife-rail-spacer" />
+
+      {/* Mini player, the way every seat-back system carries one: the music
+          does not belong to the music page, so its handle never leaves. */}
+      {playing && (
+        <button
+          className="ife-mini"
+          style={{ ["--stationColor" as string]: now.station.color }}
+          onClick={togglePlay}
+          aria-label={t("pause")}
+        >
+          <span className="ife-mini-swatch" />
+          <span className="ife-mini-text">
+            <span className="ife-mini-title">{now.title}</span>
+            <span className="ife-mini-station">{now.station.name}</span>
+          </span>
+          <span className="ife-mini-bars" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        </button>
+      )}
 
       {/* Two words in their own scripts. A globe icon would make a passenger
           guess which languages are behind it; these two do not. */}

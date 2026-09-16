@@ -1,0 +1,111 @@
+import { create } from "zustand";
+import { STATIONS, splitTrack, trackSrc } from "./stations";
+
+/**
+ * One player for the whole cabin screen, not one per page.
+ *
+ * On a real seat-back system the music does not stop because you opened the
+ * map — the audio belongs to the seat, and the screen is only a way of looking
+ * at it. Keeping the element in a store rather than inside <Music/> is what
+ * makes that true here, and it is also what lets the rail show a mini player
+ * and an announcement take the sound away and give it back.
+ */
+type PlayerState = {
+  stationIdx: number;
+  trackIdx: number;
+  playing: boolean;
+  /** 0–1 through the current track. */
+  progress: number;
+  /** Set while an announcement holds the cabin, so playback can be restored. */
+  interrupted: boolean;
+
+  play: () => void;
+  pause: () => void;
+  toggle: () => void;
+  next: () => void;
+  select: (stationIdx: number, trackIdx: number) => void;
+  setVolume: (v: number) => void;
+  /** Called when a PA override starts and ends. */
+  setInterrupted: (on: boolean) => void;
+};
+
+let el: HTMLAudioElement | null = null;
+
+function audio(): HTMLAudioElement {
+  if (el) return el;
+  el = new Audio();
+  el.preload = "none";
+  el.addEventListener("timeupdate", () => {
+    const a = el!;
+    usePlayer.setState({
+      progress: a.duration ? a.currentTime / a.duration : 0,
+    });
+  });
+  el.addEventListener("ended", () => usePlayer.getState().next());
+  return el;
+}
+
+function load(stationIdx: number, trackIdx: number) {
+  const station = STATIONS[stationIdx];
+  const track = station.tracks[trackIdx % station.tracks.length];
+  const a = audio();
+  a.src = trackSrc(station, track);
+  usePlayer.setState({ progress: 0 });
+}
+
+export const usePlayer = create<PlayerState>((set, get) => ({
+  stationIdx: 0,
+  trackIdx: 0,
+  playing: false,
+  progress: 0,
+  interrupted: false,
+
+  play: () => {
+    const a = audio();
+    if (!a.src) load(get().stationIdx, get().trackIdx);
+    a.play().then(
+      () => set({ playing: true }),
+      // Autoplay policy, a missing file, a codec the browser will not take —
+      // all of them mean the same thing to the screen: it is not playing.
+      () => set({ playing: false }),
+    );
+  },
+  pause: () => {
+    audio().pause();
+    set({ playing: false });
+  },
+  toggle: () => (get().playing ? get().pause() : get().play()),
+  next: () => {
+    const { stationIdx, trackIdx, playing } = get();
+    const n = (trackIdx + 1) % STATIONS[stationIdx].tracks.length;
+    set({ trackIdx: n });
+    load(stationIdx, n);
+    if (playing) get().play();
+  },
+  select: (stationIdx, trackIdx) => {
+    set({ stationIdx, trackIdx });
+    load(stationIdx, trackIdx);
+    get().play();
+  },
+  setVolume: (v) => {
+    audio().volume = Math.min(1, Math.max(0, v));
+  },
+  setInterrupted: (on) => {
+    const { playing, interrupted } = get();
+    if (on && !interrupted) {
+      // Remember whether it was playing, then take the sound away.
+      set({ interrupted: playing });
+      if (playing) get().pause();
+    } else if (!on && interrupted) {
+      set({ interrupted: false });
+      get().play();
+    }
+  },
+}));
+
+/** What the rail and the music screen both need to label the current track. */
+export function currentTrack(stationIdx: number, trackIdx: number) {
+  const station = STATIONS[stationIdx];
+  const raw = station.tracks[trackIdx % station.tracks.length];
+  return { station, raw, ...splitTrack(raw) };
+}

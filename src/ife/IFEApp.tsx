@@ -10,6 +10,7 @@ import { FlightInfo } from "./screens/FlightInfo";
 import { Music } from "./screens/Music";
 import { Placeholder } from "./screens/Placeholder";
 import { PAOverlay } from "./screens/PAOverlay";
+import { usePlayer } from "./player";
 import "./ife.css";
 
 /** Idle after this long without a touch, like every seat-back screen. */
@@ -37,6 +38,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
   // Where the passenger was before the announcement took the screen, so it can
   // be given back exactly as it was.
   const before = useRef<typeof screen | null>(null);
+  const setInterrupted = usePlayer((s) => s.setInterrupted);
   useEffect(() => {
     if (paOverride) {
       if (before.current === null) before.current = screen;
@@ -45,6 +47,13 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
       before.current = null;
     }
   }, [paOverride, screen, setScreen]);
+
+  // And it takes the sound. An announcement you can listen past is not an
+  // announcement, and the media has to come back exactly as it was — the same
+  // promise the screen makes.
+  useEffect(() => {
+    setInterrupted(!!paOverride);
+  }, [paOverride, setInterrupted]);
 
   // Idle timeout. Suspended during an announcement: the screen is not the
   // passenger's to leave.

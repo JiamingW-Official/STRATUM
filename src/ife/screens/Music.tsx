@@ -1,159 +1,162 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSelf } from "../../flight-state/store";
+import { useState } from "react";
 import { useT } from "../i18n";
-import { STATIONS as LIST, splitTrack, trackSrc } from "../stations";
+import { STATIONS, splitTrack } from "../stations";
+import { currentTrack, usePlayer } from "../player";
+import { IconMusic } from "../chrome/icons";
 
 /**
  * Real music, not a mock-up: these are the four stations and the actual files
- * the sky view plays, read from the one list both now share. Nothing here is
- * a placeholder, which is why it is the screen that can carry colour — each
- * station already has one, and it is used for exactly two things, the tuning
- * bar and the progress, so it reads as "this one" rather than as decoration.
+ * the sky view plays, read from the one list both share.
  *
- * Track titles are "Artist - Title", the shape the files are named in.
+ * The shape is the one every audio app has settled on and every seat-back
+ * system has copied from it — a library down the left, the thing you picked
+ * filling the right. It opens on the shelf rather than on a track list,
+ * because the first question is which station, not which song.
  */
 export function Music() {
-  const { t } = useT();
-  const volume = useSelf((s) => s.volume);
-  const media = useSelf((s) => s.media);
-  const setMedia = useSelf((s) => s.setMedia);
-
-  const initial = useMemo(() => {
-    const id = media?.id?.split("/")[0];
-    return Math.max(0, LIST.findIndex((s) => s.id === id));
-  }, []);
-  const [stationIdx, setStationIdx] = useState(initial);
-  const [trackIdx, setTrackIdx] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const station = LIST[stationIdx];
-  const track = station.tracks[trackIdx % station.tracks.length];
-  const { artist, title } = splitTrack(track);
-  const src = trackSrc(station, track);
-
-  // One element for the life of the screen; changing station changes its src
-  // rather than building a new player.
-  useEffect(() => {
-    const a = new Audio();
-    a.preload = "none";
-    audioRef.current = a;
-    const onTime = () =>
-      setProgress(a.duration ? a.currentTime / a.duration : 0);
-    const onEnd = () => setTrackIdx((i) => i + 1);
-    a.addEventListener("timeupdate", onTime);
-    a.addEventListener("ended", onEnd);
-    return () => {
-      a.pause();
-      a.removeEventListener("timeupdate", onTime);
-      a.removeEventListener("ended", onEnd);
-      audioRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
-    a.src = src;
-    setProgress(0);
-    setMedia({ id: `${station.id}/${track}`, positionSec: 0 });
-    if (playing) a.play().catch(() => setPlaying(false));
-  }, [src]);
-
-  useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
-    a.volume = volume;
-  }, [volume]);
-
-  const toggle = () => {
-    const a = audioRef.current;
-    if (!a) return;
-    if (playing) {
-      a.pause();
-      setPlaying(false);
-    } else {
-      a.play().then(
-        () => setPlaying(true),
-        () => setPlaying(false),
-      );
-    }
-  };
+  const { t, lang } = useT();
+  const { stationIdx, trackIdx, playing, progress } = usePlayer();
+  const select = usePlayer((s) => s.select);
+  const toggle = usePlayer((s) => s.toggle);
+  const next = usePlayer((s) => s.next);
+  // Which station the right pane is showing. Null is the shelf.
+  const [open, setOpen] = useState<number | null>(null);
+  const now = currentTrack(stationIdx, trackIdx);
 
   return (
-    <div className="ife-music" style={{ ["--stationColor" as string]: station.color }}>
-      <div className="ife-music-stations">
-        {LIST.map((s, i) => (
+    <div className="ife-music">
+      <aside className="ife-library">
+        <div className="ife-library-head ife-cap">{t("station")}</div>
+        {STATIONS.map((s, i) => (
           <button
             key={s.id}
-            className="ife-station"
-            data-on={i === stationIdx}
+            className="ife-library-row"
+            data-on={open === i}
+            data-playing={playing && stationIdx === i}
             style={{ ["--stationColor" as string]: s.color }}
-            onClick={() => {
-              setStationIdx(i);
-              setTrackIdx(0);
-            }}
+            onClick={() => setOpen(i)}
           >
-            <span className="ife-station-bar" />
-            <span className="ife-station-name">{s.name}</span>
-            <span className="ife-station-count ife-mono">
-              {s.tracks.length}
+            <span className="ife-library-swatch" />
+            <span className="ife-library-text">
+              <span className="ife-library-name">{s.name}</span>
+              <span className="ife-library-sub">
+                {s.tracks.length} {lang === "zh" ? "首" : "tracks"}
+                {playing && stationIdx === i
+                  ? ` · ${lang === "zh" ? "播放中" : "playing"}`
+                  : ""}
+              </span>
             </span>
           </button>
         ))}
-      </div>
+      </aside>
 
-      <div className="ife-music-now">
-        <div className="ife-music-meta">
-          <div className="ife-cap">{t("nowPlaying")}</div>
-          <div className="ife-music-track" style={{ marginTop: 12 }}>
-            {title}
+      {open === null ? (
+        <section className="ife-shelf">
+          <div className="ife-shelf-head">
+            <h2 className="ife-title">{t("music")}</h2>
+            <span className="ife-cap">
+              {STATIONS.reduce((n, s) => n + s.tracks.length, 0)}{" "}
+              {lang === "zh" ? "首 · 机上曲库" : "tracks on board"}
+            </span>
           </div>
-          <div className="ife-music-artist">{artist || station.name}</div>
 
-          <div className="ife-music-controls">
-            <button className="ife-btn" onClick={toggle}>
-              {playing ? t("pause") : t("play")}
-            </button>
-            <button
-              className="ife-btn"
-              onClick={() => setTrackIdx((i) => i + 1)}
-            >
-              {t("next")}
-            </button>
-            <div className="ife-music-progress">
-              <span style={{ width: `${Math.round(progress * 100)}%` }} />
-            </div>
-          </div>
-        </div>
-
-        {/* What is on the station. A seat-back screen shows the list, not a
-            square of colour pretending to be a sleeve — these tracks have no
-            artwork, and inventing some would be the only untrue thing in the
-            cabin. The playing row is the one place the station colour goes. */}
-        <ol className="ife-tracklist">
-          {station.tracks.map((tr, i) => {
-            const s = splitTrack(tr);
-            const on = i === trackIdx % station.tracks.length;
-            return (
-              <li key={tr}>
+          {/* The shelf. No cover art exists for these files, so each station
+              shows the only thing it honestly has: its own colour, its name,
+              and who is on it. A square of invented artwork would be the one
+              untrue thing in the cabin. */}
+          <div className="ife-shelf-grid">
+            {STATIONS.map((s, i) => {
+              const artists = [
+                ...new Set(s.tracks.map((tr) => splitTrack(tr).artist)),
+              ].filter(Boolean);
+              return (
                 <button
-                  className="ife-track"
-                  data-on={on}
-                  onClick={() => setTrackIdx(i)}
+                  key={s.id}
+                  className="ife-album"
+                  style={{ ["--stationColor" as string]: s.color }}
+                  onClick={() => setOpen(i)}
                 >
-                  <span className="ife-track-n ife-mono">
-                    {String(i + 1).padStart(2, "0")}
+                  <span className="ife-album-face">
+                    <IconMusic size={40} />
+                    <span className="ife-album-count ife-mono">
+                      {String(s.tracks.length).padStart(2, "0")}
+                    </span>
                   </span>
-                  <span className="ife-track-title">{s.title}</span>
-                  <span className="ife-track-artist">{s.artist}</span>
+                  <span className="ife-album-name">{s.name}</span>
+                  <span className="ife-album-artists">
+                    {artists.slice(0, 3).join(" · ")}
+                  </span>
                 </button>
-              </li>
-            );
-          })}
-        </ol>
-      </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
+        <section className="ife-station-view">
+          <header
+            className="ife-station-head"
+            style={{ ["--stationColor" as string]: STATIONS[open].color }}
+          >
+            <button className="ife-btn ife-btn--quiet" onClick={() => setOpen(null)}>
+              ← {t("music")}
+            </button>
+            <h2 className="ife-station-title">{STATIONS[open].name}</h2>
+            <div className="ife-cap">
+              {STATIONS[open].tracks.length} {lang === "zh" ? "首" : "tracks"}
+            </div>
+          </header>
+
+          <ol
+            className="ife-tracklist"
+            style={{ ["--stationColor" as string]: STATIONS[open].color }}
+          >
+            {STATIONS[open].tracks.map((tr, i) => {
+              const s = splitTrack(tr);
+              const on = open === stationIdx && i === trackIdx;
+              return (
+                <li key={tr}>
+                  <button
+                    className="ife-track"
+                    data-on={on}
+                    onClick={() => select(open, i)}
+                  >
+                    <span className="ife-track-n ife-mono">
+                      {on && playing ? "▮▮" : String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="ife-track-title">{s.title}</span>
+                    <span className="ife-track-artist">{s.artist}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
+
+      {/* Now playing, always, whichever pane is open — the sound belongs to the
+          seat and not to the page you happen to be on. */}
+      <footer
+        className="ife-now"
+        style={{ ["--stationColor" as string]: now.station.color }}
+      >
+        <span className="ife-now-swatch" />
+        <span className="ife-now-text">
+          <span className="ife-cap">{t("nowPlaying")}</span>
+          <span className="ife-now-title">{now.title}</span>
+          <span className="ife-now-artist">
+            {now.artist || now.station.name}
+          </span>
+        </span>
+        <button className="ife-btn" onClick={toggle}>
+          {playing ? t("pause") : t("play")}
+        </button>
+        <button className="ife-btn" onClick={next}>
+          {t("next")}
+        </button>
+        <span className="ife-now-progress">
+          <span style={{ width: `${Math.round(progress * 100)}%` }} />
+        </span>
+      </footer>
     </div>
   );
 }

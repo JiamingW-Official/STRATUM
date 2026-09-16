@@ -179,14 +179,13 @@ test.describe("IFE bench", () => {
       );
     }
 
-    // Two rows of squares that scroll sideways, and the squares are square
-    // enough that the icon and the label each get their own axis.
-    const tiles = page.locator(".ife-tile");
-    await expect(tiles).toHaveCount(5);
-    const first = await tiles.first().boundingBox();
-    expect(first!.width / first!.height).toBeCloseTo(1, 1);
+    // A rail of cards the hand pushes sideways, with one tall card breaking
+    // the rhythm so it is a composition rather than a contact sheet.
+    const cards = page.locator(".ife-card");
+    await expect(cards).toHaveCount(6);
+    await expect(page.locator('.ife-card[data-tall="true"]')).toHaveCount(2);
 
-    const rail = page.locator(".ife-tiles");
+    const rail = page.locator(".ife-rail-cards");
     const scroll = await rail.evaluate((el) => ({
       w: el.clientWidth,
       sw: el.scrollWidth,
@@ -204,7 +203,7 @@ test.describe("IFE bench", () => {
     await page.getByRole("button", { name: "中文" }).click();
     // Chrome, menu and the journey strip all follow.
     await expect(page.locator(".ife-rail")).toContainText("阅读灯");
-    await expect(page.locator(".ife-tiles")).toContainText("航班信息");
+    await expect(page.locator(".ife-rail-cards")).toContainText("航班信息");
     await expect(page.locator(".ife-strip")).toContainText("还有");
     // Including the units inside a duration, which is where a half-translated
     // interface always shows.
@@ -224,6 +223,49 @@ test.describe("IFE bench", () => {
 
     await page.getByRole("button", { name: "Business" }).click();
     await expect(page.locator(".ife-idle")).toContainText("Business");
+  });
+
+  test("music belongs to the seat, not to the music page", async ({ page }) => {
+    await openBench(page);
+    await page.locator(".ife-idle").click();
+    await page.getByRole("button", { name: "Music" }).click();
+
+    // It opens on the shelf: the first question is which station, not which
+    // song.
+    await expect(page.locator(".ife-album")).toHaveCount(4);
+    await expect(page.locator(".ife-track")).toHaveCount(0);
+
+    await page.locator(".ife-album").first().click();
+    await page.locator(".ife-track").first().click();
+
+    // Playing puts a handle in the rail, and the handle does not leave when
+    // the screen does.
+    const mini = page.locator(".ife-mini");
+    await expect(mini).toHaveCount(1, { timeout: 15_000 });
+    await page.getByRole("button", { name: "Home", exact: true }).click();
+    await page.getByRole("button", { name: "Flight information" }).click();
+    expect(await screenName(page)).toBe("flightInfo");
+    await expect(mini).toHaveCount(1);
+  });
+
+  test("an announcement takes the sound too, and gives it back", async ({
+    page,
+  }) => {
+    await openBench(page);
+    await page.locator(".ife-idle").click();
+    await page.getByRole("button", { name: "Music" }).click();
+    await page.locator(".ife-album").first().click();
+    await page.locator(".ife-track").first().click();
+    await expect(page.locator(".ife-mini")).toHaveCount(1, { timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Safety" }).click();
+    await expect(page.locator(".ife-pa")).toHaveCount(1);
+    // An announcement you can listen past is not an announcement.
+    await expect(page.locator(".ife-mini")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "None" }).click();
+    await expect(page.locator(".ife-pa")).toHaveCount(0);
+    await expect(page.locator(".ife-mini")).toHaveCount(1, { timeout: 15_000 });
   });
 
   // The glass is a fixed 1920x1080 surface wherever it hangs. What must hold

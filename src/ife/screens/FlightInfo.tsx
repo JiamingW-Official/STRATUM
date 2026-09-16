@@ -1,6 +1,7 @@
 import { useFlight } from "../../flight-state/store";
 import { duration, fmtInt, localTime } from "../format";
 import { pick, useT, type Key } from "../i18n";
+import { Profile } from "../chrome/Profile";
 
 function Figure({
   label,
@@ -34,18 +35,17 @@ export function FlightInfo() {
 
   return (
     <div className="ife-pad">
-      <div className="ife-title">{t("flightInformation")}</div>
+      <div className="ife-fi-head">
+        <div className="ife-title">{t("flightInformation")}</div>
+        <div className="ife-cap">{t("profile")}</div>
+      </div>
+
+      <Profile />
 
       <div className="ife-figures">
         {/* Altitude and ground speed come off the aircraft's own broadcast, so
             they carry no mark — but when nothing was heard they are our
             estimate, and they say so. */}
-        <Figure
-          label={t("altitude")}
-          value={fmtInt(position.altFt)}
-          unit="ft"
-          inferred={!position.heard}
-        />
         <Figure
           label={t("groundSpeed")}
           value={fmtInt(position.gsKt)}
@@ -57,6 +57,7 @@ export function FlightInfo() {
           value={`${Math.round(position.headingDeg).toString().padStart(3, "0")}°`}
           inferred={!position.heard}
         />
+        <Figure label={t("phase")} value={t(PHASE_KEY[phase])} />
 
         <Figure label={t("timeElapsed")} value={duration(elapsed, lang)} />
         <Figure
@@ -64,21 +65,9 @@ export function FlightInfo() {
           value={phase === "landed" ? "——" : duration(remaining, lang)}
           inferred={etaInferred && phase !== "landed"}
         />
-        <Figure label={t("phase")} value={t(PHASE_KEY[phase])} />
-
         <Figure
           label={`${pick(route.from.city, lang)} · ${t("departed")}`}
           value={localTime(departureUtc, route.from)}
-        />
-        <Figure
-          label={`${pick(route.to.city, lang)} · ${t("arrivingAt")}`}
-          value={localTime(etaUtc, route.to)}
-          inferred={etaInferred && phase !== "landed"}
-        />
-        <Figure
-          label={t("position")}
-          value={`${position.lat.toFixed(2)}, ${position.lon.toFixed(2)}`}
-          inferred={!position.heard}
         />
       </div>
     </div>

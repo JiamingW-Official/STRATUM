@@ -97,3 +97,12 @@ export const IconGames = ({ size = 24 }: P) => (
     <circle cx="17.4" cy="13" r=".9" />
   </svg>
 );
+
+/** The sky view: an aircraft seen from below with the ring of a receiver's
+ *  reach around it. */
+export const IconSky = ({ size = 24 }: P) => (
+  <svg {...base(size)} aria-hidden="true">
+    <path d="M12 3.6 12.8 9l5.4 3v1.4l-5.4-1.5-.3 3.4 2 1.4v1l-2.5-.8-2.5.8v-1l2-1.4-.3-3.4L5.8 13.4V12l5.4-3z" />
+    <path d="M3.4 18.6c2.4 1.5 5.4 2.3 8.6 2.3s6.2-.8 8.6-2.3" strokeDasharray="3 3" />
+  </svg>
+);
