@@ -5540,3 +5540,59 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   color: var(--text-3); display: inline-flex; align-items: baseline; gap: 4px;
 }
 .hud-mod--traffic .hud-clock:hover { color: var(--text-2); }
+
+/* ── Less blue ──
+   saturate(1.7) pulled so much of the map's blue through that the panels read
+   as tinted rather than clear. 1.25 keeps the glass picking up the scene
+   without wearing its colour. */
+#hud.glass-panel, .detail-panel.glass-panel, .radio-panel,
+.city-overlay-content, .help-panel, .no-coverage-panel {
+  -webkit-backdrop-filter: blur(30px) saturate(1.25) brightness(1.14);
+  backdrop-filter: blur(30px) saturate(1.25) brightness(1.14);
+}
+.hud-mod,
+.detail-panel .detail-section-body, .detail-panel .detail-heard,
+.detail-panel .detail-commons, .detail-panel .detail-airline-row,
+.detail-panel .detail-route, .detail-panel .detail-progress,
+.city-globe-pane, .city-list-pane, .school-q {
+  -webkit-backdrop-filter: blur(14px) saturate(1.2) brightness(1.05);
+  backdrop-filter: blur(14px) saturate(1.2) brightness(1.05);
+}
+.fab-btn, .radio-power-btn, .radio-vol-btn, .radio-close-btn,
+.hud-atc-power, .school-opts button {
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  backdrop-filter: blur(12px) saturate(1.15);
+}
+
+/* ── The tower switch is a play button ──
+   The circle full of animating bars was doing two jobs and neither of them
+   said "press me". A transport control is the thing everyone already knows:
+   a triangle when it is off, a square when it is playing. The level meter
+   moves out beside it, where it reports rather than invites. */
+.hud-atc-glyph { display: block; color: var(--text-2); }
+.hud-atc-power .hud-atc-stop { display: none; }
+.hud-atc-power:has(.is-live) .hud-atc-play,
+.hud-atc-power:has(.is-busy) .hud-atc-play { display: none; }
+.hud-atc-power:has(.is-live) .hud-atc-stop,
+.hud-atc-power:has(.is-busy) .hud-atc-stop { display: block; }
+.hud-atc-power:has(.is-live) .hud-atc-glyph { color: var(--accent-bright); }
+.hud-atc-power .hud-atc-level { display: none; }
+.hud-atc-status .hud-atc-level { display: inline-flex; }
+.hud-atc-power { width: 24px; height: 24px; }
+
+/* ── Nothing moves when a state changes ──
+   The state line runs from "Off" to "Tuning S1-FMT2", the tower code from four
+   characters to none, and each length change reflowed its tile, which pushed
+   every tile under it down and back. The lines get a reserved height and the
+   text is clipped rather than wrapped, so switching changes what the panel
+   says and never where it sits. */
+.hud-atc-status { min-height: 24px; }
+.hud-atc-state,
+#hud-atc .hud-mod-sub {
+  display: block; min-height: 15px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#hud-atc.hud-mod { min-height: 96px; }
+.hud-mod--traffic, .hud-mod--hero { min-height: 96px; }
+.hud-sky-line { min-height: 15px; }
+#hud-sky.hud-mod { min-height: 34px; }
