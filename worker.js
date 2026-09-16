@@ -1832,10 +1832,18 @@ export default {
     if (!response.ok && response.status >= 400) return addPerfHeaders(response);
     const path = url.pathname;
 
-    // Radio MP3 files — long cache + correct MIME + CORS + range support
-    if (path.startsWith("/radio/") && path.endsWith(".mp3")) {
+    // Radio tracks — AAC in an MP4 container since the re-encode.
+    //
+    // Inert in the current configuration, and worth saying so rather than
+    // leaving it to look live: Cloudflare's static-asset layer answers
+    // /radio/ and /assets/ before this script runs, so nothing set here is
+    // ever sent. Measured -- worker.js asks for a year immutable on hashed
+    // assets and the wire says "max-age=0, must-revalidate". public/_headers
+    // is where those headers actually come from now. This arm stays for the
+    // case where the Worker is put in front of assets.
+    if (path.startsWith("/radio/") && path.endsWith(".m4a")) {
       const r = new Response(response.body, response);
-      r.headers.set("Content-Type", "audio/mpeg");
+      r.headers.set("Content-Type", "audio/mp4");
       r.headers.set("Accept-Ranges", "bytes");
       r.headers.set("Cache-Control", "public, max-age=2592000, immutable"); // 30 days
       r.headers.set("Access-Control-Allow-Origin", "*");

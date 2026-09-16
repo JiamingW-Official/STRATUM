@@ -114,7 +114,11 @@ function _currentTrack() {
 
 function _trackUrl() {
   const st = _currentStation();
-  return `/radio/${encodeURIComponent(st.folder)}/${encodeURIComponent(_currentTrack())}.mp3`;
+  // AAC rather than MP3. The sources were 128k MP3, which is not a high
+  // bitrate to start from, so re-encoding as MP3 would only compound the loss;
+  // AAC-LC at 96k measures identical to the source through 16 kHz and trims
+  // only what sits above it, already 38 dB down. 90MB of tracks became 70MB.
+  return `/radio/${encodeURIComponent(st.folder)}/${encodeURIComponent(_currentTrack())}.m4a`;
 }
 
 function _parseTrackName(raw) {

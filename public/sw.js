@@ -1,7 +1,10 @@
 // STRATUM Service Worker — smart caching by resource type
 const CACHE_NAME = "stratum-v10";
 const TILE_CACHE = "stratum-tiles-v1";
-const RADIO_CACHE = "stratum-radio-v1";
+// v2: the tracks are AAC now, so every .mp3 entry in v1 is dead weight in
+// somebody's browser that will never be requested again. The activate handler
+// drops any cache not in `keep`, so renaming is the eviction.
+const RADIO_CACHE = "stratum-radio-v2";
 const TRAIL_CACHE = "stratum-trails-v1";
 
 // Ten minutes: long enough that leaving and coming back paints the sky at once,
@@ -130,7 +133,7 @@ self.addEventListener("fetch", (e) => {
   }
 
   // ── Radio MP3: cache-first ──
-  if (url.pathname.startsWith("/radio/") && url.pathname.endsWith(".mp3")) {
+  if (url.pathname.startsWith("/radio/") && url.pathname.endsWith(".m4a")) {
     e.respondWith(
       caches.open(RADIO_CACHE).then((cache) =>
         cache.match(e.request).then((cached) => {

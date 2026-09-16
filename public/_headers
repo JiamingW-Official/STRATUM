@@ -1,0 +1,23 @@
+# Cloudflare's static-asset layer answers these paths before the Worker script
+# runs, so the Cache-Control the Worker sets for them never reaches anybody --
+# /assets/ asks for a year immutable in worker.js and arrives as
+# "max-age=0, must-revalidate". This file is the layer that actually applies.
+#
+# index.html is deliberately absent: it names the hashed bundle, and a visitor
+# was once three deployments behind because a copy of it came back from disk.
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/radio/*
+  Cache-Control: public, max-age=2592000, immutable
+  Access-Control-Allow-Origin: *
+
+/airplane_model/*
+  Cache-Control: public, max-age=2592000, immutable
+
+/airlines/*
+  Cache-Control: public, max-age=604800
+
+/cifp/*
+  Cache-Control: public, max-age=604800
