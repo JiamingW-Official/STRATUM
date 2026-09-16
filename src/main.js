@@ -1863,14 +1863,32 @@ function _visShareCached(i) {
   return _visShareCache[i];
 }
 
-function _nearestCityName(lat, lon) {
+function _nearestCity(lat, lon) {
   let best = null, bd = Infinity;
   for (const c of CITIES) {
     const d = Math.abs(c.lat - lat) + Math.abs(c.lon - lon);
     if (d < bd) { bd = d; best = c; }
   }
-  return best && bd < 0.6 ? best.name.replace(/\s+[A-Z]{3}$/, "") : null;
+  return best && bd < 0.6 ? best : null;
 }
+function _nearestCityName(lat, lon) {
+  const c = _nearestCity(lat, lon);
+  return c ? c.name.replace(/\s+[A-Z]{3}$/, "") : null;
+}
+
+// ── The zero is a door ──────────────────────────────────────────────────────
+// The comparison line has always known where the masked aircraft are; it was
+// the one piece of writing on the page that named a place with a working game
+// in it and then left you standing in a sky with none. Most airspaces read 0%
+// most of the time, which means the tile that carries the project's argument
+// spends most of its life displaying a zero and nothing to do about it.
+//
+// So when the sky it names is more masked than this one, the line becomes the
+// way there. Not a new feature bolted beside it -- the same sentence, now
+// pressable, because the sentence was already the invitation.
+let _cmpCity = null;
+let _cameFor = null; // { code, pct, at } — what you were told before you left
+const _CAME_MS = 120000;
 function _renderVisibilityCmp() {
   const el = document.getElementById("hud-sky-cmp");
   if (!el) return;
@@ -1890,10 +1908,74 @@ function _renderVisibilityCmp() {
     const g = Math.abs(s - share) * far;
     if (g > gap) { gap = g; cmp = c; }
   }
-  const name = cmp ? _nearestCityName(cmp.lat, cmp.lon) : null;
-  if (!cmp || !name || gap < 0.03) { el.textContent = ""; return; }
+  const city = cmp ? _nearestCity(cmp.lat, cmp.lon) : null;
+  const name = city ? city.name.replace(/\s+[A-Z]{3}$/, "") : null;
+  if (!cmp || !name || gap < 0.03) {
+    el.textContent = ""; el.classList.remove("is-door"); _cmpCity = null;
+    el.removeAttribute("role"); el.removeAttribute("tabindex"); el.removeAttribute("title");
+    return;
+  }
   const pct = (x) => `${Math.round(x * 100)}%`;
-  el.textContent = `${pct(share)} here · ${pct(cmp.masked / cmp.total)} over ${name}`;
+  const cmpShare = cmp.masked / cmp.total;
+  const text = `${pct(share)} here · ${pct(cmpShare)} over ${name}`;
+  // A door only where there is more to see than here. When the other sky is
+  // the emptier one the sentence is still worth reading — that is the
+  // comparison doing its job — but there is nothing on the far side to go to.
+  const isDoor = cmpShare > share + 0.02 && city.code !== activeCity?.code;
+  _cmpCity = isDoor ? { city, pct: Math.round(cmpShare * 100) } : null;
+  el.classList.toggle("is-door", isDoor);
+  if (isDoor) {
+    // The arrow sits inside the sentence rather than beside it: as a separate
+    // flex item it took the width the last word needed and the place name
+    // ellipsed away, which is the one word the line exists to say. It is tied
+    // to that word with nowrap for the same reason — left to itself it wrapped
+    // onto a line of its own and read as a stray control.
+    el.innerHTML = `${pct(share)} here · ${pct(cmpShare)} over ` +
+      `<span class="hud-door-end">${name}` +
+      `<span class="hud-act hud-act--sm hud-door-act" aria-hidden="true">` +
+      `<svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5 L7.6 6 L4 9.5"/></svg></span></span>`;
+    el.setAttribute("role", "button");
+    el.setAttribute("tabindex", "0");
+    el.title = `Go to ${name}`;
+  } else {
+    el.textContent = text;
+    el.removeAttribute("role"); el.removeAttribute("tabindex"); el.removeAttribute("title");
+  }
+}
+
+// The line is inside the hero button, so its press has to stop there: the
+// tile's own job is to reveal the unseen, and travelling is not that.
+(() => {
+  const go = (e) => {
+    if (!_cmpCity) return;
+    e.stopPropagation();
+    e.preventDefault();
+    _cameFor = { code: _cmpCity.city.code, pct: _cmpCity.pct, at: Date.now() };
+    switchCity(_cmpCity.city);
+  };
+  document.getElementById("hud-sky-cmp")?.addEventListener("click", go);
+  document.getElementById("hud-sky-cmp")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") go(e);
+  });
+})();
+
+// What you were promised, against what is actually overhead. A share measured
+// over weeks says nothing about this minute, and saying so is more honest than
+// quietly hoping the sky obliges.
+function _renderCameFor() {
+  const el = document.getElementById("hud-sky-came");
+  if (!el) return;
+  if (!_cameFor || Date.now() - _cameFor.at > _CAME_MS || activeCity?.code !== _cameFor.code) {
+    if (_cameFor && (Date.now() - _cameFor.at > _CAME_MS)) _cameFor = null;
+    el.classList.add("hidden"); el.textContent = "";
+    return;
+  }
+  const n = _lastSky.unseen;
+  el.classList.remove("hidden");
+  el.textContent = n > 0
+    ? `came for the ${_cameFor.pct}% · ${n} up now`
+    : `came for the ${_cameFor.pct}% · none up this minute`;
+  el.classList.toggle("is-empty", n === 0);
 }
 
 // ── Contacts ────────────────────────────────────────────────────────────────
@@ -2256,6 +2338,7 @@ function handleData(dataList) {
     _checkWhileAway();
     _checkReturns();
     _renderVisibilityCmp();
+    _renderCameFor();
     _renderContacts();
     _renderMine();
     _loadVisibility();

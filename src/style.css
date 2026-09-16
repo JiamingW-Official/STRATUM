@@ -6253,3 +6253,29 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 .search-category::before { display: none; }
 .search-category-count { color: var(--text-3); }
+
+/* ── The comparison line, when it is also the way there ──
+   Same sentence, same size, same place in the tile. The only thing added is
+   the round face the rest of the page uses to mean "press this and it goes
+   somewhere" — at the small size, because this is a line of text that happens
+   to be a door, not a control that happens to have a caption. */
+.hud-mod--hero .hud-sky-cmp.is-door {
+  display: block; cursor: pointer; border-radius: 9px;
+  margin: 1px -5px 0; padding: 2px 5px;
+  white-space: normal; overflow: visible; text-overflow: clip;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+.hud-sky-cmp.is-door:hover { background: rgba(255, 255, 255, 0.07); color: var(--text-2); }
+.hud-sky-cmp.is-door:focus-visible { outline: 1px solid rgba(var(--accent-rgb), 0.5); outline-offset: 1px; }
+.hud-act--sm { width: 16px; height: 16px; vertical-align: -4px; margin-left: 5px; }
+.hud-sky-cmp.is-door:hover .hud-door-act { color: var(--text); background: rgba(255, 255, 255, 0.14); }
+
+/* What the door promised, against what the sky is doing. Accent while the
+   promise held; plain while it did not, because a miss is not an alarm. */
+.hud-sky-came {
+  color: var(--accent); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hud-sky-came.is-empty { color: var(--text-3); }
+.hud-sky-came.hidden { display: none; }
+.hud-door-end { white-space: nowrap; }
