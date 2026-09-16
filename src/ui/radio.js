@@ -241,7 +241,34 @@ function _applyTuning() {
     _panelEl.classList.toggle("is-tuning", _tuning);
   }
   const nameEl = _panelEl?.querySelector("#radio-station-name");
-  if (nameEl && sig <= 0) nameEl.textContent = "NO SIGNAL";
+  // "NO SIGNAL" is right when you parked in the noise and wrong when the dial
+  // is on its way somewhere: the same empty band means two different things
+  // depending on whether anything is moving. And a seek that passes over a
+  // station on its way to another should not stop to name it — until the set
+  // locks, the only true answer is that it is still looking.
+  if (nameEl) {
+    // 0.9, not 1: the ease-out's tail spends its last 300ms covering the final
+    // fraction of a megahertz, and holding "TUNING" through that left the name
+    // trailing a readout that had already settled on the destination. The set
+    // has locked well before the needle has finished creeping.
+    if (_sweepRAF && sig < 0.9) nameEl.textContent = "TUNING";
+    else if (sig <= 0) nameEl.textContent = "NO SIGNAL";
+  }
+
+  // The rail's thumbnail is the same receiver seen small, so it follows the
+  // needle rather than the committed station — it sweeps too, and it is the
+  // only writer of that readout.
+  const toggle = document.getElementById("radio-toggle-btn");
+  if (toggle) {
+    const st = _currentStation();
+    toggle.style.setProperty("--rt-color", st.color);
+    const f = toggle.querySelector("#radio-toggle-freq");
+    if (f) f.textContent = _freq.toFixed(1);
+    // Only while the bar is away. With the bar open the two sit inches apart
+    // saying the same number, and the thumbnail's whole job is to report when
+    // the panel is not there to.
+    toggle.classList.toggle("is-live", _playing && !_visible);
+  }
 }
 
 /**
@@ -287,6 +314,99 @@ function _commitStation(immediate = false) {
     if (now.off < LOCK_MHZ && now.idx !== _stationIdx)
       _crossfadeToStation(now.idx);
   }, 260);
+}
+
+// ── Seeking ─────────────────────────────────────────────────────────────────
+// Pressing seek used to swap the feed and leave the needle where it was: the
+// readout still said 96.5 while 103.1 played, and the change arrived as a
+// six-hundred-millisecond fade of one track into another with nothing to look
+// at. That is a playlist skip wearing a radio's clothes.
+//
+// A tuner runs the dial across the band. The station you are leaving falls
+// into noise, the band goes past, and the new one rises out of the noise when
+// the needle arrives. So seek is now a drag you did not have to make, and
+// almost none of it is new: the needle, the meter, the hiss and the volume all
+// already follow _freq through _applyTuning. The only decision is when to
+// exchange the audio — at 55%, while the signal is near its floor, so the
+// swap happens under the noise instead of in front of it.
+let _sweepRAF = null;
+function _cancelSweep() {
+  if (!_sweepRAF) return;
+  cancelAnimationFrame(_sweepRAF);
+  _sweepRAF = null;
+  _tuning = false;
+}
+
+/** The next printed station up or down the band from where the needle is. */
+function _stepFreq(dir) {
+  const sorted = _FREQS.map(parseFloat).sort((a, b) => a - b);
+  let next =
+    dir > 0
+      ? sorted.find((f) => f > _freq + 0.05)
+      : [...sorted].reverse().find((f) => f < _freq - 0.05);
+  if (next === undefined) next = dir > 0 ? sorted[0] : sorted[sorted.length - 1];
+  return next;
+}
+
+function _seekTo(freq) {
+  _cancelSweep();
+  clearTimeout(_settleTimer);
+  const from = _freq;
+  const to = Math.max(BAND_LO, Math.min(BAND_HI, freq));
+  const idx = _nearest(to).idx;
+  if (Math.abs(to - from) < 0.05) {
+    _freq = to;
+    _commitStation(true);
+    _applyTuning();
+    return;
+  }
+  // Long enough to hear the band go past, short enough not to be a wait. The
+  // distance is in the duration, so a neighbour arrives quickly and a wrap
+  // across the whole dial visibly does not.
+  // Measured the first version at 375ms for a neighbouring station, which put
+  // about 150ms of noise between the two — short enough to read as a glitch
+  // rather than as a band being crossed. The noise is the whole point, so it
+  // gets time to be heard.
+  const ms = Math.min(1100, 420 + Math.abs(to - from) * 42);
+  const t0 = performance.now();
+  let swapped = false;
+  _tuning = true;
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / ms);
+    const eased = 1 - Math.pow(1 - p, 3); // a dial thrown, coming to rest
+    _freq = from + (to - from) * eased;
+    if (!swapped && p >= 0.55) {
+      swapped = true;
+      _loadStation(idx);
+    }
+    _applyTuning();
+    if (p < 1) {
+      _sweepRAF = requestAnimationFrame(step);
+      return;
+    }
+    _sweepRAF = null;
+    _tuning = false;
+    _freq = to;
+    if (!swapped) _loadStation(idx);
+    _applyTuning();
+  };
+  _sweepRAF = requestAnimationFrame(step);
+}
+
+// The state half of a station change with no fade of its own: during a seek
+// the volume is already governed by the signal, and a second fade on top of
+// that would mute the arrival it exists to reveal.
+function _loadStation(idx) {
+  if (idx === _stationIdx && _playing) return;
+  _stationIdx = idx;
+  _initShuffled();
+  _loadRetries = 0;
+  if (_fadeInterval) {
+    clearInterval(_fadeInterval);
+    _fadeInterval = null;
+  }
+  if (_playing) _playTrack();
+  else _updateUI();
 }
 
 function _currentStation() {
@@ -551,6 +671,8 @@ function _createPanel() {
   let _grabFreq = 0;
 
   const onDown = (ev) => {
+    // A hand on the dial outranks a seek that is still running.
+    _cancelSweep();
     _tuning = true;
     _grabX = ev.clientX;
     _grabFreq = _freq;
@@ -595,39 +717,23 @@ function _createPanel() {
       _applyTuning();
       return;
     }
-    const sorted = _FREQS.map(parseFloat).sort((a, b) => a - b);
-    let next = dir > 0
-      ? sorted.find((f) => f > _freq + 0.05)
-      : [...sorted].reverse().find((f) => f < _freq - 0.05);
-    if (next === undefined) next = dir > 0 ? sorted[0] : sorted[sorted.length - 1];
-    _freq = next;
-    _commitStation(true);
-    _applyTuning();
+    _seekTo(_stepFreq(dir));
   });
 
   // Clicking a printed call-sign is still the fast way there.
   scale.querySelectorAll(".radio-stationmark").forEach((el) => {
     el.addEventListener("pointerdown", (ev) => {
       ev.stopPropagation();
-      _freq = parseFloat(_FREQS[+el.dataset.idx]);
-      _commitStation(true);
-      _applyTuning();
+      _seekTo(parseFloat(_FREQS[+el.dataset.idx]));
     });
   });
 
-  // Transport: previous and next station along the band.
-  const _step = (dir) => {
-    const sorted = _FREQS.map(parseFloat).sort((a, b) => a - b);
-    let next = dir > 0
-      ? sorted.find((f) => f > _freq + 0.05)
-      : [...sorted].reverse().find((f) => f < _freq - 0.05);
-    if (next === undefined) next = dir > 0 ? sorted[0] : sorted[sorted.length - 1];
-    _freq = next;
-    _commitStation(true);
-    _applyTuning();
-  };
-  _panelEl.querySelector("#radio-prev")?.addEventListener("click", () => _step(-1));
-  _panelEl.querySelector("#radio-next")?.addEventListener("click", () => _step(1));
+  // Transport: previous and next station along the band. The band walk lived
+  // in three places — here, the arrow keys, and the exported next/prevStation —
+  // and only the exported pair was ever updated. One function now, and it is
+  // the one that sweeps.
+  _panelEl.querySelector("#radio-prev")?.addEventListener("click", () => _seekTo(_stepFreq(-1)));
+  _panelEl.querySelector("#radio-next")?.addEventListener("click", () => _seekTo(_stepFreq(1)));
 
   // Power
   _panelEl.querySelector("#radio-power-btn").addEventListener("click", () => {
@@ -688,21 +794,11 @@ function _updateUI() {
   const nameEl = _panelEl.querySelector("#radio-station-name");
   nameEl.textContent = st.name;
   nameEl.style.color = st.color;
-  _panelEl.querySelector("#radio-freq").textContent =
-    _FREQS[_stationIdx] + " FM";
-
-  // The rail's button is a thumbnail of this same receiver, so it is written
-  // here rather than polled from outside: whatever the dial says, it says.
-  const toggle = document.getElementById("radio-toggle-btn");
-  if (toggle) {
-    toggle.style.setProperty("--rt-color", st.color);
-    const f = toggle.querySelector("#radio-toggle-freq");
-    if (f) f.textContent = _FREQS[_stationIdx];
-    // Only while the bar is away. With the bar open the two sit inches apart
-    // saying the same number, and the thumbnail's whole job is to report when
-    // the panel is not there to.
-    toggle.classList.toggle("is-live", _playing && !_visible);
-  }
+  // The frequency readout and the rail thumbnail are written by _applyTuning,
+  // which follows the needle. They were written here as well, from the
+  // committed station, and a mid-sweep repaint from this one put the
+  // destination's number on screen for a frame before the needle got there.
+  _applyTuning();
 
   // Track info
   if (_playing && _shuffled.length > 0) {
@@ -774,10 +870,10 @@ export function isRadioPlaying() {
 }
 
 export function nextStation() {
-  _crossfadeToStation((_stationIdx + 1) % STATIONS.length);
+  _seekTo(_stepFreq(1));
 }
 export function prevStation() {
-  _crossfadeToStation((_stationIdx - 1 + STATIONS.length) % STATIONS.length);
+  _seekTo(_stepFreq(-1));
 }
 
 /**
