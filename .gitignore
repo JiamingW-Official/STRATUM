@@ -10,3 +10,19 @@ scripts/
 
 # Cloud-drive sync-conflict copies ("NAME 2.ext"); never referenced, bodies often not on disk.
 * [0-9].*
+
+# Playwright run artifacts (traces, failure screenshots). tests/baseline/ is the
+# only image that is reviewed and committed.
+test-results/
+playwright-report/
+
+# Wrangler's local state directory.
+.wrangler/
+
+# Raw audio the radio tracks are encoded from (1.4 GB). public/radio holds the
+# encoded AAC the app actually serves; the sources belong outside git.
+/radio/
+
+# Cloud-drive sync-conflict copy with no extension; the rule above only
+# catches "NAME 2.ext".
+public/_headers 2
