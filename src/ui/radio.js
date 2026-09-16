@@ -207,7 +207,7 @@ function _signal(freq) {
 function _applyTuning() {
   const sig = _signal(_freq);
   const duck = _ducked ? DUCK : 1;
-  if (_audio) _audio.volume = _volume * sig * duck;
+  _setMusicGain(_volume * sig * duck);
   _setStatic(_playing ? (1 - sig) * duck : 0);
   const needle = _panelEl?.querySelector("#radio-needle");
   if (needle) {
@@ -484,6 +484,7 @@ function _playTrack() {
   if (!_audio) {
     _audio = new Audio();
     _audio.volume = _volume * _signal(_freq);
+    _lastGain = _audio.volume;
     _audio.preload = "auto";
     _audio.addEventListener("ended", () => {
       _advanceTrack();
@@ -517,6 +518,31 @@ function _playTrack() {
 // context that suspends is a radio that goes silent. It is therefore built
 // only after a play() has actually resolved — which means a gesture has
 // happened — and it watches its own state afterwards.
+// ── One place the music level is set ───────────────────────────────────────
+// Measured in the deployed page: once an element is routed through a
+// MediaElementAudioSourceNode, HTMLMediaElement.volume stops attenuating it —
+// a 440Hz tone read 245 at volume 1.0 and 244 at volume 0.18. Everything this
+// radio does with level goes through that property: the tower's duck, the
+// volume slider, and the signal fade that is the whole point of a dial you can
+// park between stations. Adding the analyser would have silently disabled all
+// three.
+//
+// So the gain moves into the graph. Where there is no graph — before the first
+// play resolves, or if the analyser was refused — the property still works and
+// is still used.
+let _gain = null;
+let _lastGain = 1;
+function _setMusicGain(v) {
+  const x = Math.max(0, Math.min(1, v));
+  _lastGain = x;
+  if (_gain && _actx) {
+    // A ramp, not a step: an instant gain change on a running signal clicks.
+    _gain.gain.setTargetAtTime(x, _actx.currentTime, 0.02);
+  } else if (_audio) {
+    _audio.volume = x;
+  }
+}
+
 let _actx = null;
 let _analyser = null;
 let _waveData = null;
@@ -534,13 +560,22 @@ function _startWave() {
     const build = () => {
       try {
         const src = ctx.createMediaElementSource(_audio);
+        const gain = ctx.createGain();
+        // Whatever the level was a moment ago, it stays: the element's own
+        // volume stops working the instant this node exists, and a set that
+        // was ducked for the tower must not jump back to full because it grew
+        // a meter.
+        gain.gain.value = _lastGain;
         const an = ctx.createAnalyser();
         // 64 bins over the audible range. More would be a spectrogram; these
         // are seven bars and they want bands, not resolution.
         an.fftSize = 128;
         an.smoothingTimeConstant = 0.72;
-        src.connect(an).connect(ctx.destination);
+        // The analyser sits after the gain so the bars show what is actually
+        // audible — they drop when the tower ducks, which is the truth.
+        src.connect(gain).connect(an).connect(ctx.destination);
         _actx = ctx;
+        _gain = gain;
         _analyser = an;
         _waveData = new Uint8Array(an.frequencyBinCount);
         // If the context is ever suspended out from under us the music stops
@@ -619,16 +654,16 @@ function _crossfadeToStation(newIdx) {
   if (_fadeInterval) clearInterval(_fadeInterval);
 
   if (_audio && _playing) {
-    let vol = _audio.volume;
+    let vol = _lastGain;
     _fadeInterval = setInterval(() => {
       vol -= 0.05;
       if (vol <= 0) {
         clearInterval(_fadeInterval);
         _fadeInterval = null;
-        _audio.volume = _volume * _signal(_freq);
+        _setMusicGain(_volume * _signal(_freq));
         _playTrack();
       } else {
-        _audio.volume = vol;
+        _setMusicGain(vol);
       }
     }, 30);
   } else {
