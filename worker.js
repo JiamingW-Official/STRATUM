@@ -1580,13 +1580,23 @@ async function handleLiveATC(url) {
   // Try each server until one responds
   for (const server of LIVEATC_SERVERS) {
     try {
-      const upstream = await fetch(server + feed, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; STRATUM/1.0)",
-          Referer: "https://www.liveatc.net/",
-        },
-        signal: AbortSignal.timeout(6000),
-      });
+      // No AbortSignal here. It was written as a connect timeout, but the
+      // signal stays live for the whole response body, and this body is an
+      // endless Icecast stream: six seconds in, the abort fired and cut the
+      // audio off mid-sentence, which the player read as a dead mirror and
+      // failed over — three times, then "No feed". Racing the promise bounds
+      // the wait for headers, which is the only part that should be bounded.
+      const upstream = await Promise.race([
+        fetch(server + feed, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (compatible; STRATUM/1.0)",
+            Referer: "https://www.liveatc.net/",
+          },
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("connect timeout")), 6000),
+        ),
+      ]);
       if (upstream.ok || upstream.status === 200) {
         const response = new Response(upstream.body, {
           headers: {

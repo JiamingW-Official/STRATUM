@@ -494,6 +494,12 @@ function _createPanel() {
       <button type="button" class="radio-close-btn" id="radio-close-btn" title="Close panel">&times;</button>
     </div>
   `;
+  // The tower can start before the radio has ever been opened, and a duck
+  // requested against a panel that does not exist yet is silently dropped by
+  // the optional chain in setRadioDucked. The volume was right — _applyTuning
+  // reads the flag — but the bar came up showing none of it. The panel adopts
+  // the current state at birth instead.
+  _panelEl.classList.toggle("is-ducked", _ducked);
   document.body.appendChild(_panelEl);
 
   // Opens as a bar. A now-playing strip is what you want nineteen times out of

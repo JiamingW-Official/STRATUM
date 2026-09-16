@@ -6058,7 +6058,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   cursor: pointer; padding: 0;
 }
 .radio-panel:not(.is-compact) .radio-grip { display: none; }
-.radio-panel.is-compact { display: flex; align-items: center; position: relative; }
+/* No position here: the panel is already fixed, which is containing block
+   enough for the grip. Declaring relative overrode that fixed and the bar
+   left the bottom-right corner entirely — right:68px/bottom:72px measured
+   from its static place in the body flow put it at -68,-72, off the top
+   left of the window, so the radio opened where nobody could see it. */
+.radio-panel.is-compact { display: flex; align-items: center; }
 .radio-panel.is-compact .radio-display,
 .radio-panel.is-compact .radio-transport { position: relative; z-index: 1; }
 .radio-panel.is-compact .radio-accent { z-index: 1; }

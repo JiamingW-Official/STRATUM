@@ -29,6 +29,27 @@ let _icao = null;
 // Both answer this project's mounts as audio/mpeg today (checked by range
 // request); s1-lax and s1-dal do not, and are not listed.
 const MIRRORS = ['s1-bos', 's1-fmt2'];
+
+// ── The order one feed is tried in ──
+// LiveATC allowlists by Referer, and the allowlist has this project's Worker
+// domain on it and nothing else: the same mount answers 200 with a workers.dev
+// Referer and 403 with any other. So on every other host — the Vercel build,
+// a custom domain, a fork — both direct mirrors 403 and the tower reads "No
+// feed", which is what it had been doing.
+//
+// The Worker has proxied this stream since it was written; the client simply
+// never asked it to. It goes last rather than first because a direct stream
+// costs the project nothing and a proxied one costs it the whole audio
+// bandwidth, and because the 403 arrives fast enough that the fallback is
+// still immediate to a listener.
+function _sources(f) {
+  if (!f) return [];
+  const hosts = [f.server, ...MIRRORS.filter((m) => m !== f.server)];
+  return [
+    ...hosts.map((h) => `https://${h}.liveatc.net/${f.mount}`),
+    `/api/liveatc?feed=${encodeURIComponent(f.mount)}`,
+  ];
+}
 // A stream that connects and never starts is the failure the user actually
 // sees: the label said TUNING for as long as they cared to wait. Ten seconds
 // without a first frame moves to the next mirror; after the last, say so.
@@ -42,8 +63,7 @@ function _armStall() {
   }, STALL_MS);
 }
 function _nextMirrorOrFail() {
-  const f = _entry(_heard);
-  const order = f ? [f.server, ...MIRRORS.filter((m) => m !== f.server)] : MIRRORS;
+  const order = _sources(_entry(_heard));
   if (_mirrorIdx < order.length - 1) {
     _mirrorIdx++;
     const url = feedFor(_icao);
@@ -119,10 +139,11 @@ export function nextTower() {
 }
 
 function feedFor(icao) {
-  const f = _entry(_heard);
-  if (!f) return null;
-  const order = [f.server, ...MIRRORS.filter((m) => m !== f.server)];
-  return `https://${order[_mirrorIdx % order.length]}.liveatc.net/${f.mount}`;
+  const order = _sources(_entry(_heard));
+  if (!order.length) return null;
+  // Clamped, not wrapped: wrapping walks back onto a source that has already
+  // refused once, which is how a failover becomes a loop.
+  return order[Math.min(_mirrorIdx, order.length - 1)];
 }
 function kindFor(icao) {
   const f = _entry(icao);
