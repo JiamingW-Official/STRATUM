@@ -5386,3 +5386,49 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod, .detail-panel .detail-section-body {
   background: linear-gradient(145deg, rgba(22, 26, 34, 0.5), rgba(8, 10, 15, 0.55));
 }
+
+/* ── Elevation means lighter ──
+   The whole thing read too dark, and the reason was that the relief face
+   graded toward rgba(8,10,15) — a raised surface getting darker as it rises,
+   which is backwards. In a dark interface elevation is luminance: the ground
+   is the darkest thing and every layer above it is a step lighter. Apple's
+   own dark set runs 1C1C1E, 2C2C2E, 3A3A3C for exactly that reason.
+
+   So the pane sits a step above the map and a tile sits a step above the pane,
+   and the shadows carry less of the work because the lightness is now doing
+   it. The map keeps its own darkness: it is the subject, and lifting it would
+   flatten the thing the panels are floating over. */
+:root {
+  --relief-face: linear-gradient(145deg, rgba(48, 53, 64, 0.5), rgba(28, 31, 39, 0.55));
+  --relief-dark: rgba(0, 0, 0, 0.48);
+  --relief-light: rgba(255, 255, 255, 0.07);
+  --surface: rgba(24, 27, 34, 0.5);
+  --surface-float: rgba(30, 34, 42, 0.62);
+}
+
+/* A tile is one step above the pane it sits in, not level with it. */
+.hud-mod,
+.detail-panel .detail-section-body,
+.detail-panel .detail-heard,
+.detail-panel .detail-commons,
+.detail-panel .detail-airline-row,
+.detail-panel .detail-route,
+.detail-panel .detail-progress,
+.city-globe-pane,
+.city-list-pane {
+  /* Measured: the pane composites to about 37 and this was landing at 39, a
+     two-point step that reads as no step at all. Apple's dark set moves about
+     sixteen points a level, which is why its elevation is legible without a
+     border. This lands near 52. */
+  background: linear-gradient(145deg, rgba(78, 84, 98, 0.5), rgba(52, 57, 69, 0.55));
+}
+
+/* Wells go the other way, because a hole is darker than the face around it —
+   that is the only thing that makes an inset read as inset rather than as a
+   differently coloured tile. */
+.radio-tuner,
+.search-input,
+.detail-chart,
+.radio-volume {
+  background: rgba(0, 0, 0, 0.3);
+}
