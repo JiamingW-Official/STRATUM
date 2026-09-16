@@ -707,7 +707,6 @@ function _createPanel() {
   // across the middle where you can reach it, and the controls along the
   // bottom with the spectrum between them.
   _panelEl.innerHTML = `
-    <div class="radio-accent" id="radio-accent"></div>
     <div class="radio-top">
       <div class="radio-window">
         <span class="radio-header-freq" id="radio-freq">88.3 FM</span>
@@ -923,9 +922,6 @@ function _updateUI() {
   if (!_panelEl) return;
   const st = _currentStation();
 
-  // Accent line color
-  _panelEl.querySelector("#radio-accent").style.background =
-    `linear-gradient(90deg, transparent, ${st.color}, transparent)`;
 
   // Station name + freq
   const nameEl = _panelEl.querySelector("#radio-station-name");

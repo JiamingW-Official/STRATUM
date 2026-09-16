@@ -6500,3 +6500,85 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .radio-panel .radio-dial { padding: 0; margin: 0; }
 .radio-panel .radio-eq { height: 18px; }
 .radio-panel .radio-progress-bar { height: 3px; }
+
+/* ── Tighter, and pressed into the face rather than printed on it ──────────
+   The gradient hairline across the top went first: it named no station, it
+   reported nothing, and the widget lost nothing when it was deleted, which is
+   the whole test. What is left is given real relief instead — every control
+   either stands off the face or is cut into it, and nothing is merely drawn.
+   340 by about 150 now, down from 178. */
+.radio-accent { display: none; }
+
+.radio-panel { gap: 7px; padding: 10px 12px 9px; }
+.radio-top { gap: 10px; }
+.radio-window { padding: 5px 8px 4px; gap: 3px; border-radius: 7px; }
+.radio-panel .radio-header-freq { font-size: 14px; }
+
+/* The dial is a trough with the band lying in it. It had been a transparent
+   region with ticks floating over the panel face — the one place the object
+   most needed to look like a cut. */
+.radio-panel .radio-dial { padding: 0; }
+.radio-panel .radio-tuner {
+  height: 34px; border-radius: 8px;
+  background: rgba(0, 0, 0, 0.26);
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.045);
+}
+.radio-panel .radio-tick { top: 15px; height: 4px; }
+.radio-panel .radio-tick.is-major { top: 13px; height: 6px; }
+
+/* Faces: a light edge along the top where the light falls, a dark one under
+   the bottom where it does not, and both invert when pressed. */
+.radio-panel .radio-tp,
+.radio-panel .radio-vol-btn,
+.radio-close-btn {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.radio-panel .radio-tp:active,
+.radio-panel .radio-vol-btn:active,
+.radio-close-btn:active {
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.42);
+}
+.radio-panel .radio-tp { width: 25px; height: 25px; }
+.radio-panel .radio-tp--main { width: 30px; height: 30px; }
+.radio-panel .radio-transport { gap: 6px; }
+.radio-controls { gap: 9px; }
+.radio-panel .radio-eq { height: 16px; }
+
+/* Grooves, not lines: the progress and the level are cut in, and what fills
+   them sits inside the cut. */
+.radio-panel .radio-progress-bar,
+.radio-panel .radio-volume {
+  height: 4px; border-radius: 3px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.radio-panel .radio-progress-wrap { gap: 7px; }
+.radio-panel .radio-time { font-size: 9px; letter-spacing: 0.02em; }
+
+/* ── The HUD, on the radio's measurements ─────────────────────────────────
+   Two panels in one corner each with its own spacing scale is two designs.
+   They share one now: the same 12px side padding, the same 7px between
+   things, the same tile radius, and a value row sized so the number still
+   leads without the tile having to be a third taller than it needs to be.
+   Measured before: 330 by 389, tiles at 155 / 155 / 122 / 122 / 46. */
+#hud.glass-panel { gap: 7px; padding: 12px; width: 330px; }
+.hud-title { margin-bottom: 8px; }
+.hud-mod { padding: 8px 9px 7px; grid-template-rows: 12px 30px auto 1fr; }
+.hud-mod-value { height: 30px; font-size: 27px; }
+#hud-weather .hud-wx-temp { font-size: 30px; }
+.hud-atc-code { font-size: 24px; }
+.hud-mod-sub { margin-top: 4px; }
+.hud-mod--traffic, .hud-mod--hero, #hud-atc.hud-mod, #hud-weather.hud-mod {
+  min-height: 108px;
+}
+/* The two top tiles are grown by their content, not by a floor, so they come
+   down by tightening the lines rather than by lowering a minimum. */
+.hud-mod--traffic .hud-sky-line, .hud-mod--hero .hud-sky-line { line-height: 1.32; }
+.hud-meta.hud-mod { padding: 7px 9px; }
