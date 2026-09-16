@@ -10810,21 +10810,27 @@ class GlobeView {
               );
             }
           } else {
-            // REGIONAL — dot with soft halo
+            // REGIONAL — dot with soft halo.
+            //
+            // Squares, not circles. This branch holds the great majority of
+            // 1,623 airports and was drawing three separate arc paths each,
+            // which measured 3,213 arc() calls a frame and put the rotation at
+            // a 32ms ninetieth percentile -- visible judder. coreR here is
+            // about 1.4px, and at that size a filled rect and a filled circle
+            // are the same handful of pixels; the halo is a second rect at 12%
+            // alpha, which is what the old outer arc amounted to anyway. The
+            // stroked ring is gone: a 0.45px stroke on a 1.4px dot is not a
+            // ring, it is a slightly softer edge, and it cost a third of the
+            // paths in this branch on its own.
+            //
+            // The two tiers above keep their arcs. They are large, few, and
+            // the bloom is the thing that makes a hub read as a hub.
             const coreR = 1.2 + zoom * 0.18;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, coreR + 2, 0, Math.PI * 2);
+            const hw = coreR + 1.4;
             ctx.fillStyle = `rgba(200,175,110,${0.12 * d})`;
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, coreR, 0, Math.PI * 2);
+            ctx.fillRect(p.x - hw, p.y - hw, hw * 2, hw * 2);
             ctx.fillStyle = `rgba(210,185,120,${0.6 * d + 0.12})`;
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, coreR + 0.8, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(210,185,120,${0.25 * d})`;
-            ctx.lineWidth = 0.45;
-            ctx.stroke();
+            ctx.fillRect(p.x - coreR, p.y - coreR, coreR * 2, coreR * 2);
             if (zoom > 1.8) {
               this._label(
                 ctx,

@@ -5918,3 +5918,31 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .city-globe-pane { flex: 1 1 auto; min-width: 0; }
 .city-list-pane { flex: 0 0 360px; min-width: 0; }
 .city-overlay-body { gap: 10px; }
+
+/* ── The globe fills its pane again ──
+   I read the octagon as a bug and it was a frame: the canvas is meant to fill
+   the pane and the sphere is meant to run past its edges, cropped by the
+   pane's own rounded rectangle. Constraining it to a square inside the pane
+   made it small and put a circle inside a rectangle inside a rectangle.
+   The projection takes its radius from the short side, so a non-square canvas
+   still draws a round planet — the backing store is resized from the element's
+   own clientWidth and clientHeight, which is what keeps it from stretching. */
+.city-globe-pane { container-type: normal; padding: 0; }
+.city-globe-canvas {
+  width: 100%; height: 100%;
+  max-width: none; max-height: none;
+  aspect-ratio: auto;
+  border-radius: 14px;
+}
+.city-globe-hint { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; }
+
+/* ── The picker was grey because nothing blue was behind it ──
+   Its backdrop covers the map at 0.85, so the glass had only near-black to
+   pick up and came out the colour of the dim itself. At 0.58 the airspace
+   underneath still reads, and the panel is the same blue as every other
+   surface in the app rather than a grey box that arrived from somewhere else. */
+.city-overlay {
+  background: rgba(6, 9, 18, 0.58);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  backdrop-filter: blur(16px) saturate(1.25);
+}
