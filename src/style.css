@@ -4870,3 +4870,60 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   color: var(--accent-bright);
   text-shadow: 0 0 10px rgba(var(--accent-rgb), 0.35);
 }
+
+/* ── Relief, second pass: the surfaces the first pass missed ──
+   Written as an override block rather than by editing forty-one rules in
+   place. Those rules carry layout as well as surface, and the surface is the
+   only part changing; touching them all would have risked geometry for a
+   shadow. Later rules win, so this is also the whole change to undo if the
+   relief turns out to be wrong.
+
+   Panes get the full raise, floaters the small one -- a tooltip that casts the
+   same shadow as a dossier is not hovering, it is just big. */
+.detail-panel,
+.city-overlay-content,
+.help-panel,
+.no-coverage-panel,
+.wake-modal {
+  border: none;
+  box-shadow: inset 0 1px 0 var(--specular), var(--relief-raised);
+}
+
+.glass-float,
+.filter-panel,
+.school-card,
+.sky-legend .sky-cap {
+  border: none;
+  box-shadow: var(--relief-raised-sm);
+}
+
+/* Controls inside panes follow the same grammar as the toolbar: standing off
+   the surface, pressed into it. Anything that was a hairline box becomes a
+   face, because a border and an edge are two answers to the same question. */
+.hud-atc-btn,
+.hud-clock,
+.detail-journal-btn,
+.no-coverage-btn-secondary,
+.no-coverage-btn-primary {
+  border: none;
+  box-shadow: var(--relief-raised-sm);
+  background: var(--relief-face);
+}
+.hud-atc-btn:active,
+.detail-journal-btn:active,
+.no-coverage-btn-secondary:active,
+.no-coverage-btn-primary:active {
+  box-shadow: var(--relief-inset-sm);
+}
+/* The tower button while live reads as held down, which is what it is. */
+.hud-atc-btn.is-live {
+  box-shadow: var(--relief-inset-sm);
+}
+
+/* Wells: anything that is a track, a groove or a field is cut in, not raised. */
+.search-input,
+.filter-range,
+.detail-chart {
+  box-shadow: var(--relief-inset-sm);
+  border: none;
+}

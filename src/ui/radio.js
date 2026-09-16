@@ -4,74 +4,74 @@
 
 const STATIONS = [
   {
-    id: 'electronic',
-    name: 'NEON APPROACH',
-    shortName: 'NEON',
-    color: '#c06cf0',
-    folder: 'Electronic',
+    id: "electronic",
+    name: "NEON APPROACH",
+    shortName: "NEON",
+    color: "#c06cf0",
+    folder: "Electronic",
     tracks: [
-      'Daniel Brown - SENSATION',
-      'Giorgio Vitté - Ataca',
-      'LaFaye - Hidden',
-      'NUEQ - Tiramisu',
-      'Out of Flux - Sunnydance',
-      'Rynn - Heart Beat - Instrumental version',
-      'Yarin Primak - DREEEAAAMS',
-      'ZISO - Gonna Freak',
-      'Ziskoe - SIREN - Ziskoe Remix',
+      "Daniel Brown - SENSATION",
+      "Giorgio Vitté - Ataca",
+      "LaFaye - Hidden",
+      "NUEQ - Tiramisu",
+      "Out of Flux - Sunnydance",
+      "Rynn - Heart Beat - Instrumental version",
+      "Yarin Primak - DREEEAAAMS",
+      "ZISO - Gonna Freak",
+      "Ziskoe - SIREN - Ziskoe Remix",
     ],
   },
   {
-    id: 'indie',
-    name: 'GOLDEN HOUR',
-    shortName: 'GOLDEN',
-    color: '#e8a44c',
-    folder: 'Indie',
+    id: "indie",
+    name: "GOLDEN HOUR",
+    shortName: "GOLDEN",
+    color: "#e8a44c",
+    folder: "Indie",
     tracks: [
-      'Ben Juliet - Still Bloom',
-      'Danger Roberts - Hard Reset',
-      'Emma-Rose - Clouds',
-      'IamDayLight - Hold On',
-      'Lia Dsau - Grow',
-      'Neska Rose - GROW',
-      'Neska Rose - Rolling Through Da Night',
-      'SOURWAH - Mandalas',
-      'Southern Call - Smoke Show',
-      'Tal Tamari - Love Her So - Instrumental version',
-      'Tiko Tiko - Baby Lets Go - Stripped Version',
-      'messwave - maybe its over',
+      "Ben Juliet - Still Bloom",
+      "Danger Roberts - Hard Reset",
+      "Emma-Rose - Clouds",
+      "IamDayLight - Hold On",
+      "Lia Dsau - Grow",
+      "Neska Rose - GROW",
+      "Neska Rose - Rolling Through Da Night",
+      "SOURWAH - Mandalas",
+      "Southern Call - Smoke Show",
+      "Tal Tamari - Love Her So - Instrumental version",
+      "Tiko Tiko - Baby Lets Go - Stripped Version",
+      "messwave - maybe its over",
     ],
   },
   {
-    id: 'relax',
-    name: 'FLIGHT LEVEL',
-    shortName: 'FL',
-    color: '#5ab8e8',
-    folder: 'Relax_Ambiance',
+    id: "relax",
+    name: "FLIGHT LEVEL",
+    shortName: "FL",
+    color: "#5ab8e8",
+    folder: "Relax_Ambiance",
     tracks: [
-      'Assaf Ayalon - Locked in Silence',
-      'Aves - Sunshine',
-      'Ian Locke - Once Interlude',
-      'MAIKY - Above the Clouds',
-      'Master Minded - Strings of Soul',
+      "Assaf Ayalon - Locked in Silence",
+      "Aves - Sunshine",
+      "Ian Locke - Once Interlude",
+      "MAIKY - Above the Clouds",
+      "Master Minded - Strings of Soul",
     ],
   },
   {
-    id: 'soul',
-    name: 'VELVET TAXI',
-    shortName: 'VELVET',
-    color: '#e85a8a',
-    folder: 'Soul_R&B',
+    id: "soul",
+    name: "VELVET TAXI",
+    shortName: "VELVET",
+    color: "#e85a8a",
+    folder: "Soul_R&B",
     tracks: [
-      'Aves - Summer Breakup Song',
-      'Aves - Sunshine',
-      'Aves - Velvet',
-      'Honey G - More than Words',
-      'Michael Shynes - Extra Extra - Instrumental version',
-      'NOA - Made to Love You',
-      'Skipp Whitman - Lush - Instrumental version',
-      'Skipp Whitman - Vegas - Instrumental version',
-      'Ziv Moran - Dance',
+      "Aves - Summer Breakup Song",
+      "Aves - Sunshine",
+      "Aves - Velvet",
+      "Honey G - More than Words",
+      "Michael Shynes - Extra Extra - Instrumental version",
+      "NOA - Made to Love You",
+      "Skipp Whitman - Lush - Instrumental version",
+      "Skipp Whitman - Vegas - Instrumental version",
+      "Ziv Moran - Dance",
     ],
   },
 ];
@@ -88,7 +88,7 @@ const STATIONS = [
 // takes hold; inside it the music fades up and the static fades out in
 // proportion, so the last tenth of a megahertz is the part that feels like
 // tuning.
-const _FREQS = ['88.3', '91.7', '96.5', '103.1'];
+const _FREQS = ["88.3", "91.7", "96.5", "103.1"];
 const BAND_LO = 87.5;
 const BAND_HI = 108.0;
 // 0.45 was a test of mouse precision, not a dial: the strip is 260px across
@@ -100,7 +100,7 @@ const LOCK_MHZ = 1.2;
 // How hard the needle is drawn toward a station while you are dragging.
 const PULL = 0.55;
 
-let _freq = 88.3;          // where the needle sits
+let _freq = 88.3; // where the needle sits
 let _tuning = false;
 // Tower audio has priority over entertainment in a real cockpit, so it has it
 // here. 0.18 rather than silence: the music should still be under the
@@ -145,7 +145,9 @@ function _ensureStatic() {
   if (_staticNodes) return true;
   try {
     _staticCtx = new (window.AudioContext || window.webkitAudioContext)();
-  } catch { return false; }
+  } catch {
+    return false;
+  }
   const ctx = _staticCtx;
   const len = ctx.sampleRate * 2;
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -157,7 +159,7 @@ function _ensureStatic() {
   // Band-limited: full-range white is a hiss, and a real receiver's noise is
   // shaped by its own front end.
   const bp = ctx.createBiquadFilter();
-  bp.type = 'bandpass';
+  bp.type = "bandpass";
   bp.frequency.value = 2200;
   bp.Q.value = 0.55;
   const g = ctx.createGain();
@@ -171,17 +173,21 @@ function _ensureStatic() {
 function _setStatic(level) {
   if (level > 0 && !_ensureStatic()) return;
   if (!_staticNodes) return;
-  if (_staticCtx.state === 'suspended') _staticCtx.resume().catch(() => {});
+  if (_staticCtx.state === "suspended") _staticCtx.resume().catch(() => {});
   const g = _staticNodes.gain.gain;
   g.setTargetAtTime(level * _volume * 0.5, _staticCtx.currentTime, 0.05);
 }
 
 /** The station nearest a frequency, and how far off it we are. */
 function _nearest(freq) {
-  let idx = 0, best = Infinity;
+  let idx = 0,
+    best = Infinity;
   for (let i = 0; i < _FREQS.length; i++) {
     const d = Math.abs(parseFloat(_FREQS[i]) - freq);
-    if (d < best) { best = d; idx = i; }
+    if (d < best) {
+      best = d;
+      idx = i;
+    }
   }
   return { idx, off: best };
 }
@@ -203,30 +209,39 @@ function _applyTuning() {
   const duck = _ducked ? DUCK : 1;
   if (_audio) _audio.volume = _volume * sig * duck;
   _setStatic(_playing ? (1 - sig) * duck : 0);
-  const needle = _panelEl?.querySelector('#radio-needle');
+  const needle = _panelEl?.querySelector("#radio-needle");
   if (needle) {
     needle.style.left = `${((_freq - BAND_LO) / (BAND_HI - BAND_LO)) * 100}%`;
-    needle.classList.toggle('is-locked', sig > 0.999);
+    needle.classList.toggle("is-locked", sig > 0.999);
   }
-  const freqEl = _panelEl?.querySelector('#radio-freq');
+  const freqEl = _panelEl?.querySelector("#radio-freq");
   if (freqEl) freqEl.textContent = `${_freq.toFixed(1)} FM`;
   // Signal strength, so the dial tells you you are getting warmer instead of
   // staying blank until the moment it locks. Four bars is enough resolution to
   // feel a gradient and few enough to read without looking at it.
-  const sigEl = _panelEl?.querySelector('#radio-sig');
+  // The printed call-sign lights only while the needle is holding it, and it
+  // has to follow the needle rather than the committed station -- otherwise it
+  // lags a drag by however long the settle takes.
+  const lockedIdx = sig > 0 ? _nearest(_freq).idx : -1;
+  _panelEl?.querySelectorAll(".radio-stationmark").forEach((el, i) => {
+    el.classList.toggle("active", i === lockedIdx);
+  });
+  const sigEl = _panelEl?.querySelector("#radio-sig");
   if (sigEl) {
     const lit = Math.ceil(sig * 4);
-    sigEl.querySelectorAll('i').forEach((b, i) => b.classList.toggle('on', i < lit));
-    sigEl.classList.toggle('is-full', sig > 0.999);
+    sigEl
+      .querySelectorAll("i")
+      .forEach((b, i) => b.classList.toggle("on", i < lit));
+    sigEl.classList.toggle("is-full", sig > 0.999);
   }
-  const tuner = _panelEl?.querySelector('#radio-tuner');
-  if (tuner) tuner.setAttribute('aria-valuenow', _freq.toFixed(1));
+  const tuner = _panelEl?.querySelector("#radio-tuner");
+  if (tuner) tuner.setAttribute("aria-valuenow", _freq.toFixed(1));
   if (_panelEl) {
-    _panelEl.classList.toggle('is-offstation', sig <= 0);
-    _panelEl.classList.toggle('is-tuning', _tuning);
+    _panelEl.classList.toggle("is-offstation", sig <= 0);
+    _panelEl.classList.toggle("is-tuning", _tuning);
   }
-  const nameEl = _panelEl?.querySelector('#radio-station-name');
-  if (nameEl && sig <= 0) nameEl.textContent = 'NO SIGNAL';
+  const nameEl = _panelEl?.querySelector("#radio-station-name");
+  if (nameEl && sig <= 0) nameEl.textContent = "NO SIGNAL";
 }
 
 /**
@@ -246,14 +261,37 @@ function _tuneTo(freq, magnetic = false) {
     }
   }
   _freq = f;
-  const { idx, off } = _nearest(_freq);
-  if (off < LOCK_MHZ && idx !== _stationIdx) {
-    _crossfadeToStation(idx);
-  }
+  _commitStation();
   _applyTuning();
 }
 
-function _currentStation() { return STATIONS[_stationIdx]; }
+// ── Committing a station ────────────────────────────────────────────────────
+// Switching the feed the instant the needle crosses a window sounds like what
+// it is: drag once across the band and four stations each load a track, none
+// of which you hear. So the switch waits for the needle to settle. Visually
+// nothing waits -- the meter, the readout and the lit call-sign all follow the
+// needle immediately -- but the audio only changes once you have stopped
+// moving, which is also when a real receiver would have finished locking.
+let _settleTimer = null;
+function _commitStation(immediate = false) {
+  const { idx, off } = _nearest(_freq);
+  const wants = off < LOCK_MHZ ? idx : -1;
+  clearTimeout(_settleTimer);
+  if (wants === -1 || wants === _stationIdx) return;
+  if (immediate) {
+    _crossfadeToStation(wants);
+    return;
+  }
+  _settleTimer = setTimeout(() => {
+    const now = _nearest(_freq);
+    if (now.off < LOCK_MHZ && now.idx !== _stationIdx)
+      _crossfadeToStation(now.idx);
+  }, 260);
+}
+
+function _currentStation() {
+  return STATIONS[_stationIdx];
+}
 
 function _currentTrack() {
   const st = _currentStation();
@@ -270,8 +308,8 @@ function _trackUrl() {
 }
 
 function _parseTrackName(raw) {
-  const sep = raw.indexOf(' - ');
-  if (sep < 0) return { artist: '', title: raw };
+  const sep = raw.indexOf(" - ");
+  if (sep < 0) return { artist: "", title: raw };
   return { artist: raw.substring(0, sep), title: raw.substring(sep + 3) };
 }
 
@@ -289,19 +327,20 @@ function _advanceTrack() {
 // ── Progress bar loop ──
 function _startProgress() {
   _stopProgress();
-  const bar = _panelEl?.querySelector('#radio-progress');
-  const timeEl = _panelEl?.querySelector('#radio-time');
+  const bar = _panelEl?.querySelector("#radio-progress");
+  const timeEl = _panelEl?.querySelector("#radio-time");
   if (!bar || !_audio) return;
   const tick = () => {
     if (_audio && _audio.duration && isFinite(_audio.duration)) {
       const pct = (_audio.currentTime / _audio.duration) * 100;
-      bar.style.width = pct + '%';
+      bar.style.width = pct + "%";
       // Current time display
       const m = Math.floor(_audio.currentTime / 60);
       const s = Math.floor(_audio.currentTime % 60);
       const tm = Math.floor(_audio.duration / 60);
       const ts = Math.floor(_audio.duration % 60);
-      if (timeEl) timeEl.textContent = `${m}:${s.toString().padStart(2,'0')} / ${tm}:${ts.toString().padStart(2,'0')}`;
+      if (timeEl)
+        timeEl.textContent = `${m}:${s.toString().padStart(2, "0")} / ${tm}:${ts.toString().padStart(2, "0")}`;
     }
     _progressRAF = requestAnimationFrame(tick);
   };
@@ -309,7 +348,10 @@ function _startProgress() {
 }
 
 function _stopProgress() {
-  if (_progressRAF) { cancelAnimationFrame(_progressRAF); _progressRAF = null; }
+  if (_progressRAF) {
+    cancelAnimationFrame(_progressRAF);
+    _progressRAF = null;
+  }
 }
 
 // ── Playback ──
@@ -317,14 +359,19 @@ function _playTrack() {
   if (!_audio) {
     _audio = new Audio();
     _audio.volume = _volume * _signal(_freq);
-    _audio.preload = 'auto';
-    _audio.addEventListener('ended', () => { _advanceTrack(); _playTrack(); });
-    _audio.addEventListener('error', () => {
+    _audio.preload = "auto";
+    _audio.addEventListener("ended", () => {
+      _advanceTrack();
+      _playTrack();
+    });
+    _audio.addEventListener("error", () => {
       _loadRetries++;
       if (_loadRetries >= MAX_RETRIES) _advanceTrack();
       setTimeout(() => _playTrack(), 800);
     });
-    _audio.addEventListener('canplaythrough', () => { _loadRetries = 0; });
+    _audio.addEventListener("canplaythrough", () => {
+      _loadRetries = 0;
+    });
   }
   _audio.src = _trackUrl();
   _audio.play().catch(() => {});
@@ -334,7 +381,10 @@ function _playTrack() {
 }
 
 function _stop() {
-  if (_audio) { _audio.pause(); _audio.currentTime = 0; }
+  if (_audio) {
+    _audio.pause();
+    _audio.currentTime = 0;
+  }
   _playing = false;
   // A receiver that is off does not hiss.
   _setStatic(0);
@@ -371,17 +421,19 @@ function _crossfadeToStation(newIdx) {
 
 // ── Volume icon helper ──
 function _volIcon() {
-  if (_volume <= 0) return `<path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>`;
-  if (_volume < 0.5) return `<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 010 7.07"/>`;
+  if (_volume <= 0)
+    return `<path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>`;
+  if (_volume < 0.5)
+    return `<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 010 7.07"/>`;
   return `<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/>`;
 }
 
 // ── UI ──
 function _createPanel() {
   if (_panelEl) return;
-  _panelEl = document.createElement('div');
-  _panelEl.id = 'radio-panel';
-  _panelEl.className = 'radio-panel hidden';
+  _panelEl = document.createElement("div");
+  _panelEl.id = "radio-panel";
+  _panelEl.className = "radio-panel hidden";
   _panelEl.innerHTML = `
     <div class="radio-accent" id="radio-accent"></div>
     <div class="radio-header">
@@ -426,23 +478,24 @@ function _createPanel() {
   document.body.appendChild(_panelEl);
 
   // ── The tuner ──
-  const tuner = _panelEl.querySelector('#radio-tuner');
-  const scale = _panelEl.querySelector('#radio-scale');
+  const tuner = _panelEl.querySelector("#radio-tuner");
+  const scale = _panelEl.querySelector("#radio-scale");
   {
     // Ticks every 0.5 MHz, taller every 2. The four call-signs are printed on
     // the band where they actually sit, so the dial teaches its own layout:
     // you can see there is something at 96.5 before you have ever been there.
-    let marks = '';
+    let marks = "";
     for (let f = BAND_LO; f <= BAND_HI + 0.01; f += 0.5) {
       const pct = ((f - BAND_LO) / (BAND_HI - BAND_LO)) * 100;
       const major = Math.abs(f % 2) < 0.01;
-      marks += `<i class="radio-tick${major ? ' is-major' : ''}" style="left:${pct}%"></i>`;
+      marks += `<i class="radio-tick${major ? " is-major" : ""}" style="left:${pct}%"></i>`;
     }
     for (let i = 0; i < STATIONS.length; i++) {
       const f = parseFloat(_FREQS[i]);
       const pct = ((f - BAND_LO) / (BAND_HI - BAND_LO)) * 100;
-      marks += `<b class="radio-stationmark" data-idx="${i}" style="left:${pct}%;--c:${STATIONS[i].color}">` +
-               `<u></u><em>${STATIONS[i].shortName}</em></b>`;
+      marks +=
+        `<b class="radio-stationmark" data-idx="${i}" style="left:${pct}%;--c:${STATIONS[i].color}">` +
+        `<u></u><em>${STATIONS[i].shortName}</em></b>`;
     }
     scale.innerHTML = marks;
   }
@@ -453,46 +506,88 @@ function _createPanel() {
     return BAND_LO + t * (BAND_HI - BAND_LO);
   };
 
+  // Relative, not absolute. Pressing used to teleport the needle to wherever
+  // the cursor happened to be, which is the single thing that made this feel
+  // like a scrubber rather than a dial: a dial does not jump, you turn it from
+  // where it already is. Press picks the needle up, movement is a delta, and
+  // the printed call-signs remain the fast way to cross the band in one go.
+  let _grabX = 0;
+  let _grabFreq = 0;
+
   const onDown = (ev) => {
     _tuning = true;
+    _grabX = ev.clientX;
+    _grabFreq = _freq;
     tuner.setPointerCapture?.(ev.pointerId);
-    _tuneTo(_freqFromX(ev.clientX), true);
+    _applyTuning();
   };
-  const onMove = (ev) => { if (_tuning) _tuneTo(_freqFromX(ev.clientX), true); };
+  const onMove = (ev) => {
+    if (!_tuning) return;
+    const r = tuner.getBoundingClientRect();
+    const perPx = (BAND_HI - BAND_LO) / (r.width || 260);
+    _tuneTo(_grabFreq + (ev.clientX - _grabX) * perPx, true);
+  };
   const onUp = () => {
     if (!_tuning) return;
     _tuning = false;
     // Let go near a station and it pulls in the last fraction, the way a
-    // detented dial does. Let go in the noise and you stay in the noise.
+    // detented dial does, and commits at once rather than waiting out the
+    // settle timer. Let go in the noise and you stay in the noise.
     const { idx, off } = _nearest(_freq);
-    if (off < LOCK_MHZ) _tuneTo(parseFloat(_FREQS[idx]));
+    if (off < LOCK_MHZ) {
+      _freq = parseFloat(_FREQS[idx]);
+      _commitStation(true);
+    }
+    _applyTuning();
   };
-  tuner.addEventListener('pointerdown', onDown);
-  tuner.addEventListener('pointermove', onMove);
-  tuner.addEventListener('pointerup', onUp);
-  tuner.addEventListener('pointercancel', onUp);
-  tuner.addEventListener('keydown', (ev) => {
-    const step = ev.shiftKey ? 0.1 : 0.5;
-    if (ev.key === 'ArrowLeft') { ev.preventDefault(); _tuneTo(_freq - step); onUp(); }
-    else if (ev.key === 'ArrowRight') { ev.preventDefault(); _tuneTo(_freq + step); onUp(); }
+  tuner.addEventListener("pointerdown", onDown);
+  tuner.addEventListener("pointermove", onMove);
+  tuner.addEventListener("pointerup", onUp);
+  tuner.addEventListener("pointercancel", onUp);
+  tuner.addEventListener("keydown", (ev) => {
+    // A plain arrow steps station to station. Stepping by frequency instead
+    // was useless: any step smaller than the 1.2 MHz capture window is pulled
+    // straight back to the station you started on, so the key did nothing.
+    // Shift is the fine adjustment, and it deliberately does not snap, which
+    // is the only way to park in the noise on purpose.
+    if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+    ev.preventDefault();
+    const dir = ev.key === "ArrowRight" ? 1 : -1;
+    if (ev.shiftKey) {
+      _freq = Math.max(BAND_LO, Math.min(BAND_HI, _freq + dir * 0.2));
+      _commitStation(true);
+      _applyTuning();
+      return;
+    }
+    const sorted = _FREQS.map(parseFloat).sort((a, b) => a - b);
+    let next = dir > 0
+      ? sorted.find((f) => f > _freq + 0.05)
+      : [...sorted].reverse().find((f) => f < _freq - 0.05);
+    if (next === undefined) next = dir > 0 ? sorted[0] : sorted[sorted.length - 1];
+    _freq = next;
+    _commitStation(true);
+    _applyTuning();
   });
 
   // Clicking a printed call-sign is still the fast way there.
-  scale.querySelectorAll('.radio-stationmark').forEach((el) => {
-    el.addEventListener('pointerdown', (ev) => {
+  scale.querySelectorAll(".radio-stationmark").forEach((el) => {
+    el.addEventListener("pointerdown", (ev) => {
       ev.stopPropagation();
-      _tuneTo(parseFloat(_FREQS[+el.dataset.idx]));
+      _freq = parseFloat(_FREQS[+el.dataset.idx]);
+      _commitStation(true);
+      _applyTuning();
     });
   });
 
   // Power
-  _panelEl.querySelector('#radio-power-btn').addEventListener('click', () => {
-    if (_playing) _stop(); else _playTrack();
+  _panelEl.querySelector("#radio-power-btn").addEventListener("click", () => {
+    if (_playing) _stop();
+    else _playTrack();
   });
 
   // Volume slider
-  const volSlider = _panelEl.querySelector('#radio-volume');
-  volSlider.addEventListener('input', (e) => {
+  const volSlider = _panelEl.querySelector("#radio-volume");
+  volSlider.addEventListener("input", (e) => {
     _volume = parseInt(e.target.value) / 100;
     _applyTuning();
     _updateVolIcon();
@@ -500,20 +595,26 @@ function _createPanel() {
 
   // Volume mute toggle
   let _prevVol = 0.5;
-  _panelEl.querySelector('#radio-vol-btn').addEventListener('click', () => {
-    if (_volume > 0) { _prevVol = _volume; _volume = 0; }
-    else { _volume = _prevVol || 0.5; }
+  _panelEl.querySelector("#radio-vol-btn").addEventListener("click", () => {
+    if (_volume > 0) {
+      _prevVol = _volume;
+      _volume = 0;
+    } else {
+      _volume = _prevVol || 0.5;
+    }
     volSlider.value = Math.round(_volume * 100);
     _applyTuning();
     _updateVolIcon();
   });
 
   // Close
-  _panelEl.querySelector('#radio-close-btn').addEventListener('click', () => hideRadio());
+  _panelEl
+    .querySelector("#radio-close-btn")
+    .addEventListener("click", () => hideRadio());
 }
 
 function _updateVolIcon() {
-  const svg = _panelEl?.querySelector('#radio-vol-icon');
+  const svg = _panelEl?.querySelector("#radio-vol-icon");
   if (svg) svg.innerHTML = _volIcon();
 }
 
@@ -522,48 +623,44 @@ function _updateUI() {
   const st = _currentStation();
 
   // Accent line color
-  _panelEl.querySelector('#radio-accent').style.background =
+  _panelEl.querySelector("#radio-accent").style.background =
     `linear-gradient(90deg, transparent, ${st.color}, transparent)`;
 
   // Station name + freq
-  const nameEl = _panelEl.querySelector('#radio-station-name');
+  const nameEl = _panelEl.querySelector("#radio-station-name");
   nameEl.textContent = st.name;
   nameEl.style.color = st.color;
-  _panelEl.querySelector('#radio-freq').textContent = _FREQS[_stationIdx] + ' FM';
+  _panelEl.querySelector("#radio-freq").textContent =
+    _FREQS[_stationIdx] + " FM";
 
   // Track info
   if (_playing && _shuffled.length > 0) {
     const { artist, title } = _parseTrackName(_currentTrack());
-    _panelEl.querySelector('#radio-track-title').textContent = title;
-    _panelEl.querySelector('#radio-track-artist').textContent = artist;
+    _panelEl.querySelector("#radio-track-title").textContent = title;
+    _panelEl.querySelector("#radio-track-artist").textContent = artist;
   } else {
-    _panelEl.querySelector('#radio-track-title').textContent = '--';
-    _panelEl.querySelector('#radio-track-artist').textContent = '';
+    _panelEl.querySelector("#radio-track-title").textContent = "--";
+    _panelEl.querySelector("#radio-track-artist").textContent = "";
   }
 
-  // Dial — the printed call-sign lights only while the needle is holding it.
-  const locked = _signal(_freq) > 0 ? _nearest(_freq).idx : -1;
-  _panelEl.querySelectorAll('.radio-stationmark').forEach((el, i) => {
-    el.classList.toggle('active', i === locked);
-  });
 
   // EQ — color matches station
-  const eq = _panelEl.querySelector('#radio-eq');
-  eq.classList.toggle('active', _playing);
-  eq.style.setProperty('--eq-color', st.color);
+  const eq = _panelEl.querySelector("#radio-eq");
+  eq.classList.toggle("active", _playing);
+  eq.style.setProperty("--eq-color", st.color);
 
   // Power
-  _panelEl.querySelector('#radio-power-btn').classList.toggle('on', _playing);
+  _panelEl.querySelector("#radio-power-btn").classList.toggle("on", _playing);
 
   // Progress bar color
-  const prog = _panelEl.querySelector('#radio-progress');
+  const prog = _panelEl.querySelector("#radio-progress");
   if (prog) prog.style.background = st.color;
 
   // Reset progress if not playing
   if (!_playing) {
-    if (prog) prog.style.width = '0%';
-    const timeEl = _panelEl.querySelector('#radio-time');
-    if (timeEl) timeEl.textContent = '0:00 / 0:00';
+    if (prog) prog.style.width = "0%";
+    const timeEl = _panelEl.querySelector("#radio-time");
+    if (timeEl) timeEl.textContent = "0:00 / 0:00";
   }
   _applyTuning();
 }
@@ -571,8 +668,8 @@ function _updateUI() {
 // ── Public API ──
 export function showRadio() {
   _createPanel();
-  _panelEl.classList.remove('hidden');
-  _panelEl.classList.add('visible');
+  _panelEl.classList.remove("hidden");
+  _panelEl.classList.add("visible");
   _visible = true;
   if (!_playing) {
     _initShuffled();
@@ -585,18 +682,23 @@ export function showRadio() {
 
 export function hideRadio() {
   if (_panelEl) {
-    _panelEl.classList.remove('visible');
-    _panelEl.classList.add('hidden');
+    _panelEl.classList.remove("visible");
+    _panelEl.classList.add("hidden");
   }
   _visible = false;
 }
 
 export function toggleRadio() {
-  if (_visible) hideRadio(); else showRadio();
+  if (_visible) hideRadio();
+  else showRadio();
 }
 
-export function isRadioVisible() { return _visible; }
-export function isRadioPlaying() { return _playing; }
+export function isRadioVisible() {
+  return _visible;
+}
+export function isRadioPlaying() {
+  return _playing;
+}
 
 export function nextStation() {
   _crossfadeToStation((_stationIdx + 1) % STATIONS.length);
@@ -604,7 +706,6 @@ export function nextStation() {
 export function prevStation() {
   _crossfadeToStation((_stationIdx - 1 + STATIONS.length) % STATIONS.length);
 }
-
 
 /**
  * The tower is talking. Called by the ATC module rather than decided here,
@@ -616,6 +717,6 @@ export function setRadioDucked(on) {
   const next = !!on;
   if (next === _ducked) return;
   _ducked = next;
-  _panelEl?.classList.toggle('is-ducked', _ducked);
+  _panelEl?.classList.toggle("is-ducked", _ducked);
   _applyTuning();
 }
