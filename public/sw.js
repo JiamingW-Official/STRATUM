@@ -4,7 +4,7 @@ const TILE_CACHE = "stratum-tiles-v1";
 // v2: the tracks are AAC now, so every .mp3 entry in v1 is dead weight in
 // somebody's browser that will never be requested again. The activate handler
 // drops any cache not in `keep`, so renaming is the eviction.
-const RADIO_CACHE = "stratum-radio-v2";
+const RADIO_CACHE = "stratum-radio-v3";
 const TRAIL_CACHE = "stratum-trails-v1";
 
 // Ten minutes: long enough that leaving and coming back paints the sky at once,
@@ -134,13 +134,33 @@ self.addEventListener("fetch", (e) => {
 
   // ── Radio MP3: cache-first ──
   if (url.pathname.startsWith("/radio/") && url.pathname.endsWith(".m4a")) {
+    // Range requests go straight to the network, untouched.
+    //
+    // A media element asks for byte ranges -- to read an MP4's index, and
+    // every time anyone drags the scrubber. This handler used to answer them
+    // from the cache, and two things went wrong at once: a cached full 200 is
+    // not a valid answer to a Range request, and `cache.put` REJECTS on the
+    // 206 that comes back from the network ("Response must not be a partial
+    // response"). That rejection was not caught, so the promise passed to
+    // respondWith rejected, which the browser reports as a network error, so
+    // the player's error handler advanced to the next track -- and then did
+    // the same thing again, and again, silently, forever.
+    // In practice a media element asks for ranges almost every time, so this
+    // cache now fires rarely and repeat listening is carried by the HTTP cache
+    // instead -- public/_headers gives /radio/ thirty days immutable, and the
+    // browser's own cache handles ranged media correctly, which a Cache API
+    // store fundamentally does not without slicing every response by hand.
+    if (e.request.headers.has("range")) return;
     e.respondWith(
       caches.open(RADIO_CACHE).then((cache) =>
         cache.match(e.request).then((cached) => {
           if (cached) return cached;
           return fetch(e.request)
             .then((res) => {
-              if (res.ok) cache.put(e.request, res.clone());
+              // Only a whole, ordinary response belongs in a cache.
+              if (res.ok && res.status === 200) {
+                cache.put(e.request, res.clone()).catch(() => {});
+              }
               return res;
             })
             .catch(() => cached || new Response("", { status: 408 }));

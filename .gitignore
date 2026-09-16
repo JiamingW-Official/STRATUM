@@ -2,7 +2,10 @@ node_modules/
 dist/
 .DS_Store
 .vercel
-radio/
+# public/radio was ignored back when the tracks were 90MB of 128k MP3. They are
+# 70MB of AAC now and the app cannot run without them, so they belong in the
+# repo: a fresh clone had no radio at all. dist/ is still ignored, so the built
+# copy does not double the weight. No rule here excludes it any more.
 scripts/
 
 # Cloud-drive sync-conflict copies ("NAME 2.ext"); never referenced, bodies often not on disk.
