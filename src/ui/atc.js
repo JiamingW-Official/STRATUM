@@ -178,8 +178,8 @@ function _render(state) {
       state === 'playing' ? 'Listening' :
       state === 'loading' ? `Tuning ${host.toUpperCase()}` :
       state === 'error'   ? 'No feed — press to retry' :
-      state === 'armed'   ? 'Starts on your first click' :
-      'Hear the tower';
+      state === 'armed'   ? 'Off' :
+      'Off';
   }
 }
 
