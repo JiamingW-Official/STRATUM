@@ -214,6 +214,10 @@ const renderer = new THREE.WebGLRenderer({
   alpha: false,
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Exposed for measurement: the render resolution is the single biggest lever
+// on a scene with a post chain, and it can only be compared honestly by
+// changing it inside one session rather than across reloads.
+window._renderer = renderer;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0x09090c, 1);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;

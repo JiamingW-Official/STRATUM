@@ -2957,6 +2957,11 @@ export function startDetailRotor() {
   _rotorShow(0);
   _rotorTimer = setInterval(() => {
     if (_rotorHold) return;
+    // Nothing to turn while the dossier is shut. The rows are still in the DOM
+    // and the timer is still armed, but querying and re-classing them every
+    // four seconds for a panel nobody is looking at is exactly the kind of
+    // work this pass exists to find.
+    if (!_rotorEl.offsetParent) return;
     _rotorShow(1);
   }, _ROTOR_MS);
 }
