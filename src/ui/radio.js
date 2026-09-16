@@ -687,16 +687,31 @@ function _createPanel() {
   _panelEl = document.createElement("div");
   _panelEl.id = "radio-panel";
   _panelEl.className = "radio-panel hidden";
+  // ── One widget ──
+  // It had been two: a bar that said what was playing and a panel you opened
+  // to get the dial, the level and the time. Two layouts, two sets of rules,
+  // and a press in between to move from the thing that reports to the thing
+  // that does. A receiver is one object — the dial is on the front of it, not
+  // behind a door — so this is one object: readout and idents on top, the band
+  // across the middle where you can reach it, and the controls along the
+  // bottom with the spectrum between them.
   _panelEl.innerHTML = `
     <div class="radio-accent" id="radio-accent"></div>
-    <!-- Compact grip: the whole bar opens the panel, and this is the piece
-         that is not a transport button, so pressing play does not also
-         expand. -->
-    <button type="button" class="radio-grip" id="radio-grip" aria-label="Expand radio" title="Expand"></button>
-    <div class="radio-header">
-      <span class="radio-header-label">STRATUM RADIO</span>
-      <span class="radio-sig" id="radio-sig" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-      <span class="radio-header-freq" id="radio-freq">88.3 FM</span>
+    <div class="radio-top">
+      <div class="radio-window">
+        <span class="radio-header-freq" id="radio-freq">88.3 FM</span>
+        <span class="radio-sig" id="radio-sig" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      </div>
+      <div class="radio-idents">
+        <div class="radio-station-name" id="radio-station-name">--</div>
+        <div class="radio-now-playing">
+          <div class="radio-track-title" id="radio-track-title">--</div>
+          <div class="radio-track-artist" id="radio-track-artist">--</div>
+        </div>
+      </div>
+      <button type="button" class="radio-close-btn" id="radio-close-btn" title="Close" aria-label="Close radio">
+        <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5 L9.5 9.5 M9.5 2.5 L2.5 9.5"/></svg>
+      </button>
     </div>
     <div class="radio-dial">
       <div class="radio-tuner" id="radio-tuner" role="slider" tabindex="0"
@@ -705,48 +720,42 @@ function _createPanel() {
         <div class="radio-needle" id="radio-needle"></div>
       </div>
     </div>
-    <div class="radio-display">
-      <div class="radio-station-name" id="radio-station-name">--</div>
-      <div class="radio-now-playing">
-        <div class="radio-track-title" id="radio-track-title">--</div>
-        <div class="radio-track-artist" id="radio-track-artist">--</div>
-      </div>
-      <div class="radio-progress-wrap">
-        <div class="radio-progress-bar"><div class="radio-progress" id="radio-progress"></div></div>
-        <span class="radio-time" id="radio-time">0:00 / 0:00</span>
+    <!-- Transport, the spectrum and the level on one line. Previous and next
+         are stations rather than tracks: you can move across the band but you
+         do not get to skip a song, which has been the rule since the first
+         version of this panel. The glyphs say so — a double triangle with no
+         bar is the seek of a physical tuner, where the bar is the skip-track
+         of a player. -->
+    <div class="radio-controls">
+      <div class="radio-transport">
+        <button type="button" class="radio-tp" id="radio-prev" title="Tune down the band" aria-label="Tune down the band">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M7.4 3.4v9.2L2 8zM14 3.4v9.2L8.6 8z"/></svg>
+        </button>
+        <button type="button" class="radio-tp radio-tp--main" id="radio-power-btn" title="Play / stop" aria-label="Play or stop">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path class="radio-tp-play" d="M4.6 3 L12.6 8 L4.6 13 Z"/>
+            <rect class="radio-tp-stop" x="4.4" y="4.4" width="7.2" height="7.2" rx="1.2"/>
+          </svg>
+        </button>
+        <button type="button" class="radio-tp" id="radio-next" title="Tune up the band" aria-label="Tune up the band">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8.6 3.4v9.2L14 8zM2 3.4v9.2L7.4 8z"/></svg>
+        </button>
       </div>
       <div class="radio-eq" id="radio-eq">
         <span></span><span></span><span></span><span></span><span></span>
         <span></span><span></span><span></span><span></span><span></span>
         <span></span><span></span>
       </div>
+      <div class="radio-vol">
+        <button type="button" class="radio-vol-btn" id="radio-vol-btn" title="Mute">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="radio-vol-icon">${_volIcon()}</svg>
+        </button>
+        <input type="range" class="radio-volume" id="radio-volume" min="0" max="100" value="50" title="Volume">
+      </div>
     </div>
-    <!-- Transport, centred, the way a now-playing card carries it. Previous and
-         next are stations rather than tracks: you can move across the band but
-         you do not get to skip a song, which has been the rule since the first
-         version of this panel. The glyphs say so — a double triangle with no
-         bar is the seek of a physical tuner, where the bar is the skip-track of
-         a player, and the pair had been drawn with the bar. -->
-    <div class="radio-transport">
-      <button type="button" class="radio-tp" id="radio-prev" title="Tune down the band" aria-label="Tune down the band">
-        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M7.4 3.4v9.2L2 8zM14 3.4v9.2L8.6 8z"/></svg>
-      </button>
-      <button type="button" class="radio-tp radio-tp--main" id="radio-power-btn" title="Play / stop" aria-label="Play or stop">
-        <svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true">
-          <path class="radio-tp-play" d="M4.6 3 L12.6 8 L4.6 13 Z"/>
-          <rect class="radio-tp-stop" x="4.4" y="4.4" width="7.2" height="7.2" rx="1.2"/>
-        </svg>
-      </button>
-      <button type="button" class="radio-tp" id="radio-next" title="Tune up the band" aria-label="Tune up the band">
-        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M8.6 3.4v9.2L14 8zM2 3.4v9.2L7.4 8z"/></svg>
-      </button>
-    </div>
-    <div class="radio-bottom">
-      <button type="button" class="radio-vol-btn" id="radio-vol-btn" title="Mute">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="radio-vol-icon">${_volIcon()}</svg>
-      </button>
-      <input type="range" class="radio-volume" id="radio-volume" min="0" max="100" value="50" title="Volume">
-      <button type="button" class="radio-close-btn" id="radio-close-btn" title="Close panel">&times;</button>
+    <div class="radio-progress-wrap">
+      <div class="radio-progress-bar"><div class="radio-progress" id="radio-progress"></div></div>
+      <span class="radio-time" id="radio-time">0:00 / 0:00</span>
     </div>
   `;
   // The tower can start before the radio has ever been opened, and a duck
@@ -756,15 +765,6 @@ function _createPanel() {
   // the current state at birth instead.
   _panelEl.classList.toggle("is-ducked", _ducked);
   document.body.appendChild(_panelEl);
-
-  // Opens as a bar. A now-playing strip is what you want nineteen times out of
-  // twenty; the dial, the progress and the volume are what you want when you
-  // went looking for them. The close button folds it back rather than
-  // dismissing the panel, because dismissing is what the toolbar button does.
-  _panelEl.classList.add("is-compact");
-  _panelEl.querySelector("#radio-grip")?.addEventListener("click", () => {
-    _panelEl.classList.remove("is-compact");
-  });
 
   // ── The tuner ──
   const tuner = _panelEl.querySelector("#radio-tuner");
@@ -896,18 +896,11 @@ function _createPanel() {
     _updateVolIcon();
   });
 
-  // Close folds the panel back to its bar; dismissing it entirely is what the
-  // toolbar button is for, and collapsing to something that still says what is
-  // playing is almost always what was meant.
+  // One state, so close means closed. The rail thumbnail keeps reporting that
+  // something is on and brings it back.
   _panelEl
     .querySelector("#radio-close-btn")
-    .addEventListener("click", () => {
-      if (!_panelEl.classList.contains("is-compact")) {
-        _panelEl.classList.add("is-compact");
-        return;
-      }
-      hideRadio();
-    });
+    .addEventListener("click", () => hideRadio());
 }
 
 function _updateVolIcon() {

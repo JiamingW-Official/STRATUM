@@ -6022,12 +6022,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    a short one made it shrink, and the panel it expands into was 290 while the
    bar was up to 340, which meant opening it made it narrower. A receiver on a
    shelf is one object with one footprint; the titles ellipse instead. */
-.radio-panel, .radio-panel.is-compact { width: 340px; max-width: calc(100vw - var(--edge) * 2); }
-.radio-panel.is-compact { padding: 0; }
-.radio-panel.is-compact .radio-dial,
-.radio-panel.is-compact .radio-progress-wrap,
-.radio-panel.is-compact .radio-eq,
-.radio-panel.is-compact .radio-bottom { display: none; }
+.radio-panel { width: 340px; max-width: calc(100vw - var(--edge) * 2); }
 
 /* ── The bar is a receiver, not a now-playing card ──
    Collapsed, it had been showing a station name and a track title and nothing
@@ -6044,58 +6039,11 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    caption on a card. Given a well — darker than the face it is cut into, a
    hard inner shadow at the top edge, a hairline of light at the bottom where
    the glass catches — it becomes the part of the object you read. */
-.radio-panel.is-compact .radio-header {
-  display: flex; flex-direction: column; align-items: flex-start;
-  gap: 3px; flex-shrink: 0;
-  margin: 0 0 0 12px; padding: 7px 9px 6px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.34);
-  box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.5),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
-}
-.radio-panel.is-compact .radio-header-label { display: none; }
-.radio-panel.is-compact .radio-header-freq {
-  font-size: 15px; font-weight: 500; letter-spacing: 0.01em;
-  opacity: 1; line-height: 1;
-  font-variant-numeric: tabular-nums;
-  /* Lit from behind, in the station's own colour, the way a dial lamp is. */
-  color: var(--rd-color, var(--text));
-  text-shadow: 0 0 9px color-mix(in srgb, var(--rd-color, #fff) 45%, transparent);
-}
-.radio-panel.is-compact .radio-sig { margin: 0; height: 7px; }
-.radio-panel.is-compact .radio-sig i:nth-child(1) { height: 2px; }
-.radio-panel.is-compact .radio-sig i:nth-child(2) { height: 4px; }
-.radio-panel.is-compact .radio-sig i:nth-child(3) { height: 5px; }
-.radio-panel.is-compact .radio-sig i:nth-child(4) { height: 7px; }
 
 /* Station over track, stacked, so the frequency beside them has something to
    line up against and the two lines read as one caption for it. */
-.radio-panel.is-compact .radio-display {
-  display: flex; flex-direction: column; align-items: flex-start;
-  justify-content: center; gap: 2px;
-  padding: 9px 10px 9px 12px; min-width: 0; flex: 1;
-  border-top: none;
-}
-.radio-panel.is-compact .radio-station-name {
-  font-size: 9px; letter-spacing: 0.12em; margin: 0; flex-shrink: 0;
-  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.radio-panel.is-compact .radio-now-playing { min-width: 0; max-width: 100%; text-align: left; margin: 0; }
-.radio-panel.is-compact .radio-track-title {
-  font-size: var(--fs-label); margin: 0;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.radio-panel.is-compact .radio-track-artist { display: none; }
 
 /* The transport shrinks and sits on the same line. */
-.radio-panel.is-compact .radio-transport {
-  padding: 0 12px 0 0; gap: 6px; flex-shrink: 0;
-}
-.radio-panel.is-compact .radio-tp { width: 24px; height: 24px; }
-.radio-panel.is-compact .radio-tp--main { width: 30px; height: 30px; }
-.radio-panel.is-compact .radio-tp svg { width: 12px; height: 12px; }
-.radio-panel.is-compact .radio-tp--main svg { width: 14px; height: 14px; }
 
 /* The grip is the whole bar minus the buttons: pressing play must not also
    expand, so the expander sits behind everything and the controls sit above. */
@@ -6104,16 +6052,11 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: none; border: none; box-shadow: none;
   cursor: pointer; padding: 0;
 }
-.radio-panel:not(.is-compact) .radio-grip { display: none; }
 /* No position here: the panel is already fixed, which is containing block
    enough for the grip. Declaring relative overrode that fixed and the bar
    left the bottom-right corner entirely — right:68px/bottom:72px measured
    from its static place in the body flow put it at -68,-72, off the top
    left of the window, so the radio opened where nobody could see it. */
-.radio-panel.is-compact { display: flex; align-items: center; }
-.radio-panel.is-compact .radio-display,
-.radio-panel.is-compact .radio-transport { position: relative; z-index: 1; }
-.radio-panel.is-compact .radio-accent { z-index: 1; }
 
 /* ── A long forecast scrolls instead of growing forever ──
    Expanded, the weather is a rose, a METAR grid, a comfort row, a 24h chart
@@ -6403,63 +6346,21 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* Hunting: the lamp goes to the instrument amber the rest of the page uses for
    "working on it", and the station colour only returns when there is a station
    to be the colour of. */
-.radio-panel.is-compact.is-tuning .radio-header-freq,
-.radio-panel.is-compact.is-offstation .radio-header-freq {
-  color: var(--accent-bright);
-  text-shadow: 0 0 9px rgba(var(--accent-rgb), 0.4);
-}
 /* The meter lives in the same aperture as the number, so it lights the same. */
-.radio-panel.is-compact .radio-sig.is-full i.on { background: var(--rd-color, var(--accent-bright)); }
-.radio-panel.is-compact.is-tuning .radio-sig.is-full i.on { background: var(--accent-bright); }
 
 /* With the panel at a fixed width the two text lines have a fixed width too,
    so both clip rather than push the bar wider. */
-.radio-panel.is-compact .radio-display { overflow: hidden; }
-.radio-panel.is-compact .radio-track-title,
-.radio-panel.is-compact .radio-station-name { max-width: 100%; }
 
 /* The open panel gets the same lit window, sized to its header row rather than
    to the bar. One treatment in both states, or the thing that is supposed to
    read as one object reads as two. */
-.radio-panel:not(.is-compact) .radio-header-freq {
-  padding: 4px 9px; border-radius: 7px;
-  font-size: 13px; opacity: 1;
-  font-variant-numeric: tabular-nums;
-  color: var(--rd-color, var(--text));
-  text-shadow: 0 0 9px color-mix(in srgb, var(--rd-color, #fff) 45%, transparent);
-  background: rgba(0, 0, 0, 0.34);
-  box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.5),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
-}
-.radio-panel:not(.is-compact).is-tuning .radio-header-freq,
-.radio-panel:not(.is-compact).is-offstation .radio-header-freq {
-  color: var(--accent-bright);
-  text-shadow: 0 0 9px rgba(var(--accent-rgb), 0.4);
-}
 
 /* ── The bar, tightened, with the music in the gap ──
    At a fixed 340 the middle column had slack in it whenever a title was short,
    and slack with nothing in it reads as a mistake rather than as air. The
    spectrum goes there: seven bars, right of the text and left of the
    transport, which is also where the level sits on the face of a real set. */
-.radio-panel.is-compact .radio-display {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "name wave" "track wave";
-  align-items: center;
-  column-gap: 10px; row-gap: 1px;
-  padding: 8px 10px 8px 11px;
-}
-.radio-panel.is-compact .radio-station-name { grid-area: name; align-self: end; }
-.radio-panel.is-compact .radio-now-playing { grid-area: track; align-self: start; }
-.radio-panel.is-compact .radio-eq {
-  grid-area: wave; display: flex; margin: 0;
-  height: 18px; gap: 2px; justify-content: flex-end;
-}
 /* Seven. Twelve at this size is a texture, not a reading. */
-.radio-panel.is-compact .radio-eq span:nth-child(n+8) { display: none; }
-.radio-panel.is-compact .radio-eq span { width: 2px; }
 
 /* Driven by the analyser, so the CSS loop stands down: two things animating
    the same property is a fight one of them has to lose every frame. */
@@ -6471,8 +6372,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 
 /* The readout window tightens with it. */
-.radio-panel.is-compact .radio-header { margin-left: 11px; padding: 6px 8px 5px; }
-.radio-panel.is-compact .radio-transport { padding: 0 10px 0 0; gap: 5px; }
 
 /* ── The rail is one size ──
    The thumbnail had grown wider than the four buttons above it to fit a
@@ -6485,3 +6384,119 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 .radio-toggle-btn .rt-dial { display: none; }
 .radio-toggle-btn.is-live .rt-live { justify-content: center; width: 100%; }
+
+/* ── One radio, one layout ─────────────────────────────────────────────────
+   The bar and the panel are the same object now. A receiver has its dial on
+   the front, not behind a door, and two layouts for one device meant two sets
+   of rules, two sets of bugs, and a press in between the thing that reports
+   and the thing that does.
+
+   Readout and idents on top, the band across the middle where you can reach
+   it, transport and level along the bottom with the spectrum between them.
+   About 160px tall: enough to hold a dial worth dragging, short enough to sit
+   in a corner without being a window. */
+.radio-panel {
+  display: flex; flex-direction: column;
+  gap: 8px; padding: 11px 13px 10px;
+  width: 340px;
+}
+
+.radio-top { display: flex; align-items: center; gap: 11px; }
+
+/* The readout window: a recess cut into the face, lit from inside, with the
+   meter in the same aperture because those are the two things the set reports
+   about itself. */
+.radio-window {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  flex-shrink: 0; padding: 6px 9px 5px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.34);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+.radio-panel .radio-header-freq {
+  font-family: var(--font-mono);
+  font-size: 15px; font-weight: 500; letter-spacing: 0.01em;
+  line-height: 1; opacity: 1; padding: 0; background: none; box-shadow: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--rd-color, var(--text));
+  text-shadow: 0 0 9px color-mix(in srgb, var(--rd-color, #fff) 45%, transparent);
+}
+.radio-panel.is-tuning .radio-header-freq,
+.radio-panel.is-offstation .radio-header-freq {
+  color: var(--accent-bright);
+  text-shadow: 0 0 9px rgba(var(--accent-rgb), 0.4);
+}
+.radio-panel .radio-sig { margin: 0; height: 7px; }
+.radio-panel .radio-sig i:nth-child(1) { height: 2px; }
+.radio-panel .radio-sig i:nth-child(2) { height: 4px; }
+.radio-panel .radio-sig i:nth-child(3) { height: 5px; }
+.radio-panel .radio-sig i:nth-child(4) { height: 7px; }
+.radio-panel .radio-sig.is-full i.on { background: var(--rd-color, var(--accent-bright)); }
+.radio-panel.is-tuning .radio-sig.is-full i.on { background: var(--accent-bright); }
+/* Why the music went quiet, printed inside the lit window where a set prints
+   its status — bottom right, the corner the meter leaves empty. Hung outside
+   the window it read as a sticker on the glass. */
+.radio-panel.is-ducked .radio-window::after {
+  content: 'TOWER';
+  position: absolute; right: 8px; bottom: 6px;
+  font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em;
+  color: var(--accent-bright);
+  text-shadow: 0 0 7px rgba(var(--accent-rgb), 0.45);
+}
+
+.radio-idents { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.radio-panel .radio-station-name {
+  font-size: 9px; letter-spacing: 0.12em; margin: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.radio-panel .radio-now-playing { min-width: 0; margin: 0; min-height: 0; }
+.radio-panel .radio-track-title {
+  font-size: var(--fs-label); line-height: 1.3; margin: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.radio-panel .radio-track-artist {
+  font-size: 10px; margin: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.radio-close-btn {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 20px; height: 20px; padding: 0;
+  border: none; border-radius: 50%; cursor: pointer;
+  color: var(--text-3); font-size: 0;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  align-self: flex-start;
+}
+.radio-close-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.11); }
+
+.radio-panel .radio-dial { padding: 0; }
+
+/* One line: the transport on the left where a thumb sits, the spectrum in the
+   middle because it is the part that moves, the level on the right. */
+.radio-controls {
+  display: flex; align-items: center; gap: 10px;
+}
+.radio-panel .radio-transport { padding: 0; gap: 7px; flex-shrink: 0; }
+.radio-panel .radio-tp { width: 26px; height: 26px; }
+.radio-panel .radio-tp--main { width: 32px; height: 32px; }
+.radio-panel .radio-eq {
+  flex: 1; min-width: 0; margin: 0;
+  height: 20px; gap: 2px; justify-content: center;
+}
+.radio-panel .radio-eq span { width: 2px; }
+.radio-vol { display: flex; align-items: center; gap: 6px; flex-shrink: 0; width: 84px; }
+.radio-panel .radio-volume { flex: 1; min-width: 0; }
+
+.radio-panel .radio-progress-wrap {
+  display: flex; align-items: center; gap: 8px; padding: 0; margin: 0;
+}
+.radio-panel .radio-progress-bar { flex: 1; }
+.radio-panel .radio-time { font-size: 9px; flex-shrink: 0; }
+/* Measured at 189 tall on the first build; the dial and the progress row were
+   carrying padding from when they lived in a taller panel. */
+.radio-panel .radio-dial { padding: 0; margin: 0; }
+.radio-panel .radio-eq { height: 18px; }
+.radio-panel .radio-progress-bar { height: 3px; }
