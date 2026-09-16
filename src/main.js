@@ -1750,6 +1750,13 @@ let lastRawData = [];
 // guess where it is not (light aircraft carry a handful, airliners ~150), and
 // the count of aircraft that asked not to be seen (LADD / PIA).
 document.body.classList.toggle("ghost-mode", isGhostMode());
+// The cue was hard-coded to SHOW in the markup while the layer defaults to on,
+// so the tile opened saying the opposite of what was true and the first press
+// looked like it had done nothing.
+{
+  const _cue = document.getElementById("hud-hero-cue");
+  if (_cue) _cue.textContent = isGhostMode() ? "SHOWN" : "SHOW";
+}
 
 let _ghostHintShown = false;
 function _maybeShowGhostHint() {
@@ -1774,6 +1781,10 @@ function _maybeShowGhostHint() {
 function _toggleGhostLayer() {
   const on = toggleGhostMode();
   document.body.classList.toggle("ghost-mode", on);
+  // The tile said nothing about being pressable and nothing about which way it
+  // was currently set, so pressing it looked like it had done nothing.
+  const cue = document.getElementById("hud-hero-cue");
+  if (cue) cue.textContent = on ? "SHOWN" : "SHOW";
   setCoverageShadowVisible(on);
   const btn = document.getElementById("hud-sky-unseen-btn");
   if (btn) btn.title = on ? "Hide them — V" : "Show them — V";

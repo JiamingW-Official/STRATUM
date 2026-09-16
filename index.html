@@ -120,7 +120,11 @@
          count alongside makes the ratio readable in one glance instead of two,
          and it is what turns this panel from a stack into a layout.
          The hero is also the control: pressing it reveals them. -->
-    <button type="button" id="hud-sky-unseen-btn" class="hud-mod hud-mod--hero" title="Show them — V">
+    <button type="button" id="hud-sky-unseen-btn" class="hud-mod hud-mod--act hud-mod--hero" title="Show them — V">
+      <span class="hud-mod-top">
+        <span class="hud-mod-label">unseen</span>
+        <span class="hud-mod-cue" id="hud-hero-cue" aria-hidden="true">SHOW</span>
+      </span>
       <span class="hud-hero-value" id="hud-sky-unseen">--</span>
       <span class="hud-hero-label">asked not to be seen</span>
     </button>
@@ -129,7 +133,7 @@
       <span class="hud-mod-value" id="hud-count">0</span>
       <span class="hud-mod-label">aircraft</span>
       <span class="hud-mod-sub"><span id="hud-airports">--</span> airports</span>
-      <button type="button" id="hud-clock" class="hud-clock" title="Show local time"><span id="hud-zulu">--:--Z</span> <span id="hud-clock-label">UTC</span></button>
+      <button type="button" id="hud-clock" class="hud-clock" title="Show local time"><span id="hud-zulu">--:--Z</span> <span id="hud-clock-label">UTC</span><span class="hud-mod-cue hud-mod-cue--inline" aria-hidden="true">⇄</span></button>
     </div>
 
     <!-- The sky as people, and as a visibility regime. -->
