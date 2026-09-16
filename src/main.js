@@ -2744,6 +2744,11 @@ function toggleHelp() {
   if (helpPanel) helpPanel.classList.toggle("hidden");
 }
 document.getElementById("help-close")?.addEventListener("click", toggleHelp);
+// The dim behind the guide is the panel's own ::before, so a click that lands
+// on the panel and not on one of its tiles is a click outside it.
+helpPanel?.addEventListener("click", (e) => {
+  if (e.target === helpPanel) helpPanel.classList.add("hidden");
+});
 
 // Radio toggle button — stays lit when music is playing in background
 const _radioToggleBtn = document.getElementById("radio-toggle-btn");
@@ -4313,6 +4318,8 @@ function applyFilters(dataList) {
 
   if (!hasAltFilter && !hasAptFilter) {
     aircraftManager.clearFilter();
+    filterState.shown = filterState.total = aircraftManager.aircraft.size;
+    window._filterPanelCount?.();
     return;
   }
 
@@ -4362,6 +4369,9 @@ function applyFilters(dataList) {
   }
 
   aircraftManager.setFilter(passSet);
+  filterState.shown = passSet.size;
+  filterState.total = aircraftManager.aircraft.size;
+  window._filterPanelCount?.();
 }
 
 function initFilterPanel() {
@@ -4370,6 +4380,29 @@ function initFilterPanel() {
   panel.id = "filter-panel";
   document.body.appendChild(panel);
 
+  // The count is the only thing in here that changes on its own, so it gets
+  // its own writer: re-rendering the whole bar every poll would fight the
+  // segmented control's hover and focus.
+  function renderCount() {
+    const el = panel.querySelector("#filter-count");
+    if (!el) return;
+    const total = filterState.total ?? 0;
+    const shown = filterState.shown ?? total;
+    el.textContent = shown === total ? `${total} shown` : `${shown} of ${total}`;
+    el.classList.toggle("is-filtered", shown !== total);
+  }
+  window._filterPanelCount = renderCount;
+
+  function closeFilters() {
+    filterState.active = false;
+    panel.classList.remove("visible");
+    panel.classList.add("hidden");
+    filterState.altPreset = "ALL";
+    filterState.isolate = false;
+    filterState.airportMode = "ALL";
+    aircraftManager?.clearFilter();
+  }
+
   function render() {
     const hasAirport = !!selectedAirportState;
     const code = hasAirport
@@ -4377,13 +4410,13 @@ function initFilterPanel() {
       : "";
 
     panel.innerHTML = `
-      <div class="filter-section">
-        <div class="filter-section-label">ALTITUDE</div>
-        <div class="filter-btn-row" id="filter-alt-row">
+      <div class="filter-group">
+        <span class="filter-group-label">ALTITUDE</span>
+        <div class="filter-seg" id="filter-alt-row">
           ${Object.keys(ALT_PRESETS)
             .map(
               (k) => `
-            <button class="filter-btn${filterState.altPreset === k ? " active" : ""}" data-alt="${k}">${ALT_PRESETS[k].label.replace(/</g, "&lt;")}</button>
+            <button class="filter-seg-btn${filterState.altPreset === k ? " active" : ""}" data-alt="${k}">${ALT_PRESETS[k].label.replace(/</g, "&lt;")}</button>
           `,
             )
             .join("")}
@@ -4392,23 +4425,29 @@ function initFilterPanel() {
       ${
         hasAirport
           ? `
-      <div class="filter-section">
-        <div class="filter-section-label">AIRPORT · ${code}</div>
-        <div class="filter-btn-row">
+      <div class="filter-group">
+        <span class="filter-group-label">${code}</span>
+        <div class="filter-seg">
           ${["ALL", "ARR", "DEP"]
             .map(
               (m) => `
-            <button class="filter-btn${filterState.airportMode === m ? " active" : ""}" data-apt="${m}">${m}</button>
+            <button class="filter-seg-btn${filterState.airportMode === m ? " active" : ""}" data-apt="${m}">${m}</button>
           `,
             )
             .join("")}
-          <button class="filter-btn isolate-btn${filterState.isolate ? " active" : ""}" data-isolate="1">ISOLATE</button>
         </div>
+        <button class="filter-seg-btn filter-isolate${filterState.isolate ? " active" : ""}" data-isolate="1">ISOLATE</button>
       </div>`
           : ""
       }
-      <div class="filter-key-hint">F to toggle</div>
+      <div class="filter-tail">
+        <span class="filter-count" id="filter-count"></span>
+        <button type="button" class="hud-act filter-close" data-close="1" aria-label="Close filters">
+          <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 2.5 L9.5 9.5 M9.5 2.5 L2.5 9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>
+        </button>
+      </div>
     `;
+    renderCount();
 
     // Altitude preset buttons
     panel.querySelectorAll("[data-alt]").forEach((btn) => {
@@ -4446,6 +4485,10 @@ function initFilterPanel() {
           if (set.size > 0) aircraftManager.setHighlight(set);
         }
       });
+    });
+
+    panel.querySelector("[data-close]")?.addEventListener("click", () => {
+      closeFilters();
     });
 
     // Isolate toggle

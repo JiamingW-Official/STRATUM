@@ -643,61 +643,74 @@
 
   <!-- Keyboard Guide — slide-in panel, left side -->
   <div id="help-panel" class="help-panel hidden" role="dialog" aria-label="Keyboard guide">
+   <div class="help-card">
 
     <div class="help-header">
       <span class="help-title">CONTROLS</span>
-      <button type="button" id="help-close" class="detail-close" aria-label="Close">&times;</button>
+      <span class="help-hint"><kbd>?</kbd> to toggle</span>
+      <button type="button" id="help-close" class="hud-act help-close" aria-label="Close">
+        <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 2.5 L9.5 9.5 M9.5 2.5 L2.5 9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>
+      </button>
     </div>
 
-    <div class="help-section-header">CAMERA</div>
-    <div class="help-grid">
-      <div class="help-row"><kbd>W A S D</kbd><span>Pan camera</span></div>
-      <div class="help-row"><kbd>Q / E</kbd><span>Lower / raise altitude</span></div>
-      <div class="help-row"><kbd>Shift</kbd><span>Sprint (2.5× speed)</span></div>
-      <div class="help-row"><kbd>Scroll</kbd><span>Zoom in / out</span></div>
-      <div class="help-row"><kbd>Dbl-click</kbd><span>Reset camera</span></div>
-    </div>
+    <div class="help-body">
+      <section class="help-sec">
+        <div class="help-section-header">CAMERA</div>
+        <div class="help-grid">
+          <div class="help-row"><kbd>W A S D</kbd><span>Pan camera</span></div>
+          <div class="help-row"><kbd>Q / E</kbd><span>Lower / raise altitude</span></div>
+          <div class="help-row"><kbd>Shift</kbd><span>Sprint (2.5&times; speed)</span></div>
+          <div class="help-row"><kbd>Scroll</kbd><span>Zoom in / out</span></div>
+          <div class="help-row"><kbd>Dbl-click</kbd><span>Reset camera</span></div>
+        </div>
+      </section>
 
-    <div class="help-section-header">SELECTION</div>
-    <div class="help-grid">
-      <div class="help-row"><kbd>Click</kbd><span>Select &amp; follow</span></div>
-      <div class="help-row"><kbd>Right-click</kbd><span>Deselect all</span></div>
-      <div class="help-row"><kbd>Shift+Click</kbd><span>Compare (up to 3)</span></div>
-      <div class="help-row"><kbd>[ &nbsp; ]</kbd><span>Prev / next aircraft</span></div>
-      <div class="help-row"><kbd>Esc</kbd><span>Stop follow / close</span></div>
-    </div>
+      <section class="help-sec">
+        <div class="help-section-header">SELECTION</div>
+        <div class="help-grid">
+          <div class="help-row"><kbd>Click</kbd><span>Select &amp; follow</span></div>
+          <div class="help-row"><kbd>Right-click</kbd><span>Deselect all</span></div>
+          <div class="help-row"><kbd>Shift+Click</kbd><span>Compare (up to 3)</span></div>
+          <div class="help-row"><kbd>[ &nbsp; ]</kbd><span>Prev / next aircraft</span></div>
+          <div class="help-row"><kbd>Esc</kbd><span>Stop follow / close</span></div>
+        </div>
+      </section>
 
-    <div class="help-section-header">NAVIGATION</div>
-    <div class="help-grid">
-      <div class="help-row"><kbd>/</kbd><span>Search</span></div>
-      <div class="help-row"><kbd>C</kbd><span>City picker</span></div>
-      <div class="help-row"><kbd>1 – 5</kbd><span>Trail opacity</span></div>
-    </div>
+      <section class="help-sec">
+        <div class="help-section-header">NAVIGATION</div>
+        <div class="help-grid">
+          <div class="help-row"><kbd>/</kbd><span>Search</span></div>
+          <div class="help-row"><kbd>C</kbd><span>City picker</span></div>
+          <div class="help-row"><kbd>1 &ndash; 5</kbd><span>Trail opacity</span></div>
+        </div>
+      </section>
 
-    <div class="help-section-header">DISPLAY</div>
-    <div class="help-grid">
-      <div class="help-row"><kbd>B</kbd><span>Bloom cycle</span></div>
-      <div class="help-row"><kbd>G</kbd><span>Distance rings</span></div>
-      <div class="help-row"><kbd>V</kbd><span>Ghost layer — aircraft by how they are seen</span></div>
-      <div class="help-row"><kbd>K</kbd><span>Key — what the symbols on screen are</span></div>
-      <div class="help-row"><kbd>T</kbd><span>Ground school — six short lessons, one question each</span></div>
-      <div class="help-row"><kbd>F</kbd><span>Filter panel</span></div>
-      <div class="help-row"><kbd>P</kbd><span>Screenshot mode</span></div>
-      <div class="help-row"><kbd>R</kbd><span>Radio</span></div>
-    </div>
+      <section class="help-sec">
+        <div class="help-section-header">DISPLAY</div>
+        <div class="help-grid">
+          <div class="help-row"><kbd>B</kbd><span>Bloom cycle</span></div>
+          <div class="help-row"><kbd>G</kbd><span>Distance rings</span></div>
+          <div class="help-row"><kbd>V</kbd><span>Ghost layer</span></div>
+          <div class="help-row"><kbd>K</kbd><span>Key &mdash; what the symbols mean</span></div>
+          <div class="help-row"><kbd>T</kbd><span>Ground school</span></div>
+          <div class="help-row"><kbd>F</kbd><span>Filter panel</span></div>
+          <div class="help-row"><kbd>P</kbd><span>Screenshot mode</span></div>
+          <div class="help-row"><kbd>R</kbd><span>Radio</span></div>
+        </div>
+      </section>
 
-    <div class="help-section-header">DATA</div>
-    <div class="help-grid">
-      <div class="help-row"><kbd>I</kbd><span>Info panel</span></div>
-      <div class="help-row"><kbd>H</kbd><span>Flight history</span></div>
-      <div class="help-row"><kbd>N</kbd><span>Airport notes</span></div>
-      <div class="help-row"><kbd>L</kbd><span>Share view link</span></div>
-      <div class="help-row"><kbd>M</kbd><span>Ambience</span></div>
+      <section class="help-sec">
+        <div class="help-section-header">DATA</div>
+        <div class="help-grid">
+          <div class="help-row"><kbd>I</kbd><span>Info panel</span></div>
+          <div class="help-row"><kbd>H</kbd><span>Flight history</span></div>
+          <div class="help-row"><kbd>N</kbd><span>Airport notes</span></div>
+          <div class="help-row"><kbd>L</kbd><span>Share view link</span></div>
+          <div class="help-row"><kbd>M</kbd><span>Ambience</span></div>
+        </div>
+      </section>
     </div>
-
-    <div class="help-footer">
-      <span class="help-hint">? to toggle</span>
-    </div>
+   </div>
   </div>
 
   <!-- Signal Lost overlay -->

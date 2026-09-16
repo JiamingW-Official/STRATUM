@@ -3422,72 +3422,94 @@ html, body {
   background: rgba(255,255,255,0.06);
 }
 
-/* ── Filter panel (altitude + airport) ── */
+/* ── Filter panel ──
+   It was a stack: a label on its own line, a row of chips under it, another
+   label, another row, and a key hint on a fourth. Four bands for two controls.
+   It is one bar now, sitting above the ticker instead of under it, with each
+   control beside the word that names it — the same left-to-right module the
+   HUD uses, at the size a toolbar should be. */
 .filter-panel {
   position: fixed;
-  bottom: var(--edge); left: var(--edge);
-  z-index: 20; pointer-events: auto;
-  display: flex; flex-direction: column; gap: 0; background: var(--surface); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); border: 1px solid var(--hairline); border-radius: var(--r);
-  padding: 0;
-  min-width: 180px; box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
+  bottom: calc(30px + var(--edge)); left: var(--edge);
+  z-index: 46; pointer-events: auto;
+  display: flex; align-items: center; gap: 14px;
+  max-width: calc(100vw - var(--edge) * 2);
+  flex-wrap: wrap;
+  padding: 8px 10px 8px 14px;
+  background: var(--relief-face), var(--surface);
+  -webkit-backdrop-filter: blur(30px) saturate(2) brightness(1.15);
+  backdrop-filter: blur(30px) saturate(2) brightness(1.15);
+  border: 1px solid var(--hairline); border-radius: var(--r);
+  box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
   opacity: 0; transform: translateY(8px);
   transition: opacity .3s ease, transform .3s var(--ease);
 }
-.filter-panel.visible {
-  opacity: 1; transform: translateY(0);
-}
+.filter-panel.visible { opacity: 1; transform: translateY(0); }
 .filter-panel.hidden { display: none; }
-.filter-section {
-  padding: 10px 14px 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+
+.filter-group {
+  display: flex; align-items: center; gap: 8px;
 }
-.filter-section:last-child { border-bottom: none; }
-.filter-section-label {
+.filter-group + .filter-group {
+  padding-left: 14px;
+  border-left: 1px solid var(--hairline);
+}
+.filter-group-label {
   font-family: var(--font-mono); font-size: var(--fs-label);
   color: var(--text-3); letter-spacing: var(--track-label);
-  text-transform: uppercase; margin-bottom: 7px;
-  opacity: 0.8;
+  text-transform: uppercase; white-space: nowrap;
 }
-.filter-btn-row {
-  display: flex; gap: 4px; flex-wrap: wrap;
+
+/* The segments live in a well, so the selected one reads as the raised face
+   and the rest as the hole around it. That is the whole state model: one
+   thing is up, everything else is down. */
+.filter-seg {
+  display: flex; align-items: center; gap: 2px;
+  padding: 2px; border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
 }
-.filter-btn {
+.filter-seg-btn {
   font-family: var(--font-mono); font-size: var(--fs-label);
   letter-spacing: 0; color: var(--text-3);
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: var(--r-sm); padding: 5px 10px;
-  cursor: pointer; transition: all .2s ease;
+  background: none; border: none; border-radius: 10px;
+  padding: 4px 10px; cursor: pointer;
+  transition: color .15s var(--ease), background .15s var(--ease);
   -webkit-user-select: none; user-select: none; white-space: nowrap;
 }
-.filter-btn:hover {
-  background: rgba(255,255,255,0.06);
-  color: var(--text-2);
-  border-color: rgba(255,255,255,0.1);
+.filter-seg-btn:hover { color: var(--text-2); }
+.filter-seg-btn.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 2px rgba(0, 0, 0, 0.3);
 }
-.filter-btn.active {
-  background: rgba(var(--accent-rgb), 0.12);
+.filter-seg-btn.active[data-alt]:not([data-alt="ALL"]),
+.filter-seg-btn.active[data-apt]:not([data-apt="ALL"]) {
   color: var(--accent);
-  border-color: rgba(var(--accent-rgb), 0.3);
-  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.08);
 }
-.filter-btn.isolate-btn.active {
-  background: rgba(100, 180, 255, 0.1);
-  color: #7cb8ff;
-  border-color: rgba(100, 180, 255, 0.25);
-  box-shadow: 0 0 10px rgba(100, 180, 255, 0.06);
+/* Isolate is not one of a set — it is a switch — so it sits outside the well
+   on its own raised face rather than pretending to be a fourth segment. */
+.filter-isolate {
+  padding: 5px 11px; border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+.filter-isolate.active {
+  color: var(--accent-bright);
+  background: rgba(var(--accent-rgb), 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.filter-tail {
+  display: flex; align-items: center; gap: 10px;
+  margin-left: auto; padding-left: 12px;
 }
 .filter-count {
   font-family: var(--font-mono); font-size: var(--fs-label);
-  color: var(--text-3); opacity: 0.6;
-  margin-left: 2px;
+  color: var(--text-3); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.filter-key-hint {
-  font-family: var(--font-mono); font-size: var(--fs-label);
-  color: var(--text-3); opacity: 0.4;
-  text-align: right; padding: 2px 14px 6px;
-  letter-spacing: 0;
-}
+.filter-count.is-filtered { color: var(--accent); }
 
 /* ── T3-07: Spotter collection book ── */
 .spotter-grid {
@@ -3848,8 +3870,9 @@ html, body {
   /* Footer */
   .detail-footer { padding: 8px 14px 12px; }
 
-  /* Hide less important elements */
-  .help-panel { display: none !important; }
+  /* The guide used to be hidden here because a 268px column of 26 rows had
+     nowhere to go on a small screen. It reflows to one column now and the card
+     scrolls, so there is no reason to withhold it. */
   .search-hint { display: none; }
 
   /* Search bar — full width at bottom, safe area aware */
@@ -6095,3 +6118,138 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    full strength. Both counts are headline figures; what separates them is
    colour, not brightness. White for the traffic, amber for the withheld. */
 .hud-mod--traffic .hud-mod-value { color: var(--text); }
+
+/* ── The three utility surfaces, rebuilt ──────────────────────────────────
+   Filter, search and help were the last three panels still speaking the old
+   vocabulary, and all three had the same two faults: they stacked everything
+   into one narrow column, and they were laid out as if the window had no
+   bottom edge. The ticker covered the lower 10px of both the search bar and
+   the filter bar, and the help panel's 26 rows ran 1166px into an 827px box,
+   so a third of the controls only existed if you knew to scroll.
+
+   The lesson from the weather tile applies to all three: the panel is the
+   thing that must fit the window, and it is the only place that knows its own
+   height. So each one is now sized against the viewport, and each one is laid
+   out across rather than down. */
+
+/* Search sits above the ticker rather than behind it, and its result list is
+   capped by the window instead of by a number that happened to fit one
+   screen. */
+.search-bar {
+  left: 50%;
+  bottom: calc(30px + var(--edge));
+  z-index: 46;
+  border-radius: var(--r);
+}
+.search-results.open {
+  max-height: min(430px, calc(100vh - 220px));
+}
+
+/* ── Help ──
+   A single 268px column of 26 rows is a scroll, not a reference. The point of
+   a keyboard guide is that you take it in at a glance, which means everything
+   has to be on screen at once. Five section tiles flowing into as many columns
+   as the window affords does that: on a laptop it is three columns and nothing
+   scrolls; narrow the window and it becomes two, then one, and only then does
+   it scroll — the card gives up its layout before it gives up its edges.
+
+   The panel is the dim now and the card is the guide. Two elements rather than
+   one because a dim has to be the full window and a card must not be, and
+   because it makes the dim its own click target: a click that lands on the
+   panel and not on the card is a click outside. */
+.help-panel {
+  inset: 0; top: 0; left: 0; right: 0; bottom: 0;
+  width: auto; max-height: none;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--edge);
+  overflow: visible;
+  transform: none;
+  z-index: 400;
+  background: rgba(4, 6, 10, 0.5);
+  /* No blur on the dim: an element with a backdrop-filter becomes the backdrop
+     root for everything inside it, so blurring here would leave the card with
+     nothing of the map left to sample and it would come out as plain tint. The
+     dim is flat; the card is the glass. */
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  border: none; border-radius: 0; box-shadow: none;
+}
+.help-panel:not(.hidden) { animation: help-fade-in 0.28s var(--ease) both; }
+.help-panel.hidden { transform: none; opacity: 0; pointer-events: none; }
+@keyframes help-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.help-panel:not(.hidden) .help-card { animation: help-card-in 0.3s var(--ease) both; }
+@keyframes help-card-in {
+  from { transform: scale(0.97); }
+  to   { transform: scale(1); }
+}
+
+.help-card {
+  width: min(880px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 0 14px 14px;
+  border-radius: var(--r);
+  background: rgba(255, 255, 255, 0.07);
+  -webkit-backdrop-filter: blur(34px) saturate(2) brightness(1.2);
+  backdrop-filter: blur(34px) saturate(2) brightness(1.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 24px 64px rgba(0, 0, 0, 0.55);
+  scrollbar-width: thin;
+}
+
+.help-header {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 2px 12px;
+  background: linear-gradient(to bottom, rgba(38, 42, 52, 0.96) 70%, rgba(38, 42, 52, 0));
+}
+.help-title { font-size: var(--fs-value); letter-spacing: var(--track-label); }
+.help-hint {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--text-3); font-family: var(--font-sans);
+  font-size: var(--fs-label); letter-spacing: 0;
+}
+.help-close { margin-left: auto; }
+
+.help-body {
+  columns: 236px; column-gap: 10px;
+}
+.help-sec {
+  break-inside: avoid; -webkit-column-break-inside: avoid;
+  margin: 0 0 10px; padding: 9px 11px 10px;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: saturate(1.6); backdrop-filter: saturate(1.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+/* The accent bar and the rule above each header were doing the separating.
+   The tile does it now, so both come off — two marks for one job. */
+.help-sec .help-section-header {
+  padding: 0 0 7px; border-top: none;
+  color: var(--text-3);
+}
+.help-sec .help-section-header::before { display: none; }
+.help-sec .help-grid { padding: 0; gap: 2px; }
+.help-sec .help-row { grid-template-columns: 84px 1fr; gap: 10px; }
+.help-hint kbd {
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
+  background: rgba(255, 255, 255, 0.06); border-radius: 6px;
+  padding: 2px 6px; line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* The result groups carried both a rule above them and an accent bar beside
+   them — the same two-marks-for-one-job the help sections had. The label alone
+   separates them, in the same small caps the rest of the page uses for a
+   category. */
+.search-category {
+  border-top: none;
+  color: var(--text-3);
+  padding: 13px 16px 4px;
+}
+.search-category::before { display: none; }
+.search-category-count { color: var(--text-3); }
