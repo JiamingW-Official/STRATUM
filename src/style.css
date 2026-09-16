@@ -5824,3 +5824,32 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 #hud .hud-mod-value, #hud .hud-mod-sub, #hud .hud-mod-top { justify-self: stretch; }
 .hud-atc-transport { justify-content: flex-start; }
+
+/* The rotating reading gets its own reserved line so the tile never resizes
+   as it turns over, and fades rather than slides. */
+.hud-wx-rot {
+  display: block; min-height: 15px;
+  color: var(--text-3); font-variant-numeric: tabular-nums;
+  opacity: 1; transition: opacity 0.26s var(--ease);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#hud-weather .hud-wx-wind { display: none; }
+#hud-weather.hud-mod { cursor: pointer; }
+
+/* ── The airspace chevron ──
+   It was a 22px face with a 13px glyph in it, which reads as a decoration
+   beside the label rather than the control for the whole row. Bigger, and
+   optically centred: the chevron's own mass sits left of its box, so it needs
+   a pixel of padding on the left to look centred rather than to be centred. */
+.hud-meta.hud-mod .hud-city-chevron {
+  width: 30px; height: 30px; font-size: 19px;
+  padding-left: 2px; color: var(--text-2);
+}
+.hud-meta.hud-mod:hover .hud-city-chevron {
+  color: var(--accent-bright);
+  background: rgba(var(--accent-rgb), 0.14);
+}
+
+/* "Just now" is gone; the row is the control and its chevron. */
+#hud-updated { font-size: var(--fs-label); color: var(--text-3); }
+#hud-updated:empty { display: none; }

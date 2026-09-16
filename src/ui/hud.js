@@ -97,7 +97,11 @@ export function updateHUDTimer() {
     if (isDemo()) {
       hudUpdated.textContent = 'Simulated data';
     } else {
-      hudUpdated.textContent = ago < 2 ? 'Just now' : ago < 8 ? `${ago}s ago` : `No fix for ${ago}s`;
+      // "Just now" is noise: it is the answer nineteen times out of twenty and
+      // the panel already says LIVE. Only a silence worth noticing gets words,
+      // and the LIVE label carries it so nothing new appears to say it.
+      hudUpdated.textContent = ago < 8 ? '' : `No fix for ${ago}s`;
+      if (hudLiveText) hudLiveText.textContent = ago < 8 ? 'LIVE' : `${ago}s`;
       // The age is the signal indicator: amber past 8s, red past 20s. It is the
       // same element that says "Just now", so nothing new appears to say it.
       hudUpdated.classList.toggle('is-stale', ago >= 8 && ago < 20);

@@ -3647,10 +3647,59 @@ function hideTCASDisplay() {
 // ── T3-02: Weather panel (integrated into HUD) ──
 let _wxExpanded = false;
 
+// ── The weather tile cycles its readings ──
+// More is measured than fits: pressure, visibility, cloud, turbulence, density
+// altitude. Rather than pick one and bury the rest behind the expander, the
+// third line turns over slowly. Slowly, and with a reserved height and a
+// cross-fade rather than a slide, because a line that moves or resizes in a
+// quiet panel is the thing this project already removed once from the clock.
+// It holds while the cursor is on the tile, so a reading you are looking at
+// cannot leave mid-sentence.
+const _WX_ROTATION = [
+  ["wind", "hud-wx-wind"],
+  ["QNH", "hud-wx-pressure"],
+  ["VIS", "hud-wx-vis"],
+  ["CLOUD", "hud-wx-cloud"],
+  ["TURB", "hud-wx-turb"],
+];
+let _wxRotIdx = 0;
+let _wxRotHold = false;
+function _startWxRotation() {
+  const out = document.getElementById("hud-wx-rot");
+  const tile = document.getElementById("hud-weather");
+  if (!out || !tile) return;
+  tile.addEventListener("pointerenter", () => { _wxRotHold = true; });
+  tile.addEventListener("pointerleave", () => { _wxRotHold = false; });
+  const step = () => {
+    if (_wxRotHold || _wxExpanded) return;
+    // Skip anything the feed has not filled, so the line never shows a dash.
+    for (let n = 0; n < _WX_ROTATION.length; n++) {
+      _wxRotIdx = (_wxRotIdx + 1) % _WX_ROTATION.length;
+      const [label, id] = _WX_ROTATION[_wxRotIdx];
+      const v = document.getElementById(id)?.textContent?.trim();
+      if (v && v !== "--" && v !== "") {
+        out.style.opacity = "0";
+        setTimeout(() => {
+          out.textContent = label === "wind" ? v : `${label} ${v}`;
+          out.style.opacity = "1";
+        }, 260);
+        return;
+      }
+    }
+  };
+  setInterval(step, 5200);
+  step();
+}
+
 function initWeatherPanel() {
-  const toggle = document.getElementById("hud-wx-toggle");
+  // The whole tile opens it, not just the temperature row. A widget that
+  // responds on one line of itself reads as broken everywhere else.
+  const toggle = document.getElementById("hud-weather");
   if (toggle) {
-    toggle.addEventListener("click", () => {
+    toggle.addEventListener("click", (e) => {
+      // The detail is inside the tile, so a press on a control in there must
+      // not fold the thing it is being used on.
+      if (e.target.closest("#hud-wx-detail")) return;
       _wxExpanded = !_wxExpanded;
       const detail = document.getElementById("hud-wx-detail");
       if (detail) detail.classList.toggle("open", _wxExpanded);
@@ -14371,6 +14420,7 @@ async function init() {
     initToolbar();
     initMobileTouch();
     initWeatherPanel();
+    _startWxRotation();
     updateWeatherWidget();
 
     // Overlay close handlers
