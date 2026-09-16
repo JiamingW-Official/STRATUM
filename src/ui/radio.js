@@ -77,7 +77,33 @@ const STATIONS = [
 ];
 
 // Fake FM frequencies
+// ── The dial ────────────────────────────────────────────────────────────────
+// Four buttons is a playlist with a radio's clothes on. A radio is a band you
+// move through: the stations sit at fixed points on it, everything between
+// them is noise, and finding one is a small act of skill rather than a click
+// on a label that was already named for you.
+//
+// The band is the real FM one, and the frequencies are the ones the panel was
+// already printing. LOCK_MHZ is how close you have to be before a station
+// takes hold; inside it the music fades up and the static fades out in
+// proportion, so the last tenth of a megahertz is the part that feels like
+// tuning.
 const _FREQS = ['88.3', '91.7', '96.5', '103.1'];
+const BAND_LO = 87.5;
+const BAND_HI = 108.0;
+// 0.45 was a test of mouse precision, not a dial: the strip is 260px across
+// 20.5 MHz, so that window was six pixels wide and you could not reliably hit
+// one. 1.2 gives each station about 30px of capture, and the magnetic pull
+// below closes the last of it for you -- which is what a detented knob does
+// and why a real one never feels fiddly.
+const LOCK_MHZ = 1.2;
+// How hard the needle is drawn toward a station while you are dragging.
+const PULL = 0.55;
+
+let _freq = 88.3;          // where the needle sits
+let _tuning = false;
+let _staticCtx = null;
+let _staticNodes = null;
 
 // ── State ──
 let _audio = null;
@@ -85,6 +111,8 @@ let _audio = null;
 // opened on the same one, so "the radio" was in practice a single channel with
 // its songs reordered. Start somewhere at random and it behaves like tuning in.
 let _stationIdx = Math.floor(Math.random() * STATIONS.length);
+// The needle starts wherever the random station is, not at the bottom of the band.
+_freq = parseFloat(_FREQS[_stationIdx]);
 let _trackIdx = 0;
 let _shuffled = [];
 let _playing = false;
@@ -103,6 +131,108 @@ function _shuffle(arr) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+// Between-station noise. Its own tiny graph rather than a shared one: it has to
+// be able to sit at full level while the music is silent, which is the opposite
+// of what the ambience bed does.
+function _ensureStatic() {
+  if (_staticNodes) return true;
+  try {
+    _staticCtx = new (window.AudioContext || window.webkitAudioContext)();
+  } catch { return false; }
+  const ctx = _staticCtx;
+  const len = ctx.sampleRate * 2;
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const out = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) out[i] = (Math.random() * 2 - 1) * 0.5;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  // Band-limited: full-range white is a hiss, and a real receiver's noise is
+  // shaped by its own front end.
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 2200;
+  bp.Q.value = 0.55;
+  const g = ctx.createGain();
+  g.gain.value = 0;
+  src.connect(bp).connect(g).connect(ctx.destination);
+  src.start();
+  _staticNodes = { gain: g, filter: bp };
+  return true;
+}
+
+function _setStatic(level) {
+  if (level > 0 && !_ensureStatic()) return;
+  if (!_staticNodes) return;
+  if (_staticCtx.state === 'suspended') _staticCtx.resume().catch(() => {});
+  const g = _staticNodes.gain.gain;
+  g.setTargetAtTime(level * _volume * 0.5, _staticCtx.currentTime, 0.05);
+}
+
+/** The station nearest a frequency, and how far off it we are. */
+function _nearest(freq) {
+  let idx = 0, best = Infinity;
+  for (let i = 0; i < _FREQS.length; i++) {
+    const d = Math.abs(parseFloat(_FREQS[i]) - freq);
+    if (d < best) { best = d; idx = i; }
+  }
+  return { idx, off: best };
+}
+
+/** 1 when dead on a station, 0 at the edge of its lock window and beyond. */
+function _signal(freq) {
+  const { off } = _nearest(freq);
+  if (off >= LOCK_MHZ) return 0;
+  return 1 - off / LOCK_MHZ;
+}
+
+/**
+ * Everything the dial position implies: what the music is worth, what the
+ * noise is worth, and what the panel says. One place, because the two levels
+ * are a single quantity seen from both sides.
+ */
+function _applyTuning() {
+  const sig = _signal(_freq);
+  if (_audio) _audio.volume = _volume * sig;
+  _setStatic(_playing ? 1 - sig : 0);
+  const needle = _panelEl?.querySelector('#radio-needle');
+  if (needle) {
+    needle.style.left = `${((_freq - BAND_LO) / (BAND_HI - BAND_LO)) * 100}%`;
+    needle.classList.toggle('is-locked', sig > 0.999);
+  }
+  const freqEl = _panelEl?.querySelector('#radio-freq');
+  if (freqEl) freqEl.textContent = `${_freq.toFixed(1)} FM`;
+  const tuner = _panelEl?.querySelector('#radio-tuner');
+  if (tuner) tuner.setAttribute('aria-valuenow', _freq.toFixed(1));
+  if (_panelEl) _panelEl.classList.toggle('is-offstation', sig <= 0);
+  const nameEl = _panelEl?.querySelector('#radio-station-name');
+  if (nameEl && sig <= 0) nameEl.textContent = 'NO SIGNAL';
+}
+
+/**
+ * Move the needle. Crossing into a station's window is what changes the feed.
+ * `raw` is the untouched pointer position; inside a capture zone the needle is
+ * eased toward the station so the last few pixels happen without you, and the
+ * closer you get the harder it pulls.
+ */
+function _tuneTo(freq, magnetic = false) {
+  let f = Math.max(BAND_LO, Math.min(BAND_HI, freq));
+  if (magnetic) {
+    const n = _nearest(f);
+    if (n.off < LOCK_MHZ) {
+      const target = parseFloat(_FREQS[n.idx]);
+      const strength = PULL * (1 - n.off / LOCK_MHZ);
+      f = f + (target - f) * strength;
+    }
+  }
+  _freq = f;
+  const { idx, off } = _nearest(_freq);
+  if (off < LOCK_MHZ && idx !== _stationIdx) {
+    _crossfadeToStation(idx);
+  }
+  _applyTuning();
 }
 
 function _currentStation() { return STATIONS[_stationIdx]; }
@@ -168,7 +298,7 @@ function _stopProgress() {
 function _playTrack() {
   if (!_audio) {
     _audio = new Audio();
-    _audio.volume = _volume;
+    _audio.volume = _volume * _signal(_freq);
     _audio.preload = 'auto';
     _audio.addEventListener('ended', () => { _advanceTrack(); _playTrack(); });
     _audio.addEventListener('error', () => {
@@ -188,6 +318,8 @@ function _playTrack() {
 function _stop() {
   if (_audio) { _audio.pause(); _audio.currentTime = 0; }
   _playing = false;
+  // A receiver that is off does not hiss.
+  _setStatic(0);
   _stopProgress();
   _updateUI();
 }
@@ -207,7 +339,7 @@ function _crossfadeToStation(newIdx) {
       if (vol <= 0) {
         clearInterval(_fadeInterval);
         _fadeInterval = null;
-        _audio.volume = _volume;
+        _audio.volume = _volume * _signal(_freq);
         _playTrack();
       } else {
         _audio.volume = vol;
@@ -239,7 +371,11 @@ function _createPanel() {
       <span class="radio-header-freq" id="radio-freq">88.3 FM</span>
     </div>
     <div class="radio-dial">
-      <div class="radio-dial-stations" id="radio-dial-stations"></div>
+      <div class="radio-tuner" id="radio-tuner" role="slider" tabindex="0"
+           aria-label="Tuning" aria-valuemin="87.5" aria-valuemax="108" aria-valuenow="88.3">
+        <div class="radio-scale" id="radio-scale"></div>
+        <div class="radio-needle" id="radio-needle"></div>
+      </div>
     </div>
     <div class="radio-display">
       <div class="radio-station-name" id="radio-station-name">--</div>
@@ -270,16 +406,64 @@ function _createPanel() {
   `;
   document.body.appendChild(_panelEl);
 
-  // Station dial
-  const dial = _panelEl.querySelector('#radio-dial-stations');
-  STATIONS.forEach((st, i) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'radio-dial-btn';
-    btn.dataset.idx = i;
-    btn.innerHTML = `<span class="radio-dial-dot" style="--c:${st.color}"></span><span class="radio-dial-label">${st.shortName}</span>`;
-    btn.addEventListener('click', () => _crossfadeToStation(i));
-    dial.appendChild(btn);
+  // ── The tuner ──
+  const tuner = _panelEl.querySelector('#radio-tuner');
+  const scale = _panelEl.querySelector('#radio-scale');
+  {
+    // Ticks every 0.5 MHz, taller every 2. The four call-signs are printed on
+    // the band where they actually sit, so the dial teaches its own layout:
+    // you can see there is something at 96.5 before you have ever been there.
+    let marks = '';
+    for (let f = BAND_LO; f <= BAND_HI + 0.01; f += 0.5) {
+      const pct = ((f - BAND_LO) / (BAND_HI - BAND_LO)) * 100;
+      const major = Math.abs(f % 2) < 0.01;
+      marks += `<i class="radio-tick${major ? ' is-major' : ''}" style="left:${pct}%"></i>`;
+    }
+    for (let i = 0; i < STATIONS.length; i++) {
+      const f = parseFloat(_FREQS[i]);
+      const pct = ((f - BAND_LO) / (BAND_HI - BAND_LO)) * 100;
+      marks += `<b class="radio-stationmark" data-idx="${i}" style="left:${pct}%;--c:${STATIONS[i].color}">` +
+               `<u></u><em>${STATIONS[i].shortName}</em></b>`;
+    }
+    scale.innerHTML = marks;
+  }
+
+  const _freqFromX = (clientX) => {
+    const r = tuner.getBoundingClientRect();
+    const t = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    return BAND_LO + t * (BAND_HI - BAND_LO);
+  };
+
+  const onDown = (ev) => {
+    _tuning = true;
+    tuner.setPointerCapture?.(ev.pointerId);
+    _tuneTo(_freqFromX(ev.clientX), true);
+  };
+  const onMove = (ev) => { if (_tuning) _tuneTo(_freqFromX(ev.clientX), true); };
+  const onUp = () => {
+    if (!_tuning) return;
+    _tuning = false;
+    // Let go near a station and it pulls in the last fraction, the way a
+    // detented dial does. Let go in the noise and you stay in the noise.
+    const { idx, off } = _nearest(_freq);
+    if (off < LOCK_MHZ) _tuneTo(parseFloat(_FREQS[idx]));
+  };
+  tuner.addEventListener('pointerdown', onDown);
+  tuner.addEventListener('pointermove', onMove);
+  tuner.addEventListener('pointerup', onUp);
+  tuner.addEventListener('pointercancel', onUp);
+  tuner.addEventListener('keydown', (ev) => {
+    const step = ev.shiftKey ? 0.1 : 0.5;
+    if (ev.key === 'ArrowLeft') { ev.preventDefault(); _tuneTo(_freq - step); onUp(); }
+    else if (ev.key === 'ArrowRight') { ev.preventDefault(); _tuneTo(_freq + step); onUp(); }
+  });
+
+  // Clicking a printed call-sign is still the fast way there.
+  scale.querySelectorAll('.radio-stationmark').forEach((el) => {
+    el.addEventListener('pointerdown', (ev) => {
+      ev.stopPropagation();
+      _tuneTo(parseFloat(_FREQS[+el.dataset.idx]));
+    });
   });
 
   // Power
@@ -291,7 +475,7 @@ function _createPanel() {
   const volSlider = _panelEl.querySelector('#radio-volume');
   volSlider.addEventListener('input', (e) => {
     _volume = parseInt(e.target.value) / 100;
-    if (_audio) _audio.volume = _volume;
+    _applyTuning();
     _updateVolIcon();
   });
 
@@ -301,7 +485,7 @@ function _createPanel() {
     if (_volume > 0) { _prevVol = _volume; _volume = 0; }
     else { _volume = _prevVol || 0.5; }
     volSlider.value = Math.round(_volume * 100);
-    if (_audio) _audio.volume = _volume;
+    _applyTuning();
     _updateVolIcon();
   });
 
@@ -338,9 +522,10 @@ function _updateUI() {
     _panelEl.querySelector('#radio-track-artist').textContent = '';
   }
 
-  // Dial
-  _panelEl.querySelectorAll('.radio-dial-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', i === _stationIdx);
+  // Dial — the printed call-sign lights only while the needle is holding it.
+  const locked = _signal(_freq) > 0 ? _nearest(_freq).idx : -1;
+  _panelEl.querySelectorAll('.radio-stationmark').forEach((el, i) => {
+    el.classList.toggle('active', i === locked);
   });
 
   // EQ — color matches station
@@ -361,6 +546,7 @@ function _updateUI() {
     const timeEl = _panelEl.querySelector('#radio-time');
     if (timeEl) timeEl.textContent = '0:00 / 0:00';
   }
+  _applyTuning();
 }
 
 // ── Public API ──
