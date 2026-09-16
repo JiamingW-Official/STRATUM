@@ -352,15 +352,6 @@ html, body {
 .hud-wx-wind { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
   margin-left: auto; letter-spacing: 0;
 }
-.hud-wx-cat { font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 600; letter-spacing: 0; padding: 2px 6px; border-radius: var(--r-sm);
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.10);
-  line-height: 1.5; transition: background 0.3s, border-color 0.3s;
-}
-.hud-wx-cat[data-cat="VFR"]  { background: rgba(82,168,108,0.20); border-color: rgba(82,168,108,0.55); color: rgba(100,210,130,0.9); }
-.hud-wx-cat[data-cat="MVFR"] { background: rgba(90,172,255,0.18); border-color: rgba(90,172,255,0.55); color: rgba(110,185,255,0.9); }
-.hud-wx-cat[data-cat="IFR"]  { background: rgba(200,80,70,0.20);  border-color: rgba(200,80,70,0.55);  color: rgba(230,100,90,0.9); }
-.hud-wx-cat[data-cat="LIFR"] { background: rgba(180,80,220,0.20); border-color: rgba(180,80,220,0.55); color: rgba(210,110,255,0.9); }
 
 /* Forecast detail — collapsed by default */
 .hud-wx-detail {
@@ -6596,3 +6587,49 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod--hero .hud-hero-label { line-height: 1.2; margin-top: 3px; }
 .hud-mod--traffic .hud-mod-sub, .hud-mod--hero .hud-mod-sub { margin-top: 3px; }
 .hud-mod--traffic .hud-clock { padding-top: 2px; }
+
+/* ── Weather, on the reference's grammar ──────────────────────────────────
+   The flight category was a green pill: tinted fill, 1px border, full radius,
+   sitting in the corner of the tile. That is the badge every generated
+   interface reaches for, and the reference does not have one anywhere — it
+   writes the category as a word under the value it qualifies ("0 / Low"), in
+   its own colour and nothing else. So does this now: "Clear · VFR", the
+   category carrying only its colour. */
+.hud-wx-cat {
+  font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 600;
+  letter-spacing: 0.02em; line-height: inherit;
+  padding: 0; border: none; background: none; border-radius: 0;
+}
+.hud-wx-cat:not(:empty)::before {
+  content: '·';
+  margin: 0 5px;
+  color: var(--text-3);
+  font-weight: 400;
+}
+.hud-wx-cond { display: block; }
+
+/* Today's range, the way the reference draws a day: the low, a track the
+   width of the day, a dot where the temperature is now, the high. "H:24 L:17"
+   said the ends and never said where in between you are standing. */
+.hud-wx-range {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 4px;
+  font-family: var(--font-mono); font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.hud-wx-range.hidden { display: none; }
+.hud-wx-track {
+  position: relative; flex: 1; min-width: 0; height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #4f9bd8, var(--accent-bright));
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.3);
+}
+.hud-wx-dot {
+  position: absolute; top: 50%; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--text);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1.5px rgba(10, 12, 18, 0.65);
+  transition: left 0.6s var(--ease);
+}
+.hud-wx-hi { color: var(--text-2); }

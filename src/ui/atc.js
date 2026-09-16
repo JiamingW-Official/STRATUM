@@ -196,8 +196,14 @@ function _render(state) {
   if (_label) {
     // Name the host the element is actually on, not the one the index points at;
     // the two differed for a beat after a mirror switch.
-    const host = (_audio && _audio.src && _audio.src.split('/')[2]?.split('.')[0]) ||
-      (() => { const f = _entry(_heard); const order = f ? [f.server, ...MIRRORS.filter((m) => m !== f.server)] : MIRRORS; return order[_mirrorIdx % order.length]; })();
+    // Which source is being tried. The last one in the list is this project's
+    // own proxy, whose URL is same-origin — parsing a host out of it printed
+    // the site's own domain, which names nothing a listener would recognise.
+    const srcs = _sources(_entry(_heard));
+    const url = srcs[Math.min(_mirrorIdx, Math.max(0, srcs.length - 1))] || '';
+    const host = url.startsWith('/')
+      ? 'relay'
+      : url.split('/')[2]?.split('.')[0] || 'feed';
     _label.textContent =
       state === 'playing' ? 'Listening' :
       state === 'loading' ? `Tuning ${host.toUpperCase()}` :

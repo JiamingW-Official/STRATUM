@@ -198,15 +198,23 @@
     <div id="hud-weather" class="hud-mod hud-weather is-empty">
       <div class="hud-mod-top">
         <span class="hud-mod-label">weather</span>
-        <span class="hud-wx-cat" id="hud-wx-cat"></span>
       </div>
       <div class="hud-wx-line" id="hud-wx-toggle">
         <span class="hud-wx-icon" id="hud-wx-icon"></span>
         <span class="hud-mod-value hud-wx-temp" id="hud-wx-temp"></span>
       </div>
       <span class="hud-mod-sub hud-wx-sub">
-        <span class="hud-wx-desc" id="hud-wx-desc"></span>
-        <span class="hud-wx-hl" id="hud-wx-hl"></span>
+        <!-- Condition and flight category on one line, the category as a word
+             in its own colour rather than a chip. -->
+        <span class="hud-wx-cond"><span class="hud-wx-desc" id="hud-wx-desc"></span><span class="hud-wx-cat" id="hud-wx-cat"></span></span>
+        <!-- Today's range as a bar with the current temperature marked on it,
+             which is the one thing "H:24 L:17" never says: where in that range
+             right now actually is. -->
+        <span class="hud-wx-range" id="hud-wx-range">
+          <span class="hud-wx-lo" id="hud-wx-lo"></span>
+          <span class="hud-wx-track"><span class="hud-wx-dot" id="hud-wx-dot"></span></span>
+          <span class="hud-wx-hi" id="hud-wx-hi"></span>
+        </span>
         <span class="hud-wx-wind" id="hud-wx-wind"></span>
         <span class="hud-wx-rot" id="hud-wx-rot" aria-live="off"></span>
       </span>

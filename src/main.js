@@ -3909,8 +3909,24 @@ async function updateWeatherWidget() {
   // Today's range, which is the line the reference widget carries under the
   // condition and the one thing a temperature on its own never tells you:
   // whether 17 is on the way up or on the way down.
+  const rangeEl = document.getElementById("hud-wx-range");
   if (data.daily && data.daily.length && data.daily[0].tempMax != null) {
-    set("hud-wx-hl", `H:${Math.round(data.daily[0].tempMax)}° L:${Math.round(data.daily[0].tempMin)}°`);
+    const lo = Math.round(data.daily[0].tempMin);
+    const hi = Math.round(data.daily[0].tempMax);
+    set("hud-wx-lo", `${lo}°`);
+    set("hud-wx-hi", `${hi}°`);
+    const dot = document.getElementById("hud-wx-dot");
+    if (dot) {
+      // Where now sits between the day's low and its high. A degree of span
+      // is guarded against because a flat day would divide by zero and put
+      // the marker nowhere.
+      const span = Math.max(1, hi - lo);
+      const at = Math.max(0, Math.min(1, (data.temp - lo) / span));
+      dot.style.left = `${at * 100}%`;
+    }
+    rangeEl?.classList.remove("hidden");
+  } else {
+    rangeEl?.classList.add("hidden");
   }
   // Show gusts in compact line when notably higher: "SSW 15G20kt"
   const hasGusts =
@@ -3925,7 +3941,7 @@ async function updateWeatherWidget() {
   if (catEl) {
     catEl.textContent = cat.label;
     catEl.style.color = cat.color;
-    catEl.dataset.cat = cat.label; // for CSS background tinting
+    catEl.dataset.cat = cat.label;
   }
 
   // Detail grid values — color-coded by severity
