@@ -5853,3 +5853,68 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* "Just now" is gone; the row is the control and its chevron. */
 #hud-updated { font-size: var(--fs-label); color: var(--text-3); }
 #hud-updated:empty { display: none; }
+
+/* ── The airspace picker ──
+   The globe was being cut into an octagon. The canvas is square by
+   aspect-ratio and was sized from the pane's width, so in an 830x657 pane it
+   computed 700x700 and lost 43px off the top and bottom, with the corner
+   radius rounding the cuts into diagonals. A square in a landscape box has to
+   be driven by the short side. */
+.city-globe-canvas {
+  height: 100%; width: auto;
+  max-width: 100%; max-height: 100%;
+  aspect-ratio: 1; border-radius: 50%;
+}
+.city-globe-pane {
+  border-right: none;
+  padding: 14px;
+  overflow: hidden;
+}
+
+/* The header rule is a leftover from the stacked era: the panes below it have
+   their own edges, so a line across the top is drawing a division twice. */
+#city-overlay .hud-divider { display: none; }
+.city-overlay-header { padding-bottom: 8px; }
+
+/* The filter bar was a label and a row of chips repeated four times, which is
+   four rows of mostly label. The label sits inline with its chips now. */
+.city-filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 5px; }
+.city-filter-row > span:first-child,
+.city-filter-label { min-width: 46px; flex-shrink: 0; }
+.city-filter-bar { padding: 12px 12px 10px; }
+
+/* Chips follow the same glass as every other control on the page. */
+.tier-chip, .city-filter-row button {
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  border-radius: 999px;
+}
+.tier-chip.active, .city-filter-row button.active {
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--accent-bright);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.city-search-input { border-radius: 999px; padding-left: 14px; }
+
+/* The first fix traded one wrong shape for another: height:100% is a definite
+   size, so max-width clamped the width without the aspect ratio pulling the
+   height back, and the sphere rendered as an egg. A square that must fit a box
+   of unknown orientation is sized from the box's short side, which is what
+   container query units are for. */
+.city-globe-pane { container-type: size; }
+.city-globe-canvas {
+  width: min(100cqw, 100cqh);
+  height: auto;
+  max-width: none; max-height: none;
+  aspect-ratio: 1;
+}
+
+/* The globe had 68% of the width and the list took what was left, which was
+   not enough for it: city names truncated to "Los Ang…", "Tokyo H…", and the
+   airport count lost its last character. The globe is decorative-and-
+   navigable; the list is the thing you actually pick from, so it gets the room
+   it needs and the globe takes the rest. */
+.city-globe-pane { flex: 1 1 auto; min-width: 0; }
+.city-list-pane { flex: 0 0 360px; min-width: 0; }
+.city-overlay-body { gap: 10px; }
