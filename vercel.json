@@ -28,7 +28,8 @@
     { "source": "/api/ghost", "destination": "https://stratum.jiamingwofficial.workers.dev/api/ghost" },
     { "source": "/api/ghost/index", "destination": "https://stratum.jiamingwofficial.workers.dev/api/ghost/index" },
 
-    { "source": "/map/export/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/map/export/:path*" },
+    { "source": "/map/export/", "destination": "https://stratum.jiamingwofficial.workers.dev/map/export/" },
+    { "source": "/map/export", "destination": "https://stratum.jiamingwofficial.workers.dev/map/export/" },
     { "source": "/fonts/css/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/fonts/css/:path*" },
     { "source": "/fonts/file/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/fonts/file/:path*" }
   ]
