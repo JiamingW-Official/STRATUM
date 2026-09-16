@@ -172,7 +172,13 @@ const hudSky = document.getElementById('hud-sky');
 // and querySelector would silently pick whichever one is written first.
 const hudSkyLine = document.getElementById('hud-sky-people-line');
 const hudSkyUnseen = document.getElementById('hud-sky-unseen');
-const hudSkyUnseenLine = document.querySelector('.hud-hero');
+// .hud-hero stopped existing when the panel became a grid of tiles and the
+// class became .hud-mod--hero. The lookup returned null and the toggle below
+// threw on every poll, inside the data path, where the fetch's own catch
+// swallowed it as a "Fetch error" -- so updateHUDSky quietly stopped halfway
+// and everything after it in handleData never ran at all. Addressed by id
+// now, which is the one name that does not move when the layout does.
+const hudSkyUnseenLine = document.getElementById('hud-sky-unseen-btn');
 
 /** people: estimated seats overhead; cities: distinct destinations; unseen: LADD/PIA count */
 export function updateHUDSky({ people, cities, unseen }) {
@@ -185,7 +191,7 @@ export function updateHUDSky({ people, cities, unseen }) {
     ? `<span id="hud-sky-people" class="inferred" title="Estimated: seats for this aircraft type, not a passenger count">${n}</span> people overhead, bound for <span id="hud-sky-cities">${cities}</span> cities`
     : `<span id="hud-sky-people" class="inferred" title="Estimated: seats for this aircraft type, not a passenger count">${n}</span> people overhead`;
   hudSkyUnseen.textContent = String(unseen);
-  hudSkyUnseenLine.classList.toggle('is-zero', unseen === 0);
+  hudSkyUnseenLine?.classList.toggle('is-zero', unseen === 0);
 }
 
 // The swap is a gesture now, not a timer.

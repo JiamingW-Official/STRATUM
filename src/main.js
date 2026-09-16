@@ -79,7 +79,7 @@ import {
   setCommonsPlace,
   onNamed,
 } from "./ui/detail.js";
-import { ghostRecord, ghostContact, refreshIndex, nameFor, myNames, indexSize, sinceWords } from "./ui/commons.js";
+import { ghostRecord, ghostContact, refreshIndex, nameFor, myNames, myNameCount, indexSize, sinceWords } from "./ui/commons.js";
 import { toggleAmbience, updateAmbience, initAmbience } from "./ui/ambience.js";
 // Cockpit HUD — lazy-loaded, only needed when user presses V in follow mode
 let _cockpitMod = null;
@@ -1800,7 +1800,7 @@ function _toggleGhostLayer() {
 }
 document.getElementById("hud-sky-unseen-btn")?.addEventListener("click", _toggleGhostLayer);
 // A name just landed: the pill and the ticker are carrying the old word.
-onNamed(() => { _syncFollowPill(); _tickerAt = 0; });
+onNamed(() => { _syncFollowPill(); _tickerAt = 0; _renderMine(); });
 
 // ── The visibility index, read back ─────────────────────────────────────────
 // The Worker's warm pass counts, for every airspace it visits, how many
@@ -1992,6 +1992,62 @@ function _checkReturns() {
   }
 }
 
+// ── Your own record, and the sky filtered down to it ─────────────────────────
+// Naming was accumulating somewhere no one could see: the names are in local
+// storage and on the map, but nothing ever said how many were yours. The count
+// sits in the unseen tile, because it is a part of that number, and pressing
+// it is the only mechanic this needed -- the sky drops to the airframes you
+// named and that are up right now. It is the difference between a list of
+// things you did and a place you can go and look at them.
+let _mineOnly = false;
+function _renderMine() {
+  const el = document.getElementById("hud-mine");
+  const txt = document.getElementById("hud-mine-text");
+  if (!el || !txt) return;
+  const mine = myNames();
+  const total = myNameCount();
+  if (!total) { el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  const up = aircraftManager
+    ? [...aircraftManager.aircraft.values()].filter((a) => mine[a.data.icao24]).length
+    : 0;
+  // "2 of 5 yours" while some are overhead, "5 yours" when none are, because
+  // a zero in the middle of a sentence reads as a fault rather than as quiet.
+  txt.textContent = up ? `${up} of ${total} yours` : `${total} yours`;
+  el.classList.toggle("is-on", _mineOnly);
+  el.classList.toggle("is-empty", up === 0);
+}
+function _toggleMineOnly() {
+  if (!aircraftManager) return;
+  const mine = myNames();
+  const present = [...aircraftManager.aircraft.values()]
+    .filter((a) => mine[a.data.icao24])
+    .map((a) => a.data.icao24);
+  // Nothing of yours is up: say so rather than emptying the sky, which would
+  // look like the filter broke.
+  if (!_mineOnly && present.length === 0) {
+    const t = document.getElementById("toast");
+    if (t) {
+      t.textContent = "None of the ones you named are overhead";
+      t.classList.remove("hidden");
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => t.classList.add("hidden"), 2600);
+    }
+    return;
+  }
+  _mineOnly = !_mineOnly;
+  if (_mineOnly) aircraftManager.setFilter(new Set(present));
+  else aircraftManager.clearFilter();
+  _renderMine();
+}
+document.getElementById("hud-mine")?.addEventListener("click", (e) => {
+  e.stopPropagation();   // the tile itself toggles the ghost layer
+  _toggleMineOnly();
+});
+document.getElementById("hud-mine")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); _toggleMineOnly(); }
+});
+
 function _renderContacts() {
   const el = document.getElementById("hud-sky-contacts");
   if (!el) return;
@@ -2020,9 +2076,12 @@ function _renderContacts() {
   // only. It used to repeat the number directly under itself.
   el.textContent = seenNow >= total
     ? `all contacted · none named`
-    // The empty state was a fact about nothing. It is the one line with room
-    // to say how any of this starts.
-    : seenNow ? `${seenNow} of ${total} contacted` : `none contacted yet · click a ring`;
+    // "click a ring" is the on-ramp, and it only belongs in front of someone
+    // who has not been up it. Once you have named something the tile already
+    // carries your record a line below, and repeating the invitation there
+    // pushed the top row 35px taller than the bottom one for no new meaning.
+    : seenNow ? `${seenNow} of ${total} contacted`
+    : myNameCount() ? `` : `none contacted yet · click a ring`;
 }
 
 // The first thing after the boot screen is a descent: the camera starts high
@@ -2197,6 +2256,7 @@ function handleData(dataList) {
     _checkReturns();
     _renderVisibilityCmp();
     _renderContacts();
+    _renderMine();
     _loadVisibility();
     updateCoverageShadow(dataList, lat, lon);
     // Throttle detail refresh to 1Hz — data arrives at 4-10Hz but UI update > 1Hz is wasted

@@ -5946,3 +5946,44 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   -webkit-backdrop-filter: blur(16px) saturate(1.25);
   backdrop-filter: blur(16px) saturate(1.25);
 }
+
+/* ── Your record, in the action row ──
+   It sits where the tower keeps its transport, so the two tiles in that column
+   put their one control on the same line. The face is the same round glass as
+   every other action; lit means the sky is filtered down to your names. */
+.hud-mine {
+  grid-row: 4; align-self: end;
+  display: inline-flex; align-items: center; gap: 7px;
+  margin-top: auto; padding-top: 4px;
+  cursor: pointer; outline: none;
+}
+.hud-mine.hidden { display: none; }
+.hud-mine-face {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  transition: background 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.hud-mine-face::after {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.55);
+  transition: background 0.18s var(--ease), box-shadow 0.18s var(--ease);
+}
+.hud-mine-text {
+  font-family: var(--font-sans); font-size: var(--fs-label);
+  color: var(--text-3); letter-spacing: 0; white-space: nowrap;
+}
+.hud-mine:hover .hud-mine-face { background: rgba(255, 255, 255, 0.12); }
+.hud-mine:hover .hud-mine-text { color: var(--text-2); }
+.hud-mine:focus-visible .hud-mine-face { box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.5); }
+/* Filtered: the face fills, the way a pressed control does. */
+.hud-mine.is-on .hud-mine-face {
+  background: rgba(var(--accent-rgb), 0.18);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+.hud-mine.is-on .hud-mine-face::after { background: var(--accent-bright); box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.6); }
+.hud-mine.is-on .hud-mine-text { color: var(--accent-bright); }
+/* None of yours overhead: still pressable, but it does not promise anything. */
+.hud-mine.is-empty .hud-mine-face::after { background: rgba(var(--text-rgb), 0.25); }
+.hud-sky-contacts:empty { display: none; }
