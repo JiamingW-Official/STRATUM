@@ -258,9 +258,14 @@ function _applyTuning() {
   // The rail's thumbnail is the same receiver seen small, so it follows the
   // needle rather than the committed station — it sweeps too, and it is the
   // only writer of that readout.
+  const st = _currentStation();
+  // The dial lamp, in the station's own colour. CSS decides when it is not
+  // that colour — searching the band lights it amber instead, because while
+  // the set is hunting the colour of a station it has not found yet would be
+  // a claim it cannot make.
+  _panelEl?.style.setProperty("--rd-color", st.color);
   const toggle = document.getElementById("radio-toggle-btn");
   if (toggle) {
-    const st = _currentStation();
     toggle.style.setProperty("--rt-color", st.color);
     const f = toggle.querySelector("#radio-toggle-freq");
     if (f) f.textContent = _freq.toFixed(1);

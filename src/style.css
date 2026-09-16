@@ -6017,10 +6017,13 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    them, so they are one press away rather than always on screen. Same panel,
    same elements — only what is shown changes, which is why the station colour,
    the track and the transport carry over without being rebuilt. */
-.radio-panel.is-compact {
-  width: auto; max-width: 340px;
-  padding: 0;
-}
+/* One width, in both states and whatever is playing. It had been sized by its
+   contents — max-width with width:auto — so a long title made the bar grow and
+   a short one made it shrink, and the panel it expands into was 290 while the
+   bar was up to 340, which meant opening it made it narrower. A receiver on a
+   shelf is one object with one footprint; the titles ellipse instead. */
+.radio-panel, .radio-panel.is-compact { width: 340px; max-width: calc(100vw - var(--edge) * 2); }
+.radio-panel.is-compact { padding: 0; }
 .radio-panel.is-compact .radio-dial,
 .radio-panel.is-compact .radio-progress-wrap,
 .radio-panel.is-compact .radio-eq,
@@ -6034,15 +6037,31 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    collapse hid. They come back as the bar's left column, with the station and
    the track beside them — the number leads, the song follows, which is the
    right way round for a receiver. */
+/* ── The readout is a window, not a label ──
+   On a set, the frequency sits behind glass: a recess cut into the face, lit
+   from inside, with the meter in the same aperture because they are the two
+   things the receiver reports about itself. Drawn as flat text it was a
+   caption on a card. Given a well — darker than the face it is cut into, a
+   hard inner shadow at the top edge, a hairline of light at the bottom where
+   the glass catches — it becomes the part of the object you read. */
 .radio-panel.is-compact .radio-header {
   display: flex; flex-direction: column; align-items: flex-start;
-  gap: 3px; padding: 0 0 0 14px; flex-shrink: 0;
+  gap: 3px; flex-shrink: 0;
+  margin: 0 0 0 12px; padding: 7px 9px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.34);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 }
 .radio-panel.is-compact .radio-header-label { display: none; }
 .radio-panel.is-compact .radio-header-freq {
   font-size: 15px; font-weight: 500; letter-spacing: 0.01em;
-  color: var(--text); opacity: 1;
-  font-variant-numeric: tabular-nums; line-height: 1;
+  opacity: 1; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  /* Lit from behind, in the station's own colour, the way a dial lamp is. */
+  color: var(--rd-color, var(--text));
+  text-shadow: 0 0 9px color-mix(in srgb, var(--rd-color, #fff) 45%, transparent);
 }
 .radio-panel.is-compact .radio-sig { margin: 0; height: 7px; }
 .radio-panel.is-compact .radio-sig i:nth-child(1) { height: 2px; }
@@ -6380,3 +6399,41 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    surface, and two surfaces that nearly touch read as one badly made one. */
 .radio-toggle-btn { bottom: calc(30px + var(--edge)); }
 .fab-toolbar { bottom: calc(30px + var(--edge) + 38px + 20px); }
+
+/* Hunting: the lamp goes to the instrument amber the rest of the page uses for
+   "working on it", and the station colour only returns when there is a station
+   to be the colour of. */
+.radio-panel.is-compact.is-tuning .radio-header-freq,
+.radio-panel.is-compact.is-offstation .radio-header-freq {
+  color: var(--accent-bright);
+  text-shadow: 0 0 9px rgba(var(--accent-rgb), 0.4);
+}
+/* The meter lives in the same aperture as the number, so it lights the same. */
+.radio-panel.is-compact .radio-sig.is-full i.on { background: var(--rd-color, var(--accent-bright)); }
+.radio-panel.is-compact.is-tuning .radio-sig.is-full i.on { background: var(--accent-bright); }
+
+/* With the panel at a fixed width the two text lines have a fixed width too,
+   so both clip rather than push the bar wider. */
+.radio-panel.is-compact .radio-display { overflow: hidden; }
+.radio-panel.is-compact .radio-track-title,
+.radio-panel.is-compact .radio-station-name { max-width: 100%; }
+
+/* The open panel gets the same lit window, sized to its header row rather than
+   to the bar. One treatment in both states, or the thing that is supposed to
+   read as one object reads as two. */
+.radio-panel:not(.is-compact) .radio-header-freq {
+  padding: 4px 9px; border-radius: 7px;
+  font-size: 13px; opacity: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--rd-color, var(--text));
+  text-shadow: 0 0 9px color-mix(in srgb, var(--rd-color, #fff) 45%, transparent);
+  background: rgba(0, 0, 0, 0.34);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+.radio-panel:not(.is-compact).is-tuning .radio-header-freq,
+.radio-panel:not(.is-compact).is-offstation .radio-header-freq {
+  color: var(--accent-bright);
+  text-shadow: 0 0 9px rgba(var(--accent-rgb), 0.4);
+}
