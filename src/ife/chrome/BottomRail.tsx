@@ -1,5 +1,6 @@
 import { useCabin, useSelf } from "../../flight-state/store";
 import type { IFEBridge, ScreenName } from "../../flight-state/types";
+import { useT } from "../i18n";
 import { IconCall, IconHome, IconLight, IconMap, IconVolume } from "./icons";
 
 /**
@@ -20,6 +21,9 @@ export function BottomRail({
   const volume = useSelf((s) => s.volume);
   const setVolume = useSelf((s) => s.setVolume);
   const self = useCabin((s) => s.seats[seat]);
+  const lang = useSelf((s) => s.lang);
+  const setLang = useSelf((s) => s.setLang);
+  const { t } = useT();
 
   const go = (s: ScreenName) => () => setScreen(s);
   const light = !!self?.readingLight;
@@ -42,7 +46,7 @@ export function BottomRail({
         data-current={screen === "home"}
       >
         <IconHome />
-        Home
+        {t("home")}
       </button>
       <button
         className="ife-tool"
@@ -50,10 +54,21 @@ export function BottomRail({
         data-current={screen === "map"}
       >
         <IconMap />
-        Map
+        {t("map")}
       </button>
 
       <div className="ife-rail-spacer" />
+
+      {/* Two words in their own scripts. A globe icon would make a passenger
+          guess which languages are behind it; these two do not. */}
+      <div className="ife-lang">
+        <button data-on={lang === "en"} onClick={() => setLang("en")}>
+          EN
+        </button>
+        <button data-on={lang === "zh"} onClick={() => setLang("zh")}>
+          中文
+        </button>
+      </div>
 
       <button className="ife-tool" onClick={cycleVolume}>
         <IconVolume />
@@ -66,18 +81,18 @@ export function BottomRail({
         onClick={() => bridge.setReadingLight(!light)}
       >
         <IconLight />
-        Reading light
+        {t("readingLight")}
       </button>
       {/* A call already placed says so and offers to take it back, because the
           light it turned on is above your head and everyone can see it. */}
       <button
         className="ife-tool"
-        data-on={calling}
+        data-alert={calling}
         aria-pressed={calling}
         onClick={() => bridge.callAttendant(!calling)}
       >
         <IconCall />
-        {calling ? "Cancel call" : "Call attendant"}
+        {calling ? t("cancelCall") : t("callAttendant")}
       </button>
     </div>
   );

@@ -9,6 +9,7 @@ import { greatCircleKm, interpolate } from "../flight-state/geo";
 export const AIRPORTS: Record<string, Airport> = {
   JFK: {
     iata: "JFK",
+    photoTitle: "Manhattan",
     icao: "KJFK",
     city: { en: "New York", zh: "纽约" },
     name: { en: "John F. Kennedy Intl", zh: "肯尼迪国际机场" },
@@ -45,6 +46,7 @@ export const AIRPORTS: Record<string, Airport> = {
   },
   LAX: {
     iata: "LAX",
+    photoTitle: "Downtown Los Angeles",
     icao: "KLAX",
     city: { en: "Los Angeles", zh: "洛杉矶" },
     name: { en: "Los Angeles Intl", zh: "洛杉矶国际机场" },
@@ -63,6 +65,7 @@ export const AIRPORTS: Record<string, Airport> = {
   },
   SIN: {
     iata: "SIN",
+    photoTitle: "Marina Bay Sands",
     icao: "WSSS",
     city: { en: "Singapore", zh: "新加坡" },
     name: { en: "Changi", zh: "樟宜机场" },

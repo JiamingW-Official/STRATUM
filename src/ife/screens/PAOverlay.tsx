@@ -1,17 +1,18 @@
 import { useFlight } from "../../flight-state/store";
+import { useT, type Key } from "../i18n";
 
 const COPY = {
   safety: {
-    kind: "Safety demonstration",
-    title: "Please direct your attention to the cabin crew",
-    body: "Your seat belt fastens and unfastens like this. There are exits fore, aft and over the wings. In the unlikely event of a loss of cabin pressure, an oxygen mask will drop in front of you.",
+    kind: "safetyKind",
+    title: "safetyTitle",
+    body: "safetyBody",
   },
   captain: {
-    kind: "From the flight deck",
-    title: "This is your captain speaking",
-    body: "We have reached our cruising altitude and expect a smooth ride. I have switched off the seat belt sign, but please keep it fastened while you are seated.",
+    kind: "captainKind",
+    title: "captainTitle",
+    body: "captainBody",
   },
-} as const;
+} as const satisfies Record<string, Record<string, Key>>;
 
 /**
  * The announcement takes the screen. There is no close control and no way to
@@ -21,25 +22,26 @@ const COPY = {
  */
 export function PAOverlay() {
   const paOverride = useFlight((s) => s.paOverride);
+  const { t } = useT();
   if (!paOverride) return null;
   const c = COPY[paOverride];
 
   return (
     <div className="ife-pa" role="alertdialog" aria-live="assertive">
       <div className="ife-pa-inner">
-        <div className="ife-cap" style={{ color: "var(--amber)" }}>
-          {c.kind}
+        <div className="ife-cap" style={{ color: "var(--accent-bright)" }}>
+          {t(c.kind)}
         </div>
-        <div className="ife-pa-title">{c.title}</div>
-        <div className="ife-pa-body">{c.body}</div>
+        <div className="ife-pa-title">{t(c.title)}</div>
+        <div className="ife-pa-body">{t(c.body)}</div>
       </div>
       <div>
         <div className="ife-pa-bar">
           <span style={{ width: "100%" }} />
         </div>
         <div className="ife-pa-foot" style={{ marginTop: 20 }}>
-          <span className="ife-cap">Cabin announcement in progress</span>
-          <span className="ife-cap">Your screen will return on its own</span>
+          <span className="ife-cap">{t("announcementInProgress")}</span>
+          <span className="ife-cap">{t("screenReturns")}</span>
         </div>
       </div>
     </div>

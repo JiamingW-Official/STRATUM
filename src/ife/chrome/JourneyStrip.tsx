@@ -1,6 +1,7 @@
 import { useFlight } from "../../flight-state/store";
 import { progressAlong } from "../../flight-state/geo";
 import { duration, localTime } from "../format";
+import { pick, useT } from "../i18n";
 import { IconBack } from "./icons";
 
 /**
@@ -15,6 +16,7 @@ import { IconBack } from "./icons";
  */
 export function JourneyStrip({ onBack }: { onBack?: () => void }) {
   const { route, position, track, etaUtc, etaInferred, phase } = useFlight();
+  const { t, lang } = useT();
   const progress = progressAlong(route.from, route.to, position);
 
   // Collapse the track into runs of like evidence, so a long heard stretch is
@@ -39,26 +41,26 @@ export function JourneyStrip({ onBack }: { onBack?: () => void }) {
       <button
         className="ife-tool"
         onClick={onBack}
-        aria-label="Back"
+        aria-label={t("back")}
         style={{ marginLeft: -22 }}
       >
         <IconBack />
       </button>
 
       <div className="ife-strip-city">
-        {route.from.city.en}
-        <span className="ife-strip-city-zh">{route.from.city.zh}</span>
+        {pick(route.from.city, lang)}
+        <span className="ife-strip-city-zh">{route.from.iata}</span>
       </div>
 
       <div className="ife-strip-line">
         <div className="ife-strip-remaining">
           {arrived ? (
-            "Arrived"
+            t("arrived")
           ) : (
             <>
-              Landing in{" "}
+              {t("landingIn")}{" "}
               <span className={etaInferred ? "ife-inferred" : undefined}>
-                {duration(remainingMs)}
+                {duration(remainingMs, lang)}
               </span>
             </>
           )}
@@ -78,7 +80,7 @@ export function JourneyStrip({ onBack }: { onBack?: () => void }) {
             y1="12"
             x2={X1}
             y2="12"
-            stroke="rgba(232,235,239,0.22)"
+            stroke="rgba(240,236,226,0.22)"
             strokeWidth="1.4"
             vectorEffect="non-scaling-stroke"
           />
@@ -90,7 +92,7 @@ export function JourneyStrip({ onBack }: { onBack?: () => void }) {
               y1="12"
               x2={at(r.b)}
               y2="12"
-              stroke={r.heard ? "var(--fg)" : "var(--amber)"}
+              stroke={r.heard ? "var(--fg)" : "var(--accent)"}
               strokeWidth="2"
               strokeDasharray={r.heard ? undefined : "4 4"}
               vectorEffect="non-scaling-stroke"
@@ -120,7 +122,7 @@ export function JourneyStrip({ onBack }: { onBack?: () => void }) {
           <path
             d="M12 2.5 13.6 10 22 13.4v1.9l-8.4-2.3-.5 4.9 3 2.2v1.4L12 20.3l-4.1 1.2v-1.4l3-2.2-.5-4.9L2 15.3v-1.9L10.4 10z"
             fill={position.heard ? "var(--fg)" : "none"}
-            stroke={position.heard ? "none" : "var(--amber)"}
+            stroke={position.heard ? "none" : "var(--accent)"}
             strokeWidth="1.4"
             strokeDasharray={position.heard ? undefined : "3 2.5"}
             transform="rotate(90 12 12)"
@@ -129,15 +131,15 @@ export function JourneyStrip({ onBack }: { onBack?: () => void }) {
       </div>
 
       <div className="ife-strip-city">
-        {route.to.city.en}
-        <span className="ife-strip-city-zh">{route.to.city.zh}</span>
+        {pick(route.to.city, lang)}
+        <span className="ife-strip-city-zh">{route.to.iata}</span>
       </div>
 
       <div className="ife-strip-arrival">
         <span className="ife-strip-arrival-time ife-mono">
           {localTime(etaUtc, route.to)}
         </span>
-        <span className="ife-cap">Arrival</span>
+        <span className="ife-cap">{t("arrival")}</span>
       </div>
     </div>
   );

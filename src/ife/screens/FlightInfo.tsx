@@ -1,5 +1,6 @@
 import { useFlight } from "../../flight-state/store";
 import { duration, fmtInt, localTime } from "../format";
+import { pick, useT, type Key } from "../i18n";
 
 function Figure({
   label,
@@ -26,55 +27,56 @@ function Figure({
 export function FlightInfo() {
   const { route, position, departureUtc, etaUtc, etaInferred, phase } =
     useFlight();
+  const { t, lang } = useT();
   const now = Date.now();
   const elapsed = now - Date.parse(departureUtc);
   const remaining = Date.parse(etaUtc) - now;
 
   return (
     <div className="ife-pad">
-      <div className="ife-title">Flight information</div>
+      <div className="ife-title">{t("flightInformation")}</div>
 
       <div className="ife-figures">
         {/* Altitude and ground speed come off the aircraft's own broadcast, so
             they carry no mark — but when nothing was heard they are our
             estimate, and they say so. */}
         <Figure
-          label="Altitude"
+          label={t("altitude")}
           value={fmtInt(position.altFt)}
           unit="ft"
           inferred={!position.heard}
         />
         <Figure
-          label="Ground speed"
+          label={t("groundSpeed")}
           value={fmtInt(position.gsKt)}
           unit="kt"
           inferred={!position.heard}
         />
         <Figure
-          label="Heading"
+          label={t("heading")}
           value={`${Math.round(position.headingDeg).toString().padStart(3, "0")}°`}
           inferred={!position.heard}
         />
 
-        <Figure label="Time elapsed" value={duration(elapsed)} />
+        <Figure label={t("timeElapsed")} value={duration(elapsed, lang)} />
         <Figure
-          label="Time remaining"
-          value={phase === "landed" ? "——" : duration(remaining)}
+          label={t("timeRemaining")}
+          value={phase === "landed" ? "——" : duration(remaining, lang)}
           inferred={etaInferred && phase !== "landed"}
         />
-        <Figure label="Phase" value={PHASE_LABEL[phase]} />
+        <Figure label={t("phase")} value={t(PHASE_KEY[phase])} />
 
         <Figure
-          label={`${route.from.city.en} · departed`}
+          label={`${pick(route.from.city, lang)} · ${t("departed")}`}
           value={localTime(departureUtc, route.from)}
         />
         <Figure
-          label={`${route.to.city.en} · arriving`}
+          label={`${pick(route.to.city, lang)} · ${t("arrivingAt")}`}
           value={localTime(etaUtc, route.to)}
           inferred={etaInferred && phase !== "landed"}
         />
         <Figure
-          label="Position"
+          label={t("position")}
           value={`${position.lat.toFixed(2)}, ${position.lon.toFixed(2)}`}
           inferred={!position.heard}
         />
@@ -83,11 +85,11 @@ export function FlightInfo() {
   );
 }
 
-const PHASE_LABEL: Record<string, string> = {
-  boarding: "Boarding",
-  taxi: "Taxi",
-  takeoff: "Climb",
-  cruise: "Cruise",
-  descent: "Descent",
-  landed: "Landed",
+const PHASE_KEY: Record<string, Key> = {
+  boarding: "phaseBoarding",
+  taxi: "phaseTaxi",
+  takeoff: "phaseTakeoff",
+  cruise: "phaseCruise",
+  descent: "phaseDescent",
+  landed: "phaseLanded",
 };

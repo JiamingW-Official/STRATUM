@@ -1,28 +1,25 @@
 import { useSelf } from "../../flight-state/store";
+import { useT, type Key } from "../i18n";
 
 /**
- * Movies, music and games are named on the home screen and lead somewhere
- * rather than nowhere, but there is nothing behind them yet and the screen
- * says so plainly instead of showing invented posters.
+ * Movies and games are named on the home screen and lead somewhere rather than
+ * nowhere, but there is nothing behind them yet and the screen says so plainly
+ * instead of showing invented posters. A catalogue of films that do not exist
+ * would be the one thing in this cabin that is not true.
  */
-export function Placeholder({ title, zh }: { title: string; zh: string }) {
+export function Placeholder({ titleKey }: { titleKey: Key }) {
   const setScreen = useSelf((s) => s.setScreen);
+  const { t } = useT();
   return (
     <div className="ife-pad">
       <div className="ife-soon">
-        <div className="ife-title">
-          {title}
-          <span className="ife-cap" style={{ marginLeft: 20, letterSpacing: 0 }}>
-            {zh}
-          </span>
-        </div>
+        <div className="ife-title">{t(titleKey)}</div>
         <div className="ife-soon-text">
-          Nothing loaded on this aircraft yet. The catalogue comes later, once
-          the cabin exists to sit in.
+          {t("nothingLoaded")} {t("catalogueLater")}
         </div>
         <div style={{ marginTop: 44 }}>
-          <button className="ife-tool" onClick={() => setScreen("home")}>
-            ← Back to home
+          <button className="ife-btn" onClick={() => setScreen("home")}>
+            ← {t("backToHome")}
           </button>
         </div>
       </div>

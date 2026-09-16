@@ -86,6 +86,7 @@ type SelfStore = SeatPrivate & {
   seat: string;
   setSeat: (seat: string) => void;
   setScreen: (screen: ScreenName) => void;
+  setLang: (lang: "en" | "zh") => void;
   setVolume: (v: number) => void;
   setMedia: (m: SeatPrivate["media"]) => void;
 };
@@ -93,10 +94,12 @@ type SelfStore = SeatPrivate & {
 export const useSelf = create<SelfStore>((set) => ({
   seat: "01A",
   screen: "idle",
+  lang: "en",
   volume: 0.6,
   media: undefined,
   setSeat: (seat) => set({ seat }),
   setScreen: (screen) => set({ screen }),
+  setLang: (lang) => set({ lang }),
   setVolume: (volume) => set({ volume }),
   setMedia: (media) => set({ media }),
 }));

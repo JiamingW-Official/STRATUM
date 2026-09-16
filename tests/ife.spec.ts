@@ -17,6 +17,9 @@ async function openBench(page: Page) {
   return errors;
 }
 
+// The glass is scaled to fit the window, so an element's rendered box is not
+// 1920 wide. Click targets by role or by centre; never by a coordinate taken
+// from the IFE's own coordinate space.
 const screenName = (page: Page) =>
   page.locator(".ife-root").getAttribute("data-screen");
 
@@ -27,7 +30,7 @@ test.describe("IFE bench", () => {
     expect(await screenName(page)).toBe("idle");
     await expect(page.locator(".ife-idle-seat")).toHaveText("12K");
 
-    await page.locator(".ife-idle").click({ position: { x: 900, y: 500 } });
+    await page.locator(".ife-idle").click();
     expect(await screenName(page)).toBe("home");
 
     await page.getByRole("button", { name: "Flight map" }).click();
@@ -48,7 +51,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click({ position: { x: 900, y: 500 } });
+    await page.locator(".ife-idle").click();
     await page.getByRole("button", { name: "Flight map" }).click();
     await page.waitForFunction(
       () => (window as any).__ifeMap?.isStyleLoaded?.() === true,
@@ -108,7 +111,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click({ position: { x: 900, y: 500 } });
+    await page.locator(".ife-idle").click();
 
     const seatState = () =>
       page.evaluate(() => {
@@ -140,7 +143,7 @@ test.describe("IFE bench", () => {
 
   test("an announcement takes the screen and gives it back", async ({ page }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click({ position: { x: 900, y: 500 } });
+    await page.locator(".ife-idle").click();
     await page.getByRole("button", { name: "Flight information" }).click();
     expect(await screenName(page)).toBe("flightInfo");
 
@@ -153,6 +156,47 @@ test.describe("IFE bench", () => {
     await expect(page.locator(".ife-pa")).toHaveCount(0);
     // Back exactly where the passenger was.
     expect(await screenName(page)).toBe("flightInfo");
+  });
+
+  test("the destination screen carries the city, its weather and a credit", async ({
+    page,
+  }) => {
+    await openBench(page);
+    await page.locator(".ife-idle").click();
+
+    await page.getByRole("button", { name: "Explore the destination" }).click();
+    expect(await screenName(page)).toBe("destination");
+    await expect(page.locator(".ife-dest-city")).toHaveText("London");
+
+    // Weather comes from the Worker route the sky view already uses.
+    await expect(page.locator(".ife-dest-temp")).not.toHaveText("--°", {
+      timeout: 30_000,
+    });
+    // A Wikimedia photograph is credited or it is not shown.
+    const photo = page.locator(".ife-dest .ife-photo");
+    if (await photo.count()) {
+      await expect(page.locator(".ife-dest .ife-credit")).toContainText(
+        "Wikimedia Commons",
+      );
+    }
+  });
+
+  test("the language switch reaches every surface", async ({ page }) => {
+    await openBench(page);
+    await page.locator(".ife-idle").click();
+    await expect(page.locator(".ife-rail")).toContainText("Reading light");
+
+    await page.getByRole("button", { name: "中文" }).click();
+    // Chrome, menu and the journey strip all follow.
+    await expect(page.locator(".ife-rail")).toContainText("阅读灯");
+    await expect(page.locator(".ife-menu")).toContainText("航班信息");
+    await expect(page.locator(".ife-strip")).toContainText("还有");
+    // Including the units inside a duration, which is where a half-translated
+    // interface always shows.
+    await expect(page.locator(".ife-strip-remaining")).toContainText("小时");
+
+    await page.getByRole("button", { name: "EN", exact: true }).click();
+    await expect(page.locator(".ife-rail")).toContainText("Reading light");
   });
 
   test("changing the seat updates the idle screen", async ({ page }) => {

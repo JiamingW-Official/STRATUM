@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useFlight } from "../../flight-state/store";
 import { arc } from "../../flight-state/geo";
 import { fmtInt } from "../format";
+import { useT } from "../i18n";
 
 /**
  * Basemap: Esri's World Dark Gray Base, as raster tiles.
@@ -31,6 +32,7 @@ export function MapScreen() {
   // the data effect runs, so readiness is state rather than a listener.
   const [ready, setReady] = useState(false);
   const { route, position, track } = useFlight();
+  const { t } = useT();
 
   // Create once. Everything after this is a data update, never a rebuild:
   // a map that tears itself down on every position fix would flash forever.
@@ -85,7 +87,7 @@ export function MapScreen() {
         type: "line",
         source: AHEAD,
         paint: {
-          "line-color": "#8794a2",
+          "line-color": "#7f8894",
           "line-width": 2,
           "line-dasharray": [2, 3],
           "line-opacity": 0.75,
@@ -98,7 +100,7 @@ export function MapScreen() {
         type: "line",
         source: FLOWN_UNHEARD,
         paint: {
-          "line-color": "#e8a33d",
+          "line-color": "#c9a45c",
           "line-width": 2.5,
           "line-dasharray": [1.6, 2.2],
         },
@@ -108,7 +110,7 @@ export function MapScreen() {
         id: FLOWN_HEARD,
         type: "line",
         source: FLOWN_HEARD,
-        paint: { "line-color": "#e8ebef", "line-width": 3 },
+        paint: { "line-color": "#f0ece2", "line-width": 3 },
       });
       setReady(true);
     });
@@ -209,18 +211,15 @@ export function MapScreen() {
       <div ref={ref} style={{ position: "absolute", inset: 0 }} />
       {failed && (
         <div className="ife-map-fail">
-          <div className="ife-title">Map unavailable</div>
-          <div style={{ marginTop: 18 }}>
-            The basemap did not load. The flight is still being tracked; only
-            the ground under it is missing.
-          </div>
+          <div className="ife-title">{t("mapUnavailable")}</div>
+          <div style={{ marginTop: 18 }}>{t("mapUnavailableBody")}</div>
         </div>
       )}
       <div className="ife-map-readout">
-        <Readout label="Altitude" value={fmtInt(position.altFt)} unit="ft" inferred={!position.heard} />
-        <Readout label="Ground speed" value={fmtInt(position.gsKt)} unit="kt" inferred={!position.heard} />
+        <Readout label={t("altitude")} value={fmtInt(position.altFt)} unit="ft" inferred={!position.heard} />
+        <Readout label={t("groundSpeed")} value={fmtInt(position.gsKt)} unit="kt" inferred={!position.heard} />
         <Readout
-          label="Heading"
+          label={t("heading")}
           value={`${Math.round(position.headingDeg).toString().padStart(3, "0")}°`}
           inferred={!position.heard}
         />

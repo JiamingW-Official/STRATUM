@@ -27,6 +27,12 @@ export type Airport = {
   lon: number;
   /** IANA zone, so local time survives DST without a table of offsets. */
   tz: string;
+  /**
+   * Wikipedia article to take the destination photograph from, when the city's
+   * own article does not lead with a picture of the city. Asking for
+   * "Singapore" returns the national flag.
+   */
+  photoTitle?: string;
 };
 
 /**
@@ -89,6 +95,7 @@ export type ScreenName =
   | "home"
   | "map"
   | "flightInfo"
+  | "destination"
   | "movies"
   | "music"
   | "games";
@@ -96,6 +103,8 @@ export type ScreenName =
 /** This seat, as only its occupant sees it. */
 export type SeatPrivate = {
   screen: ScreenName;
+  /** Nobody else's business what you read the cabin in. */
+  lang: "en" | "zh";
   media?: { id: string; positionSec: number };
   /** 0–1. */
   volume: number;

@@ -1,54 +1,97 @@
 import { useCabin, useFlight, useSelf } from "../../flight-state/store";
 import type { ScreenName } from "../../flight-state/types";
 import { duration, localTime } from "../format";
+import { pick, useT, type Key } from "../i18n";
+import { useDestination } from "../destination";
+import { conditionKey, useWeather } from "../weather";
 
-const ENTRIES: Array<{
-  screen: ScreenName;
-  label: string;
-  zh: string;
-  soon?: boolean;
-}> = [
-  { screen: "map", label: "Flight map", zh: "航图" },
-  { screen: "flightInfo", label: "Flight information", zh: "航班信息" },
-  { screen: "movies", label: "Movies", zh: "电影", soon: true },
-  { screen: "music", label: "Music", zh: "音乐", soon: true },
-  { screen: "games", label: "Games", zh: "游戏", soon: true },
+const ENTRIES: Array<{ screen: ScreenName; key: Key; soon?: boolean }> = [
+  { screen: "map", key: "flightMap" },
+  { screen: "flightInfo", key: "flightInformation" },
+  { screen: "music", key: "music" },
+  { screen: "movies", key: "movies", soon: true },
+  { screen: "games", key: "games", soon: true },
 ];
 
 export function Home({ seat }: { seat: string }) {
   const setScreen = useSelf((s) => s.setScreen);
   const cabinClass = useCabin((s) => s.seats[seat]?.cabinClass ?? "economy");
   const { route, etaUtc, etaInferred, phase } = useFlight();
+  const { t, lang } = useT();
+  const dest = useDestination(route.to);
+  const wx = useWeather(route.to);
   const remaining = Date.parse(etaUtc) - Date.now();
 
   return (
-    <div className="ife-pad">
-      <div className="ife-home">
+    <div className="ife-home">
+      {/* The city, as a photograph, with the facts a passenger checks laid
+          over its foot. This is where the colour in the cabin comes from —
+          not from tinting the chrome, which would only make it louder. */}
+      <button
+        className="ife-home-hero"
+        onClick={() => setScreen("destination")}
+        aria-label={t("exploreDestination")}
+      >
+        {dest?.image && (
+          <div
+            className="ife-photo"
+            style={{ backgroundImage: `url(${dest.image})` }}
+          />
+        )}
+        <div className="ife-photo-scrim" />
+        <div className="ife-home-hero-body">
+          <div className="ife-cap">{t("arriving")}</div>
+          <div className="ife-home-city" style={{ marginTop: 12 }}>
+            {pick(route.to.city, lang)}
+          </div>
+
+          <div className="ife-home-facts">
+            <div>
+              <div className="ife-cap">
+                {phase === "landed" ? t("arrived") : t("timeRemaining")}
+              </div>
+              <div
+                className={`ife-home-fact-value ife-mono${
+                  etaInferred && phase !== "landed" ? " ife-inferred" : ""
+                }`}
+              >
+                {phase === "landed" ? "——" : duration(remaining, lang)}
+              </div>
+            </div>
+            <div>
+              <div className="ife-cap">{t("localTime")}</div>
+              <div className="ife-home-fact-value ife-mono">
+                {localTime(etaUtc, route.to)}
+              </div>
+            </div>
+            {wx && (
+              <div>
+                <div className="ife-cap">{t("weather")}</div>
+                <div className="ife-home-fact-value ife-mono">
+                  {Math.round(wx.tempC)}°
+                  <span className="ife-home-fact-unit">
+                    {conditionKey(wx.code)[lang === "zh" ? 1 : 0]}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="ife-home-explore">
+            {t("exploreDestination")}
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="m9 5 7 7-7 7" />
+            </svg>
+          </div>
+        </div>
+      </button>
+
+      <div className="ife-home-menu">
         <div className="ife-home-ident">
-          <div className="ife-cap">Seat</div>
+          <div className="ife-cap">{t("seat")}</div>
           <div className="ife-home-seat ife-mono">{seat}</div>
           <div className="ife-home-class ife-cap">
-            {cabinClass === "business" ? "Business class" : "Economy class"}
-          </div>
-
-          <div className="ife-home-stat">
-            <div className="ife-cap">
-              {phase === "landed" ? "Arrived" : "Time remaining"}
-            </div>
-            <div
-              className={`ife-home-stat-value ife-mono${etaInferred && phase !== "landed" ? " ife-inferred" : ""}`}
-            >
-              {phase === "landed" ? "——" : duration(remaining)}
-            </div>
-          </div>
-
-          <div className="ife-home-stat">
-            <div className="ife-cap">
-              Arriving {route.to.city.en} · local time
-            </div>
-            <div className="ife-home-stat-value ife-mono">
-              {localTime(etaUtc, route.to)}
-            </div>
+            {t(cabinClass === "business" ? "businessClass" : "economyClass")}
           </div>
         </div>
 
@@ -60,13 +103,8 @@ export function Home({ seat }: { seat: string }) {
               data-soon={!!e.soon}
               onClick={() => setScreen(e.screen)}
             >
-              <span className="ife-menu-label">
-                {e.label}
-                <span className="ife-cap" style={{ letterSpacing: 0 }}>
-                  {e.zh}
-                </span>
-              </span>
-              {e.soon && <span className="ife-menu-note">Later</span>}
+              <span className="ife-menu-label">{t(e.key)}</span>
+              {e.soon && <span className="ife-menu-note">{t("later")}</span>}
             </button>
           ))}
         </nav>

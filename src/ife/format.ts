@@ -28,12 +28,17 @@ export function utcTime(iso: string): string {
   }).format(new Date(iso));
 }
 
-/** "2h 53min" — the phrasing every seat-back screen in the world uses. */
-export function duration(ms: number): string {
+/**
+ * "2h 53min", the phrasing every seat-back screen uses — and its Chinese,
+ * because a number with an English unit beside Chinese labels is the one place
+ * a translated interface always gives itself away.
+ */
+export function duration(ms: number, lang: "en" | "zh" = "en"): string {
   if (!isFinite(ms) || ms < 0) ms = 0;
   const total = Math.round(ms / 60_000);
   const h = Math.floor(total / 60);
   const m = total % 60;
+  if (lang === "zh") return h > 0 ? `${h} 小时 ${m} 分` : `${m} 分`;
   return h > 0 ? `${h}h ${m}min` : `${m}min`;
 }
 
