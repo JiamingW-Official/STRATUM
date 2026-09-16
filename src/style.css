@@ -525,11 +525,14 @@ html, body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Override glass-panel applied to detail-panel in HTML */
+/* Override glass-panel applied to detail-panel in HTML.
+   Two classes beats one, so this won over the unified glass no matter where
+   that sat in the file -- the dossier was still on blur(28px) saturate(1.3)
+   while every other pane had moved on. Same values as the rest now. */
 .detail-panel.glass-panel {
-  background: var(--surface);
-  -webkit-backdrop-filter: blur(28px) saturate(1.3);
-  backdrop-filter: blur(28px) saturate(1.3);
+  background: var(--relief-face), var(--surface);
+  -webkit-backdrop-filter: blur(30px) saturate(2) brightness(1.15);
+  backdrop-filter: blur(30px) saturate(2) brightness(1.15);
 }
 
 /* Hide hud-dividers inside detail — replaced by section padding */
@@ -5316,3 +5319,70 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    panel, which put 26px of nothing between a number and the panel edge. */
 #hud.glass-panel { padding: 12px; gap: 7px; width: 360px; }
 .hud-mod { padding: 9px 10px; }
+
+/* ── Opening and closing the weather ──
+   display:none to display:block is a cut, not a transition: the panel jumped
+   to full height in one frame and snapped back the same way.
+
+   The 0fr-to-1fr grid trick was the first attempt and it does not work here.
+   It sizes the first row only, and this block has six siblings in it, so the
+   other five landed in implicit auto-height rows and the tile stayed 500px
+   tall while closed. max-height is the blunter tool but it is the one that
+   holds for a block of unknown, multi-child content; 1000px clears the tallest
+   this has measured (529px) with room for a longer forecast. */
+.hud-wx-detail {
+  display: block;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  margin-top: 0;
+  border-top: 1px solid rgba(var(--accent-rgb), 0);
+  transition:
+    max-height 0.45s var(--ease),
+    opacity 0.25s var(--ease),
+    padding-top 0.45s var(--ease),
+    margin-top 0.45s var(--ease),
+    border-color 0.45s var(--ease);
+}
+.hud-wx-detail.open {
+  max-height: 1000px;
+  opacity: 1;
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top-color: rgba(var(--accent-rgb), 0.15);
+}
+
+/* ── Equal heights across a row ──
+   Tiles were sized to their own content, which left the shorter of any pair
+   floating against a taller neighbour. They stretch to their row again; the
+   case that forced content-sizing in the first place -- the weather blowing
+   out its column when expanded -- is handled by the span below instead. */
+#hud.glass-panel { align-items: stretch; }
+
+/* ── More glass, everywhere, and the same amount of it ──
+   Every large surface was a different opacity because each had been tuned
+   alone. One value now, and a lower one: at 0.72 the panels were paint with a
+   blur behind them, and the map they sit on is the subject. 0.52 lets the
+   scene through while the saturation and brightness lift keep the type
+   readable, which is the whole trick -- glass is not just less opaque, it is
+   less opaque and brighter than what it covers. */
+:root {
+  --surface: rgba(10, 12, 18, 0.52);
+  --surface-float: rgba(12, 14, 20, 0.62);
+}
+#hud.glass-panel,
+.detail-panel,
+.radio-panel,
+.city-overlay-content,
+.help-panel,
+.no-coverage-panel {
+  background: var(--relief-face), var(--surface);
+  -webkit-backdrop-filter: blur(30px) saturate(2) brightness(1.15);
+  backdrop-filter: blur(30px) saturate(2) brightness(1.15);
+}
+/* The tiles inside keep a touch more body than the pane, or the type on them
+   sits directly on the map and stops being readable. */
+.hud-mod, .detail-panel .detail-section-body {
+  background: linear-gradient(145deg, rgba(22, 26, 34, 0.5), rgba(8, 10, 15, 0.55));
+}
