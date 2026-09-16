@@ -5987,3 +5987,89 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* None of yours overhead: still pressable, but it does not promise anything. */
 .hud-mine.is-empty .hud-mine-face::after { background: rgba(var(--text-rgb), 0.25); }
 .hud-sky-contacts:empty { display: none; }
+
+/* ── The radio, collapsed to a bar ──
+   A now-playing strip is what you want nineteen times out of twenty. The dial,
+   the progress and the volume are what you want when you went looking for
+   them, so they are one press away rather than always on screen. Same panel,
+   same elements — only what is shown changes, which is why the station colour,
+   the track and the transport carry over without being rebuilt. */
+.radio-panel.is-compact {
+  width: auto; max-width: 340px;
+  padding: 0;
+}
+.radio-panel.is-compact .radio-header,
+.radio-panel.is-compact .radio-dial,
+.radio-panel.is-compact .radio-progress-wrap,
+.radio-panel.is-compact .radio-eq,
+.radio-panel.is-compact .radio-bottom { display: none; }
+
+.radio-panel.is-compact .radio-display {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px 9px 14px; min-width: 0;
+}
+.radio-panel.is-compact .radio-station-name {
+  font-size: 9px; letter-spacing: 0.1em; margin: 0; flex-shrink: 0;
+}
+.radio-panel.is-compact .radio-now-playing { min-width: 0; flex: 1; text-align: left; }
+.radio-panel.is-compact .radio-track-title {
+  font-size: var(--fs-label); margin: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.radio-panel.is-compact .radio-track-artist { display: none; }
+
+/* The transport shrinks and sits on the same line. */
+.radio-panel.is-compact .radio-transport {
+  padding: 0 12px 0 0; gap: 6px; flex-shrink: 0;
+}
+.radio-panel.is-compact .radio-tp { width: 24px; height: 24px; }
+.radio-panel.is-compact .radio-tp--main { width: 30px; height: 30px; }
+.radio-panel.is-compact .radio-tp svg { width: 12px; height: 12px; }
+.radio-panel.is-compact .radio-tp--main svg { width: 14px; height: 14px; }
+
+/* The grip is the whole bar minus the buttons: pressing play must not also
+   expand, so the expander sits behind everything and the controls sit above. */
+.radio-grip {
+  position: absolute; inset: 0; z-index: 0;
+  background: none; border: none; box-shadow: none;
+  cursor: pointer; padding: 0;
+}
+.radio-panel:not(.is-compact) .radio-grip { display: none; }
+.radio-panel.is-compact { display: flex; align-items: center; position: relative; }
+.radio-panel.is-compact .radio-display,
+.radio-panel.is-compact .radio-transport { position: relative; z-index: 1; }
+.radio-panel.is-compact .radio-accent { z-index: 1; }
+
+/* ── A long forecast scrolls instead of growing forever ──
+   Expanded, the weather is a rose, a METAR grid, a comfort row, a 24h chart
+   and seven days. On a short window that ran past the bottom of the screen and
+   took the airspace control with it. It gets half the viewport and keeps the
+   rest behind a scroll. */
+.hud-wx-detail.open {
+  /* No cap of its own. Two guesses at one -- 52vh, then 100vh minus 420px --
+     were both wrong, because the number they had to leave room for is the rest
+     of the panel, and that changes with the data: measured at 507px here, not
+     the 360 I estimated. The panel below owns the limit instead, which is the
+     only place that knows its own height. */
+  overflow: visible;
+}
+.hud-wx-detail::-webkit-scrollbar { width: 4px; }
+.hud-wx-detail::-webkit-scrollbar-thumb {
+  background: rgba(var(--text-rgb), 0.18); border-radius: 2px;
+}
+.hud-wx-detail::-webkit-scrollbar-track { background: transparent; }
+
+
+/* The panel is what must fit the window, so the panel is what is capped, and
+   it scrolls as one thing. Anything else means picking a constant for the
+   height of content that has no constant. */
+#hud.glass-panel {
+  max-height: calc(100vh - var(--edge) * 2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+#hud.glass-panel::-webkit-scrollbar { width: 4px; }
+#hud.glass-panel::-webkit-scrollbar-thumb {
+  background: rgba(var(--text-rgb), 0.18); border-radius: 2px;
+}
+#hud.glass-panel::-webkit-scrollbar-track { background: transparent; }

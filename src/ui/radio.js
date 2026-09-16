@@ -436,6 +436,10 @@ function _createPanel() {
   _panelEl.className = "radio-panel hidden";
   _panelEl.innerHTML = `
     <div class="radio-accent" id="radio-accent"></div>
+    <!-- Compact grip: the whole bar opens the panel, and this is the piece
+         that is not a transport button, so pressing play does not also
+         expand. -->
+    <button type="button" class="radio-grip" id="radio-grip" aria-label="Expand radio" title="Expand"></button>
     <div class="radio-header">
       <span class="radio-header-label">STRATUM RADIO</span>
       <span class="radio-sig" id="radio-sig" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
@@ -491,6 +495,15 @@ function _createPanel() {
     </div>
   `;
   document.body.appendChild(_panelEl);
+
+  // Opens as a bar. A now-playing strip is what you want nineteen times out of
+  // twenty; the dial, the progress and the volume are what you want when you
+  // went looking for them. The close button folds it back rather than
+  // dismissing the panel, because dismissing is what the toolbar button does.
+  _panelEl.classList.add("is-compact");
+  _panelEl.querySelector("#radio-grip")?.addEventListener("click", () => {
+    _panelEl.classList.remove("is-compact");
+  });
 
   // ── The tuner ──
   const tuner = _panelEl.querySelector("#radio-tuner");
@@ -636,10 +649,18 @@ function _createPanel() {
     _updateVolIcon();
   });
 
-  // Close
+  // Close folds the panel back to its bar; dismissing it entirely is what the
+  // toolbar button is for, and collapsing to something that still says what is
+  // playing is almost always what was meant.
   _panelEl
     .querySelector("#radio-close-btn")
-    .addEventListener("click", () => hideRadio());
+    .addEventListener("click", () => {
+      if (!_panelEl.classList.contains("is-compact")) {
+        _panelEl.classList.add("is-compact");
+        return;
+      }
+      hideRadio();
+    });
 }
 
 function _updateVolIcon() {
