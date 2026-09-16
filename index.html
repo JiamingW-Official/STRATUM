@@ -142,10 +142,18 @@
     <!-- Tower audio: the only trace an unseen aircraft still leaves. Source is
          LiveATC, credited in the ticker; the button is the gesture browsers need. -->
     <div id="hud-atc" class="hud-mod hud-atc hidden">
+      <div class="hud-atc-top">
+        <span class="hud-mod-label">tower</span>
+        <button type="button" id="hud-atc-next" class="hud-atc-next hidden" title="Next tower nearby" aria-label="Next tower">›</button>
+      </div>
       <button type="button" id="hud-atc-btn" class="hud-atc-btn" aria-label="Toggle tower audio">
-        <span class="hud-atc-dot"></span><span id="hud-atc-label">Hear the tower</span>
+        <span id="hud-atc-code" class="hud-atc-code">----</span>
+        <span id="hud-atc-kind" class="hud-atc-kind"></span>
       </button>
-      <button type="button" id="hud-atc-next" class="hud-atc-next hidden" title="Next tower nearby" aria-label="Next tower">›</button>
+      <div class="hud-atc-status">
+        <span class="hud-atc-level" id="hud-atc-level" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span id="hud-atc-label" class="hud-atc-state">Hear the tower</span>
+      </div>
     </div>
 
     <div id="hud-weather" class="hud-mod hud-weather is-empty">

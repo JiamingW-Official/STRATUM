@@ -145,21 +145,41 @@ function _render(state) {
   if (nx) nx.classList.toggle('hidden', _nearbyFeeds().length < 2);
   _btn?.classList.toggle('is-live', state === 'playing');
   _btn?.classList.toggle('is-busy', state === 'loading');
+  // The tile is a widget now rather than one long string in a pill: the
+  // station is the value, what kind of position it is and how far off it sits
+  // is the caption, and what it is doing is its own line with a level meter
+  // beside it. One string had to say all three and so said none of them
+  // loudly -- and it changed width on every state, which made the tile twitch.
+  const codeEl = document.getElementById('hud-atc-code');
+  const kindEl = document.getElementById('hud-atc-kind');
+  const lvlEl = document.getElementById('hud-atc-level');
+  if (codeEl) codeEl.textContent = _heard || _icao || '----';
+  if (kindEl) {
+    // The tile is already headed TOWER, so repeating it under the station said
+    // nothing twice. This line only earns its place when the position is not a
+    // tower, or when the feed belongs to a different field than the one you
+    // are looking at -- both of which change what you are listening to.
+    const kind = kindFor(_heard).toUpperCase();
+    const near = _nearby ? `${_nearby.km}km away` : '';
+    const parts = [kind === 'TOWER' ? '' : kind, near].filter(Boolean);
+    kindEl.textContent = parts.join(' · ');
+    kindEl.classList.toggle('hidden', parts.length === 0);
+  }
+  if (lvlEl) {
+    lvlEl.classList.toggle('is-live', state === 'playing');
+    lvlEl.classList.toggle('is-busy', state === 'loading');
+  }
   if (_label) {
-    // One stable string: which position, how far off it is, and what it is doing.
-    // The control already looks like a button, so it does not also need to say
-    // "click"; the dot carries live / tuning / dead, and the width stops jumping.
-    const where = _heard || _icao || '';
-    const near = _nearby ? ` · ${_nearby.km}KM` : '';
     // Name the host the element is actually on, not the one the index points at;
     // the two differed for a beat after a mirror switch.
     const host = (_audio && _audio.src && _audio.src.split('/')[2]?.split('.')[0]) ||
       (() => { const f = _entry(_heard); const order = f ? [f.server, ...MIRRORS.filter((m) => m !== f.server)] : MIRRORS; return order[_mirrorIdx % order.length]; })();
-    const suffix =
-      state === 'loading' ? ` · TUNING ${host.toUpperCase()}` :
-      state === 'error'   ? ' · NO FEED · RETRY' : '';
     _label.textContent =
-      `${where} ${kindFor(_heard).toUpperCase()}${near}${suffix}`;
+      state === 'playing' ? 'Listening' :
+      state === 'loading' ? `Tuning ${host.toUpperCase()}` :
+      state === 'error'   ? 'No feed — press to retry' :
+      state === 'armed'   ? 'Starts on your first click' :
+      'Hear the tower';
   }
 }
 
