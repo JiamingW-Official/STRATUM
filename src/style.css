@@ -5803,3 +5803,24 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    grid is positioned by the grid; nothing else gets to nudge it. */
 #hud-atc.hud-mod { margin: 0; }
 #hud .hud-mod { margin: 0; }
+
+/* ── Two corrections that came in together ──
+   The tower tile still carried justify-content:center from when it was a flex
+   column and that centred it vertically. Under grid the same property centres
+   the columns instead, so every line in the tile was horizontally centred
+   while its neighbours were left-aligned. Grid tracks fill their tile; the
+   text inside starts at the left like everything else on the panel.
+
+   And the columns were 1.14fr to 1fr, which was added when the hero sat on the
+   left and needed room for "asked not to be seen". The hero moved to the right
+   two passes ago and the extra width stayed behind, so the wide column was
+   feeding the short content and the long label was wrapping in the narrow one.
+   Equal columns: the pair is a pair. */
+#hud.glass-panel { grid-template-columns: 1fr 1fr; }
+#hud .hud-mod {
+  justify-content: stretch;
+  justify-items: stretch;
+  text-align: left;
+}
+#hud .hud-mod-value, #hud .hud-mod-sub, #hud .hud-mod-top { justify-self: stretch; }
+.hud-atc-transport { justify-content: flex-start; }
