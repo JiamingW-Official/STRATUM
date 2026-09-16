@@ -499,10 +499,102 @@ function _playTrack() {
     });
   }
   _audio.src = _trackUrl();
-  _audio.play().catch(() => {});
+  _audio.play().then(_startWave, () => {});
   _playing = true;
   _startProgress();
   _updateUI();
+}
+
+// ── The bars are the music ─────────────────────────────────────────────────
+// They had been a CSS animation: twelve spans bouncing on twelve hard-coded
+// durations, which is a picture of sound rather than sound. An analyser on the
+// element costs one node and makes them true — and truth is visible here,
+// because a real spectrum sits still through a quiet bar and jumps on the
+// beat, which no loop of staggered easings ever does.
+//
+// Routing the element through Web Audio is the one risky part: once the source
+// node exists the audio only reaches the speakers through this context, so a
+// context that suspends is a radio that goes silent. It is therefore built
+// only after a play() has actually resolved — which means a gesture has
+// happened — and it watches its own state afterwards.
+let _actx = null;
+let _analyser = null;
+let _waveData = null;
+let _waveRAF = null;
+let _waveTried = false;
+
+function _startWave() {
+  if (_analyser) return _waveLoop();
+  if (_waveTried || !_audio) return;
+  _waveTried = true;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  try {
+    const ctx = new Ctx();
+    const build = () => {
+      try {
+        const src = ctx.createMediaElementSource(_audio);
+        const an = ctx.createAnalyser();
+        // 64 bins over the audible range. More would be a spectrogram; these
+        // are seven bars and they want bands, not resolution.
+        an.fftSize = 128;
+        an.smoothingTimeConstant = 0.72;
+        src.connect(an).connect(ctx.destination);
+        _actx = ctx;
+        _analyser = an;
+        _waveData = new Uint8Array(an.frequencyBinCount);
+        // If the context is ever suspended out from under us the music stops
+        // reaching the speakers, so it gets woken again rather than left.
+        ctx.onstatechange = () => {
+          if (ctx.state === "suspended" && _playing) ctx.resume().catch(() => {});
+        };
+        _panelEl?.querySelector("#radio-eq")?.classList.add("is-wave");
+        _waveLoop();
+      } catch {
+        /* Already routed, or refused: the CSS animation stays. */
+      }
+    };
+    if (ctx.state === "suspended") ctx.resume().then(build, () => ctx.close());
+    else build();
+  } catch {
+    /* No analyser; the bars keep their animation. */
+  }
+}
+
+function _waveLoop() {
+  cancelAnimationFrame(_waveRAF);
+  const bars = _panelEl?.querySelectorAll("#radio-eq span");
+  if (!_analyser || !bars || !bars.length) return;
+  const n = bars.length;
+  const bins = _waveData.length;
+  const step = () => {
+    if (!_playing || !_visible) {
+      _waveRAF = null;
+      bars.forEach((b) => (b.style.height = ""));
+      return;
+    }
+    _analyser.getByteFrequencyData(_waveData);
+    for (let i = 0; i < n; i++) {
+      // Log-ish banding: the low end owns most of the energy and a linear
+      // split would leave the right-hand bars flat all evening.
+      const lo = Math.floor(Math.pow(i / n, 1.7) * bins);
+      const hi = Math.max(lo + 1, Math.floor(Math.pow((i + 1) / n, 1.7) * bins));
+      let sum = 0;
+      for (let k = lo; k < hi; k++) sum += _waveData[k];
+      const v = sum / (hi - lo) / 255;
+      // The floor keeps a bar visible in silence: a row of nothing reads as
+      // broken, and the set is still on.
+      bars[i].style.height = `${2 + Math.min(1, v * 1.35) * 14}px`;
+    }
+    _waveRAF = requestAnimationFrame(step);
+  };
+  _waveRAF = requestAnimationFrame(step);
+}
+
+function _stopWave() {
+  cancelAnimationFrame(_waveRAF);
+  _waveRAF = null;
+  _panelEl?.querySelectorAll("#radio-eq span").forEach((b) => (b.style.height = ""));
 }
 
 function _stop() {
@@ -513,6 +605,7 @@ function _stop() {
   _playing = false;
   // A receiver that is off does not hiss.
   _setStatic(0);
+  _stopWave();
   _stopProgress();
   _updateUI();
 }
@@ -849,6 +942,7 @@ export function showRadio() {
   } else {
     _startProgress();
   }
+  if (_analyser) _waveLoop();
   _updateUI();
 }
 

@@ -6437,3 +6437,51 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   color: var(--accent-bright);
   text-shadow: 0 0 9px rgba(var(--accent-rgb), 0.4);
 }
+
+/* ── The bar, tightened, with the music in the gap ──
+   At a fixed 340 the middle column had slack in it whenever a title was short,
+   and slack with nothing in it reads as a mistake rather than as air. The
+   spectrum goes there: seven bars, right of the text and left of the
+   transport, which is also where the level sits on the face of a real set. */
+.radio-panel.is-compact .radio-display {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "name wave" "track wave";
+  align-items: center;
+  column-gap: 10px; row-gap: 1px;
+  padding: 8px 10px 8px 11px;
+}
+.radio-panel.is-compact .radio-station-name { grid-area: name; align-self: end; }
+.radio-panel.is-compact .radio-now-playing { grid-area: track; align-self: start; }
+.radio-panel.is-compact .radio-eq {
+  grid-area: wave; display: flex; margin: 0;
+  height: 18px; gap: 2px; justify-content: flex-end;
+}
+/* Seven. Twelve at this size is a texture, not a reading. */
+.radio-panel.is-compact .radio-eq span:nth-child(n+8) { display: none; }
+.radio-panel.is-compact .radio-eq span { width: 2px; }
+
+/* Driven by the analyser, so the CSS loop stands down: two things animating
+   the same property is a fight one of them has to lose every frame. */
+.radio-eq.is-wave span {
+  animation: none;
+  transition: none;
+  opacity: 1;
+  background: var(--eq-color, var(--accent));
+}
+
+/* The readout window tightens with it. */
+.radio-panel.is-compact .radio-header { margin-left: 11px; padding: 6px 8px 5px; }
+.radio-panel.is-compact .radio-transport { padding: 0 10px 0 0; gap: 5px; }
+
+/* ── The rail is one size ──
+   The thumbnail had grown wider than the four buttons above it to fit a
+   frequency, which made the column look like a mistake at the bottom. It goes
+   back to the buttons' 36 and reports with the meter alone; the number was
+   never the point, "something is on" was, and the bar says the rest the
+   moment you open it. */
+.radio-toggle-btn {
+  width: 36px; height: 36px; min-width: 0; padding: 0; gap: 0;
+}
+.radio-toggle-btn .rt-dial { display: none; }
+.radio-toggle-btn.is-live .rt-live { justify-content: center; width: 100%; }
