@@ -1,4 +1,7 @@
 import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
+// vite.config.js is an ES module, so __dirname does not exist here.
+const r = (p) => fileURLToPath(new URL(p, import.meta.url));
 import { execSync } from "node:child_process";
 import { HttpsProxyAgent } from "https-proxy-agent";
 
@@ -119,6 +122,20 @@ for (const prefix of WORKER_ROUTES) {
 
 export default defineConfig({
   plugins: [],
+  // .tsx compiles through Vite's own esbuild. @vitejs/plugin-react is not used:
+  // the version that matches Vite 7 could not be installed from this network,
+  // and all it would add is Fast Refresh. Editing an IFE file reloads the page
+  // instead of patching it in place — worth revisiting when npm cooperates.
+  esbuild: { jsx: "automatic" },
+  optimizeDeps: {
+    // maplibre spawns its tile worker with `new Worker(new URL(...))`. Run
+    // through the dep optimiser that URL points at a chunk which is never
+    // emitted (404), so the raster basemap still draws on the main thread
+    // while every GeoJSON source silently stays unloaded — a map with no
+    // route on it and no error to explain why. Excluded, Vite's own worker
+    // handling applies and the sources load.
+    exclude: ["maplibre-gl"],
+  },
   build: {
     // Terser gives 8-12% smaller output than esbuild for complex JS
     minify: "terser",
@@ -133,14 +150,25 @@ export default defineConfig({
       format: { comments: false },
     },
     rollupOptions: {
+      // Multi-page, not a single-page app with a router. Every route is a real
+      // file, so Cloudflare and Vercel both serve it from the filesystem and
+      // nothing depends on a not-found fallback -- which, measured today,
+      // throws on the deployed Worker for any path that is not a real file.
+      input: {
+        sky: r("index.html"),
+        dev: r("dev/index.html"),
+        ifeBench: r("dev/ife/index.html"),
+      },
       output: {
         // Split heavy chunks so critical path is smaller:
         // - three.js: 3D engine, needed on first frame
-        // - data: large static datasets, most used post-init
+        // - maplibre: only the IFE bench pulls it, so it must not land in the
+        //   sky view's critical path
         manualChunks(id) {
           // three core only — addons now lazy-loaded, so they split naturally
           if (id.includes("node_modules/three/") && !id.includes("/addons/"))
             return "three";
+          if (id.includes("node_modules/maplibre-gl/")) return "maplibre";
         },
       },
     },

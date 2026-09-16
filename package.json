@@ -9,16 +9,27 @@
     "preview": "vite preview",
     "deploy": "vite build && wrangler deploy",
     "test:sky": "playwright test tests/sky.smoke.spec.ts",
-    "verify:sky": "npm run build && npm run test:sky"
+    "verify:sky": "npm run build && npm run test:sky",
+    "typecheck": "tsc --noEmit",
+    "test:ife": "playwright test tests/ife.spec.ts",
+    "verify:ife": "npm run typecheck && npm run build && npm run test:ife"
   },
   "dependencies": {
+    "maplibre-gl": "^6.10.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "three": "^0.183.2",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
     "https-proxy-agent": "^9.1.0",
     "terser": "^5.46.1",
+    "typescript": "^7.0.2",
     "wrangler": "^4.0.0"
   }
 }

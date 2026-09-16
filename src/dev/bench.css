@@ -1,0 +1,315 @@
+/* The bench is a workshop, not part of the work. It is deliberately plain so
+   nothing here can be mistaken for the IFE: system type, flat greys, controls
+   that look like controls. */
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#bench {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #0a0b0d;
+  color: #d8dce1;
+  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+.bench {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  height: 100%;
+}
+
+.bench-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 24px;
+  /* A cabin at night, so the screen is judged at the brightness it will
+     actually be looked at. */
+  background:
+    radial-gradient(120% 90% at 50% 40%, #16181c 0%, #0a0b0d 70%);
+}
+
+.bench-back {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  color: #7b828b;
+  text-decoration: none;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.bench-back:hover {
+  color: #d8dce1;
+}
+
+/* The seat-back unit. A thin, even bezel with a small radius, because that is
+   what an injection-moulded monitor surround is: ~10 mm of frame and a ~6 mm
+   corner, not a phone's. */
+.bench-fit {
+  position: relative;
+}
+
+.bench-bezel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1976px; /* 1920 glass + 28px of surround on each side */
+  height: 1136px;
+  box-sizing: border-box;
+  background: #15171b;
+  border: 1px solid #23262b;
+  border-radius: 14px;
+  padding: 28px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  transform-origin: top left;
+}
+
+.bench-glass {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  border-radius: 3px;
+  /* The one thing a real seat-back screen always has and a browser never
+     does: a sheet of glass in front of the pixels. */
+  background: #05070a;
+}
+
+.bench-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    102deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0) 32%
+  );
+}
+
+/* ── Panel ───────────────────────────────────────────────────────────── */
+.bench-panel {
+  width: 320px;
+  border-left: 1px solid #1e2126;
+  background: #0d0f12;
+  overflow-y: auto;
+  padding: 18px 18px 40px;
+}
+
+.bench-panel[data-collapsed="true"] {
+  width: 44px;
+  padding: 18px 0;
+  overflow: hidden;
+}
+
+.bench-panel-toggle {
+  appearance: none;
+  background: transparent;
+  border: 1px solid #262a30;
+  color: #8b929b;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  padding: 5px 9px;
+}
+
+.bench-panel-toggle:hover {
+  color: #d8dce1;
+}
+
+.bench-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.bench-title {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7b828b;
+}
+
+.bench-group {
+  border-top: 1px solid #1e2126;
+  padding: 14px 0 4px;
+}
+
+.bench-group-name {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6c737c;
+  margin-bottom: 10px;
+}
+
+.bench-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.bench-row label {
+  color: #8b929b;
+}
+
+.bench-row input,
+.bench-row select {
+  width: 100%;
+  background: #14171b;
+  border: 1px solid #262a30;
+  color: #d8dce1;
+  border-radius: 4px;
+  padding: 5px 7px;
+  font: inherit;
+}
+
+.bench-row input[type="range"] {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.bench-seg {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.bench-seg button {
+  flex: 1 0 auto;
+  appearance: none;
+  background: #14171b;
+  border: 1px solid #262a30;
+  color: #8b929b;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.bench-seg button[data-on="true"] {
+  border-color: #e8a33d;
+  color: #e8a33d;
+}
+
+.bench-note {
+  color: #6c737c;
+  font-size: 11px;
+  margin: 6px 0 10px;
+}
+
+.bench-cabin {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.bench-cabin button {
+  appearance: none;
+  background: #14171b;
+  border: 1px solid #262a30;
+  color: #8b929b;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font: 11px/1.2 ui-monospace, monospace;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.bench-cabin button[data-self="true"] {
+  border-color: #3b4148;
+  color: #d8dce1;
+}
+
+.bench-cabin-flags {
+  color: #e8a33d;
+}
+
+/* ── Developer directory ─────────────────────────────────────────────── */
+.dev-dir {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 64px 32px;
+}
+
+.dev-dir-head {
+  margin-bottom: 36px;
+}
+
+.dev-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #1e2126;
+}
+
+.dev-item {
+  display: grid;
+  grid-template-columns: 180px 120px 1fr;
+  grid-template-areas:
+    "name zh status"
+    "note note note";
+  gap: 6px 16px;
+  align-items: baseline;
+  padding: 20px 0;
+  border-bottom: 1px solid #1e2126;
+}
+
+.dev-item[data-off="true"] .dev-item-name {
+  color: #545b63;
+}
+
+.dev-item-name {
+  grid-area: name;
+  font-size: 19px;
+  color: #e4e8ec;
+  text-decoration: none;
+}
+
+a.dev-item-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.dev-item-zh {
+  grid-area: zh;
+  color: #7b828b;
+}
+
+.dev-item-status {
+  grid-area: status;
+  justify-self: end;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6c737c;
+}
+
+.dev-item-status[data-status="ready"] {
+  color: #e8a33d;
+}
+
+.dev-item-note {
+  grid-area: note;
+  color: #6c737c;
+  max-width: 62ch;
+}

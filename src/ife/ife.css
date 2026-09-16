@@ -1,0 +1,530 @@
+/* The IFE draws on a fixed 1920x1080 surface and is scaled from outside. No
+   rule in this file may read the viewport: the same markup has to land on a
+   seat-back screen in a 3D cabin, where "the window" is a plane in metres.
+
+   The frame is borrowed from a real seat-back system (a persistent journey
+   strip on top, a persistent hardware-ish rail at the bottom, full-bleed
+   content between them) because that frame is what makes a screen read as an
+   IFE rather than as a website. The palette is not borrowed: it is the sky
+   view's near-black and amber, so the cabin and the sky are one work. */
+
+.ife-root {
+  --bg: #05070a;
+  --panel: #0b0f15;
+  --fg: #e8ebef;
+  /* A real contrast step, not a nudge: 4.7:1 on --bg while --fg is 15:1. */
+  --dim: #8794a2;
+  --line: rgba(232, 235, 239, 0.13);
+  /* One accent, borrowed from the sky view where amber already means
+     "inferred / asked not to be seen". Here it carries the same job plus
+     "this control is on" — both are states worth noticing. */
+  --amber: #e8a33d;
+
+  /* Four sizes. Anything wanting a fifth is asking for a layout instead. */
+  --t-hero: 172px;
+  --t-xl: 58px;
+  --t-md: 25px;
+  --t-cap: 15px;
+
+  --strip-h: 112px;
+  --rail-h: 100px;
+  --gutter: 72px;
+
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  /* Strip, screen, rail. The middle row is the only one that flexes, so a
+     screen can never push the rail off the glass. */
+  display: grid;
+  grid-template-rows: var(--strip-h) 1fr var(--rail-h);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  font-size: var(--t-md);
+  line-height: 1.35;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ife-root *,
+.ife-root *::before,
+.ife-root *::after {
+  box-sizing: border-box;
+}
+
+.ife-cap {
+  font-size: var(--t-cap);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 500;
+}
+
+.ife-mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Evidence notation ───────────────────────────────────────────────────
+   Binding across the whole work: a number the aircraft did not report is
+   underlined with a broken line, a stretch of track nobody heard is drawn
+   broken. There is no legend. A passenger who watches the remaining time
+   change its underline when the signal returns has been taught the rule
+   without being told it. */
+.ife-inferred {
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-decoration-color: var(--amber);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 9px;
+}
+
+/* ── Journey strip (persistent) ──────────────────────────────────────── */
+.ife-strip {
+  height: var(--strip-h);
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 0 var(--gutter);
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.ife-strip-city {
+  font-size: 28px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ife-strip-city-zh {
+  color: var(--dim);
+  font-size: 18px;
+  margin-left: 12px;
+}
+
+.ife-strip-line {
+  flex: 1;
+  position: relative;
+  height: 56px;
+  min-width: 300px;
+}
+
+.ife-strip-remaining {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: var(--dim);
+  font-size: 21px;
+}
+
+.ife-strip-end {
+  position: absolute;
+  bottom: 13px;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  border-radius: 50%;
+  background: var(--fg);
+}
+
+.ife-strip-end[data-open="true"] {
+  background: transparent;
+  border: 1.5px solid rgba(232, 235, 239, 0.45);
+}
+
+.ife-strip-arrival {
+  margin-left: 20px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.ife-strip-arrival-time {
+  font-size: 52px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* ── Bottom rail (persistent) ────────────────────────────────────────── */
+.ife-rail {
+  height: var(--rail-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 calc(var(--gutter) - 16px);
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+
+.ife-rail-spacer {
+  flex: 1;
+}
+
+.ife-tool {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--dim);
+  font: inherit;
+  font-size: 19px;
+  height: 64px;
+  padding: 0 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  transition: color 130ms ease, background-color 130ms ease;
+}
+
+.ife-tool:hover {
+  color: var(--fg);
+  background: rgba(232, 235, 239, 0.05);
+}
+
+.ife-tool[data-on="true"] {
+  color: var(--amber);
+}
+
+.ife-tool[data-current="true"] {
+  color: var(--fg);
+}
+
+.ife-tool svg {
+  display: block;
+}
+
+/* ── Screen body ─────────────────────────────────────────────────────── */
+.ife-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ife-pad {
+  height: 100%;
+  padding: 60px var(--gutter);
+}
+
+.ife-title {
+  font-size: var(--t-xl);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+/* ── Idle ────────────────────────────────────────────────────────────── */
+.ife-idle {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 88px var(--gutter);
+  cursor: pointer;
+  background: var(--bg);
+}
+
+.ife-idle-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+/* The protagonist. Squint and the seat number is the only thing left, which
+   is the one fact a passenger standing in the aisle is looking for. */
+.ife-idle-seat {
+  font-size: var(--t-hero);
+  font-weight: 600;
+  line-height: 0.84;
+  letter-spacing: -0.035em;
+  margin-top: 4px;
+}
+
+.ife-idle-mid {
+  align-self: center;
+}
+
+.ife-idle-city {
+  font-size: 76px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.ife-idle-city-zh {
+  font-size: 30px;
+  color: var(--dim);
+  margin-top: 14px;
+}
+
+.ife-idle-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 60px;
+}
+
+.ife-idle-welcome {
+  color: var(--dim);
+  max-width: 900px;
+}
+
+.ife-idle-hint {
+  margin-top: 26px;
+  animation: ife-breathe 4.5s ease-in-out infinite;
+}
+
+@keyframes ife-breathe {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.ife-idle-clock {
+  text-align: right;
+}
+
+.ife-idle-clock-time {
+  font-size: 68px;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+
+/* ── Home ────────────────────────────────────────────────────────────── */
+.ife-home {
+  display: grid;
+  grid-template-columns: 5fr 7fr;
+  gap: 110px;
+  height: 100%;
+}
+
+.ife-home-ident {
+  display: flex;
+  flex-direction: column;
+  /* Centred so the seat block sits opposite the middle of the menu rather
+     than sinking to the floor while the list fills the column. */
+  justify-content: center;
+}
+
+.ife-home-seat {
+  font-size: 96px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.ife-home-class {
+  margin-top: 18px;
+}
+
+.ife-home-stat {
+  margin-top: 54px;
+}
+
+.ife-home-stat-value {
+  font-size: var(--t-xl);
+  font-weight: 400;
+  display: inline-block;
+  margin-top: 8px;
+}
+
+/* A list, not a grid of cards. At arm's length a full-width line of 32px text
+   is a far larger target than a tile, and it does not pretend five unequal
+   things are five equal squares. */
+.ife-menu {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+  /* The rows share the column's height rather than clustering in the middle:
+     a centred list leaves its own top rule floating over nothing, and short
+     rows waste the reach a seat-back screen is short of. */
+  height: 100%;
+}
+
+.ife-menu-item {
+  flex: 1;
+}
+
+.ife-menu-label {
+  display: flex;
+  align-items: baseline;
+  gap: 22px;
+}
+
+.ife-menu-item {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+  font: inherit;
+  font-size: 32px;
+  text-align: left;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  cursor: pointer;
+  transition: padding-left 170ms ease, color 130ms ease;
+}
+
+.ife-menu-item:hover {
+  padding-left: 26px;
+}
+
+.ife-menu-item[data-soon="true"] {
+  color: var(--dim);
+}
+
+.ife-menu-note {
+  margin-left: auto;
+  font-size: var(--t-cap);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* ── Flight info ─────────────────────────────────────────────────────── */
+.ife-figures {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 64px 90px;
+  margin-top: 56px;
+}
+
+.ife-figure-value {
+  font-size: var(--t-xl);
+  font-weight: 400;
+  margin-top: 10px;
+  display: inline-block;
+}
+
+.ife-figure-unit {
+  font-size: 22px;
+  color: var(--dim);
+  margin-left: 10px;
+}
+
+/* ── Map ─────────────────────────────────────────────────────────────── */
+.ife-map {
+  position: absolute;
+  inset: 0;
+  background: #070a0f;
+}
+
+.ife-map .maplibregl-canvas {
+  outline: none;
+}
+
+.ife-map .maplibregl-ctrl-attrib {
+  font-size: 12px;
+  background: rgba(5, 7, 10, 0.72);
+  color: var(--dim);
+}
+
+.ife-map .maplibregl-ctrl-attrib a {
+  color: var(--dim);
+}
+
+.ife-map-readout {
+  position: absolute;
+  left: var(--gutter);
+  bottom: 44px;
+  display: flex;
+  gap: 76px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.ife-map-fail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 var(--gutter);
+  color: var(--dim);
+}
+
+/* ── PA override ─────────────────────────────────────────────────────── */
+.ife-pa {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: var(--bg);
+  display: grid;
+  grid-template-rows: 1fr auto;
+  padding: 110px var(--gutter) 84px;
+  /* No close control exists, by design. This is the argument of the piece made
+     literal: the screen in front of you is not yours during an announcement. */
+}
+
+.ife-pa-inner {
+  align-self: center;
+  max-width: 1400px;
+}
+
+.ife-pa-title {
+  font-size: 72px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin-top: 30px;
+}
+
+.ife-pa-body {
+  color: var(--dim);
+  margin-top: 34px;
+  max-width: 1080px;
+  font-size: 27px;
+}
+
+.ife-pa-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  color: var(--dim);
+}
+
+.ife-pa-bar {
+  height: 2px;
+  background: rgba(232, 235, 239, 0.12);
+  margin-top: 30px;
+  overflow: hidden;
+}
+
+.ife-pa-bar span {
+  display: block;
+  height: 100%;
+  background: var(--amber);
+}
+
+/* ── Placeholder screens ─────────────────────────────────────────────── */
+.ife-soon {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  max-width: 1050px;
+}
+
+.ife-soon-text {
+  color: var(--dim);
+  margin-top: 22px;
+}
+
+/* ── Aircraft marker on the moving map ───────────────────────────────── */
+.ife-plane-marker svg path {
+  fill: var(--fg);
+}
+
+.ife-plane-marker[data-heard="false"] svg path {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 1.4;
+  stroke-dasharray: 3 2.5;
+}

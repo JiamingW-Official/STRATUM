@@ -70,7 +70,11 @@ const INSTRUMENT = () => {
   const w = window as any;
   w.__leak = { webgl: 0, intervals: 0, timeouts: 0, sockets: 0 };
   const getContext = HTMLCanvasElement.prototype.getContext;
-  HTMLCanvasElement.prototype.getContext = function (type: any, ...rest: any[]) {
+  HTMLCanvasElement.prototype.getContext = function (
+    this: HTMLCanvasElement,
+    type: any,
+    ...rest: any[]
+  ) {
     if (typeof type === "string" && type.startsWith("webgl")) w.__leak.webgl++;
     return getContext.call(this, type, ...rest);
   } as any;

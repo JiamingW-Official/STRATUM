@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "types": ["vite/client"]
+  },
+  // Only the new TypeScript surfaces. The sky view is Vanilla JS and is not
+  // being retyped as part of this work.
+  // tests/ is left out until @types/node can be installed; Playwright runs
+  // those files through its own transpiler either way.
+  "include": ["src/ife", "src/dev", "src/flight-state"]
+}
