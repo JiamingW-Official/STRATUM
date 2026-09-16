@@ -464,10 +464,25 @@ function _createPanel() {
         <span></span><span></span>
       </div>
     </div>
-    <div class="radio-bottom">
-      <button type="button" class="radio-power-btn" id="radio-power-btn" title="Power">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="12"/><path d="M16.24 7.76a6 6 0 11-8.49 0"/></svg>
+    <!-- Transport, centred, the way a now-playing card carries it. Previous and
+         next are stations rather than tracks: you can move across the band but
+         you do not get to skip a song, which has been the rule since the first
+         version of this panel. -->
+    <div class="radio-transport">
+      <button type="button" class="radio-tp" id="radio-prev" title="Previous station" aria-label="Previous station">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M13 3.2v9.6L6.4 8zM5 3.2h1.6v9.6H5z"/></svg>
       </button>
+      <button type="button" class="radio-tp radio-tp--main" id="radio-power-btn" title="Play / stop" aria-label="Play or stop">
+        <svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true">
+          <path class="radio-tp-play" d="M4.6 3 L12.6 8 L4.6 13 Z"/>
+          <rect class="radio-tp-stop" x="4.4" y="4.4" width="7.2" height="7.2" rx="1.2"/>
+        </svg>
+      </button>
+      <button type="button" class="radio-tp" id="radio-next" title="Next station" aria-label="Next station">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M3 3.2v9.6L9.6 8zM9.4 3.2H11v9.6H9.4z"/></svg>
+      </button>
+    </div>
+    <div class="radio-bottom">
       <button type="button" class="radio-vol-btn" id="radio-vol-btn" title="Mute">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="radio-vol-icon">${_volIcon()}</svg>
       </button>
@@ -578,6 +593,20 @@ function _createPanel() {
       _applyTuning();
     });
   });
+
+  // Transport: previous and next station along the band.
+  const _step = (dir) => {
+    const sorted = _FREQS.map(parseFloat).sort((a, b) => a - b);
+    let next = dir > 0
+      ? sorted.find((f) => f > _freq + 0.05)
+      : [...sorted].reverse().find((f) => f < _freq - 0.05);
+    if (next === undefined) next = dir > 0 ? sorted[0] : sorted[sorted.length - 1];
+    _freq = next;
+    _commitStation(true);
+    _applyTuning();
+  };
+  _panelEl.querySelector("#radio-prev")?.addEventListener("click", () => _step(-1));
+  _panelEl.querySelector("#radio-next")?.addEventListener("click", () => _step(1));
 
   // Power
   _panelEl.querySelector("#radio-power-btn").addEventListener("click", () => {

@@ -5636,3 +5636,50 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    later ones arrive. */
 .hud-mod--traffic, .hud-mod--hero { min-height: 128px; }
 .hud-mod--traffic .hud-clock { margin-top: auto; }
+
+/* ── Weather, in the shape of the reference ──
+   Small label, one temperature big enough that nothing competes with it, then
+   the condition and today's range underneath with the icon beside them. The
+   icon was sitting next to the number, which made the number look like a
+   caption for a symbol; it belongs with the words it qualifies. */
+#hud-weather .hud-wx-line { display: block; }
+#hud-weather .hud-wx-temp { font-size: 40px; line-height: 1; letter-spacing: -0.03em; }
+#hud-weather .hud-wx-icon { display: none; }
+#hud-weather .hud-wx-sub { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; }
+#hud-weather .hud-wx-desc::before {
+  content: '';
+  display: inline-block; width: 0;
+}
+.hud-wx-hl { font-variant-numeric: tabular-nums; color: var(--text-3); }
+#hud-weather .hud-wx-wind { color: var(--text-3); }
+#hud-weather.hud-mod { min-height: 128px; }
+
+/* ── Radio transport ──
+   Three controls on a centre line, the middle one larger, which is the shape
+   every now-playing card has used since physical transports had that layout
+   for a mechanical reason. The play triangle becomes a stop square, the same
+   swap the tower tile makes, so the one gesture in this project means the same
+   thing in both places it appears. */
+.radio-transport {
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+  padding: 10px 0 6px;
+}
+.radio-tp {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  border: none; cursor: pointer; padding: 0;
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+  transition: color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.radio-tp:hover { color: var(--text); background: rgba(255, 255, 255, 0.1); }
+.radio-tp:active { background: rgba(0, 0, 0, 0.2); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
+.radio-tp--main { width: 40px; height: 40px; color: var(--text); }
+.radio-tp--main .radio-tp-stop { display: none; }
+.radio-tp--main.on .radio-tp-play { display: none; }
+.radio-tp--main.on .radio-tp-stop { display: block; }
+.radio-tp--main.on { color: var(--accent-bright); }
+
+/* The bottom row is volume and dismissal only now. */
+.radio-bottom { padding-top: 0; }

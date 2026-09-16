@@ -3687,6 +3687,12 @@ async function updateWeatherWidget() {
   set("hud-wx-icon", weatherIcon(data.weatherCode));
   set("hud-wx-temp", `${Math.round(data.temp)}°`);
   set("hud-wx-desc", desc);
+  // Today's range, which is the line the reference widget carries under the
+  // condition and the one thing a temperature on its own never tells you:
+  // whether 17 is on the way up or on the way down.
+  if (data.daily && data.daily.length && data.daily[0].tempMax != null) {
+    set("hud-wx-hl", `H:${Math.round(data.daily[0].tempMax)}° L:${Math.round(data.daily[0].tempMin)}°`);
+  }
   // Show gusts in compact line when notably higher: "SSW 15G20kt"
   const hasGusts =
     data.windGusts != null &&
