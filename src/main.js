@@ -36,6 +36,7 @@ import {
   clearRouteOverlay,
   updateCoverageShadow,
   setCoverageShadowVisible,
+  updateChartDetail,
 } from "./scene/environment.js";
 import {
   AircraftManager,
@@ -5140,6 +5141,7 @@ function animate() {
   }
 
   updateAirportLightFalloff(camera);
+  updateChartDetail(camera);
   updateAmbience(camera, _elapsed);
   _animateTicker(delta * 1000);
   updatePulse(scene, _elapsed);

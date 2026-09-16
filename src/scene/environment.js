@@ -3795,3 +3795,74 @@ function _pointInPolygon(lat, lon, ring) {
   }
   return inside;
 }
+
+// ── The chart draws what can be read, and nothing else ─────────────────────
+// Measured on a 292-aircraft scene: the nav chart costs 1,245 draw calls a
+// frame and takes the renderer from 86fps to 56 — it is, on its own, half the
+// frame budget. Almost all of that is 3,104 label sprites, one per fix, navaid
+// and procedure point, each with its own material and its own canvas texture.
+//
+// And they cannot be read. A label is 0.055 world units tall; through a 50°
+// lens on an 867px viewport that projects to 5px at a camera height of 10 and
+// 1.7px at 30. The scene was sorting, depth-testing and drawing three thousand
+// sprites a frame to produce a grey smudge.
+//
+// So the labels go into their own group when the chart is built and the group
+// is switched off above the height where the type resolves. The geometry stays
+// on: the triangles, rings and airways are already merged into a handful of
+// buffers and cost almost nothing. Nothing is destroyed and nothing reloads —
+// crossing the threshold is one boolean.
+// Two thresholds, not one. The camera rests at about 8.7 after the opening
+// descent, so a single cut anywhere near that made the labels flicker on and
+// off with the idle orbit. They come on below 6 — where a 0.055-unit label
+// projects to about 8px and can be read — and go off again above 7.
+const NAV_LABEL_ON = 6.0;
+const NAV_LABEL_OFF = 7.0;
+let _navLabelGroup = null;
+let _navLabelOwner = null;
+let _navLabelsOn = null;
+let _navSeenCount = -1;
+
+/** Called every frame from the render loop; does nothing until something changes. */
+export function updateChartDetail(camera) {
+  if (!_navGroup) {
+    _navLabelGroup = null;
+    _navLabelOwner = null;
+    _navLabelsOn = null;
+    _navSeenCount = -1;
+    return;
+  }
+  if (_navLabelOwner !== _navGroup) {
+    _navLabelOwner = _navGroup;
+    _navLabelGroup = new THREE.Group();
+    _navLabelGroup.name = "navChartLabels";
+    _navGroup.add(_navLabelGroup);
+    _navLabelsOn = null;
+    _navSeenCount = -1;
+  }
+  // The chart arrives in batches across several frames — approach procedures
+  // land after the navaids, which land after the fixes — so a single sweep at
+  // first sight caught 280 labels of 3,104 and left the rest drawing. The
+  // sweep repeats whenever the group's child count moves and costs one integer
+  // comparison on every frame when it does not.
+  if (_navGroup.children.length !== _navSeenCount) {
+    const strays = [];
+    for (const child of _navGroup.children) if (child.isSprite) strays.push(child);
+    for (const s of strays) _navLabelGroup.add(s);
+    // Matrices first, freeze second: an object whose matrix has never been
+    // composed is still at the origin, and freezing it there would move every
+    // label on the chart to the middle of the map.
+    _navGroup.updateMatrixWorld(true);
+    _navGroup.traverse((o) => {
+      o.matrixAutoUpdate = false;
+    });
+    _navSeenCount = _navGroup.children.length;
+    _navLabelsOn = null;
+  }
+  const y = camera.position.y;
+  const want = _navLabelsOn === true ? y < NAV_LABEL_OFF : y < NAV_LABEL_ON;
+  if (want !== _navLabelsOn) {
+    _navLabelsOn = want;
+    _navLabelGroup.visible = want;
+  }
+}
