@@ -11153,9 +11153,15 @@ class GlobeView {
           const alpha = isCoast
             ? Math.round((0.55 * d + 0.2) * 255)
             : Math.round((0.5 * d + 0.16) * 255);
-          const rr = isCoast ? 50 : 30;
-          const gg = isCoast ? 135 : 92;
-          const bb = isCoast ? 72 : 54;
+          // Land was rgb(30,92,54) with a rgb(50,135,72) coast -- green, on a
+          // page whose whole palette is deep blue ground with amber traffic on
+          // top of it. The globe is the same subject as the map below it, so
+          // it gets the map's colours: slate blue land, a brighter blue at the
+          // coast, and the airports stay amber, which is the one contrast this
+          // project uses everywhere to mean "something is happening here".
+          const rr = isCoast ? 74 : 38;
+          const gg = isCoast ? 116 : 62;
+          const bb = isCoast ? 164 : 96;
           const px0 = Math.round(x - sz / 2);
           const py0 = Math.round(y - sz / 2);
           for (let dy = 0; dy < sz; dy++) {
@@ -11379,6 +11385,16 @@ class GlobeView {
     if (!this._paused) return;
     this._paused = false;
     this._resize();
+    // _resize ran only here, so the backing store was sized once when the
+    // picker opened and never again. Resizing the window after that stretched
+    // the canvas element while its pixels stayed the old shape, which squashes
+    // the globe and everything drawn on it. Watch the element instead.
+    if (!this._ro && typeof ResizeObserver !== "undefined") {
+      this._ro = new ResizeObserver(() => {
+        if (!this._paused) this._resize();
+      });
+      this._ro.observe(this.canvas);
+    }
     this._loop();
   }
 
