@@ -102,6 +102,11 @@ const PULL = 0.55;
 
 let _freq = 88.3;          // where the needle sits
 let _tuning = false;
+// Tower audio has priority over entertainment in a real cockpit, so it has it
+// here. 0.18 rather than silence: the music should still be under the
+// controller, the way it is when someone turns the cabin down to listen.
+let _ducked = false;
+const DUCK = 0.18;
 let _staticCtx = null;
 let _staticNodes = null;
 
@@ -195,8 +200,9 @@ function _signal(freq) {
  */
 function _applyTuning() {
   const sig = _signal(_freq);
-  if (_audio) _audio.volume = _volume * sig;
-  _setStatic(_playing ? 1 - sig : 0);
+  const duck = _ducked ? DUCK : 1;
+  if (_audio) _audio.volume = _volume * sig * duck;
+  _setStatic(_playing ? (1 - sig) * duck : 0);
   const needle = _panelEl?.querySelector('#radio-needle');
   if (needle) {
     needle.style.left = `${((_freq - BAND_LO) / (BAND_HI - BAND_LO)) * 100}%`;
@@ -204,9 +210,21 @@ function _applyTuning() {
   }
   const freqEl = _panelEl?.querySelector('#radio-freq');
   if (freqEl) freqEl.textContent = `${_freq.toFixed(1)} FM`;
+  // Signal strength, so the dial tells you you are getting warmer instead of
+  // staying blank until the moment it locks. Four bars is enough resolution to
+  // feel a gradient and few enough to read without looking at it.
+  const sigEl = _panelEl?.querySelector('#radio-sig');
+  if (sigEl) {
+    const lit = Math.ceil(sig * 4);
+    sigEl.querySelectorAll('i').forEach((b, i) => b.classList.toggle('on', i < lit));
+    sigEl.classList.toggle('is-full', sig > 0.999);
+  }
   const tuner = _panelEl?.querySelector('#radio-tuner');
   if (tuner) tuner.setAttribute('aria-valuenow', _freq.toFixed(1));
-  if (_panelEl) _panelEl.classList.toggle('is-offstation', sig <= 0);
+  if (_panelEl) {
+    _panelEl.classList.toggle('is-offstation', sig <= 0);
+    _panelEl.classList.toggle('is-tuning', _tuning);
+  }
   const nameEl = _panelEl?.querySelector('#radio-station-name');
   if (nameEl && sig <= 0) nameEl.textContent = 'NO SIGNAL';
 }
@@ -368,6 +386,7 @@ function _createPanel() {
     <div class="radio-accent" id="radio-accent"></div>
     <div class="radio-header">
       <span class="radio-header-label">STRATUM RADIO</span>
+      <span class="radio-sig" id="radio-sig" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
       <span class="radio-header-freq" id="radio-freq">88.3 FM</span>
     </div>
     <div class="radio-dial">
@@ -584,4 +603,19 @@ export function nextStation() {
 }
 export function prevStation() {
   _crossfadeToStation((_stationIdx - 1 + STATIONS.length) % STATIONS.length);
+}
+
+
+/**
+ * The tower is talking. Called by the ATC module rather than decided here,
+ * because the radio has no idea a controller exists and should not have to.
+ * The panel says so too: music that goes quiet for no visible reason reads as
+ * a fault, not as priority.
+ */
+export function setRadioDucked(on) {
+  const next = !!on;
+  if (next === _ducked) return;
+  _ducked = next;
+  _panelEl?.classList.toggle('is-ducked', _ducked);
+  _applyTuning();
 }

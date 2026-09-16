@@ -58,6 +58,36 @@
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-out: cubic-bezier(0, 0, 0.35, 1);
+
+  /* ── Relief ──
+     Neumorphism on a near-black ground is not the pastel version: at this
+     luminance a "light" edge can only be a few percent white before it reads
+     as a stroke, so the form comes almost entirely from the dark side and the
+     highlight is just enough to say which way is up. One light direction for
+     the whole page -- upper left -- because two would make the page a
+     collection of objects lit by nothing.
+
+     raised: a surface standing off the page. Keeps the glass blur, drops the
+             border; a neumorphic edge and a hairline outline are two answers
+             to the same question.
+     inset:  a channel cut into a surface. Reserved for things that really are
+             recessed -- a tuner track, a progress groove, a slider rail --
+             which is what keeps this from being decoration. */
+  --relief-dark: rgba(0, 0, 0, 0.62);
+  --relief-light: rgba(255, 255, 255, 0.05);
+  --relief-raised:
+    7px 7px 18px var(--relief-dark),
+    -5px -5px 14px var(--relief-light);
+  --relief-raised-sm:
+    4px 4px 10px rgba(0, 0, 0, 0.5),
+    -3px -3px 8px rgba(255, 255, 255, 0.04);
+  --relief-inset:
+    inset 4px 4px 9px rgba(0, 0, 0, 0.58),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.035);
+  --relief-inset-sm:
+    inset 2px 2px 5px rgba(0, 0, 0, 0.55),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.03);
+  --relief-face: linear-gradient(145deg, rgba(20, 24, 32, 0.78), rgba(8, 10, 15, 0.82));
 }
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -101,12 +131,12 @@ html, body {
    bright hairline along the top inside edge, the way light rims real glass.
    No outer glow — elevation comes from the blur and one ambient shadow. */
 .glass-panel {
-  background: var(--surface);
+  background: var(--relief-face), var(--surface);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
   backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
-  border: 1px solid var(--hairline);
+  border: none;
   border-radius: var(--r);
-  box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
+  box-shadow: inset 0 1px 0 var(--specular), var(--relief-raised);
 }
 
 /* Tier 3 — float. Applied to tooltips, toasts and pills in the surface pass. */
@@ -148,15 +178,16 @@ html, body {
   -webkit-backdrop-filter: blur(20px) saturate(1.3);
   backdrop-filter: blur(20px) saturate(1.3);
   border-radius: var(--r);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--relief-raised);
   padding: 16px 20px;
 }
 
-/* Override glass-panel on HUD */
+/* Override glass-panel on HUD — lighter blur than the standard pane, but the
+   same relief, so the page keeps one light source. */
 #hud.glass-panel {
   -webkit-backdrop-filter: blur(20px) saturate(1.3);
   backdrop-filter: blur(20px) saturate(1.3);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 var(--specular), var(--relief-raised);
 }
 
 .hud-title {
@@ -4041,7 +4072,13 @@ html, body {
   position: fixed;
   bottom: calc(var(--edge) + 52px); right: calc(var(--edge) + 48px);
   z-index: 50;
-  width: 290px; background: var(--surface); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); border: 1px solid var(--hairline); border-radius: var(--r); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
+  width: 290px;
+  background: var(--relief-face), var(--surface);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
+  backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
+  border: none;
+  border-radius: var(--r);
+  box-shadow: inset 0 1px 0 var(--specular), var(--relief-raised);
   overflow: hidden;
   transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
 }
@@ -4440,21 +4477,20 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .fab-btn {
   width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--surface);
+  background: var(--relief-face), var(--surface);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(1.3);
   backdrop-filter: blur(var(--blur)) saturate(1.3);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--r);
+  box-shadow: var(--relief-raised-sm);
   color: var(--text-2);
   font-family: var(--font-mono); font-size: var(--fs-body);
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
-  box-shadow: var(--shadow-sm);
+  transition: color 0.2s, box-shadow 0.2s;
 }
 .fab-btn:hover {
   color: var(--accent);
-  border-color: rgba(var(--accent-rgb), 0.2);
-  box-shadow: var(--shadow-sm), 0 0 12px rgba(var(--accent-rgb), 0.06);
+  box-shadow: var(--relief-raised-sm), 0 0 14px rgba(var(--accent-rgb), 0.1);
 }
 .fab-btn .fab-label {
   position: absolute; right: 46px;
@@ -4761,3 +4797,76 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 .tk-sub { color: rgba(var(--text-rgb), 0.38); font-variant-numeric: tabular-nums; }
 .tk-dest { color: rgba(var(--text-rgb), 0.55); }
+
+
+/* ── Relief, applied ──
+   A button that is pressed should go in. This is the one place neumorphism
+   earns its keep: the same element, two shadow directions, and the state is
+   legible without a colour change. */
+.fab-btn:active,
+.fab-btn.is-active {
+  box-shadow: var(--relief-inset-sm);
+  transform: none;
+}
+
+/* Recessed things, actually recessed. */
+.radio-tuner {
+  background: rgba(0, 0, 0, 0.26);
+  border-radius: 6px;
+  box-shadow: var(--relief-inset);
+}
+.radio-progress-bar,
+.radio-volume {
+  box-shadow: var(--relief-inset-sm);
+  border-radius: 999px;
+}
+.radio-volume { -webkit-appearance: none; appearance: none; background: rgba(0,0,0,0.3); height: 4px; }
+.radio-volume::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 11px; height: 11px; border-radius: 50%;
+  background: linear-gradient(145deg, #2a3140, #151a23);
+  box-shadow: var(--relief-raised-sm);
+  cursor: pointer;
+}
+
+/* The radio's own buttons get the same grammar as the toolbar's. */
+.radio-power-btn, .radio-vol-btn, .radio-close-btn {
+  border: none;
+  box-shadow: var(--relief-raised-sm);
+  background: var(--relief-face);
+  border-radius: 7px;
+}
+.radio-power-btn:active, .radio-vol-btn:active, .radio-close-btn:active {
+  box-shadow: var(--relief-inset-sm);
+}
+
+/* Ducked: the tower is talking over the music, and the panel says so rather
+   than just going quiet, which would read as a fault. */
+.radio-panel.is-ducked .radio-display { opacity: 0.45; }
+.radio-panel.is-ducked .radio-header-label::after {
+  content: ' · TOWER';
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
+/* ── Signal strength ──
+   Four bars climbing as the needle nears a station. The point is the gradient:
+   without it the dial is silent about how close you are until the instant it
+   locks, which is the difference between tuning and guessing. */
+.radio-sig { display: inline-flex; align-items: flex-end; gap: 2px; height: 9px; margin-right: 7px; }
+.radio-sig i {
+  width: 2px; background: rgba(var(--text-rgb), 0.16);
+  border-radius: 1px; transition: background 0.12s var(--ease), height 0.12s var(--ease);
+}
+.radio-sig i:nth-child(1) { height: 3px; }
+.radio-sig i:nth-child(2) { height: 5px; }
+.radio-sig i:nth-child(3) { height: 7px; }
+.radio-sig i:nth-child(4) { height: 9px; }
+.radio-sig i.on { background: rgba(var(--text-rgb), 0.55); }
+.radio-sig.is-full i.on { background: var(--accent-bright); }
+
+/* Tuning: the frequency is what you are reading, so it stops being a caption. */
+.radio-panel.is-tuning .radio-header-freq {
+  color: var(--accent-bright);
+  text-shadow: 0 0 10px rgba(var(--accent-rgb), 0.35);
+}

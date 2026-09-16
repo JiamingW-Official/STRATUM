@@ -5,6 +5,7 @@
 // spoofed headers. Audio is attributed on screen. The map of airport → feed is
 // built at development time and only contains feeds that answered as audio.
 import FEEDS from '../data/atcFeeds.json';
+import { setRadioDucked } from './radio.js';
 
 // Every feed carries its own coordinates, so the common case — this airport has
 // a feed — needs no lookup table at all. The 3,000-airport table is only needed
@@ -129,6 +130,11 @@ function kindFor(icao) {
 }
 
 function _render(state) {
+  // One place decides whether the tower is audible, because there are four
+  // ways in and only this one is passed through by all of them. Ducking on
+  // startATC alone left the music under a controller who was not talking
+  // whenever a feed stalled through every mirror and gave up.
+  setRadioDucked(state === 'playing' || state === 'loading');
   if (!_wrap) return;
   // 'armed' is a standing state, not an event: any idle render while autoplay is
   // waiting should still read as waiting, including after an airspace change.
