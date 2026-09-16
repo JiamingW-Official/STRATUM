@@ -5255,3 +5255,64 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   -webkit-backdrop-filter: blur(var(--blur)) saturate(1.9) brightness(1.12);
   backdrop-filter: blur(var(--blur)) saturate(1.9) brightness(1.12);
 }
+
+/* ── One tile, one shape ──
+   Reference is the widget grid: a small caps label, one number at a size
+   nothing else on the tile competes with, and a quiet line underneath. Every
+   tile is built from those three parts now, so the panel has three type sizes
+   in it rather than the eight it had accumulated. Fewer kinds of thing is the
+   whole point -- variation between tiles was reading as meaning when it was
+   only history. */
+.hud-mod-value {
+  font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400;
+  color: var(--text); font-variant-numeric: tabular-nums;
+  line-height: 1.05; letter-spacing: -0.02em; margin-top: 4px;
+}
+.hud-mod-label {
+  font-family: var(--font-sans); font-size: 9px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-3); line-height: 1;
+}
+.hud-mod-sub {
+  font-family: var(--font-sans); font-size: var(--fs-label);
+  color: var(--text-3); letter-spacing: 0; margin-top: 3px; line-height: 1.35;
+}
+.hud-mod--traffic .hud-mod-value { color: var(--text-2); }
+.hud-mod--hero .hud-mod-value { color: var(--accent); margin-top: 4px; }
+.hud-mod--hero.is-zero .hud-mod-value { color: var(--text-3); }
+.hud-mod--traffic .hud-clock { margin-top: 6px; align-self: flex-start; }
+
+/* Weather reads like the others now: a big temperature, a quiet condition
+   line, and the flight category as the tile's one badge. It was a single row
+   of five small things, which is why it disappeared next to a hero number. */
+#hud-weather .hud-wx-line { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+#hud-weather .hud-wx-temp { font-size: var(--fs-hero); margin-top: 0; }
+#hud-weather .hud-wx-sub { display: flex; gap: 8px; flex-wrap: wrap; }
+#hud-weather .hud-wx-cat { margin-left: 0; flex-shrink: 0; }
+
+/* ── The tower as a broadcast switch ──
+   The whole tile used to be the button, which is why turning it on felt odd:
+   nothing on it looked like a thing you press, and the state lived in a
+   sentence. A broadcast toggle is a control, so it is one -- a round button
+   holding the level meter, dark when off and lit while audio is arriving. */
+.hud-atc-status { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.hud-atc-power {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: none; cursor: pointer; padding: 0;
+  background: var(--relief-face);
+  box-shadow: var(--relief-raised-sm);
+  transition: box-shadow 0.15s var(--ease), background 0.15s var(--ease);
+}
+.hud-atc-power:hover { box-shadow: var(--relief-raised); }
+.hud-atc-power:has(.is-live), .hud-atc-power:has(.is-busy) {
+  box-shadow: var(--relief-inset-sm);
+  background: rgba(var(--accent-rgb), 0.1);
+}
+#hud-atc .hud-mod-sub { margin-top: 0; min-width: 0; }
+.hud-atc-code { color: var(--text); }
+
+/* Tighter across. The tiles had 12px of side padding inside a 14px-padded
+   panel, which put 26px of nothing between a number and the panel edge. */
+#hud.glass-panel { padding: 12px; gap: 7px; width: 360px; }
+.hud-mod { padding: 9px 10px; }

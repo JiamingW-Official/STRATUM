@@ -120,21 +120,21 @@
          count alongside makes the ratio readable in one glance instead of two,
          and it is what turns this panel from a stack into a layout.
          The hero is also the control: pressing it reveals them. -->
+    <div class="hud-mod hud-mod--traffic">
+      <span class="hud-mod-top"><span class="hud-mod-label">aircraft</span></span>
+      <span class="hud-mod-value" id="hud-count">0</span>
+      <span class="hud-mod-sub"><span id="hud-airports">--</span> airports</span>
+      <button type="button" id="hud-clock" class="hud-clock" title="Show local time"><span id="hud-zulu">--:--Z</span> <span id="hud-clock-label">UTC</span><span class="hud-mod-cue hud-mod-cue--inline" aria-hidden="true">⇄</span></button>
+    </div>
+
     <button type="button" id="hud-sky-unseen-btn" class="hud-mod hud-mod--act hud-mod--hero" title="Show them — V">
       <span class="hud-mod-top">
         <span class="hud-mod-label">unseen</span>
         <span class="hud-mod-cue" id="hud-hero-cue" aria-hidden="true">SHOW</span>
       </span>
-      <span class="hud-hero-value" id="hud-sky-unseen">--</span>
-      <span class="hud-hero-label">asked not to be seen</span>
+      <span class="hud-mod-value hud-hero-value" id="hud-sky-unseen">--</span>
+      <span class="hud-mod-sub hud-hero-label">asked not to be seen</span>
     </button>
-
-    <div class="hud-mod hud-mod--traffic">
-      <span class="hud-mod-value" id="hud-count">0</span>
-      <span class="hud-mod-label">aircraft</span>
-      <span class="hud-mod-sub"><span id="hud-airports">--</span> airports</span>
-      <button type="button" id="hud-clock" class="hud-clock" title="Show local time"><span id="hud-zulu">--:--Z</span> <span id="hud-clock-label">UTC</span><span class="hud-mod-cue hud-mod-cue--inline" aria-hidden="true">⇄</span></button>
-    </div>
 
     <!-- The sky as people, and as a visibility regime. -->
     <div id="hud-sky" class="hud-mod hud-span hud-sky hidden">
@@ -146,28 +146,35 @@
     <!-- Tower audio: the only trace an unseen aircraft still leaves. Source is
          LiveATC, credited in the ticker; the button is the gesture browsers need. -->
     <div id="hud-atc" class="hud-mod hud-atc hidden">
-      <div class="hud-atc-top">
+      <div class="hud-mod-top">
         <span class="hud-mod-label">tower</span>
         <button type="button" id="hud-atc-next" class="hud-atc-next hidden" title="Next tower nearby" aria-label="Next tower">›</button>
       </div>
-      <button type="button" id="hud-atc-btn" class="hud-atc-btn" aria-label="Toggle tower audio">
-        <span id="hud-atc-code" class="hud-atc-code">----</span>
-        <span id="hud-atc-kind" class="hud-atc-kind"></span>
-      </button>
+      <span id="hud-atc-code" class="hud-mod-value hud-atc-code">----</span>
       <div class="hud-atc-status">
-        <span class="hud-atc-level" id="hud-atc-level" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span id="hud-atc-label" class="hud-atc-state">Hear the tower</span>
+        <button type="button" id="hud-atc-btn" class="hud-atc-power" aria-label="Toggle tower audio" title="Listen to the tower">
+          <span class="hud-atc-level" id="hud-atc-level" aria-hidden="true"><i></i><i></i><i></i></span>
+        </button>
+        <span class="hud-mod-sub">
+          <span id="hud-atc-label" class="hud-atc-state">Hear the tower</span>
+          <span id="hud-atc-kind" class="hud-atc-kind hidden"></span>
+        </span>
       </div>
     </div>
 
     <div id="hud-weather" class="hud-mod hud-weather is-empty">
-      <div class="hud-wx-line" id="hud-wx-toggle">
-        <span class="hud-wx-icon" id="hud-wx-icon"></span>
-        <span class="hud-wx-temp" id="hud-wx-temp"></span>
-        <span class="hud-wx-desc" id="hud-wx-desc"></span>
-        <span class="hud-wx-wind" id="hud-wx-wind"></span>
+      <div class="hud-mod-top">
+        <span class="hud-mod-label">weather</span>
         <span class="hud-wx-cat" id="hud-wx-cat"></span>
       </div>
+      <div class="hud-wx-line" id="hud-wx-toggle">
+        <span class="hud-wx-icon" id="hud-wx-icon"></span>
+        <span class="hud-mod-value hud-wx-temp" id="hud-wx-temp"></span>
+      </div>
+      <span class="hud-mod-sub hud-wx-sub">
+        <span class="hud-wx-desc" id="hud-wx-desc"></span>
+        <span class="hud-wx-wind" id="hud-wx-wind"></span>
+      </span>
       <!-- Expandable forecast detail -->
       <div id="hud-wx-detail" class="hud-wx-detail">
         <!-- Wind rose + avionics METAR grid -->
