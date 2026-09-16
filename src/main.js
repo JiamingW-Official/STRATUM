@@ -2164,7 +2164,11 @@ function _renderContacts() {
     // carries your record a line below, and repeating the invitation there
     // pushed the top row 35px taller than the bottom one for no new meaning.
     : seenNow ? `${seenNow} of ${total} contacted`
-    : myNameCount() ? `` : `none contacted yet · click a ring`;
+    // The first-visit line was an instruction with a preamble in front of it:
+    // "none contacted yet" repeats a zero the tile is already showing, and the
+    // middot was holding the two halves of one short sentence apart. What is
+    // left is the gesture.
+    : myNameCount() ? `` : `press any ring`;
 }
 
 // The first thing after the boot screen is a descent: the camera starts high
@@ -4112,6 +4116,26 @@ async function updateWeatherWidget() {
       bar.innerHTML = isDay
         ? `<div class="hud-wx-daybar-fill" style="width:${pct.toFixed(1)}%"></div><div class="hud-wx-daybar-dot" style="left:${pct.toFixed(1)}%"></div>`
         : `<div class="hud-wx-daybar-fill" style="width:${now < srT ? "0" : "100"}%"></div>`;
+      // The reference ends every module with one plain line saying what its
+      // numbers mean — "Low for the rest of the day." Two clock times say when
+      // the sun does things and never say the thing a pilot actually wants
+      // from them, which is how much of it is left.
+      let note = sunRow.querySelector(".hud-wx-sun-note");
+      if (!note) {
+        note = document.createElement("div");
+        note.className = "hud-wx-sun-note";
+        sunRow.appendChild(note);
+      }
+      const span = (ms) => {
+        const m = Math.max(0, Math.round(ms / 60000));
+        const h = Math.floor(m / 60);
+        return h ? `${h}h ${m % 60}m` : `${m}m`;
+      };
+      note.textContent = isDay
+        ? `${span(ssT - now)} of daylight left`
+        : now < srT
+          ? `sunrise in ${span(srT - now)}`
+          : `night · sunrise in ${span(srT + 86400000 - now)}`;
     }
   }
 
@@ -4443,13 +4467,18 @@ function _renderDailyForecast(daily, nowTemp) {
 // inferred track and the amber of an instrument — so a warm day and a lit
 // readout are the same family rather than two palettes.
 function _tempHue(c) {
+  // Blue at the cold end, orange through the middle, red at the top. The
+  // first version bridged blue to amber through a grey-green that read as
+  // neither, which is what happens when a ramp is built by mixing its ends
+  // rather than by naming the colours it is meant to pass through.
   const stops = [
-    [-10, [79, 129, 200]],
-    [0, [79, 155, 216]],
-    [12, [122, 176, 196]],
-    [22, [214, 178, 108]],
-    [32, [232, 150, 72]],
-    [40, [226, 108, 64]],
+    [-10, [56, 108, 188]],
+    [0, [74, 150, 214]],
+    [10, [126, 178, 206]],
+    [18, [206, 176, 124]],
+    [24, [230, 152, 70]],
+    [32, [226, 96, 58]],
+    [40, [198, 52, 48]],
   ];
   const t = Math.max(stops[0][0], Math.min(stops[stops.length - 1][0], c));
   for (let i = 0; i < stops.length - 1; i++) {
@@ -4461,7 +4490,7 @@ function _tempHue(c) {
       return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
     }
   }
-  return "rgb(226, 108, 64)";
+  return "rgb(198, 52, 48)";
 }
 
 function applyFilters(dataList) {
