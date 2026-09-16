@@ -2308,6 +2308,7 @@ export function reseedChartData() {
 }
 
 export function refreshDetail(aircraftManager, userLat, userLon) {
+  syncDetailRotor();
   if (!selectedAircraft) return;
   if (selectedAircraft.removed) {
     closeDetail();
@@ -2898,3 +2899,73 @@ function _renderCommons(hex) {
 }
 
 function _esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+// ── The record, one line at a time ──────────────────────────────────────────
+// Twenty label-and-value rows under three headers made the dossier a document
+// you scroll rather than a panel you read — it ran 2090px in an 827px window,
+// and every one of those rows was equally quiet. They are all still written by
+// the same code and all still in the DOM; the rotor decides which one is on
+// screen, the way the weather tile carries its secondary readings.
+//
+// Eligibility is checked every tick rather than cached, because half these
+// rows appear and disappear with the data: a squawk arrives, a selected
+// heading stops being transmitted, an aircraft leaves the range that made a
+// distance meaningful.
+const _ROTOR_MS = 4200;
+let _rotorEl = null;
+let _rotorIdx = 0;
+let _rotorTimer = null;
+let _rotorHold = false;
+
+function _rotorRows() {
+  if (!_rotorEl) return [];
+  return [..._rotorEl.querySelectorAll('.detail-meta-row')].filter((row) => {
+    if (row.classList.contains('hidden')) return false;
+    // A hidden group hides its rows: #detail-xpdr and #detail-position are
+    // shown only when the aircraft is transmitting what they hold.
+    let p = row.parentElement;
+    while (p && p !== _rotorEl) {
+      if (p.classList.contains('hidden')) return false;
+      p = p.parentElement;
+    }
+    const v = row.querySelector('.detail-meta-value');
+    const t = v ? v.textContent.trim() : '';
+    return t && t !== '--' && t !== '—';
+  });
+}
+
+function _rotorShow(step) {
+  const rows = _rotorRows();
+  _rotorEl?.classList.toggle('is-empty', rows.length === 0);
+  if (!rows.length) return;
+  _rotorIdx = (_rotorIdx + (step || 0) + rows.length) % rows.length;
+  for (const r of _rotorEl.querySelectorAll('.detail-meta-row')) r.classList.remove('is-on');
+  rows[_rotorIdx % rows.length].classList.add('is-on');
+}
+
+export function startDetailRotor() {
+  _rotorEl ||= document.getElementById('detail-rotor');
+  if (!_rotorEl || _rotorTimer) return;
+  _rotorEl.addEventListener('pointerenter', () => { _rotorHold = true; });
+  _rotorEl.addEventListener('pointerleave', () => { _rotorHold = false; });
+  // A press moves it on, for anyone who does not want to wait four seconds to
+  // see the squawk again.
+  _rotorEl.addEventListener('click', () => { _rotorShow(1); });
+  _rotorEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _rotorShow(1); }
+  });
+  _rotorShow(0);
+  _rotorTimer = setInterval(() => {
+    if (_rotorHold) return;
+    _rotorShow(1);
+  }, _ROTOR_MS);
+}
+
+/** Called when the panel's contents change, so a row that just arrived shows. */
+export function syncDetailRotor() {
+  if (!_rotorEl) return;
+  const rows = _rotorRows();
+  if (!rows.length) { _rotorEl.classList.add('is-empty'); return; }
+  _rotorEl.classList.remove('is-empty');
+  if (!rows.some((r) => r.classList.contains('is-on'))) _rotorShow(0);
+}

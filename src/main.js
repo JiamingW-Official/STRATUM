@@ -72,6 +72,7 @@ import {
   showDetail,
   closeDetail,
   refreshDetail,
+  startDetailRotor,
   getSelectedAircraft,
   showDetailLoading,
   reseedChartData,
@@ -14658,6 +14659,7 @@ async function init() {
   updateHUDCity(defaultCity.name, defaultCity.code);
   setCommonsPlace(defaultCity.name);
   initATC();
+  startDetailRotor();
   setATCAirport(AIRPORT_DATA[defaultCity.code]?.icao || null);
   armATCAutoplay();
   updateHUD(0, defaultCity.lat, defaultCity.lon);
