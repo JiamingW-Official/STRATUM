@@ -14006,7 +14006,15 @@ function initSearch() {
 
   // Global shortcuts
   document.addEventListener("keydown", (e) => {
-    if (e.key === "/" && document.activeElement !== input) {
+    // Bare slash only. Without the modifier guard this also fired on Shift+/,
+    // which is how "?" is typed on a US layout and how some layouts and IMEs
+    // report it -- so asking for the keyboard guide opened the search bar
+    // instead. It also fired on Cmd+/ and Ctrl+/, which belong to the browser.
+    if (
+      e.key === "/" &&
+      !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey &&
+      document.activeElement !== input
+    ) {
       e.preventDefault();
       _toggleSearchBar(true);
     }
