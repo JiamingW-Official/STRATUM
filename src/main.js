@@ -3915,11 +3915,26 @@ async function updateWeatherWidget() {
     const hi = Math.round(data.daily[0].tempMax);
     set("hud-wx-lo", `${lo}°`);
     set("hud-wx-hi", `${hi}°`);
+    // This is today's row, shown alone, so it fills its track and the numbers
+    // at the ends are its own — put today on the week's scale here and the
+    // 17° and 24° printed beside it would read as the week's ends instead.
+    // The seven-day list below is where the week's scale belongs, because
+    // seven rows sharing one make it legible; one row cannot.
+    //
+    // What the bar carries instead is the same grade every row down there
+    // carries: coloured from the temperature of its own low to the
+    // temperature of its own high, so a cold day looks cold before it is
+    // read.
+    const seg = document.getElementById("hud-wx-seg");
+    if (seg) {
+      seg.style.left = "0";
+      seg.style.width = "100%";
+      seg.style.background = `linear-gradient(90deg, ${_tempHue(lo)}, ${_tempHue(hi)})`;
+    }
     const dot = document.getElementById("hud-wx-dot");
     if (dot) {
-      // Where now sits between the day's low and its high. A degree of span
-      // is guarded against because a flat day would divide by zero and put
-      // the marker nowhere.
+      // Positioned inside today's segment, so it can never sit outside the
+      // part of the bar that is today. A flat day would divide by zero.
       const span = Math.max(1, hi - lo);
       const at = Math.max(0, Math.min(1, (data.temp - lo) / span));
       dot.style.left = `${at * 100}%`;
@@ -4107,7 +4122,7 @@ async function updateWeatherWidget() {
 
   // 7-day daily forecast
   if (data.daily && data.daily.length > 0) {
-    _renderDailyForecast(data.daily);
+    _renderDailyForecast(data.daily, data.temp);
   }
 }
 
@@ -4358,7 +4373,7 @@ function _drawHourlyChart(hourly) {
   }
 }
 
-function _renderDailyForecast(daily) {
+function _renderDailyForecast(daily, nowTemp) {
   const el = document.getElementById("hud-wx-daily");
   if (!el) return;
 
@@ -4395,12 +4410,25 @@ function _renderDailyForecast(daily) {
       const hiColor =
         hiC <= 0 ? "color:#5aacff" : hiC >= 32 ? "color:#ee8833" : "";
 
+      // Every row's bar was the same blue, so seven days of weather looked
+      // like seven identical days at different offsets. Each bar is graded
+      // between the colour of its own low and the colour of its own high now,
+      // which is what makes a list of days readable without reading it: a
+      // cold week is a blue column and a hot one is an amber one.
+      const grade = `background:linear-gradient(90deg, ${_tempHue(d.tempMin)}, ${_tempHue(d.tempMax)})`;
+      // Today also carries where the temperature is right now, on the same
+      // scale and with the same needle as the tile above.
+      const nowMark =
+        i === 0 && nowTemp != null && d.tempMax > d.tempMin
+          ? `<i class="hud-wx-day-now" style="left:${(Math.max(0, Math.min(1, (nowTemp - d.tempMin) / (d.tempMax - d.tempMin))) * 100).toFixed(1)}%"></i>`
+          : "";
+
       return `<div class="hud-wx-day${i === 0 ? " hud-wx-day-today" : ""}">
       <span class="hud-wx-day-name">${name}</span>
       <span class="hud-wx-day-icon">${icon}</span>
       <span class="hud-wx-day-lo">${d.tempMin}°</span>
       <div class="hud-wx-day-bar-track">
-        <div class="hud-wx-day-bar-fill" style="left:${left}%;width:${Math.max(width, 4)}%"></div>
+        <div class="hud-wx-day-bar-fill" style="left:${left}%;width:${Math.max(width, 4)}%;${grade}">${nowMark}</div>
       </div>
       <span class="hud-wx-day-hi" style="${hiColor}">${d.tempMax}°</span>
       <div class="hud-wx-day-rain">${rainBar}<span class="hud-wx-day-rain-lbl">${precipLabel}</span></div>
@@ -4410,6 +4438,32 @@ function _renderDailyForecast(daily) {
 }
 
 // ── Unified filter panel ──
+// The one temperature ramp this page uses. Anchored on the two colours the
+// rest of the interface already means things with — the cold blue of an
+// inferred track and the amber of an instrument — so a warm day and a lit
+// readout are the same family rather than two palettes.
+function _tempHue(c) {
+  const stops = [
+    [-10, [79, 129, 200]],
+    [0, [79, 155, 216]],
+    [12, [122, 176, 196]],
+    [22, [214, 178, 108]],
+    [32, [232, 150, 72]],
+    [40, [226, 108, 64]],
+  ];
+  const t = Math.max(stops[0][0], Math.min(stops[stops.length - 1][0], c));
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [a, ca] = stops[i];
+    const [b, cb] = stops[i + 1];
+    if (t <= b) {
+      const k = (t - a) / (b - a || 1);
+      const mix = ca.map((v, j) => Math.round(v + (cb[j] - v) * k));
+      return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+    }
+  }
+  return "rgb(226, 108, 64)";
+}
+
 function applyFilters(dataList) {
   if (!aircraftManager) return;
   const hasAltFilter = filterState.altPreset !== "ALL";
