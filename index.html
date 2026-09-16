@@ -135,7 +135,13 @@
     <button type="button" id="hud-sky-unseen-btn" class="hud-mod hud-mod--act hud-mod--hero" title="Show them — V">
       <span class="hud-mod-top">
         <span class="hud-mod-label">unseen</span>
-        <span class="hud-mod-cue" id="hud-hero-cue" aria-hidden="true">SHOW</span>
+        <span class="hud-mod-cue" id="hud-hero-cue" aria-hidden="true">
+          <svg viewBox="0 0 18 18" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path class="cue-eye" d="M1.6 9S4.3 4.2 9 4.2 16.4 9 16.4 9 13.7 13.8 9 13.8 1.6 9 1.6 9Z"/>
+            <circle class="cue-eye" cx="9" cy="9" r="2.1"/>
+            <path class="cue-slash" d="M3.2 14.8 14.8 3.2"/>
+          </svg>
+        </span>
       </span>
       <span class="hud-mod-value hud-hero-value" id="hud-sky-unseen">--</span>
       <span class="hud-mod-sub hud-hero-label">asked not to be seen</span>

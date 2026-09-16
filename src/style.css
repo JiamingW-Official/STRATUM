@@ -6073,3 +6073,25 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: rgba(var(--text-rgb), 0.18); border-radius: 2px;
 }
 #hud.glass-panel::-webkit-scrollbar-track { background: transparent; }
+
+/* ── The unseen tile's switch says what it does ──
+   It was a dot in a round face. A dot is a status light, not a control, so it
+   read as decoration that happened to change colour — "is that a switch?" is
+   the right question to ask of it. An eye is the one glyph that states the
+   action rather than the state: open means these are drawn, struck through
+   means they are not, and either way you can see it is a thing you press. */
+.hud-mod-cue { color: var(--text-3); }
+.hud-mod-cue::after { content: none; }
+.hud-mod-cue svg { display: block; }
+.hud-mod-cue .cue-slash { opacity: 1; transition: opacity 0.18s var(--ease); }
+.hud-mod-cue.is-shown { color: var(--accent-bright); }
+.hud-mod-cue.is-shown .cue-slash { opacity: 0; }
+.hud-mod--act:hover .hud-mod-cue { color: var(--text); }
+.hud-mod--act:hover .hud-mod-cue.is-shown { color: var(--accent-bright); }
+.hud-mod-cue { width: 24px; height: 24px; }
+
+/* ── The aircraft count carries its own weight ──
+   It sat at text-2, which is 62% and reads as a caption beside a number at
+   full strength. Both counts are headline figures; what separates them is
+   colour, not brightness. White for the traffic, amber for the withheld. */
+.hud-mod--traffic .hud-mod-value { color: var(--text); }

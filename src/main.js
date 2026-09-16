@@ -1755,7 +1755,7 @@ document.body.classList.toggle("ghost-mode", isGhostMode());
 // looked like it had done nothing.
 {
   const _cue = document.getElementById("hud-hero-cue");
-  if (_cue) _cue.textContent = isGhostMode() ? "SHOWN" : "SHOW";
+  _cue?.classList.toggle("is-shown", isGhostMode());
 }
 
 let _ghostHintShown = false;
@@ -1784,7 +1784,8 @@ function _toggleGhostLayer() {
   // The tile said nothing about being pressable and nothing about which way it
   // was currently set, so pressing it looked like it had done nothing.
   const cue = document.getElementById("hud-hero-cue");
-  if (cue) cue.textContent = on ? "SHOWN" : "SHOW";
+  cue?.classList.toggle("is-shown", on);
+  cue?.setAttribute("title", on ? "Hide them" : "Show them");
   setCoverageShadowVisible(on);
   const btn = document.getElementById("hud-sky-unseen-btn");
   if (btn) btn.title = on ? "Hide them — V" : "Show them — V";
