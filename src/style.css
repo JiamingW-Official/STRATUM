@@ -5704,3 +5704,102 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* The level meter reports from the label row, where the radio puts its own. */
 .hud-mod-top .hud-atc-level { height: 8px; }
+
+/* ── One internal grid for every tile ──
+   The tiles were flex columns, so each stacked its own content from the top
+   and whatever it had ran to whatever height it needed. Side by side that
+   means the left tile's value and the right tile's value sit at different
+   heights for no reason other than one having a longer caption. A shared grid
+   fixes the slots instead: label, value, detail, actions — same four rows, same
+   offsets, in every tile, so the panel lines up across as well as down. */
+.hud-mod {
+  display: grid;
+  grid-template-rows: 13px 34px auto 1fr;
+  gap: 0;
+  align-content: start;
+  padding: 9px 10px 8px;
+  min-height: 0;
+}
+.hud-mod--traffic, .hud-mod--hero, #hud-atc.hud-mod, #hud-weather.hud-mod {
+  min-height: 122px;
+}
+.hud-mod-top, #hud-atc .hud-mod-top { display: flex; align-items: center; justify-content: space-between; height: 13px; }
+.hud-mod-value {
+  display: flex; align-items: flex-end; height: 34px;
+  font-size: 30px; margin: 0; line-height: 1;
+}
+#hud-weather .hud-wx-temp { font-size: 34px; }
+.hud-atc-code { font-size: 27px; letter-spacing: 0.01em; }
+.hud-mod-sub { margin-top: 5px; }
+
+/* Anything that follows the detail line is pinned to the tile's floor, which
+   is the row that makes the action buttons agree across the panel. */
+.hud-atc-transport, .hud-mod--traffic .hud-clock { margin-top: auto; padding-top: 4px; }
+.hud-mod--traffic .hud-sky { margin: 0; }
+
+/* ── Circular actions ──
+   Every action on the page is the same object now: a round glass face with a
+   glyph in it, at one of two sizes. It was a mix of bare chevrons, a bordered
+   text cue and two different button shapes, which is four vocabularies for one
+   idea. The arrow is the idea -- press this and it goes somewhere. */
+.hud-act {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: none; padding: 0; cursor: pointer; flex-shrink: 0;
+  color: var(--text-3);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  transition: color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.hud-act:hover { color: var(--text); background: rgba(255, 255, 255, 0.12); }
+.hud-act:active { background: rgba(0, 0, 0, 0.2); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
+#hud-atc .radio-tp { width: 22px; height: 22px; }
+#hud-atc .radio-tp--main { width: 30px; height: 30px; }
+.hud-atc-transport { gap: 7px; align-items: center; }
+
+/* The hero's cue becomes the same round face, with the state in its colour
+   rather than in a word. */
+.hud-mod-cue {
+  width: 22px; height: 22px; border-radius: 50%; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0; border: none;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+.hud-mod-cue::after {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: rgba(var(--text-rgb), 0.3);
+  transition: background 0.18s var(--ease), box-shadow 0.18s var(--ease);
+}
+.ghost-mode .hud-mod--hero .hud-mod-cue::after {
+  background: var(--accent-bright);
+  box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.6);
+}
+.hud-mod-cue--inline { width: auto; height: auto; background: none; box-shadow: none; font-size: 9px; }
+.hud-mod-cue--inline::after { content: none; }
+
+/* The footer chevron joins them. */
+.hud-meta.hud-mod .hud-city-chevron {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  color: var(--text-3); font-size: 13px; line-height: 1;
+}
+.hud-meta.hud-mod:hover .hud-city-chevron { color: var(--text); background: rgba(255,255,255,0.12); }
+.hud-meta.hud-mod { grid-template-rows: none; display: flex; padding: 8px 10px; min-height: 0; }
+
+/* Stale offsets from earlier passes, each harmless alone and together enough
+   to break the alignment the grid was added to guarantee: a 4px top margin on
+   the hero's value pushed it below the traffic tile's, and a leftover gap plus
+   justify-content on the weather tile moved its label off the tower's. The
+   grid owns these positions now, so nothing else may set them. */
+.hud-mod--hero .hud-mod-value,
+.hud-mod--hero .hud-hero-value { margin: 0; }
+#hud-weather.hud-mod { justify-content: start; gap: 0; min-height: 122px; }
+
+/* The tower tile carried margin-top:4px from when it was a row in a stack,
+   which pushed the whole tile below its neighbour in the grid. A tile in a
+   grid is positioned by the grid; nothing else gets to nudge it. */
+#hud-atc.hud-mod { margin: 0; }
+#hud .hud-mod { margin: 0; }
