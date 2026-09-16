@@ -247,12 +247,23 @@ function _applyTuning() {
   // station on its way to another should not stop to name it — until the set
   // locks, the only true answer is that it is still looking.
   if (nameEl) {
+    // One writer, and it is this one. _updateUI also names the station, and it
+    // runs mid-sweep when the feed is exchanged at 55% — so the fresh name was
+    // written and then overwritten by "TUNING" on the very next frame, and
+    // nothing wrote it again once the needle stopped. The bar sat on TUNING
+    // for the rest of the track, which looks exactly like a radio that cannot
+    // change station.
+    //
     // 0.9, not 1: the ease-out's tail spends its last 300ms covering the final
-    // fraction of a megahertz, and holding "TUNING" through that left the name
-    // trailing a readout that had already settled on the destination. The set
-    // has locked well before the needle has finished creeping.
-    if (_sweepRAF && sig < 0.9) nameEl.textContent = "TUNING";
-    else if (sig <= 0) nameEl.textContent = "NO SIGNAL";
+    // fraction of a megahertz, and holding "TUNING" through that leaves the
+    // name trailing a readout that has already settled on the destination.
+    const want =
+      _sweepRAF && sig < 0.9
+        ? "TUNING"
+        : sig <= 0
+          ? "NO SIGNAL"
+          : _currentStation().name;
+    if (nameEl.textContent !== want) nameEl.textContent = want;
   }
 
   // The rail's thumbnail is the same receiver seen small, so it follows the
