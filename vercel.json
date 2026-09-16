@@ -22,6 +22,14 @@
     { "source": "/api/airports", "destination": "https://stratum.jiamingwofficial.workers.dev/api/airports" },
     { "source": "/api/airports/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/api/airports/:path*" },
     { "source": "/api/liveatc", "destination": "https://stratum.jiamingwofficial.workers.dev/api/liveatc" },
-    { "source": "/api/liveatc/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/api/liveatc/:path*" }
+    { "source": "/api/liveatc/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/api/liveatc/:path*" },
+    { "source": "/api/trail", "destination": "https://stratum.jiamingwofficial.workers.dev/api/trail" },
+    { "source": "/api/visibility", "destination": "https://stratum.jiamingwofficial.workers.dev/api/visibility" },
+    { "source": "/api/ghost", "destination": "https://stratum.jiamingwofficial.workers.dev/api/ghost" },
+    { "source": "/api/ghost/index", "destination": "https://stratum.jiamingwofficial.workers.dev/api/ghost/index" },
+
+    { "source": "/map/export/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/map/export/:path*" },
+    { "source": "/fonts/css/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/fonts/css/:path*" },
+    { "source": "/fonts/file/:path*", "destination": "https://stratum.jiamingwofficial.workers.dev/fonts/file/:path*" }
   ]
 }
