@@ -4,13 +4,21 @@
 // has one weight.
 
 type P = { size?: number };
+
+// One weight for the whole set, set here rather than per icon.
+//
+// 1.6 was drawn for a 24px rail and carried, unchanged, onto 62px cards, where
+// a hairline at four times the size stops reading as a drawn line and starts
+// reading as a cheap one. 1.9 on the same grid holds at both ends: the stroke
+// is in viewBox units, so it scales with the glyph and stays a line rather
+// than becoming a bar.
 const base = (size: number) => ({
   width: size,
   height: size,
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
-  strokeWidth: 1.6,
+  strokeWidth: 1.9,
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
 });

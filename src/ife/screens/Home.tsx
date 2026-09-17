@@ -54,19 +54,19 @@ export function Home() {
     {
       screen: "map",
       key: "flightMap",
-      icon: <IconMap size={62} />,
+      icon: <IconMap size={96} />,
       note: `${fmtInt(position.altFt)} ft · ${fmtInt(position.gsKt)} kt`,
     },
     {
       screen: "flightInfo",
       key: "flightInformation",
-      icon: <IconGauge size={62} />,
+      icon: <IconGauge size={96} />,
       note: `${pick(route.from.city, lang)} → ${pick(route.to.city, lang)}`,
     },
     {
       screen: "music",
       key: "music",
-      icon: <IconMusic size={62} />,
+      icon: <IconMusic size={96} />,
       note: playing
         ? now.title
         : `${STATIONS.length} ${lang === "zh" ? "个频道" : "stations"}`,
@@ -74,14 +74,14 @@ export function Home() {
     {
       screen: "movies",
       key: "movies",
-      icon: <IconFilm size={62} />,
+      icon: <IconFilm size={96} />,
       note: t("later"),
       soon: true,
     },
     {
       screen: "games",
       key: "games",
-      icon: <IconGames size={62} />,
+      icon: <IconGames size={96} />,
       note: t("later"),
       soon: true,
     },
@@ -104,9 +104,14 @@ export function Home() {
         <div className="ife-home-next ife-cap">{t("nextStop")}</div>
         <div className="ife-home-city">{pick(route.to.city, lang)}</div>
 
-        {/* One fact, at the size of a fact you would look up from a book to
-            read. Everything else about the flight is a rail away. */}
+        {/* One fact, at the size of a fact you look up from a book to read.
+            It had a brass bar down its left and a tinted box behind it, which
+            is what a layout does when it does not trust its own type. The
+            type is 86px against a 19px label; nothing else is needed. */}
         <div className="ife-home-eta">
+          <div className="ife-cap">
+            {t("timeTo")} {pick(route.to.city, lang)}
+          </div>
           <div
             className={`ife-home-eta-value ife-mono${
               etaInferred && phase !== "landed" ? " ife-inferred" : ""
@@ -114,10 +119,8 @@ export function Home() {
           >
             {phase === "landed" ? "——" : duration(remaining, lang)}
           </div>
-          <div className="ife-home-eta-label">
-            {t("timeTo")} {pick(route.to.city, lang)}
-            {" · "}
-            {localTime(etaUtc, route.to)}
+          <div className="ife-home-eta-label ife-mono">
+            {localTime(etaUtc, route.to)} · {route.to.iata}
           </div>
         </div>
 
@@ -128,9 +131,7 @@ export function Home() {
           <span className="ife-home-wx-cond">
             {wx ? conditionKey(wx.code)[lang === "zh" ? 1 : 0] : "--"}
           </span>
-          <span className="ife-home-wx-apt">
-            {route.to.iata} · {pick(route.to.name, lang)}
-          </span>
+          <span className="ife-home-wx-apt">{pick(route.to.name, lang)}</span>
         </div>
       </div>
 
@@ -155,7 +156,7 @@ export function Home() {
             sitting in is being heard from. It is a link, and it says so. */}
         <a className="ife-card ife-card--out" data-tall="true" href="/">
           <span className="ife-card-icon">
-            <IconSky size={62} />
+            <IconSky size={96} />
           </span>
           <span className="ife-card-name">{t("theSky")}</span>
           <span className="ife-card-note ife-mono">{t("liveAdsb")}</span>
