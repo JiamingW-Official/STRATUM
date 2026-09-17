@@ -38,13 +38,13 @@ function Shelf({ onOpen }: { onOpen: (f: Film) => void }) {
   const { t, lang } = useT();
   return (
     <div className="ife-films">
-      <div className="ife-films-head">
-        <h2 className="ife-title">{t("movies")}</h2>
-        <span className="ife-cap">
+      <header className="ife-head">
+        <h2 className="ife-head-title">{t("movies")}</h2>
+        <span className="ife-head-meta ife-cap">
           {t("onThisAircraft")} · {FILMS.length} {t("films")} ·{" "}
           {t("publicDomain")}
         </span>
-      </div>
+      </header>
 
       <div className="ife-films-grid">
         {FILMS.map((f) => (

@@ -344,7 +344,8 @@ test.describe("IFE bench", () => {
     await expect(page.locator(".ife-quiz-source")).toContainText("ICAO");
 
     await page.getByRole("button", { name: "Next" }).click();
-    await expect(page.locator(".ife-game-head")).toContainText("2");
+    // The counter is the big one beside the question, not a caption in the head.
+    await expect(page.locator(".ife-quiz-n")).toHaveText("02/6");
   });
 
   // The glass is a fixed 1920x1080 surface wherever it hangs. What must hold

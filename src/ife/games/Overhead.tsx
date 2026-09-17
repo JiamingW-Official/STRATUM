@@ -41,11 +41,11 @@ export function Overhead({ onBack }: { onBack: () => void }) {
       title={t("overhead")}
       onBack={onBack}
       aside={
-        <span className="ife-cap">
-          {done
-            ? `${t("score")} ${score}/${QUESTIONS.length}`
-            : `${t("question")} ${i + 1} ${t("ofN")} ${QUESTIONS.length}`}
-        </span>
+        done ? (
+          <span className="ife-cap">
+            {t("score")} {score}/{QUESTIONS.length}
+          </span>
+        ) : null
       }
     >
       {done ? (
@@ -53,47 +53,60 @@ export function Overhead({ onBack }: { onBack: () => void }) {
           <div className="ife-quiz-score ife-mono">
             {score}/{QUESTIONS.length}
           </div>
-          <p className="ife-soon-text">{t("overheadSub")}</p>
+          <p className="ife-quiz-why-text">{t("overheadSub")}</p>
           <button className="ife-btn ife-btn--go" onClick={again}>
             {t("playAgain")}
           </button>
         </div>
       ) : (
+        /* Two columns: the question on the left at the size a question
+           deserves, the answers on the right where a hand is. A quiz stacked
+           down the left of a 1920-wide screen leaves half the glass dark and
+           makes the reader's eye travel twice as far as it needs to. */
         <div className="ife-quiz">
-          <h3 className="ife-quiz-q">{pickQ(q.q, lang)}</h3>
-
-          <div className="ife-quiz-options">
-            {q.options.map((o, n) => (
-              <button
-                key={n}
-                className="ife-quiz-option"
-                data-picked={picked === n}
-                data-right={picked !== null && n === q.answer}
-                data-wrong={picked === n && n !== q.answer}
-                onClick={() => choose(n)}
-              >
-                <span className="ife-quiz-letter ife-mono">
-                  {String.fromCharCode(65 + n)}
-                </span>
-                {pickQ(o, lang)}
-              </button>
-            ))}
+          <div className="ife-quiz-ask">
+            <div className="ife-quiz-n ife-mono">
+              {String(i + 1).padStart(2, "0")}
+              <span className="ife-quiz-n-of">/{QUESTIONS.length}</span>
+            </div>
+            <h3 className="ife-quiz-q">{pickQ(q.q, lang)}</h3>
+            {picked !== null && (
+              <div className="ife-quiz-why">
+                <div className="ife-cap" data-right={picked === q.answer}>
+                  {picked === q.answer ? t("correct") : t("wrong")}
+                </div>
+                <p className="ife-quiz-why-text">{pickQ(q.why, lang)}</p>
+                <div className="ife-quiz-source ife-cap">
+                  {t("source")} · {q.source}
+                </div>
+              </div>
+            )}
           </div>
 
-          {picked !== null && (
-            <div className="ife-quiz-why">
-              <div className="ife-cap" data-right={picked === q.answer}>
-                {picked === q.answer ? t("correct") : t("wrong")}
-              </div>
-              <p className="ife-quiz-why-text">{pickQ(q.why, lang)}</p>
-              <div className="ife-quiz-source ife-cap">
-                {t("source")} · {q.source}
-              </div>
-              <button className="ife-btn ife-btn--go" onClick={next}>
-                {t("nextQuestion")}
-              </button>
+          <div className="ife-quiz-answer">
+            <div className="ife-quiz-options">
+              {q.options.map((o, n) => (
+                <button
+                  key={n}
+                  className="ife-quiz-option"
+                  data-picked={picked === n}
+                  data-right={picked !== null && n === q.answer}
+                  data-wrong={picked === n && n !== q.answer}
+                  onClick={() => choose(n)}
+                >
+                  <span className="ife-quiz-letter ife-mono">
+                    {String.fromCharCode(65 + n)}
+                  </span>
+                  {pickQ(o, lang)}
+                </button>
+              ))}
             </div>
-          )}
+            {picked !== null && (
+              <button className="ife-btn ife-btn--go" onClick={next}>
+                {t("nextQuestion")} →
+              </button>
+            )}
+          </div>
         </div>
       )}
     </GameFrame>

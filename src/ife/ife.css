@@ -850,7 +850,10 @@
 /* ── The shelf ───────────────────────────────────────────────────────── */
 .ife-shelf {
   grid-row: 1 / 2;
-  padding: 34px var(--gutter) 20px 56px;
+  padding: 16px var(--gutter) 20px 56px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -866,14 +869,14 @@
   gap: 30px;
 }
 
+/* Centred in what the head leaves, rather than pinned under it with a band of
+   nothing below: four covers do not fill a 1920-wide screen and pretending
+   otherwise by stretching them would only make them coarse. */
 .ife-shelf-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 24px;
-  margin-top: 26px;
-  /* Capped so four covers plus their two lines of type clear the now-playing
-     bar; without it the artists ran under it. */
-  max-width: 1240px;
+  gap: 26px;
+  margin: auto 0;
 }
 
 .ife-album {
@@ -1328,6 +1331,35 @@
   color: var(--faint);
 }
 
+
+/* ── One screen head ─────────────────────────────────────────────────────
+   Back where there is a back, the name of the screen, and whatever the screen
+   wants to say about itself on the right. Four versions of this existed, each
+   with its own padding and its own title size; a 72px heading over a catalogue
+   was eating the row the catalogue needed. */
+.ife-head {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  height: 100px;
+  flex: 0 0 auto;
+}
+
+.ife-head-title {
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.ife-head-meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 /* ── Films ───────────────────────────────────────────────────────────────
    The shelf, one film's page, and the film. Stills rather than posters: most
    of these were industrial and educational shorts that never had a poster, and
@@ -1335,7 +1367,7 @@
 .ife-films {
   position: absolute;
   inset: 0;
-  padding: 34px var(--gutter) 0;
+  padding: 16px var(--gutter) 0;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -1344,19 +1376,12 @@
   display: none;
 }
 
-.ife-films-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 30px;
-}
-
 .ife-films-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 24px 26px;
-  margin-top: 26px;
-  padding-bottom: 30px;
+  gap: 22px 26px;
+  margin-top: 8px;
+  padding-bottom: 26px;
 }
 
 .ife-film {
@@ -1547,29 +1572,39 @@
 }
 
 /* ── Games ───────────────────────────────────────────────────────────── */
+.ife-games {
+  position: absolute;
+  inset: 0;
+  padding: 16px var(--gutter) 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Two panels, each the full height of what is left. A menu of two things on a
+   1920-wide screen should not look like two business cards on a table. */
 .ife-gamegrid {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 30px;
-  margin-top: 34px;
-  max-width: 1180px;
+  margin-top: 8px;
 }
 
 .ife-gamecard {
   appearance: none;
   background: rgba(var(--text-rgb), 0.04);
   border: 0;
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
   color: var(--fg);
   font: inherit;
   text-align: left;
-  padding: 44px 42px 40px;
+  padding: 40px 44px 38px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  min-height: 330px;
+  min-height: 0;
   transition:
     background-color 160ms ease,
     transform 160ms ease;
@@ -1580,46 +1615,85 @@
   transform: translateY(-4px);
 }
 
-.ife-gamecard-icon {
-  color: var(--accent-bright);
+/* The card advertises the game with the game. An icon standing in for a
+   sudoku is a smaller promise than a sudoku. */
+.ife-gamecard-art {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ife-mini-sudoku {
+  display: grid;
+  grid-template-columns: repeat(9, 40px);
+  grid-auto-rows: 40px;
+  gap: 2px;
+  justify-content: center;
+}
+
+.ife-mini-sudoku span {
+  display: grid;
+  place-items: center;
+  background: rgba(var(--text-rgb), 0.06);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  color: var(--dim);
+}
+
+.ife-mini-sudoku span[data-edge-r="true"] {
+  margin-right: 9px;
+}
+
+.ife-mini-sudoku span[data-edge-b="true"] {
+  margin-bottom: 9px;
+}
+
+.ife-gamecard-quote {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.18;
+  color: var(--fg);
+  margin: 0;
+  max-width: 20ch;
+}
+
+.ife-gamecard-cite {
+  margin-top: 20px;
+  color: var(--faint);
 }
 
 .ife-gamecard-name {
-  margin-top: auto;
+  margin-top: 34px;
   font-family: var(--font-display);
-  font-size: 44px;
+  font-size: 46px;
   font-weight: 500;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 
 .ife-gamecard-sub {
   color: var(--dim);
-  font-size: 24px;
+  font-size: 25px;
   margin-top: 12px;
+}
+
+.ife-gamecard-note {
+  margin-top: 16px;
+  color: var(--faint);
 }
 
 .ife-game {
   position: absolute;
   inset: 0;
-  padding: 30px var(--gutter) 0;
+  padding: 16px var(--gutter) 34px;
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-.ife-game-head {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  padding-bottom: 24px;
-}
-
-.ife-game-title {
-  font-family: var(--font-display);
-  font-size: 48px;
-  font-weight: 500;
-  letter-spacing: -0.025em;
-  margin: 0;
 }
 
 .ife-game-tools {
@@ -1648,19 +1722,21 @@
 
 /* ── Sudoku ──────────────────────────────────────────────────────────── */
 .ife-sudoku {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 64px;
-  align-items: start;
+  flex: 1;
   min-height: 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 90px;
+  align-items: center;
+  justify-content: center;
 }
 
 /* The three-by-three blocks are told apart by a wider gap, not by heavier
    rules: on a printed grid the rule is thick because ink is all it has. */
 .ife-sudoku-board {
   display: grid;
-  grid-template-columns: repeat(9, 68px);
-  grid-auto-rows: 68px;
+  grid-template-columns: repeat(9, 70px);
+  grid-auto-rows: 70px;
   gap: 3px;
   background: rgba(var(--text-rgb), 0.05);
   padding: 10px;
@@ -1707,7 +1783,9 @@
 }
 
 .ife-sudoku-side {
-  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .ife-pad-keys {
@@ -1752,11 +1830,34 @@
 
 /* ── Overhead ────────────────────────────────────────────────────────── */
 .ife-quiz {
-  max-width: 1400px;
+  flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  scrollbar-width: none;
-  padding-bottom: 30px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 90px;
+  align-items: center;
+}
+
+.ife-quiz-ask {
+  min-width: 0;
+}
+
+.ife-quiz-answer {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  align-items: flex-start;
+}
+
+.ife-quiz-n {
+  font-size: 26px;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
+
+.ife-quiz-n-of {
+  color: var(--faint);
 }
 
 .ife-quiz::-webkit-scrollbar {
@@ -1765,32 +1866,31 @@
 
 .ife-quiz-q {
   font-family: var(--font-display);
-  font-size: 44px;
+  font-size: 52px;
   font-weight: 400;
-  letter-spacing: -0.02em;
-  line-height: 1.16;
-  margin: 10px 0 0;
-  max-width: 24ch;
+  letter-spacing: -0.025em;
+  line-height: 1.14;
+  margin: 18px 0 0;
+  max-width: 20ch;
 }
 
 .ife-quiz-options {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 30px;
-  max-width: 1080px;
+  gap: 14px;
+  width: 100%;
 }
 
 .ife-quiz-option {
   appearance: none;
   background: rgba(var(--text-rgb), 0.05);
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   color: var(--fg);
   font: inherit;
-  font-size: 27px;
+  font-size: 30px;
   text-align: left;
-  padding: 22px 30px;
+  padding: 28px 34px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1818,8 +1918,9 @@
 }
 
 .ife-quiz-why {
-  margin-top: 24px;
-  max-width: 1080px;
+  margin-top: 34px;
+  max-width: 44ch;
+  border-top: 0;
 }
 
 .ife-quiz-why .ife-cap[data-right="true"] {
@@ -1838,16 +1939,13 @@
   color: var(--faint);
 }
 
-.ife-quiz-why .ife-btn {
-  margin-top: 20px;
-}
-
 .ife-quiz-end {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  height: 100%;
 }
 
 .ife-quiz-score {

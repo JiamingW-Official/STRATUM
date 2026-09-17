@@ -35,10 +35,10 @@ export function FlightInfo() {
 
   return (
     <div className="ife-pad">
-      <div className="ife-fi-head">
-        <div className="ife-title">{t("flightInformation")}</div>
-        <div className="ife-cap">{t("profile")}</div>
-      </div>
+      <header className="ife-head">
+        <h2 className="ife-head-title">{t("flightInformation")}</h2>
+        <div className="ife-head-meta ife-cap">{t("profile")}</div>
+      </header>
 
       <Profile />
 

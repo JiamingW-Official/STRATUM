@@ -52,13 +52,13 @@ export function Music() {
 
       {open === null ? (
         <section className="ife-shelf">
-          <div className="ife-shelf-head">
-            <h2 className="ife-title">{t("music")}</h2>
-            <span className="ife-cap">
+          <header className="ife-head">
+            <h2 className="ife-head-title">{t("music")}</h2>
+            <span className="ife-head-meta ife-cap">
               {STATIONS.reduce((n, s) => n + s.tracks.length, 0)}{" "}
               {lang === "zh" ? "首 · 机上曲库" : "tracks on board"}
             </span>
-          </div>
+          </header>
 
           {/* The shelf. No cover art exists for these files, so each station
               shows the only thing it honestly has: its own colour, its name,
@@ -94,14 +94,19 @@ export function Music() {
       ) : (
         <section className="ife-station-view">
           <header
-            className="ife-station-head"
+            className="ife-head"
             style={{ ["--stationColor" as string]: STATIONS[open].color }}
           >
-            <button className="ife-btn ife-btn--quiet" onClick={() => setOpen(null)}>
+            <button
+              className="ife-btn ife-btn--quiet"
+              onClick={() => setOpen(null)}
+            >
               ← {t("music")}
             </button>
-            <h2 className="ife-station-title">{STATIONS[open].name}</h2>
-            <div className="ife-cap">
+            <h2 className="ife-head-title ife-station-title">
+              {STATIONS[open].name}
+            </h2>
+            <div className="ife-head-meta ife-cap">
               {STATIONS[open].tracks.length} {lang === "zh" ? "首" : "tracks"}
             </div>
           </header>
