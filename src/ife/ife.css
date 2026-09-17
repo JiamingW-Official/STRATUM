@@ -1327,3 +1327,541 @@
   margin-top: 10px;
   color: var(--faint);
 }
+
+/* ── Films ───────────────────────────────────────────────────────────────
+   The shelf, one film's page, and the film. Stills rather than posters: most
+   of these were industrial and educational shorts that never had a poster, and
+   a frame from the film is what they actually have. */
+.ife-films {
+  position: absolute;
+  inset: 0;
+  padding: 34px var(--gutter) 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.ife-films::-webkit-scrollbar {
+  display: none;
+}
+
+.ife-films-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.ife-films-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px 26px;
+  margin-top: 26px;
+  padding-bottom: 30px;
+}
+
+.ife-film {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.ife-film-still {
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  background-color: rgba(var(--text-rgb), 0.06);
+  background-size: cover;
+  background-position: center;
+  box-shadow: var(--lift-sm);
+  filter: saturate(0.85) contrast(1.04);
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease,
+    filter 200ms ease;
+}
+
+.ife-film:hover .ife-film-still {
+  transform: translateY(-6px);
+  filter: saturate(1) contrast(1.06);
+  box-shadow: 0 30px 62px rgba(0, 0, 0, 0.6);
+}
+
+.ife-film-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-height: 2.4em;
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 500;
+  margin-top: 14px;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.ife-film-meta {
+  display: block;
+  color: var(--faint);
+  font-size: 19px;
+  margin-top: 7px;
+}
+
+.ife-film-detail {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.ife-film-detail .ife-photo {
+  filter: saturate(0.6) contrast(1.05) brightness(0.62);
+}
+
+.ife-film-detail .ife-photo-scrim {
+  background:
+    linear-gradient(to top, rgba(7, 8, 11, 0.94) 0%, rgba(7, 8, 11, 0.4) 60%),
+    linear-gradient(to right, rgba(7, 8, 11, 0.94) 0%, rgba(7, 8, 11, 0.5) 46%, rgba(7, 8, 11, 0.2) 100%);
+}
+
+.ife-film-detail-body {
+  position: absolute;
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: 54px;
+  max-width: 1120px;
+}
+
+.ife-film-detail-title {
+  font-family: var(--font-display);
+  font-size: 84px;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+  margin: 26px 0 0;
+}
+
+.ife-film-detail-meta {
+  color: var(--dim);
+  font-size: 24px;
+  margin-top: 18px;
+  letter-spacing: 0.04em;
+}
+
+.ife-film-detail-creator {
+  color: var(--accent-bright);
+  font-size: 25px;
+  margin-top: 10px;
+}
+
+.ife-film-detail-synopsis {
+  color: var(--dim);
+  font-size: 27px;
+  line-height: 1.42;
+  margin: 24px 0 0;
+  max-width: 62ch;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
+.ife-film-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  margin-top: 34px;
+}
+
+/* The one button on a page that starts something gets the brass. */
+.ife-btn--go {
+  background: var(--accent);
+  color: #10110f;
+  font-weight: 500;
+}
+
+.ife-btn--go:hover {
+  background: var(--accent-bright);
+}
+
+.ife-screening {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+
+.ife-screening-video {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  background: #000;
+}
+
+.ife-screening-bar {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 0 var(--gutter);
+  height: 104px;
+  background: rgba(10, 12, 17, 0.9);
+  box-shadow: inset 0 1px 0 var(--specular);
+  white-space: nowrap;
+}
+
+.ife-screening-bar > * {
+  flex: 0 0 auto;
+}
+
+.ife-screening-bar > .ife-rail-spacer {
+  flex: 1 1 auto;
+}
+
+.ife-screening-bar > .ife-cap:last-child {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 44ch;
+}
+
+.ife-screening-title {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 500;
+}
+
+.ife-screening-fail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 var(--gutter);
+  background: rgba(7, 8, 11, 0.94);
+}
+
+/* ── Games ───────────────────────────────────────────────────────────── */
+.ife-gamegrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 30px;
+  margin-top: 34px;
+  max-width: 1180px;
+}
+
+.ife-gamecard {
+  appearance: none;
+  background: rgba(var(--text-rgb), 0.04);
+  border: 0;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  padding: 44px 42px 40px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 330px;
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.ife-gamecard:hover {
+  background: rgba(var(--text-rgb), 0.08);
+  transform: translateY(-4px);
+}
+
+.ife-gamecard-icon {
+  color: var(--accent-bright);
+}
+
+.ife-gamecard-name {
+  margin-top: auto;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.ife-gamecard-sub {
+  color: var(--dim);
+  font-size: 24px;
+  margin-top: 12px;
+}
+
+.ife-game {
+  position: absolute;
+  inset: 0;
+  padding: 30px var(--gutter) 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ife-game-head {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding-bottom: 24px;
+}
+
+.ife-game-title {
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.ife-game-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ife-chip {
+  appearance: none;
+  background: rgba(var(--text-rgb), 0.06);
+  border: 0;
+  border-radius: 999px;
+  color: var(--dim);
+  font: inherit;
+  font-size: 22px;
+  padding: 14px 26px;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.ife-chip[data-on="true"] {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* ── Sudoku ──────────────────────────────────────────────────────────── */
+.ife-sudoku {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 64px;
+  align-items: start;
+  min-height: 0;
+}
+
+/* The three-by-three blocks are told apart by a wider gap, not by heavier
+   rules: on a printed grid the rule is thick because ink is all it has. */
+.ife-sudoku-board {
+  display: grid;
+  grid-template-columns: repeat(9, 68px);
+  grid-auto-rows: 68px;
+  gap: 3px;
+  background: rgba(var(--text-rgb), 0.05);
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
+}
+
+.ife-cell {
+  appearance: none;
+  background: rgba(7, 8, 11, 0.55);
+  border: 0;
+  border-radius: 4px;
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 34px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.ife-cell[data-given="true"] {
+  color: var(--fg);
+  background: rgba(var(--text-rgb), 0.08);
+}
+
+.ife-cell[data-match="true"] {
+  background: rgba(201, 164, 92, 0.16);
+}
+
+.ife-cell[data-sel="true"] {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.ife-cell[data-bad="true"] {
+  color: var(--alert);
+}
+
+.ife-cell[data-edge-r="true"] {
+  margin-right: 15px;
+}
+
+.ife-cell[data-edge-b="true"] {
+  margin-bottom: 15px;
+}
+
+.ife-sudoku-side {
+  padding-top: 6px;
+}
+
+.ife-pad-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 108px);
+  gap: 14px;
+}
+
+.ife-key {
+  appearance: none;
+  height: 108px;
+  background: rgba(var(--text-rgb), 0.06);
+  border: 0;
+  border-radius: 10px;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 40px;
+  cursor: pointer;
+  transition: background-color 130ms ease;
+}
+
+.ife-key:hover:not(:disabled) {
+  background: rgba(var(--text-rgb), 0.12);
+}
+
+.ife-key:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+.ife-sudoku-state {
+  margin-top: 30px;
+  font-size: 24px;
+  color: var(--dim);
+}
+
+.ife-sudoku-solved {
+  color: var(--accent-bright);
+  font-family: var(--font-display);
+  font-size: 40px;
+}
+
+/* ── Overhead ────────────────────────────────────────────────────────── */
+.ife-quiz {
+  max-width: 1400px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-bottom: 30px;
+}
+
+.ife-quiz::-webkit-scrollbar {
+  display: none;
+}
+
+.ife-quiz-q {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.16;
+  margin: 10px 0 0;
+  max-width: 24ch;
+}
+
+.ife-quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 30px;
+  max-width: 1080px;
+}
+
+.ife-quiz-option {
+  appearance: none;
+  background: rgba(var(--text-rgb), 0.05);
+  border: 0;
+  border-radius: 10px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 27px;
+  text-align: left;
+  padding: 22px 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.ife-quiz-option:hover {
+  background: rgba(var(--text-rgb), 0.09);
+}
+
+.ife-quiz-letter {
+  color: var(--faint);
+  font-size: 22px;
+}
+
+.ife-quiz-option[data-right="true"] {
+  background: rgba(201, 164, 92, 0.22);
+  color: var(--accent-bright);
+}
+
+.ife-quiz-option[data-wrong="true"] {
+  background: rgba(176, 80, 72, 0.22);
+  color: #d98279;
+}
+
+.ife-quiz-why {
+  margin-top: 24px;
+  max-width: 1080px;
+}
+
+.ife-quiz-why .ife-cap[data-right="true"] {
+  color: var(--accent-bright);
+}
+
+.ife-quiz-why-text {
+  color: var(--dim);
+  font-size: 26px;
+  line-height: 1.42;
+  margin: 12px 0 0;
+}
+
+.ife-quiz-source {
+  margin-top: 14px;
+  color: var(--faint);
+}
+
+.ife-quiz-why .ife-btn {
+  margin-top: 20px;
+}
+
+.ife-quiz-end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  height: 100%;
+}
+
+.ife-quiz-score {
+  font-size: 140px;
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.ife-quiz-end .ife-btn {
+  margin-top: 34px;
+}
+
+.ife-film-detail-nodesc {
+  color: var(--faint);
+  font-style: italic;
+}

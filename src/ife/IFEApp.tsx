@@ -8,7 +8,8 @@ import { Home } from "./screens/Home";
 import { MapScreen } from "./screens/MapScreen";
 import { FlightInfo } from "./screens/FlightInfo";
 import { Music } from "./screens/Music";
-import { Placeholder } from "./screens/Placeholder";
+import { Movies } from "./screens/Movies";
+import { Games } from "./screens/Games";
 import { PAOverlay } from "./screens/PAOverlay";
 import { usePlayer } from "./player";
 import "./ife.css";
@@ -96,8 +97,8 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
         {screen === "map" && <MapScreen />}
         {screen === "flightInfo" && <FlightInfo />}
         {screen === "music" && <Music />}
-        {screen === "movies" && <Placeholder titleKey="movies" />}
-        {screen === "games" && <Placeholder titleKey="games" />}
+        {screen === "movies" && <Movies />}
+        {screen === "games" && <Games />}
       </div>
       <BottomRail seat={seat} bridge={bridge} />
       <PAOverlay />

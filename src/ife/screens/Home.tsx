@@ -5,6 +5,7 @@ import { pick, useT, type Key } from "../i18n";
 import { useDestination } from "../destination";
 import { conditionKey, useWeather } from "../weather";
 import { STATIONS } from "../stations";
+import { FILMS } from "../films";
 import { currentTrack, usePlayer } from "../player";
 import { RouteMini } from "../chrome/RouteMini";
 import {
@@ -75,15 +76,13 @@ export function Home() {
       screen: "movies",
       key: "movies",
       icon: <IconFilm size={96} />,
-      note: t("later"),
-      soon: true,
+      note: `${FILMS.length} ${lang === "zh" ? "部" : "films"}`,
     },
     {
       screen: "games",
       key: "games",
       icon: <IconGames size={96} />,
-      note: t("later"),
-      soon: true,
+      note: lang === "zh" ? "2 个游戏" : "2 games",
     },
   ];
 

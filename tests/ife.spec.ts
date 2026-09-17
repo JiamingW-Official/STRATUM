@@ -268,6 +268,85 @@ test.describe("IFE bench", () => {
     await expect(page.locator(".ife-mini")).toHaveCount(1, { timeout: 15_000 });
   });
 
+  test("the film shelf is real, and so is the film", async ({ page }) => {
+    await openBench(page);
+    await page.locator(".ife-idle").click();
+    await page.getByRole("button", { name: "Movies" }).click();
+
+    // Eight real public-domain films, each with a year and a runtime.
+    const films = page.locator(".ife-film");
+    await expect(films).toHaveCount(8);
+    await expect(films.first()).toContainText("1956");
+
+    await films.first().click();
+    await expect(page.locator(".ife-film-detail-title")).toHaveText(
+      "Jet Mainliner Flight 803",
+    );
+    // The archive has no description for this one, and the page says so
+    // rather than filling the hole.
+    await expect(page.locator(".ife-film-detail-nodesc")).toHaveCount(1);
+
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    const video = page.locator("video");
+    await expect(video).toHaveCount(1);
+    // It really plays: the element gets metadata and the clock moves.
+    await expect
+      .poll(async () => video.evaluate((v: HTMLVideoElement) => v.currentTime), {
+        timeout: 60_000,
+        intervals: [1000],
+      })
+      .toBeGreaterThan(0);
+  });
+
+  test("sudoku deals a board that can only be solved one way", async ({
+    page,
+  }) => {
+    await openBench(page);
+    await page.locator(".ife-idle").click();
+    await page.getByRole("button", { name: "Games" }).click();
+    await page.getByRole("button", { name: "Sudoku" }).click();
+
+    const cells = page.locator(".ife-cell");
+    await expect(cells).toHaveCount(81);
+    const given = await page.locator('.ife-cell[data-given="true"]').count();
+    expect(given).toBeGreaterThan(20);
+    expect(given).toBeLessThan(60);
+
+    // A blank cell takes a digit, and only a blank one does.
+    const blank = page.locator('.ife-cell[data-given="false"]').first();
+    await blank.click();
+    await page.locator('.ife-key', { hasText: /^5$/ }).click();
+    await expect(blank).toHaveText("5");
+
+    // Harder deals leave fewer givens. This is the only property of the
+    // generator a test can see from out here; its uniqueness is checked where
+    // it is generated.
+    await page.getByRole("button", { name: "Hard" }).click();
+    const hardGiven = await page.locator('.ife-cell[data-given="true"]').count();
+    expect(hardGiven).toBeLessThan(given);
+  });
+
+  test("the quiz marks an answer and shows where it comes from", async ({
+    page,
+  }) => {
+    await openBench(page);
+    await page.locator(".ife-idle").click();
+    await page.getByRole("button", { name: "Games" }).click();
+    await page.getByRole("button", { name: "Overhead" }).click();
+
+    await expect(page.locator(".ife-quiz-q")).toContainText("ADS-B");
+    await page.locator(".ife-quiz-option").nth(1).click();
+    // The right answer is marked whichever one was picked, and the wrong pick
+    // is marked too.
+    await expect(page.locator('.ife-quiz-option[data-right="true"]')).toHaveCount(1);
+    await expect(page.locator('.ife-quiz-option[data-wrong="true"]')).toHaveCount(1);
+    // Every answer says where it comes from.
+    await expect(page.locator(".ife-quiz-source")).toContainText("ICAO");
+
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.locator(".ife-game-head")).toContainText("2");
+  });
+
   // The glass is a fixed 1920x1080 surface wherever it hangs. What must hold
   // at every window size is that all of it is visible and none of it is
   // stretched — that is the contract the 3D cabin will rely on.
