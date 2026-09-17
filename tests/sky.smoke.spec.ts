@@ -33,6 +33,15 @@ const isUpstream = (url: string) =>
   UPSTREAM_PREFIXES.some((p) => url.includes(p)) ||
   !url.startsWith("http://localhost");
 
+/**
+ * A 429 is never a regression. It means we asked a third party too often —
+ * which is exactly what a morning of screenshot loops does to the weather feed
+ * behind /api/weather — and no change to this repository can make it go away.
+ * It is reported like any other degraded feed rather than failing the run,
+ * because a gate that cries wolf over a rate limit is a gate people switch off.
+ */
+const isRateLimit = (status: number) => status === 429;
+
 type Collected = {
   consoleErrors: string[];
   upstreamNotes: string[];
@@ -50,16 +59,18 @@ function collect(page: Page): Collected {
   page.on("console", (m: ConsoleMessage) => {
     if (m.type() !== "error") return;
     const where = m.location()?.url ?? "";
-    const line = `${m.text().slice(0, 300)} @ ${where}`;
-    (isUpstream(where) ? c.upstreamNotes : c.consoleErrors).push(line);
+    const text = m.text();
+    const line = `${text.slice(0, 300)} @ ${where}`;
+    if (isUpstream(where) || /\b429\b/.test(text)) c.upstreamNotes.push(line);
+    else c.consoleErrors.push(line);
   });
   page.on("pageerror", (e) => c.pageErrors.push(String(e).slice(0, 400)));
   page.on("response", (r) => {
     const u = r.url();
     if (!u.includes("/api/") || r.status() < 400) return;
-    (isUpstream(u) ? c.upstreamNotes : c.apiFailures).push(
-      `${r.status()} ${u.slice(0, 140)}`,
-    );
+    const note = `${r.status()} ${u.slice(0, 140)}`;
+    if (isUpstream(u) || isRateLimit(r.status())) c.upstreamNotes.push(note);
+    else c.apiFailures.push(note);
   });
   return c;
 }

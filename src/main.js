@@ -10771,7 +10771,11 @@ class GlobeView {
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.clip();
     this._drawLand();
-    this._drawGrid();
+    // _drawGrid() drew the equator, the tropics and every fifteenth meridian
+    // as rows of small blue squares. On the whole globe it read as a graticule;
+    // zoomed in it read as litter over the ocean, and it was the last thing on
+    // this canvas competing with the airports for attention. Filled land tells
+    // you where you are without it.
     if (this.focusedIdx >= 0) this._drawArcs();
     this._drawDots();
     this._drawAircraftDots();
@@ -10800,44 +10804,6 @@ class GlobeView {
     ctx.strokeStyle = "rgba(196,160,88,0.08)";
     ctx.lineWidth = 0.5;
     ctx.stroke();
-  }
-
-  _drawGrid() {
-    const ctx = this.ctx;
-    // Equator — brighter reference line
-    ctx.fillStyle = "rgba(70,140,220,0.20)";
-    for (let lon = -180; lon < 180; lon += 4) {
-      const p = this._proj(0, lon);
-      if (!p.visible) continue;
-      ctx.fillRect(p.x - 0.55, p.y - 0.55, 1.1, 1.1);
-    }
-    // Tropics (Cancer +23.4°, Capricorn -23.4°) — faint gold tint
-    ctx.fillStyle = "rgba(196,160,88,0.10)";
-    for (const lat of [23.4, -23.4]) {
-      for (let lon = -180; lon < 180; lon += 6) {
-        const p = this._proj(lat, lon);
-        if (!p.visible) continue;
-        ctx.fillRect(p.x - 0.4, p.y - 0.4, 0.8, 0.8);
-      }
-    }
-    // Standard parallels ±30°, ±60° — subtle blue
-    ctx.fillStyle = "rgba(60,120,200,0.09)";
-    for (const lat of [-60, -30, 30, 60]) {
-      for (let lon = -180; lon < 180; lon += 6) {
-        const p = this._proj(lat, lon);
-        if (!p.visible) continue;
-        ctx.fillRect(p.x - 0.35, p.y - 0.35, 0.7, 0.7);
-      }
-    }
-    // Meridians every 15° — denser coverage
-    ctx.fillStyle = "rgba(60,120,200,0.06)";
-    for (let lon = -180; lon < 180; lon += 15) {
-      for (let lat = -80; lat <= 80; lat += 6) {
-        const p = this._proj(lat, lon);
-        if (!p.visible) continue;
-        ctx.fillRect(p.x - 0.3, p.y - 0.3, 0.6, 0.6);
-      }
-    }
   }
 
   _drawArcs() {
@@ -11253,10 +11219,22 @@ class GlobeView {
         H = 342;
       const grid = new Uint8Array(W * H);
       const coast = new Uint8Array(W * H);
+      // Sample a hair off the half-degree lattice.
+      //
+      // Ray casting is undefined when the ray passes exactly through a
+      // polygon vertex, and land-110m's coordinates are quantised, so a great
+      // many vertices share one exact latitude. Where such a latitude lands on
+      // a sample row, the parity breaks for that row across the whole world:
+      // measured, rows at -16.5, 64.5 and 69.5 degrees came back with three
+      // times their neighbours' land and drew as a line of "land" straight
+      // across open ocean. The stipple rendered those lines as dotted rows
+      // that read as part of the graticule, which is why three false parallels
+      // survived in plain sight.
+      const OFF = 0.0007;
       for (let r = 0; r < H; r++) {
-        const lat = -85 + r * 0.5;
+        const lat = -85 + r * 0.5 + OFF;
         for (let c = 0; c < W; c++) {
-          const lon = -180 + c * 0.5;
+          const lon = -180 + c * 0.5 + OFF;
           if (this._pointInPoly(lat, lon)) grid[r * W + c] = 1;
         }
       }
@@ -11338,22 +11316,49 @@ class GlobeView {
       }
     };
     collect(topo.objects.land);
+    // Unwrap longitudes so no ring contains a 360-degree jump.
+    //
+    // Fiji, Chukotka, Wrangel Island and Antarctica all cross the
+    // antimeridian, and in raw coordinates such a ring steps from +179.9 to
+    // -179.9 — a short edge on the globe, a sweep across the whole map in the
+    // plane. Planar ray casting cannot survive that, and what it produced here
+    // was three false parallels: at -16.5 (Fiji's latitudes), 64.5 and 69.5
+    // (Chukotka's), every cell east of the seam came back as land. After
+    // unwrapping, Fiji simply spans 178 to 182 and the ray sees an ordinary
+    // closed ring.
+    for (const ring of rings) {
+      for (let i = 1; i < ring.length; i++) {
+        const d = ring[i].lon - ring[i - 1].lon;
+        if (d > 180) ring[i].lon -= 360;
+        else if (d < -180) ring[i].lon += 360;
+      }
+    }
     return rings;
   }
 
   _pointInPoly(lat, lon) {
+    // Even-odd per ring, then XOR across rings.
+    //
+    // This used to keep one `inside` flag for every ring at once while also
+    // skipping rings by bounding box — two different algorithms sharing a
+    // loop. Cross-ring parity only works if every ring the ray crosses is
+    // counted, and the box test threw away exactly the rings to the east that
+    // the ray does cross. Testing each ring on its own makes the box a real
+    // early-out (a point outside a ring's box is outside that ring) and makes
+    // holes come out right for free.
     let inside = false;
     for (const ring of this._landRings) {
-      // Quick bounding-box check
-      if (ring._bb) {
-        if (
-          lat < ring._bb[0] ||
-          lat > ring._bb[1] ||
-          lon < ring._bb[2] ||
-          lon > ring._bb[3]
-        )
-          continue;
+      const bb = ring._bb;
+      let L = lon;
+      if (bb) {
+        if (lat < bb[0] || lat > bb[1]) continue;
+        // Rings are unwrapped, so one may live at 178..182; a point at -179
+        // has to be compared as +181.
+        if (L < bb[2]) L += 360;
+        else if (L > bb[3]) L -= 360;
+        if (L < bb[2] || L > bb[3]) continue;
       }
+      let hit = false;
       for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
         const yi = ring[i].lat,
           xi = ring[i].lon;
@@ -11361,11 +11366,12 @@ class GlobeView {
           xj = ring[j].lon;
         if (
           yi > lat !== yj > lat &&
-          lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
+          L < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
         ) {
-          inside = !inside;
+          hit = !hit;
         }
       }
+      if (hit) inside = !inside;
     }
     return inside;
   }
@@ -11392,99 +11398,90 @@ class GlobeView {
 
       const W = this._landW,
         H = this._landH;
-      const step = R < 100 ? 4 : R < 160 ? 3 : R < 240 ? 2 : 1;
-      // The land is a stipple of small dots, one per 0.5-degree cell. Zoomed in,
-      // a cell spans R * 0.5deg pixels on screen and the dots drift apart until
-      // continents look hollow. Subdividing each cell keeps dots ~2px apart at
-      // any zoom; at the default zoom `sub` is 1 and this is the original loop.
-      const sub =
-        step > 1
-          ? 1
-          : Math.max(1, Math.min(4, Math.round((R * 0.00872665) / 2.2)));
-      const inc = step / sub;
+      // Land is filled, not stippled.
+      //
+      // It used to be a field of small dots, one per 0.5-degree cell, with the
+      // cells subdivided as you zoomed so the dots stayed about 2px apart. The
+      // trouble is what that looks like at any zoom past the whole globe: a
+      // continent made of dots on a dark blue ocean does not read as a
+      // continent, it reads as noise, and the coast — the one line a map of
+      // airspace actually needs — disappears into it.
+      //
+      // So each visible cell is filled to its own size on screen. The grid is
+      // 0.5 degrees, which is the honest resolution of the data; zoomed in far
+      // enough the coast is visibly stepped, and that is the truth about what
+      // this map knows rather than a smoothing of it.
+      const step = R < 100 ? 3 : R < 200 ? 2 : 1;
       const D = Math.PI / 180;
+      // One cell, in pixels, at this radius. Tiles overlap by a pixel so no
+      // seam opens between them.
+      const cellPx = Math.max(1, Math.ceil(R * 0.00872665 * step) + 1);
       const sinP0 = Math.sin(viewLat * D);
       const cosP0 = Math.cos(viewLat * D);
       const vl = viewLon * D;
       const cosVl = Math.cos(vl);
       const sinVl = Math.sin(vl);
 
-      for (let rf = 0; rf < H; rf += inc) {
-        const r = rf | 0;
-        let sinPhi, cosPhi;
-        if (sub === 1) {
-          sinPhi = this._sinLat[r];
-          cosPhi = this._cosLat[r];
-        } else {
-          const lat = (-85 + rf * 0.5) * D;
-          sinPhi = Math.sin(lat);
-          cosPhi = Math.cos(lat);
-        }
-        for (let cf = 0; cf < W; cf += inc) {
-          const c = cf | 0;
+      // Land against this ocean (#071428 at the centre) needs a real step in
+      // lightness, not the 0.5-alpha wash the dots carried — that composited
+      // to within a few points of the water. The coast gets a brighter cell so
+      // the edge is the brightest thing on the sphere that is not an airport.
+      const LAND_R = 44, LAND_G = 70, LAND_B = 104;
+      // The coast is a highlight, not an outline. Drawn at full strength it
+      // traced every continent in bright blue and the drawing read as a
+      // cartoon border; the value step between land and water is already doing
+      // the work, so the edge only has to confirm it.
+      const COAST_R = 82, COAST_G = 122, COAST_B = 166;
+
+      for (let r = 0; r < H; r += step) {
+        const sinPhi = this._sinLat[r];
+        const cosPhi = this._cosLat[r];
+        for (let c = 0; c < W; c += step) {
           const gi = r * W + c;
           if (!this._landGrid[gi]) continue;
-          let sinLon, cosLon;
-          if (sub === 1) {
-            sinLon = this._sinLon[c];
-            cosLon = this._cosLon[c];
-          } else {
-            const lon = (-180 + cf * 0.5) * D;
-            sinLon = Math.sin(lon);
-            cosLon = Math.cos(lon);
-          }
+          const sinLon = this._sinLon[c];
+          const cosLon = this._cosLon[c];
           // Inline projection — no object allocation
           const dl = sinLon * cosVl - cosLon * sinVl;
           const dlc = cosLon * cosVl + sinLon * sinVl;
           const cosc = sinP0 * sinPhi + cosP0 * cosPhi * dlc;
-          if (cosc < 0) continue; // not visible
+          // Near the limb every longitude compresses into the same few pixels,
+          // and cell-sized fills pile up there into a smeared band around the
+          // edge of the sphere. Dropping the last few degrees and letting the
+          // fill fade into them costs nothing that was legible anyway.
+          if (cosc < 0.06) continue;
           const x = cx + R * cosPhi * dl;
           const y = cy - R * (cosP0 * sinPhi - sinP0 * cosPhi * dlc);
-          const d = Math.max(0.15, cosc);
-          const isCoast = this._coastGrid[gi];
-          // Subdivision fills the interior; the coast must stay one dot per
-          // cell or it thickens into a band as the cell splits into a block.
-          if (isCoast && sub > 1 && (rf !== r || cf !== c)) continue;
+          // Cull before touching pixels. At high zoom almost every cell on the
+          // globe is off this canvas, and without this the loop pays for all
+          // of them.
+          if (x < -cellPx || x > w + cellPx || y < -cellPx || y > h + cellPx)
+            continue;
 
-          // Write pixels directly to ImageData — much faster than fillRect
-          const sz = isCoast
-            ? step <= 1
-              ? 1
-              : step === 2
-                ? 2
-                : step === 3
-                  ? 2
-                  : 3
-            : step <= 1
-              ? 1
-              : step === 2
-                ? 1
-                : step === 3
-                  ? 2
-                  : 2;
-          // Interior lifted from the original 0.32/0.06: at that level the land
-          // barely separated from the ocean and the globe read as coastline only.
-          const alpha = isCoast
-            ? Math.round((0.55 * d + 0.2) * 255)
-            : Math.round((0.5 * d + 0.16) * 255);
-          // Land was rgb(30,92,54) with a rgb(50,135,72) coast -- green, on a
-          // page whose whole palette is deep blue ground with amber traffic on
-          // top of it. The globe is the same subject as the map below it, so
-          // it gets the map's colours: slate blue land, a brighter blue at the
-          // coast, and the airports stay amber, which is the one contrast this
-          // project uses everywhere to mean "something is happening here".
-          const rr = isCoast ? 74 : 38;
-          const gg = isCoast ? 116 : 62;
-          const bb = isCoast ? 164 : 96;
-          const px0 = Math.round(x - sz / 2);
-          const py0 = Math.round(y - sz / 2);
-          for (let dy = 0; dy < sz; dy++) {
+          // Full strength across the near side, falling away only in the last
+          // stretch before the horizon.
+          const d = Math.min(1, cosc * 3.2);
+          const isCoast = this._coastGrid[gi];
+          const alpha = Math.round(
+            (isCoast ? 0.72 * d + 0.06 : 0.86 * d + 0.04) * 255,
+          );
+          const rr = isCoast ? COAST_R : LAND_R;
+          const gg = isCoast ? COAST_G : LAND_G;
+          const bb = isCoast ? COAST_B : LAND_B;
+
+          const px0 = Math.round(x - cellPx / 2);
+          const py0 = Math.round(y - cellPx / 2);
+          for (let dy = 0; dy < cellPx; dy++) {
             const py = py0 + dy;
             if (py < 0 || py >= h) continue;
-            for (let dx = 0; dx < sz; dx++) {
+            const row = py * w;
+            for (let dx = 0; dx < cellPx; dx++) {
               const ppx = px0 + dx;
               if (ppx < 0 || ppx >= w) continue;
-              const idx = (py * w + ppx) * 4;
+              const idx = (row + ppx) * 4;
+              // Coast wins where a coast cell and an interior cell overlap:
+              // the edge is the line worth keeping.
+              if (px[idx + 3] > 0 && !isCoast) continue;
               px[idx] = rr;
               px[idx + 1] = gg;
               px[idx + 2] = bb;
@@ -11579,7 +11576,7 @@ class GlobeView {
         const factor = e.deltaY > 0 ? 0.88 : 1.14;
         this._targetZoom = Math.max(
           0.6,
-          Math.min(6.0, this._targetZoom * factor),
+          Math.min(16.0, this._targetZoom * factor),
         );
       },
       { passive: false },
@@ -13788,9 +13785,12 @@ function initCityPicker() {
   // ── Globe ────────────────────────────────────────────────────────────────
   const globeCanvas = document.getElementById("city-globe-canvas");
   if (globeCanvas) {
+    // Exposed for the same reason the renderer is: a canvas can only be
+    // debugged by turning its layers off one at a time from a console.
     _globeView = new GlobeView(globeCanvas, (idx) => {
       focusCity(idx);
     });
+    window._globeView = _globeView;
     _globeView.onHover = updateInfoCard;
   }
 

@@ -6709,3 +6709,167 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 @media (prefers-reduced-motion: reduce) {
   .detail-rotor .detail-meta-row.is-on { animation: none; }
 }
+
+/* ── The airspace picker, rebuilt ────────────────────────────────────────
+   Three complaints, and all three were fair.
+
+   The selected row wore a 2px accent bar down its left edge and slid two
+   pixels sideways on hover. A coloured stripe beside a row is what a layout
+   reaches for when it will not trust a fill, and it is the single most
+   over-used selection marker there is. iOS has not marked a selected row that
+   way in a decade: a row is a rounded field, and selecting it fills the field.
+   So the bar is gone, the nudge is gone, and the row is a pill.
+
+   The two panes were washed with 5.5% white and lifted another 6% in
+   brightness, sitting on a pane already washed with 4.5%. Two washes and two
+   brightness lifts stack, and what they stack into is grey plastic — the exact
+   thing the comment above that rule set out to avoid. They are thinner now and
+   the brightness lift is gone, so the sky behind the overlay comes through and
+   the glass gets its lightness from what is behind it. */
+.city-globe-pane,
+.city-list-pane {
+  background: rgba(255, 255, 255, 0.022);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.city-overlay-content {
+  background: rgba(255, 255, 255, 0.028);
+}
+
+/* Rows as fields, with air between them. */
+.city-list-items {
+  gap: 2px;
+  padding: 6px 0 10px;
+}
+
+.city-list-item {
+  margin: 0 10px;
+  padding: 10px 12px 10px 14px;
+  border-left: 0;
+  border-radius: 12px;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.city-list-item:hover {
+  background: rgba(255, 255, 255, 0.055);
+  border-left-color: transparent;
+  transform: none;
+}
+
+.city-list-item.active {
+  background: rgba(var(--accent-rgb), 0.15);
+  border-left-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* The chevron was invisible until hover, which meant a row gave no sign it
+   led anywhere until you were already on it. */
+.cli-chevron {
+  opacity: 0.2;
+  transform: none;
+}
+
+.city-list-item:hover .cli-chevron {
+  opacity: 0.5;
+  transform: none;
+}
+
+.city-list-item.active .cli-chevron {
+  opacity: 0.75;
+  color: var(--accent-bright);
+}
+
+/* The filter bar keeps a boundary, but a shadow rather than a rule: the same
+   move the rest of this page makes. */
+.city-filter-bar {
+  border-bottom: 0;
+  box-shadow: 0 10px 22px -14px rgba(0, 0, 0, 0.6);
+}
+
+/* Chips lose their outlines too. A pill is a fill. */
+.tier-chip,
+.region-chip {
+  border: 0;
+  background: rgba(255, 255, 255, 0.045);
+  border-radius: 999px;
+  padding: 5px 13px;
+}
+
+.tier-chip:hover,
+.region-chip:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: transparent;
+}
+
+.tier-chip.active,
+.region-chip.active {
+  background: rgba(var(--accent-rgb), 0.2);
+  color: var(--accent-bright);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.city-search-input {
+  border-radius: 999px;
+  padding: 10px 16px;
+}
+
+.city-sort-select {
+  border: 0;
+  background-color: rgba(255, 255, 255, 0.045);
+  border-radius: 999px;
+  padding: 6px 22px 6px 12px;
+}
+
+.city-sort-select:hover,
+.city-sort-select:focus {
+  background-color: rgba(255, 255, 255, 0.09);
+  border-color: transparent;
+}
+
+/* The globe pane held a 68/32 split when the list was the thing being read.
+   Half and half gives the map room to be zoomed into and the list room for its
+   names. */
+.city-globe-pane {
+  flex: 1 1 auto;
+  border-right: 0;
+}
+
+.city-list-pane {
+  flex: 0 0 420px;
+}
+
+.city-globe-canvas {
+  max-width: none;
+  border-radius: var(--r-sm);
+}
+
+/* The search field autofocuses, so its focus ring is the first thing on the
+   panel — and a full amber outline around a pill is louder than the brightest
+   airport on the globe beside it. A field that is ready reads as a lit field,
+   not a ringed one. */
+.city-search-input,
+.city-search-input:focus {
+  border: 0;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.city-search-input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 1px rgba(var(--accent-rgb), 0.28);
+}
+
+/* iOS row height: a list you scroll with a thumb wants a taller field than a
+   list you scan with a mouse. */
+.city-list-item {
+  padding: 12px 12px 12px 14px;
+}

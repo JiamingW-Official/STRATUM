@@ -167,10 +167,25 @@ test.describe("IFE bench", () => {
 
     await expect(page.locator(".ife-home-city")).toHaveText("London");
 
-    // Weather comes from the Worker route the sky view already uses.
-    await expect(page.locator(".ife-home-wx-temp")).not.toHaveText("--°", {
-      timeout: 30_000,
-    });
+    // Weather comes from the Worker route the sky view already uses, which
+    // fronts a third party that can and does rate-limit. Both outcomes are
+    // correct behaviour and the test says which one it saw: a temperature when
+    // the feed answered, the placeholder when it did not. Asserting only the
+    // happy path made this test fail for running it too often.
+    const wx = await page
+      .waitForResponse((r) => r.url().includes("/api/weather"), {
+        timeout: 30_000,
+      })
+      .catch(() => null);
+    const temp = page.locator(".ife-home-wx-temp");
+    if (wx && wx.ok()) {
+      await expect(temp).not.toHaveText("--°", { timeout: 20_000 });
+    } else {
+      console.log(
+        `[ife] weather feed unavailable (${wx ? wx.status() : "no response"}); the screen shows its placeholder`,
+      );
+      await expect(temp).toHaveText("--°");
+    }
 
     // A Wikimedia photograph is credited or it is not shown.
     if (await page.locator(".ife-home .ife-photo").count()) {
