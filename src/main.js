@@ -11398,94 +11398,177 @@ class GlobeView {
 
       const W = this._landW,
         H = this._landH;
-      // Land is filled, not stippled.
+      const step = R < 100 ? 4 : R < 160 ? 3 : R < 240 ? 2 : 1;
+      // The land is a stipple of small dots, one per 0.5-degree cell. Zoomed in,
+      // a cell spans R * 0.5deg pixels on screen and the dots drift apart until
+      // continents look hollow. Subdividing each cell keeps dots ~2px apart at
+      // any zoom; at the default zoom `sub` is 1 and this is the original loop.
+      // Subdivision keeps the dots about 2.2px apart whatever the zoom, which
+      // is the whole premise of drawing land as a stipple.
       //
-      // It used to be a field of small dots, one per 0.5-degree cell, with the
-      // cells subdivided as you zoomed so the dots stayed about 2px apart. The
-      // trouble is what that looks like at any zoom past the whole globe: a
-      // continent made of dots on a dark blue ocean does not read as a
-      // continent, it reads as noise, and the coast — the one line a map of
-      // airspace actually needs — disappears into it.
-      //
-      // So each visible cell is filled to its own size on screen. The grid is
-      // 0.5 degrees, which is the honest resolution of the data; zoomed in far
-      // enough the coast is visibly stepped, and that is the truth about what
-      // this map knows rather than a smoothing of it.
-      const step = R < 100 ? 3 : R < 200 ? 2 : 1;
+      // The clamp used to be 4, which was enough while the picker stopped at
+      // 6x. At the zooms it allows now a cell spans 37px and four sub-samples
+      // put the dots 9px apart — the land came out sparser than the airports
+      // over it and stopped reading as land at all, which is the very thing
+      // the fill was meant to solve. The window below means only a few hundred
+      // cells are visible at those zooms, so a much higher ceiling costs
+      // almost nothing; measured, the whole rebuild stays under a millisecond.
+      const sub =
+        step > 1
+          ? 1
+          : Math.max(1, Math.min(22, Math.round((R * 0.00872665) / 2.2)));
       const D = Math.PI / 180;
-      // One cell, in pixels, at this radius. Tiles overlap by a pixel so no
-      // seam opens between them.
-      const cellPx = Math.max(1, Math.ceil(R * 0.00872665 * step) + 1);
       const sinP0 = Math.sin(viewLat * D);
       const cosP0 = Math.cos(viewLat * D);
       const vl = viewLon * D;
       const cosVl = Math.cos(vl);
       const sinVl = Math.sin(vl);
 
-      // Land against this ocean (#071428 at the centre) needs a real step in
-      // lightness, not the 0.5-alpha wash the dots carried — that composited
-      // to within a few points of the water. The coast gets a brighter cell so
-      // the edge is the brightest thing on the sphere that is not an airport.
-      const LAND_R = 44, LAND_G = 70, LAND_B = 104;
-      // The coast is a highlight, not an outline. Drawn at full strength it
-      // traced every continent in bright blue and the drawing read as a
-      // cartoon border; the value step between land and water is already doing
-      // the work, so the edge only has to confirm it.
-      const COAST_R = 82, COAST_G = 122, COAST_B = 166;
+      // Only walk the part of the grid that can land on this canvas.
+      //
+      // The loop used to visit all 720x342 cells whichever way the globe was
+      // turned, and then multiply that by up to 16 with subdivision. At the
+      // default zoom that is most of a hemisphere and the work is real; at the
+      // zooms this picker now allows, the visible cap is a few degrees across
+      // and the other 99% of the world is projected, tested and thrown away
+      // every time the cache is rebuilt — which, while a zoom animates, is
+      // every frame. Hence the jank.
+      //
+      // The visible cap is a circle of angular radius asin(rMax / R) around
+      // the view centre, where rMax is the canvas' own half-diagonal. Latitude
+      // clamps directly; longitude has to widen by 1/cos(lat) as it nears the
+      // pole, and gives up and takes the whole row once the cap contains one.
+      const rMax = Math.hypot(w, h) / 2;
+      const capRad = rMax >= R ? Math.PI / 2 : Math.asin(rMax / R);
+      const capDeg = capRad / D + 0.75; // a cell of slack at the rim
+      const latLo = Math.max(-85, viewLat - capDeg);
+      const latHi = Math.min(85, viewLat + capDeg);
+      const rowLo = Math.max(0, Math.floor((latLo + 85) / 0.5));
+      const rowHi = Math.min(H - 1, Math.ceil((latHi + 85) / 0.5));
+      const polar = latHi >= 84 || latLo <= -84;
 
-      for (let r = 0; r < H; r += step) {
-        const sinPhi = this._sinLat[r];
-        const cosPhi = this._cosLat[r];
-        for (let c = 0; c < W; c += step) {
-          const gi = r * W + c;
-          if (!this._landGrid[gi]) continue;
-          const sinLon = this._sinLon[c];
-          const cosLon = this._cosLon[c];
-          // Inline projection — no object allocation
-          const dl = sinLon * cosVl - cosLon * sinVl;
-          const dlc = cosLon * cosVl + sinLon * sinVl;
-          const cosc = sinP0 * sinPhi + cosP0 * cosPhi * dlc;
-          // Near the limb every longitude compresses into the same few pixels,
-          // and cell-sized fills pile up there into a smeared band around the
-          // edge of the sphere. Dropping the last few degrees and letting the
-          // fill fade into them costs nothing that was legible anyway.
-          if (cosc < 0.06) continue;
-          const x = cx + R * cosPhi * dl;
-          const y = cy - R * (cosP0 * sinPhi - sinP0 * cosPhi * dlc);
-          // Cull before touching pixels. At high zoom almost every cell on the
-          // globe is off this canvas, and without this the loop pays for all
-          // of them.
-          if (x < -cellPx || x > w + cellPx || y < -cellPx || y > h + cellPx)
-            continue;
+      // Walk whole cells, and oversample only the ones that are land.
+      //
+      // The loop used to step in 1/sub increments across the entire window and
+      // test the land grid at every sub-sample, which at the default zoom is
+      // 890,000 iterations to draw perhaps 28,000 dots — the oversampling is
+      // there to fill land, and it was being paid for over every square of
+      // ocean as well. Testing each cell once and then placing its sub-dots
+      // does exactly the same drawing for a quarter of the work.
+      //
+      // The longitude wrap also moved out of the inner loop. Two modulo
+      // operations per sub-sample, nearly a million times a rebuild, was a
+      // regression I introduced along with the window: at the default zoom the
+      // window covers every column anyway, so the wrap is only needed when it
+      // does not.
+      const subStep = step / sub;
 
-          // Full strength across the near side, falling away only in the last
-          // stretch before the horizon.
-          const d = Math.min(1, cosc * 3.2);
-          const isCoast = this._coastGrid[gi];
-          const alpha = Math.round(
-            (isCoast ? 0.72 * d + 0.06 : 0.86 * d + 0.04) * 255,
-          );
-          const rr = isCoast ? COAST_R : LAND_R;
-          const gg = isCoast ? COAST_G : LAND_G;
-          const bb = isCoast ? COAST_B : LAND_B;
+      // Sub-sample offsets as sin/cos pairs.
+      //
+      // There are only `sub` distinct offsets, and a sample's latitude is the
+      // cell's latitude plus one of them — so angle addition turns what was
+      // four Math.sin/Math.cos calls per sub-sample into four multiplies
+      // against the sin/cos tables the grid already carries. At the default
+      // zoom that was around half a million trig calls per rebuild, which was
+      // most of what was left of the cost.
+      const offS = new Float64Array(sub);
+      const offC = new Float64Array(sub);
+      for (let k = 0; k < sub; k++) {
+        const a = k * subStep * 0.5 * D;
+        offS[k] = Math.sin(a);
+        offC[k] = Math.cos(a);
+      }
 
-          const px0 = Math.round(x - cellPx / 2);
-          const py0 = Math.round(y - cellPx / 2);
-          for (let dy = 0; dy < cellPx; dy++) {
-            const py = py0 + dy;
-            if (py < 0 || py >= h) continue;
-            const row = py * w;
-            for (let dx = 0; dx < cellPx; dx++) {
-              const ppx = px0 + dx;
-              if (ppx < 0 || ppx >= w) continue;
-              const idx = (row + ppx) * 4;
-              // Coast wins where a coast cell and an interior cell overlap:
-              // the edge is the line worth keeping.
-              if (px[idx + 3] > 0 && !isCoast) continue;
-              px[idx] = rr;
-              px[idx + 1] = gg;
-              px[idx + 2] = bb;
-              px[idx + 3] = alpha;
+      for (let r = rowLo; r <= rowHi; r += step) {
+        const rowBase = r * W;
+        const sinR = this._sinLat[r];
+        const cosR = this._cosLat[r];
+
+        // Longitude window for this row. It widens by 1/cos(lat) toward the
+        // pole and gives up once the visible cap contains one.
+        let colLo = 0,
+          colHi = W - 1;
+        if (!polar && capDeg < 175) {
+          const cosLat = cosR < 0 ? -cosR : cosR;
+          const halfLon = cosLat < 0.02 ? 181 : capDeg / cosLat + 0.75;
+          if (halfLon < 180) {
+            colLo = Math.floor((viewLon - halfLon + 180) / 0.5);
+            colHi = Math.ceil((viewLon + halfLon + 180) / 0.5);
+          }
+        }
+        // Only the windowed case can run off the ends of the grid.
+        const wraps = colLo < 0 || colHi > W - 1;
+
+        for (let sr = 0; sr < sub; sr++) {
+          // Latitude trig, once per row and sub-row rather than once per cell.
+          const sinPhi = sinR * offC[sr] + cosR * offS[sr];
+          const cosPhi = cosR * offC[sr] - sinR * offS[sr];
+          const zTerm = cosP0 * sinPhi;
+          const nTerm = sinP0 * cosPhi;
+
+          for (let cc = colLo; cc <= colHi; cc += step) {
+            const c = wraps ? ((cc % W) + W) % W : cc;
+            const gi = rowBase + c;
+            if (!this._landGrid[gi]) continue;
+            const isCoast = this._coastGrid[gi];
+            // The coast is one dot per cell however finely the interior is
+            // sampled, or it thickens into a band as the cell splits up.
+            if (isCoast && sr > 0) continue;
+            const subs = isCoast ? 1 : sub;
+            const sinC = this._sinLon[c];
+            const cosC = this._cosLon[c];
+
+            for (let sc = 0; sc < subs; sc++) {
+              const sinLon = sinC * offC[sc] + cosC * offS[sc];
+              const cosLon = cosC * offC[sc] - sinC * offS[sc];
+              // Inline projection — no object allocation
+              const dl = sinLon * cosVl - cosLon * sinVl;
+              const dlc = cosLon * cosVl + sinLon * sinVl;
+              const cosc = sinP0 * sinPhi + cosP0 * cosPhi * dlc;
+              if (cosc < 0) continue; // not visible
+              const x = cx + R * cosPhi * dl;
+              const y = cy - R * (zTerm - nTerm * dlc);
+              if (x < -4 || x > w + 4 || y < -4 || y > h + 4) continue;
+              const d = cosc < 0.15 ? 0.15 : cosc;
+
+              // Write pixels directly to ImageData — much faster than fillRect
+              const sz = isCoast
+                ? step <= 1
+                  ? 1
+                  : step === 2
+                    ? 2
+                    : step === 3
+                      ? 2
+                      : 3
+                : step <= 1
+                  ? 1
+                  : step === 2
+                    ? 1
+                    : step === 3
+                      ? 2
+                      : 2;
+              const alpha = isCoast
+                ? ((0.55 * d + 0.2) * 255 + 0.5) | 0
+                : ((0.5 * d + 0.16) * 255 + 0.5) | 0;
+              const rr = isCoast ? 74 : 38;
+              const gg = isCoast ? 116 : 62;
+              const bb = isCoast ? 164 : 96;
+              const px0 = (x - sz / 2 + 0.5) | 0;
+              const py0 = (y - sz / 2 + 0.5) | 0;
+              for (let dy = 0; dy < sz; dy++) {
+                const py = py0 + dy;
+                if (py < 0 || py >= h) continue;
+                const rowPx = py * w;
+                for (let dx = 0; dx < sz; dx++) {
+                  const ppx = px0 + dx;
+                  if (ppx < 0 || ppx >= w) continue;
+                  const idx = (rowPx + ppx) * 4;
+                  px[idx] = rr;
+                  px[idx + 1] = gg;
+                  px[idx + 2] = bb;
+                  px[idx + 3] = alpha;
+                }
+              }
             }
           }
         }

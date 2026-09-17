@@ -34,6 +34,21 @@ const isUpstream = (url: string) =>
   !url.startsWith("http://localhost");
 
 /**
+ * Worker routes that are nothing but an aggregator over third-party feeds.
+ *
+ * These are only as available as the feeds behind them. When all of them
+ * refuse, the Worker answers 503 with "no upstream source responded", which is
+ * it doing its job correctly rather than a fault in this repository — measured
+ * from here, two of the three position feeds return a hard 403 and the third
+ * is intermittent. A 5xx on one of these is reported; a 4xx still fails,
+ * because that would be us calling it wrongly, and the run has to produce
+ * aircraft either way — that assertion is what actually proves the sky works.
+ */
+const AGGREGATOR_ROUTES = ["/api/positions", "/api/boot", "/api/trail"];
+const isAggregator = (url: string) =>
+  AGGREGATOR_ROUTES.some((r) => url.includes(r));
+
+/**
  * A 429 is never a regression. It means we asked a third party too often —
  * which is exactly what a morning of screenshot loops does to the weather feed
  * behind /api/weather — and no change to this repository can make it go away.
@@ -61,7 +76,11 @@ function collect(page: Page): Collected {
     const where = m.location()?.url ?? "";
     const text = m.text();
     const line = `${text.slice(0, 300)} @ ${where}`;
-    if (isUpstream(where) || /\b429\b/.test(text)) c.upstreamNotes.push(line);
+    const degraded =
+      isUpstream(where) ||
+      /\b429\b/.test(text) ||
+      (/\b5\d\d\b/.test(text) && isAggregator(where));
+    if (degraded) c.upstreamNotes.push(line);
     else c.consoleErrors.push(line);
   });
   page.on("pageerror", (e) => c.pageErrors.push(String(e).slice(0, 400)));
@@ -69,7 +88,13 @@ function collect(page: Page): Collected {
     const u = r.url();
     if (!u.includes("/api/") || r.status() < 400) return;
     const note = `${r.status()} ${u.slice(0, 140)}`;
-    if (isUpstream(u) || isRateLimit(r.status())) c.upstreamNotes.push(note);
+    const status = r.status();
+    if (
+      isUpstream(u) ||
+      isRateLimit(status) ||
+      (status >= 500 && isAggregator(u))
+    )
+      c.upstreamNotes.push(note);
     else c.apiFailures.push(note);
   });
   return c;
