@@ -1,0 +1,29 @@
+# What Vercel does NOT need to be sent.
+#
+# `vercel deploy` uploads the working directory and builds remotely, and it
+# reads this file rather than .gitignore. Without it the CLI was shipping
+# 1.6 GB: the raw audio in /radio (1.4 GB of sources the build never touches),
+# plus a second copy of public/radio inside an already-built dist/. The upload
+# broke partway through, which is the only reason this file exists.
+
+# Raw audio the radio tracks are encoded from. public/radio holds the encoded
+# AAC the app actually serves; these are the sources.
+/radio/
+
+# Vercel runs the build itself, so a local dist/ is both redundant and the
+# largest thing in the tree after /radio.
+dist/
+
+node_modules/
+.git/
+.wrangler/
+
+# Test apparatus and its artefacts.
+tests/
+test-results/
+playwright-report/
+playwright.config.ts
+
+# Local scratch and editor state.
+.DS_Store
+docs/
