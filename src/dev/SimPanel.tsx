@@ -24,6 +24,22 @@ export function SimPanel() {
   const b = useBench();
   const seats = useCabin((s) => s.seats);
   const setSeat = useCabin((s) => s.setSeat);
+  const messages = useCabin((s) => s.messages);
+
+  // Somebody in another seat writing back. There is no such button on an
+  // aircraft — this is the bench standing in for a second passenger, so the
+  // seen/unseen half of a thread can be seen working at all.
+  const reply = (from: string) => {
+    const lines = [
+      "are you seeing this weather",
+      "swap seats after the meal?",
+      "which film did you pick",
+      "wake me for the descent",
+    ];
+    useCabin
+      .getState()
+      .post({ from, to: b.seat, text: lines[Math.floor(Math.random() * lines.length)] });
+  };
 
   if (collapsed) {
     return (
@@ -78,6 +94,27 @@ export function SimPanel() {
               </button>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div className="bench-group">
+        <div className="bench-group-name">Seat messages</div>
+        <div className="bench-row">
+          <label>Reply from</label>
+          <div className="bench-seg">
+            {["12J", "14A", "02C"].map((s2) => (
+              <button key={s2} onClick={() => reply(s2)}>
+                {s2}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="bench-row">
+          <label>On board</label>
+          <span className="bench-value">
+            {messages.length} held · {messages.filter((m) => !m.seenUtc).length}{" "}
+            unseen
+          </span>
         </div>
       </div>
 

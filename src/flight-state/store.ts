@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  CabinMessage,
   FlightState,
   SeatPrivate,
   SeatPublic,
@@ -51,6 +52,14 @@ type CabinStore = {
   seats: Record<string, SeatPublic>;
   setSeat: (seat: string, p: Partial<SeatPublic>) => void;
   reset: (seats: Record<string, SeatPublic>) => void;
+  /**
+   * Every seat-to-seat message on the aircraft, in one list, in the layer the
+   * whole cabin can read. That is deliberate, it is what a real system does,
+   * and CabinMessage says why.
+   */
+  messages: CabinMessage[];
+  post: (m: Omit<CabinMessage, "id" | "sentUtc" | "seenUtc">) => void;
+  markSeen: (reader: string, withSeat: string) => void;
 };
 
 export const useCabin = create<CabinStore>((set) => ({
@@ -65,7 +74,37 @@ export const useCabin = create<CabinStore>((set) => ({
         },
       },
     })),
-  reset: (seats) => set({ seats }),
+  reset: (seats) => set({ seats, messages: [] }),
+  messages: [],
+  post: (m) =>
+    set((s) => ({
+      messages: [
+        ...s.messages,
+        {
+          ...m,
+          id:
+            globalThis.crypto?.randomUUID?.() ??
+            `${Date.now()}-${s.messages.length}`,
+          sentUtc: new Date().toISOString(),
+          seenUtc: null,
+        },
+      ],
+    })),
+  // Only what was addressed to the reader, and only what has not been seen
+  // already: a seen time is the first time, not the latest.
+  markSeen: (reader, withSeat) =>
+    set((s) => {
+      const now = new Date().toISOString();
+      let touched = false;
+      const messages = s.messages.map((m) => {
+        if (m.to === reader && m.from === withSeat && m.seenUtc === null) {
+          touched = true;
+          return { ...m, seenUtc: now };
+        }
+        return m;
+      });
+      return touched ? { messages } : {};
+    }),
 }));
 
 export function blankSeat(

@@ -14,5 +14,13 @@ export function createMockBridge(seat: string): IFEBridge {
     callAttendant(on) {
       useCabin.getState().setSeat(seat, { callAttendant: on });
     },
+    sendMessage(to, text) {
+      const body = text.trim();
+      if (!body) return;
+      useCabin.getState().post({ from: seat, to, text: body });
+    },
+    readThread(withSeat) {
+      useCabin.getState().markSeen(seat, withSeat);
+    },
   };
 }

@@ -115,6 +115,15 @@ export const IconMenu = ({ size = 24 }: P) => (
   </svg>
 );
 
+/** Seat to seat. Two overlapping placards, which is the one mark for a
+ *  message that has never needed explaining. */
+export const IconChat = ({ size = 24 }: P) => (
+  <svg {...fill(size)}>
+    <path d="M3.2 4.4h12.4v9.2H7.4L3.2 16.9z" />
+    <path d="M17.4 7.6h3.4v8.6h-2.9l-3.1 2.6v-2.6h-4.2V13h6.8z" />
+  </svg>
+);
+
 /** Put the screen out. The one control on the drawer that is not a place. */
 export const IconPower = ({ size = 24 }: P) => (
   <svg {...line(size)}>

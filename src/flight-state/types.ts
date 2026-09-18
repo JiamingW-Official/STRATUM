@@ -98,8 +98,36 @@ export type ScreenName =
   | "movies"
   | "music"
   | "games"
+  | "chat"
   /** A film is on the glass. It takes the whole surface, chrome included. */
   | "film";
+
+/**
+ * A message from one seat to another.
+ *
+ * Read where this type is used before deciding it is in the wrong place. It is
+ * not in SeatPrivate, and that is the whole point: on a real seat-back system
+ * a seat-to-seat message goes to a server in the ceiling and sits there, so
+ * the thing that feels like a note passed between two people is in fact held
+ * by the aircraft. This one is held by the cabin store, which is the same
+ * arrangement, and the screen says so instead of implying otherwise.
+ *
+ * `seenUtc` is the evidence rule again, in a second place: null means the
+ * message exists in the aircraft and nowhere else — nobody has had it in front
+ * of them — and the thread draws it the way the map draws a stretch nobody
+ * heard.
+ */
+export type CabinMessage = {
+  id: string;
+  /** Seat, never a name. Nobody in this cabin has a name. */
+  from: string;
+  to: string;
+  text: string;
+  /** ISO 8601, UTC. */
+  sentUtc: string;
+  /** When the other seat actually had the thread open, or null. */
+  seenUtc: string | null;
+};
 
 /** This seat, as only its occupant sees it. */
 export type SeatPrivate = {
@@ -124,4 +152,12 @@ export type SeatPrivate = {
 export type IFEBridge = {
   setReadingLight(on: boolean): void;
   callAttendant(on: boolean): void;
+  /** Hand a message to the aircraft, addressed to another seat. */
+  sendMessage(to: string, text: string): void;
+  /**
+   * Say that this seat has the thread with `withSeat` in front of it, which is
+   * what turns their unseen messages into seen ones. The screen cannot write
+   * that itself: whether a message has been read is a fact about the cabin.
+   */
+  readThread(withSeat: string): void;
 };

@@ -11,6 +11,7 @@ import { FlightInfo } from "./screens/FlightInfo";
 import { Music } from "./screens/Music";
 import { Movies } from "./screens/Movies";
 import { Games } from "./screens/Games";
+import { Chat } from "./screens/Chat";
 import { Screening } from "./screens/Screening";
 import { PAOverlay } from "./screens/PAOverlay";
 import { usePlayer } from "./player";
@@ -134,6 +135,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
         {screen === "music" && <Music />}
         {screen === "movies" && <Movies />}
         {screen === "games" && <Games />}
+        {screen === "chat" && <Chat seat={seat} bridge={bridge} />}
       </div>
       <BottomRail seat={seat} bridge={bridge} />
       <MenuDrawer seat={seat} bridge={bridge} />

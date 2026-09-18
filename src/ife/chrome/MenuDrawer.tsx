@@ -5,11 +5,11 @@ import { useT, type Key } from "../i18n";
 import { useNav } from "../nav";
 import {
   IconCall,
+  IconChat,
   IconFilm,
   IconGames,
   IconGauge,
   IconHome,
-  IconLang,
   IconLight,
   IconMap,
   IconMusic,
@@ -43,8 +43,7 @@ export function MenuDrawer({
   const setOpen = useNav((s) => s.setMenuOpen);
   const screen = useSelf((s) => s.screen);
   const setScreen = useSelf((s) => s.setScreen);
-  const setLang = useSelf((s) => s.setLang);
-  const { t, lang } = useT();
+  const { t } = useT();
   const self = useCabin((s) => s.seats[seat]);
   const panel = useRef<HTMLDivElement | null>(null);
 
@@ -137,6 +136,13 @@ export function MenuDrawer({
       key: "groupCabin",
       items: [
         {
+          key: "chat",
+          icon: <IconChat size={38} />,
+          label: t("chat"),
+          onPress: go("chat"),
+          current: screen === "chat",
+        },
+        {
           key: "light",
           icon: <IconLight size={38} />,
           label: t("readingLight"),
@@ -150,12 +156,11 @@ export function MenuDrawer({
           on: calling,
           onPress: () => bridge.callAttendant(!calling),
         },
-        {
-          key: "lang",
-          icon: <IconLang size={38} />,
-          label: t("language"),
-          onPress: () => setLang(lang === "zh" ? "en" : "zh"),
-        },
+        // No language row either, and for the same reason Home went: the rail
+        // carries a globe placard whose popover lists both languages by name,
+        // which is more than a row here could say. Eleven rows no longer fit
+        // the glass at the size the type was asked to be, and a row that is
+        // already two inches below is the one to lose.
         {
           // What the corner arrow used to do, done properly: a screen you can
           // put out, and one touch anywhere brings it back.
