@@ -40,6 +40,67 @@
   --lift-sm: 0 14px 34px rgba(0, 0, 0, 0.45);
   --pane: inset 0 1px 0 var(--specular), var(--lift);
 
+  /* ── Glass ──────────────────────────────────────────────────────────────
+     One material for every surface in the cabin, written once and worn by
+     everything a finger can touch.
+
+     A piece of glass lying on a panel has four things and this is all four:
+     a tint that is lighter where it faces the light, a lit top lip with a
+     dark bottom edge, a body that carries a little of what is behind it, and
+     a shadow underneath. Nothing is outlined — an outline is a drawing of an
+     edge, and this cabin has always preferred to find the edge with light.
+
+     The fill is dark, not white. A white wash is right on a panel and wrong
+     on a photograph: made white, the cards on the home screen turned into
+     frosted grey slabs and took the contrast out from under their own type.
+     This cabin is dark, so its glass is smoked — the picture comes through
+     it and the light is only on the edge.
+
+     `backdrop-filter` is on all of these. On the bench it is free; on a real
+     seat-back panel it is the one thing in this file that would have to be
+     measured before it shipped. */
+  --glass-tint: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.025) 46%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  --glass-fill: rgba(10, 12, 17, 0.6);
+  --glass-edge: inset 0 1.5px 0 rgba(255, 255, 255, 0.26),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.55);
+  --glass-body: inset 0 0 26px rgba(255, 255, 255, 0.04);
+  --glass-shadow: 0 10px 22px rgba(0, 0, 0, 0.45);
+  --glass-blur: blur(14px) saturate(1.4);
+  --glass: var(--glass-edge), var(--glass-body), var(--glass-shadow);
+
+  /* The same thing, lit. */
+  --glass-on-tint: linear-gradient(
+    to bottom,
+    rgba(219, 182, 108, 0.3) 0%,
+    rgba(201, 164, 92, 0.13) 46%,
+    rgba(201, 164, 92, 0.05) 100%
+  );
+  --glass-on-fill: rgba(32, 25, 12, 0.66);
+  --glass-on: inset 0 1.5px 0 rgba(255, 226, 170, 0.45),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
+    inset 0 0 30px rgba(219, 182, 108, 0.12), var(--glass-shadow);
+
+  /* Pressed: the lip moves to the bottom and the shadow goes inside, which is
+     what happens to a key when it goes down. */
+  --glass-down: inset 0 -1.5px 0 rgba(255, 255, 255, 0.2),
+    inset 0 2px 8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.3);
+
+  /* Recessed: a channel cut into the glass rather than a lens on it. Seek
+     bars, volume tracks, the board a game is played on. */
+  --glass-in: inset 0 2px 5px rgba(0, 0, 0, 0.55),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+
+  /* One corner for one material. A moulded key in a cabin has a big radius,
+     and so does everything iOS put this language on. */
+  --r-key: 26px;
+  --r-tile: 20px;
+  --r-panel: 16px;
+
   /* Three faces, each with one job, as upstairs: display carries identity,
      sans carries prose, mono carries numbers and nothing else. */
   --font-display: "Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
@@ -122,8 +183,13 @@
   align-items: center;
   gap: 32px;
   padding: 0 var(--gutter);
-  background: var(--panel);
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 20px 46px rgba(0, 0, 0, 0.5);
+  background: rgba(7, 9, 13, 0.72);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  backdrop-filter: blur(22px) saturate(1.3);
+  box-shadow:
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 20px 46px rgba(0, 0, 0, 0.5);
   position: relative;
   z-index: 3;
 }
@@ -207,8 +273,12 @@
   align-items: center;
   gap: 8px;
   padding: 0 calc(var(--gutter) - 16px);
-  background: var(--panel);
-  box-shadow: inset 0 1px 0 var(--specular), 0 -20px 46px rgba(0, 0, 0, 0.5);
+  background: rgba(7, 9, 13, 0.72);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  backdrop-filter: blur(22px) saturate(1.3);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.12),
+    0 -20px 46px rgba(0, 0, 0, 0.5);
   position: relative;
   z-index: 3;
 }
@@ -758,12 +828,13 @@
 .ife-card {
   appearance: none;
   scroll-snap-align: start;
-  background: rgba(16, 19, 26, 0.8);
-  -webkit-backdrop-filter: blur(12px) saturate(1.35);
-  backdrop-filter: blur(12px) saturate(1.35);
   border: 0;
-  border-radius: 10px;
-  box-shadow: var(--pane);
+  border-radius: var(--r-tile);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   color: var(--fg);
   font: inherit;
   cursor: pointer;
@@ -1202,11 +1273,12 @@
   width: 84px;
   height: 84px;
   border: 0;
-  border-radius: 10px;
-  background: rgba(12, 15, 21, 0.82);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--pane);
+  border-radius: var(--r-key);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   color: var(--fg);
   cursor: pointer;
   display: flex;
@@ -1217,8 +1289,13 @@
 /* The camera is this button's. Brass, as everywhere else in the cabin. */
 .ife-mapbtn[data-on="true"] {
   color: var(--accent-bright);
-  background: rgba(201, 164, 92, 0.18);
-  box-shadow: inset 0 1px 0 rgba(219, 182, 108, 0.36), var(--lift-sm);
+  background-image: var(--glass-on-tint);
+  background-color: var(--glass-on-fill);
+  box-shadow: var(--glass-on);
+}
+
+.ife-mapbtn:active {
+  box-shadow: var(--glass-down);
 }
 
 /* ── Airports on the map ──────────────────────────────────────────────────
@@ -1459,7 +1536,7 @@
   position: relative;
   display: block;
   aspect-ratio: 1;
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   overflow: hidden;
   background:
     radial-gradient(
@@ -1468,7 +1545,7 @@
       transparent 56%
     ),
     linear-gradient(168deg, var(--stationColor) 0%, #08090d 88%);
-  box-shadow: var(--pane);
+  box-shadow: var(--glass-edge), var(--glass-shadow);
 }
 
 .ife-sleeve-grooves {
@@ -1580,7 +1657,11 @@
 
 .ife-btn {
   appearance: none;
-  background: rgba(var(--text-rgb), 0.07);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   border: 0;
   border-radius: 999px;
   color: var(--fg);
@@ -1597,8 +1678,8 @@
     color 140ms ease;
 }
 
-.ife-btn:hover {
-  background: rgba(var(--text-rgb), 0.13);
+.ife-btn:active {
+  box-shadow: var(--glass-down);
 }
 
 .ife-btn--quiet {
@@ -1741,9 +1822,13 @@
 /* ── Mini player in the rail ─────────────────────────────────────────── */
 .ife-mini {
   appearance: none;
-  background: rgba(var(--text-rgb), 0.05);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--r-panel);
   color: var(--fg);
   font: inherit;
   height: 80px;
@@ -2076,10 +2161,10 @@
   display: block;
   position: relative;
   aspect-ratio: 2 / 3;
-  border-radius: 8px;
+  border-radius: var(--r-panel);
   overflow: hidden;
   background: rgba(var(--text-rgb), 0.06);
-  box-shadow: var(--pane);
+  box-shadow: var(--glass-edge), var(--glass-shadow);
 }
 
 .ife-poster-frame {
@@ -2238,13 +2323,19 @@
 
 /* The one button on a page that starts something gets the brass. */
 .ife-btn--go {
-  background: var(--accent);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 236, 198, 1) 0%,
+    var(--accent) 62%,
+    rgba(178, 142, 74, 1) 100%
+  );
+  background-color: var(--accent);
   color: #10110f;
   font-weight: 500;
-}
-
-.ife-btn--go:hover {
-  background: var(--accent-bright);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 248, 232, 0.75),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.3),
+    var(--glass-shadow);
 }
 
 /* ── The film ────────────────────────────────────────────────────────────
@@ -2464,10 +2555,13 @@
 
 .ife-gamecard {
   appearance: none;
-  background: rgba(var(--text-rgb), 0.04);
   border: 0;
-  border-radius: 14px;
-  box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
+  border-radius: var(--r-key);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   color: var(--fg);
   font: inherit;
   text-align: left;
@@ -2605,7 +2699,11 @@
 
 .ife-chip {
   appearance: none;
-  background: rgba(var(--text-rgb), 0.06);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   border: 0;
   border-radius: 999px;
   color: var(--dim);
@@ -2617,8 +2715,15 @@
 }
 
 .ife-chip[data-on="true"] {
-  background: var(--accent);
-  color: var(--bg);
+  background-image: var(--glass-on-tint);
+  background-color: var(--glass-on-fill);
+  box-shadow: var(--glass-on);
+  color: var(--accent-bright);
+}
+
+.ife-chip:active,
+.ife-btn:active {
+  box-shadow: var(--glass-down);
 }
 
 /* ── Sudoku ──────────────────────────────────────────────────────────── */
@@ -3088,9 +3193,9 @@
   grid-template-rows: repeat(4, 1fr);
   gap: 2.4cqw;
   padding: 2.4cqw;
-  border-radius: 14px;
-  background: rgba(var(--text-rgb), 0.05);
-  box-shadow: inset 0 1px 0 var(--specular), var(--lift);
+  border-radius: var(--r-key);
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: var(--glass-in), var(--glass-shadow);
   touch-action: none;
   outline: none;
 }
@@ -3244,9 +3349,9 @@
   background: none;
   cursor: pointer;
   position: relative;
-  border-radius: 10px;
+  border-radius: var(--r-panel);
   overflow: hidden;
-  box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
+  box-shadow: var(--glass-edge), var(--glass-shadow);
 }
 
 .ife-pairs-face,
@@ -3545,9 +3650,9 @@
 
 .ife-chat-draft {
   min-height: 74px;
-  border-radius: 10px;
-  background: rgba(var(--text-rgb), 0.05);
-  box-shadow: inset 0 1px 0 var(--specular);
+  border-radius: var(--r-panel);
+  background: rgba(0, 0, 0, 0.34);
+  box-shadow: var(--glass-in);
   padding: 18px 22px;
   font-size: 28px;
   line-height: 1.3;
@@ -3576,9 +3681,12 @@
 .ife-key {
   appearance: none;
   border: 0;
-  border-radius: 8px;
-  background: rgba(var(--text-rgb), 0.08);
-  box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
+  border-radius: var(--r-panel);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: 30px;
@@ -3588,7 +3696,7 @@
 }
 
 .ife-key:active {
-  background: rgba(var(--text-rgb), 0.16);
+  box-shadow: var(--glass-down);
 }
 
 .ife-key--wide {
@@ -3597,13 +3705,25 @@
 
 .ife-key--send {
   min-width: 160px;
-  background: var(--accent);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 236, 198, 1) 0%,
+    var(--accent) 62%,
+    rgba(178, 142, 74, 1) 100%
+  );
+  background-color: var(--accent);
   color: #0a0c11;
   font-weight: 500;
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 248, 232, 0.75),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.3),
+    var(--glass-shadow);
 }
 
 .ife-key--send:disabled {
-  background: rgba(var(--text-rgb), 0.08);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  box-shadow: var(--glass);
   color: var(--faint);
   cursor: default;
 }
@@ -3646,9 +3766,12 @@
 .ife-lang-card {
   appearance: none;
   border: 0;
-  border-radius: 14px;
-  background: rgba(var(--text-rgb), 0.05);
-  box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
+  border-radius: var(--r-key);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   color: var(--fg);
   font: inherit;
   cursor: pointer;
@@ -3711,10 +3834,13 @@
 .ife-start-card {
   appearance: none;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--r-key);
   overflow: hidden;
-  background: rgba(var(--text-rgb), 0.05);
-  box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   color: var(--fg);
   font: inherit;
   text-align: left;
@@ -3817,10 +3943,13 @@
 
 .ife-ov-card {
   position: relative;
-  border-radius: 12px;
+  border-radius: var(--r-tile);
   overflow: hidden;
-  background: rgba(var(--text-rgb), 0.05);
-  box-shadow: inset 0 1px 0 var(--specular);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   display: flex;
   align-items: flex-end;
 }
@@ -3968,8 +4097,12 @@
   align-items: center;
   gap: 24px;
   padding: 22px 26px;
-  border-radius: 10px;
-  background: rgba(var(--text-rgb), 0.05);
+  border-radius: var(--r-panel);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
   font-size: 28px;
 }
 
@@ -4065,6 +4198,7 @@
    the clock at the ends of the bar. */
 .ife-now {
   grid-column: 1 / -1;
+  min-height: 132px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
@@ -4082,7 +4216,7 @@
 }
 
 .ife-now-art {
-  width: 76px;
+  width: 72px;
   flex: 0 0 auto;
 }
 
@@ -4146,10 +4280,10 @@
   border: 0;
   padding: 0;
   flex: 1;
-  height: 10px;
+  height: 12px;
   border-radius: 999px;
-  background: rgba(var(--text-rgb), 0.16);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.42);
+  box-shadow: var(--glass-in);
   cursor: pointer;
   position: relative;
   overflow: hidden;
