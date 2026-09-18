@@ -1,5 +1,5 @@
 // STRATUM Service Worker — smart caching by resource type
-const CACHE_NAME = "stratum-v10";
+const CACHE_NAME = "stratum-v11";
 const TILE_CACHE = "stratum-tiles-v1";
 // v2: the tracks are AAC now, so every .mp3 entry in v1 is dead weight in
 // somebody's browser that will never be requested again. The activate handler
@@ -59,6 +59,30 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (url.protocol !== "http:" && url.protocol !== "https:") return;
+
+  // ── Not ours: the developer pages and anything a dev server serves ──────
+  //
+  // This worker is registered from the sky view at scope "/", which means it
+  // also controls /dev/ and /dev/ife/ — the developer directory and the IFE
+  // bench. Caching a bench is pointless, and the default branch below is
+  // worse than pointless: it is network-first, but its catch falls back to
+  // whatever is in the cache, so one failed fetch pins the page to a stale
+  // copy of itself. That is exactly what happened — the bench went on running
+  // a player that had been replaced, and reloading could not shift it,
+  // because the reload was answered from here.
+  //
+  // Vite's own module URLs get the same treatment for the same reason: a dev
+  // module has no business in a production cache, and a stale one is a lie
+  // about what the source says.
+  if (
+    url.pathname.startsWith("/dev/") ||
+    url.pathname.startsWith("/src/") ||
+    url.pathname.startsWith("/@vite") ||
+    url.pathname.startsWith("/@id") ||
+    url.pathname.startsWith("/@fs") ||
+    url.pathname.startsWith("/node_modules/")
+  )
+    return;
   // ── Trails: stale-while-revalidate ──────────────────────────────────────
   // Measured on a return visit: 148 requests to /api/trail, 35.5 seconds of
   // cumulative request time, and not one of them cached across visits, because
