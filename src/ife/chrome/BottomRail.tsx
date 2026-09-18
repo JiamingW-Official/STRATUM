@@ -8,6 +8,7 @@ import {
   IconHome,
   IconLang,
   IconLight,
+  IconPower,
   IconPlan,
   IconVolume,
 } from "./icons";
@@ -38,8 +39,6 @@ export function BottomRail({
   const setScreen = useSelf((s) => s.setScreen);
   const volume = useSelf((s) => s.volume);
   const setVolume = useSelf((s) => s.setVolume);
-  const lang = useSelf((s) => s.lang);
-  const setLang = useSelf((s) => s.setLang);
   const self = useCabin((s) => s.seats[seat]);
   const { t } = useT();
 
@@ -48,7 +47,7 @@ export function BottomRail({
   const setPlayerVolume = usePlayer((s) => s.setVolume);
   const now = currentTrack(stationIdx, trackIdx);
 
-  const [pop, setPop] = useState<null | "lang" | "volume">(null);
+  const [pop, setPop] = useState<null | "volume">(null);
 
   // The volume in the rail used to be a number with nothing behind it.
   useEffect(() => setPlayerVolume(volume), [volume, setPlayerVolume]);
@@ -106,33 +105,16 @@ export function BottomRail({
         </button>
       )}
 
-      <Popover
-        open={pop === "lang"}
-        onToggle={() => setPop(pop === "lang" ? null : "lang")}
+      {/* The language is a screen, not a popover hanging off a placard. It
+          is the first question a seat-back system asks and the one a
+          passenger comes back to when somebody else sits down; a two-row
+          menu in the corner was treating it as a preference. */}
+      <RailButton
         label={t("language")}
         icon={<IconLang size={46} />}
-      >
-        <div className="ife-pop-title ife-cap">{t("language")}</div>
-        {(
-          [
-            ["en", "English"],
-            ["zh", "中文"],
-          ] as const
-        ).map(([code, name]) => (
-          <button
-            key={code}
-            className="ife-pop-row"
-            data-on={lang === code}
-            onClick={() => {
-              setLang(code);
-              setPop(null);
-            }}
-          >
-            <span>{name}</span>
-            {lang === code && <Tick />}
-          </button>
-        ))}
-      </Popover>
+        current={screen === "language"}
+        onClick={go("language")}
+      />
 
       {/* Volume is a bar, and nothing else: no panel, no label, no number.
           It stands directly above its own button so the thing you press and
@@ -168,6 +150,16 @@ export function BottomRail({
         alert={calling}
         pressed={calling}
         onClick={() => bridge.callAttendant(!calling)}
+      />
+      {/* Power at the end of the row, where the cabin this references puts it.
+          Bluetooth and a gear sit there too and neither is here: this bench
+          has no radio to pair with, and the settings are the drawer. A
+          placard that does nothing is the one thing this cabin does not
+          carry. */}
+      <RailButton
+        label={t("screenOff")}
+        icon={<IconPower size={46} />}
+        onClick={() => setScreen("off")}
       />
 
       {pop && (
@@ -214,35 +206,6 @@ function RailButton({
   );
 }
 
-function Popover({
-  open,
-  onToggle,
-  label,
-  icon,
-  children,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  label: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="ife-pop-anchor">
-      <button
-        className="ife-tool"
-        onClick={onToggle}
-        aria-label={label}
-        title={label}
-        aria-expanded={open}
-        data-current={open}
-      >
-        {icon}
-      </button>
-      {open && <div className="ife-pop">{children}</div>}
-    </div>
-  );
-}
 
 /**
  * A bare vertical bar, directly above its button.
@@ -300,14 +263,3 @@ function VolumeColumn({
   );
 }
 
-const Tick = () => (
-  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <path
-      d="m5 12.6 4.6 4.6L19 7.8"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);

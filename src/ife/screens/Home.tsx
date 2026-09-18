@@ -37,6 +37,7 @@ export function Home() {
   const {
     route,
     position,
+    connections,
     etaUtc,
     etaInferred,
     phase,
@@ -54,6 +55,16 @@ export function Home() {
   const feature = FILMS[0];
   const remaining = Date.parse(etaUtc) - Date.now();
   const landed = phase === "landed";
+  /**
+   * Near the end, the most useful thing on this screen stops being the film.
+   * The board is only on the rail when the aircraft is actually coming down —
+   * and it is first, because at that point it is the only card anybody is
+   * looking for.
+   */
+  const nearLanding =
+    connections.length > 0 &&
+    !landed &&
+    (phase === "descent" || remaining < 60 * 60_000);
   // The shelf's own span, which is a fact about it rather than a label on it.
   const years = [
     FILMS.reduce((a, f) => (f.year < a ? f.year : a), FILMS[0].year),
@@ -93,6 +104,21 @@ export function Home() {
     /** Brass for the flight, cool for the world outside it. Nothing else. */
     tint?: "brass" | "cool";
   }> = [
+    ...(nearLanding
+      ? [
+          {
+            key: "connections",
+            screen: "connections" as ScreenName,
+            cap: `${route.to.iata} · ${t("colDeparture")}`,
+            title: t("connections"),
+            lines: [
+              `${connections.length} ${lang === "zh" ? "班" : "flights"}`,
+              `${connections.filter((c) => c.confirmed).length} ${t("confirmed")}`,
+            ],
+            tint: "brass" as const,
+          },
+        ]
+      : []),
     {
       key: "film",
       onPress: () => {

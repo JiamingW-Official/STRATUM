@@ -144,7 +144,15 @@
   margin-left: 12px;
 }
 
+/* The line is a button now: pressing the journey opens the journey. */
 .ife-strip-line {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
   flex: 1;
   position: relative;
   height: 56px;
@@ -3504,4 +3512,410 @@
   min-width: 92px;
   height: 92px;
   font-family: var(--font-mono);
+}
+
+/* ── Language ─────────────────────────────────────────────────────────────
+   The first question, on the whole glass. Each option is written in its own
+   language and nothing else: "Chinese" is only useful to somebody who already
+   reads English. */
+.ife-lang-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 60px;
+  padding: 0 var(--gutter);
+}
+
+.ife-lang-title {
+  font-family: var(--font-display);
+  font-size: 64px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.ife-lang-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 380px);
+  gap: 34px;
+}
+
+.ife-lang-card {
+  appearance: none;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(var(--text-rgb), 0.05);
+  box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+  padding: 58px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.ife-lang-card[data-on="true"] {
+  background: rgba(201, 164, 92, 0.16);
+  box-shadow: inset 0 1px 0 rgba(219, 182, 108, 0.36), var(--lift-sm);
+}
+
+.ife-lang-name {
+  font-family: var(--font-display);
+  font-size: 58px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.ife-lang-note {
+  color: var(--faint);
+}
+
+.ife-lang-skip {
+  margin-top: 10px;
+}
+
+/* ── The first question ───────────────────────────────────────────────────
+   Four answers, each of them a place this screen will actually go. The faces
+   are the cabin's own contents rather than stock photography of people
+   enjoying themselves — and rest has no face, which is the truest thing this
+   screen can say about it. */
+.ife-start {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 44px;
+  padding: 0 var(--gutter);
+}
+
+.ife-start-title {
+  font-family: var(--font-display);
+  font-size: 62px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.ife-start-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 26px;
+}
+
+.ife-start-card {
+  appearance: none;
+  border: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(var(--text-rgb), 0.05);
+  box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.ife-start-face {
+  display: block;
+  aspect-ratio: 4 / 3;
+  background-size: cover;
+  background-position: center 34%;
+  filter: saturate(1.05) contrast(1.06);
+}
+
+.ife-start-face--sleeve,
+.ife-start-face--route {
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background: rgba(var(--text-rgb), 0.04);
+}
+
+/* The sleeve is square and the face is 4:3, so the sleeve takes the height
+   and finds its own width. Given the width instead it grew taller than the
+   face and pushed this one card below its neighbours. */
+.ife-start-face--sleeve > * {
+  height: 100%;
+  width: auto;
+  aspect-ratio: 1;
+}
+
+/* Rest is dark, and stays dark. */
+.ife-start-face--rest {
+  background: #04050a;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+.ife-start-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 26px 28px 30px;
+}
+
+.ife-start-name {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.ife-start-sub {
+  font-size: 23px;
+  color: var(--dim);
+  line-height: 1.35;
+}
+
+.ife-start-foot {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.ife-start-later {
+  color: var(--faint);
+  font-size: 23px;
+  max-width: 70ch;
+}
+
+.ife-start-skip {
+  margin-left: auto;
+}
+
+/* ── This flight ──────────────────────────────────────────────────────────
+   End to end on one strip. The cabin this is drawn from puts meal service on
+   it; nobody has told this aircraft when the trays come out, so the
+   milestones are the ones the flight actually knows — and the descent card is
+   a guess, drawn the way every other guess in this work is drawn. */
+.ife-overview {
+  position: absolute;
+  inset: 0;
+  padding: 16px var(--gutter) var(--gutter);
+  display: flex;
+  flex-direction: column;
+}
+
+.ife-ov-strip {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 44px;
+}
+
+.ife-ov-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(var(--text-rgb), 0.05);
+  box-shadow: inset 0 1px 0 var(--specular);
+  display: flex;
+  align-items: flex-end;
+}
+
+.ife-ov-card[data-on="true"] {
+  background: rgba(201, 164, 92, 0.14);
+  box-shadow: inset 0 1px 0 rgba(219, 182, 108, 0.36);
+}
+
+.ife-ov-card[data-inferred="true"] {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px rgba(201, 164, 92, 0.4);
+}
+
+.ife-ov-photo {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(1.02) brightness(0.72);
+}
+
+.ife-ov-card--photo .ife-ov-card-body {
+  position: relative;
+  background: linear-gradient(
+    to top,
+    rgba(7, 8, 11, 0.94) 0%,
+    rgba(7, 8, 11, 0.2) 70%,
+    transparent 100%
+  );
+  width: 100%;
+}
+
+.ife-ov-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 30px 30px 28px;
+}
+
+.ife-ov-name {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.ife-ov-when {
+  font-size: 30px;
+}
+
+.ife-ov-note {
+  font-size: 22px;
+  color: var(--faint);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The same line as the journey strip, at the size this screen can give it. */
+.ife-ov-line {
+  position: relative;
+  height: 74px;
+  flex: 0 0 auto;
+}
+
+.ife-ov-track,
+.ife-ov-flown {
+  position: absolute;
+  left: 0;
+  top: 18px;
+  height: 2px;
+}
+
+.ife-ov-track {
+  right: 0;
+  background: rgba(var(--text-rgb), 0.22);
+}
+
+.ife-ov-flown {
+  background: var(--fg);
+}
+
+.ife-ov-mark--descent {
+  position: absolute;
+  top: 11px;
+  width: 2px;
+  height: 16px;
+  background: var(--accent);
+}
+
+.ife-ov-plane {
+  position: absolute;
+  top: 8px;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  border-radius: 50%;
+  background: var(--fg);
+}
+
+.ife-ov-plane[data-heard="false"] {
+  background: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.ife-ov-end {
+  position: absolute;
+  top: 38px;
+  font-size: 24px;
+  color: var(--dim);
+  letter-spacing: 0.06em;
+}
+
+.ife-ov-end[data-side="from"] { left: 0; }
+.ife-ov-end[data-side="to"] { right: 0; }
+
+/* ── Connecting flights ───────────────────────────────────────────────────
+   A departure board is a set of statements about the future. Rows the cabin
+   has been told about are solid; rows that are only the plan are dashed, in
+   the brass this work uses for everything it believes but has not heard. */
+.ife-conns {
+  position: absolute;
+  inset: 0;
+  padding: 16px var(--gutter) var(--gutter);
+  display: flex;
+  flex-direction: column;
+}
+
+.ife-conns-empty {
+  color: var(--dim);
+  font-size: 30px;
+  margin: 40px 0 0;
+}
+
+.ife-conns-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ife-conns-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 1fr 1fr 0.7fr 0.8fr 1.2fr;
+  align-items: center;
+  gap: 24px;
+  padding: 22px 26px;
+  border-radius: 10px;
+  background: rgba(var(--text-rgb), 0.05);
+  font-size: 28px;
+}
+
+.ife-conns-row--head {
+  background: none;
+  padding-bottom: 8px;
+  color: var(--faint);
+  font-size: var(--t-cap);
+}
+
+.ife-conns-row[data-confirmed="false"] {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px rgba(201, 164, 92, 0.34);
+}
+
+.ife-conns-row[data-status="cancelled"] .ife-conns-status {
+  color: var(--alert);
+}
+
+.ife-conns-dest {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ife-conns-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ife-conns-evidence {
+  color: var(--faint);
+}
+
+.ife-conns-row[data-confirmed="false"] .ife-conns-evidence {
+  color: var(--accent);
+}
+
+.ife-conns-note {
+  margin-top: auto;
+  color: var(--faint);
+  font-size: 23px;
+  max-width: 90ch;
+  line-height: 1.4;
 }

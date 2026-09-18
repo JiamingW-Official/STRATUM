@@ -17,9 +17,11 @@ import { IconMenu } from "./icons";
 export function JourneyStrip({
   onMenu,
   menuOpen,
+  onOpenOverview,
 }: {
   onMenu?: () => void;
   menuOpen?: boolean;
+  onOpenOverview?: () => void;
 }) {
   const { route, position, track, etaUtc, etaInferred, phase } = useFlight();
   const { t, lang } = useT();
@@ -64,7 +66,14 @@ export function JourneyStrip({
         <span className="ife-strip-city-zh">{route.from.iata}</span>
       </div>
 
-      <div className="ife-strip-line">
+      {/* The line is the flight, so pressing it opens the flight. There is no
+          other affordance on this strip and it does not need one: the thing
+          you would press to learn more about the journey is the journey. */}
+      <button
+        className="ife-strip-line"
+        onClick={onOpenOverview}
+        aria-label={t("overview")}
+      >
         <div className="ife-strip-remaining">
           {arrived ? (
             t("arrived")
@@ -140,7 +149,7 @@ export function JourneyStrip({
             transform="rotate(90 12 12)"
           />
         </svg>
-      </div>
+      </button>
 
       <div className="ife-strip-city">
         {pick(route.to.city, lang)}

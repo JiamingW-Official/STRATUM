@@ -12,6 +12,10 @@ import { Music } from "./screens/Music";
 import { Movies } from "./screens/Movies";
 import { Games } from "./screens/Games";
 import { Chat } from "./screens/Chat";
+import { Language } from "./screens/Language";
+import { Start } from "./screens/Start";
+import { Overview } from "./screens/Overview";
+import { Connections } from "./screens/Connections";
 import { Screening } from "./screens/Screening";
 import { PAOverlay } from "./screens/PAOverlay";
 import { usePlayer } from "./player";
@@ -35,6 +39,8 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
   const ensureSeat = useCabin((s) => s.setSeat);
   const setMenuOpen = useNav((s) => s.setMenuOpen);
   const menuOpen = useNav((s) => s.menuOpen);
+  const started = useSelf((s) => s.started);
+  const setStarted = useSelf((s) => s.setStarted);
 
   // The screen follows whichever seat it is mounted for.
   useEffect(() => {
@@ -71,6 +77,8 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
       screen === "idle" ||
       screen === "off" ||
       screen === "film" ||
+      screen === "language" ||
+      screen === "start" ||
       paOverride
     )
       return;
@@ -110,6 +118,42 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
     );
   }
 
+  // The two screens before the cabin has a passenger yet. They take the whole
+  // glass — no strip, no rail — because a seat that has not been told which
+  // language it is in has no business drawing placards at somebody.
+  if (screen === "language" || screen === "start") {
+    return (
+      <div className="ife-root" data-screen={screen}>
+        {screen === "language" ? (
+          <Language
+            onDone={() => setScreen(started ? "home" : "start")}
+          />
+        ) : (
+          <Start
+            onDone={(mode) => {
+              setStarted(true);
+              if (mode === "rest") {
+                bridge.setReadingLight(false);
+                setScreen("off");
+                return;
+              }
+              setScreen(
+                mode === "watch"
+                  ? "movies"
+                  : mode === "listen"
+                    ? "music"
+                    : mode === "look"
+                      ? "map"
+                      : "home",
+              );
+            }}
+          />
+        )}
+        <PAOverlay />
+      </div>
+    );
+  }
+
   // A film gets the whole surface. On a seat-back screen "full screen" is not
   // a browser mode to request — the glass is the window — so it is simply the
   // one screen the journey strip and the rail stand down for.
@@ -127,6 +171,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
       <JourneyStrip
         menuOpen={menuOpen}
         onMenu={() => setMenuOpen(!menuOpen)}
+        onOpenOverview={() => setScreen("overview")}
       />
       <div className="ife-stage">
         {screen === "home" && <Home />}
@@ -136,6 +181,8 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
         {screen === "movies" && <Movies />}
         {screen === "games" && <Games />}
         {screen === "chat" && <Chat seat={seat} bridge={bridge} />}
+        {screen === "overview" && <Overview />}
+        {screen === "connections" && <Connections />}
       </div>
       <BottomRail seat={seat} bridge={bridge} />
       <MenuDrawer seat={seat} bridge={bridge} />

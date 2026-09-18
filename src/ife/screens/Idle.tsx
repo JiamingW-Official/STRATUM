@@ -17,6 +17,11 @@ import { useDestination } from "../destination";
 export function Idle({ seat }: { seat: string }) {
   const { route, flightNo } = useFlight();
   const setScreen = useSelf((s) => s.setScreen);
+  const started = useSelf((s) => s.started);
+  // The first touch of the flight goes to the language, not to the home
+  // screen: a passenger who cannot read the interface cannot find the control
+  // that would let them read it. Every touch after that goes straight home.
+  const onWake = () => setScreen(started ? "home" : "language");
   const cabinClass = useCabin((s) => s.seats[seat]?.cabinClass ?? "economy");
   const { t, lang } = useT();
   const dest = useDestination(route.to);
@@ -30,12 +35,12 @@ export function Idle({ seat }: { seat: string }) {
   return (
     <div
       className="ife-idle"
-      onClick={() => setScreen("home")}
+      onClick={onWake}
       role="button"
       tabIndex={0}
       aria-label={t("touchToBegin")}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") setScreen("home");
+        if (e.key === "Enter" || e.key === " ") onWake();
       }}
     >
       {dest?.image && (

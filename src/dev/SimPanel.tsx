@@ -110,6 +110,20 @@ export function SimPanel() {
           </div>
         </div>
         <div className="bench-row">
+          <label>Departure board</label>
+          <div className="bench-seg">
+            {[true, false].map((v) => (
+              <button
+                key={String(v)}
+                data-on={b.connections === v}
+                onClick={() => b.set({ connections: v })}
+              >
+                {v ? "Sent up" : "Not sent"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="bench-row">
           <label>On board</label>
           <span className="bench-value">
             {messages.length} held · {messages.filter((m) => !m.seenUtc).length}{" "}

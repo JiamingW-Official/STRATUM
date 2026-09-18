@@ -28,6 +28,17 @@ const card = (page: Page, name: string) =>
 const rail = (page: Page, name: string) =>
   page.locator(".ife-rail").getByRole("button", { name });
 
+/**
+ * The first touch of a flight goes to the language and then to the first
+ * question, which is what a seat-back system actually does — so every test
+ * that wants the home screen has to walk through them, once.
+ */
+const wake = async (page: Page) => {
+  await page.locator(".ife-idle").click();
+  await page.getByRole("button", { name: "English" }).click();
+  await page.getByRole("button", { name: "Skip" }).click();
+};
+
 const screenName = (page: Page) =>
   page.locator(".ife-root").getAttribute("data-screen");
 
@@ -38,7 +49,7 @@ test.describe("IFE bench", () => {
     expect(await screenName(page)).toBe("idle");
     await expect(page.locator(".ife-idle-seat")).toHaveText("12K");
 
-    await page.locator(".ife-idle").click();
+    await wake(page);
     expect(await screenName(page)).toBe("home");
 
     await card(page, "Flight map").click();
@@ -65,7 +76,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await card(page, "Flight map").click();
     await page.waitForFunction(
       () => (window as any).__ifeMap?.isStyleLoaded?.() === true,
@@ -125,7 +136,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await card(page, "Flight map").click();
     await page.waitForFunction(() => !!(window as any).__ifeMap?.loaded());
     const cam = () => page.evaluate(() => {
@@ -279,7 +290,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
 
     const seatState = () =>
       page.evaluate(() => {
@@ -311,7 +322,7 @@ test.describe("IFE bench", () => {
 
   test("an announcement takes the screen and gives it back", async ({ page }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await page.getByRole("button", { name: "Flight information" }).click();
     expect(await screenName(page)).toBe("flightInfo");
 
@@ -330,7 +341,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     expect(await screenName(page)).toBe("home");
 
     await expect(page.locator(".ife-home-city")).toHaveText("London");
@@ -396,7 +407,7 @@ test.describe("IFE bench", () => {
 
   test("the language switch reaches every surface", async ({ page }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
 
     // The rail is placards now, so its words live in the accessible name
     // rather than on the glass — which is also the only place a screen reader
@@ -434,7 +445,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
 
     await page.getByRole("button", { name: "Volume" }).click();
     const slider = page.locator(".ife-vol");
@@ -463,7 +474,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
 
     // The hamburger is in the top-left corner of the strip, and it toggles.
     await page.locator(".ife-strip-menu").click();
@@ -545,7 +556,7 @@ test.describe("IFE bench", () => {
 
   test("music belongs to the seat, not to the music page", async ({ page }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await page.locator('.ife-card[data-key="music"]').click();
 
     // It opens on the shelf: the first question is which station, not which
@@ -570,7 +581,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await page.locator('.ife-card[data-key="music"]').click();
     await page.locator(".ife-album").first().click();
     await page.locator(".ife-track").first().click();
@@ -588,7 +599,7 @@ test.describe("IFE bench", () => {
 
   test("the film shelf is real, and so is the film", async ({ page }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await page.getByRole("button", { name: "Movies" }).click();
 
     // Eighteen real public-domain films, each with a year and a runtime, and
@@ -733,7 +744,7 @@ test.describe("IFE bench", () => {
 
   test("2048 merges by the rules, on a swipe", async ({ page }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await card(page, "Games").click();
     await page.getByRole("button", { name: /2048/ }).first().click();
 
@@ -804,7 +815,7 @@ test.describe("IFE bench", () => {
 
   test("pairs is played with the films that are on board", async ({ page }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await card(page, "Games").click();
     await page.getByRole("button", { name: /Pairs/ }).first().click();
 
@@ -833,7 +844,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await page.locator(".ife-strip-menu").click();
     await page
       .locator(".ife-drawer")
@@ -887,11 +898,114 @@ test.describe("IFE bench", () => {
     await expect(page.locator(".ife-chat-seat")).toHaveCount(1);
   });
 
+  test("the first touch asks the language, then the one question", async ({
+    page,
+  }) => {
+    await openBench(page);
+
+    // Language first, on the whole glass, with no strip and no rail: a seat
+    // that has not been told which language it is in has no business drawing
+    // placards at anybody.
+    await page.locator(".ife-idle").click();
+    expect(await screenName(page)).toBe("language");
+    await expect(page.locator(".ife-strip")).toHaveCount(0);
+    await expect(page.locator(".ife-rail")).toHaveCount(0);
+    // Each option is written in its own language and nothing else.
+    await expect(page.locator(".ife-lang-name").nth(1)).toHaveText("中文");
+
+    await page.getByRole("button", { name: "中文" }).click();
+    expect(await screenName(page)).toBe("start");
+    await expect(page.locator(".ife-start-title")).toHaveText("这趟飞行你想怎么过？");
+
+    // Each answer is a place this screen actually goes.
+    await page.getByRole("button", { name: /看点什么/ }).click();
+    expect(await screenName(page)).toBe("movies");
+
+    // And it is asked once. Going back to idle and touching again lands on
+    // home, not on the language.
+    await rail(page, "关闭屏幕").click();
+    expect(await screenName(page)).toBe("off");
+    await page.locator(".ife-off").click();
+    await page.locator(".ife-idle").click();
+    expect(await screenName(page)).toBe("home");
+  });
+
+  test("the journey strip opens the journey", async ({ page }) => {
+    await openBench(page);
+    await wake(page);
+
+    // The line is the flight, so pressing it opens the flight.
+    await page.locator(".ife-strip-line").click();
+    expect(await screenName(page)).toBe("overview");
+
+    // Both ends are real photographs of real places; the middle is what the
+    // flight knows about itself.
+    await expect(page.locator(".ife-ov-card")).toHaveCount(4);
+    await expect(page.locator(".ife-overview")).toContainText("In the air");
+
+    // Nobody told this aircraft when the descent starts. It is half an hour
+    // back from an arrival time, and it is marked rather than asserted.
+    const descent = page.locator('.ife-ov-card[data-inferred="true"]');
+    await expect(descent).toHaveCount(1);
+    await expect(descent.locator(".ife-inferred")).toHaveCount(1);
+    // The word is set in capitals by the stylesheet, not in the string.
+    await expect(descent).toContainText("estimated");
+  });
+
+  test("the connecting board arrives as the aircraft comes down", async ({
+    page,
+  }) => {
+    await openBench(page);
+    await wake(page);
+
+    // Not while there are hours to run: the board is not on the rail at all.
+    await expect(page.locator('.ife-card[data-key="connections"]')).toHaveCount(
+      0,
+    );
+
+    await page
+      .locator(".bench-group", { hasText: "Phase" })
+      .getByRole("button", { name: "descent" })
+      .click();
+    const card = page.locator('.ife-card[data-key="connections"]');
+    await expect(card).toHaveCount(1);
+    // And it is first, because at that point it is the only card anybody is
+    // looking for.
+    expect(
+      await page.locator(".ife-card").first().getAttribute("data-key"),
+    ).toBe("connections");
+
+    await card.click();
+    expect(await screenName(page)).toBe("connections");
+
+    // The evidence rule, in its third place. A departure board is a set of
+    // statements about the future: rows the ground has confirmed are solid,
+    // rows that are only the schedule are not.
+    const rows = page.locator(".ife-conns-row:not(.ife-conns-row--head)");
+    await expect(rows).toHaveCount(5);
+    await expect(
+      page.locator('.ife-conns-row[data-confirmed="true"]'),
+    ).toHaveCount(2);
+    await expect(
+      page.locator('.ife-conns-row[data-confirmed="false"]'),
+    ).toHaveCount(3);
+    // A gate nobody has been given is a dash, not a guess.
+    await expect(rows.nth(3)).toContainText("—");
+
+    // The cabin can also not have been given a board at all, and then the
+    // screen says so instead of drawing an empty table.
+    await page
+      .locator(".bench-group", { hasText: "Seat messages" })
+      .getByRole("button", { name: "Not sent" })
+      .click();
+    await expect(page.locator(".ife-conns-empty")).toHaveCount(1);
+  });
+
   test("sudoku deals a board that can only be solved one way", async ({
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await page.getByRole("button", { name: "Games" }).click();
     await page.getByRole("button", { name: "Sudoku" }).click();
 
@@ -919,7 +1033,7 @@ test.describe("IFE bench", () => {
     page,
   }) => {
     await openBench(page);
-    await page.locator(".ife-idle").click();
+    await wake(page);
     await page.getByRole("button", { name: "Games" }).click();
     await page.getByRole("button", { name: "Overhead" }).click();
 

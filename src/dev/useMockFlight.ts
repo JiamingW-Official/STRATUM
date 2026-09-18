@@ -9,6 +9,7 @@ import {
   blockMinutes,
   buildTrack,
   groundSpeedKt,
+  mockConnections,
   phaseAt,
   progressForPhase,
 } from "./mockFlight";
@@ -49,8 +50,16 @@ export function useMockFlight() {
       ? progressForPhase(b.phaseOverride)
       : b.progress;
 
+    // Forcing a phase moves the aircraft along the route, so it has to move
+    // the clock with it: overriding the phase to "descent" and leaving the
+    // departure where it was put the aircraft on short final with four hours
+    // still to run, and every screen that reads the ETA then disagreed with
+    // every screen that reads the position.
+    const departureOffsetMin = b.phaseOverride
+      ? -progress * block
+      : b.departureOffsetMin;
     const departureUtc = new Date(
-      Date.now() + b.departureOffsetMin * 60_000,
+      Date.now() + departureOffsetMin * 60_000,
     ).toISOString();
     // ETA is departure plus block time, held steady rather than recomputed from
     // the current position — and it is marked inferred whenever the aircraft is
@@ -77,6 +86,10 @@ export function useMockFlight() {
       track: buildTrack(from, to, progress, departureUtc, block, b.gaps),
       etaUtc,
       etaInferred: !b.heard,
+      // The board the ground would have sent up. It is the bench's, like the
+      // flight — and it only reaches the screen at all once the aircraft is
+      // coming down, which is when a passenger starts caring about it.
+      connections: b.connections ? mockConnections(etaUtc) : [],
       paOverride: b.paOverride,
     });
   }, [
@@ -89,6 +102,7 @@ export function useMockFlight() {
     b.heard,
     b.gaps,
     b.paOverride,
+    b.connections,
     patch,
   ]);
 

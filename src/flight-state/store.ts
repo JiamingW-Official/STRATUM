@@ -28,6 +28,7 @@ export const useFlight = create<FlightStore>((set) => ({
   phase: "boarding",
   position: { lat: 0, lon: 0, altFt: 0, gsKt: 0, headingDeg: 0, heard: false },
   track: [],
+  connections: [],
   etaUtc: new Date().toISOString(),
   etaInferred: true,
   paOverride: null,
@@ -121,6 +122,8 @@ export function blankSeat(
 }
 
 type SelfStore = SeatPrivate & {
+  setStarted: (v: boolean) => void;
+  setMode: (m: SeatPrivate["mode"]) => void;
   /** Which seat this screen belongs to. */
   seat: string;
   setSeat: (seat: string) => void;
@@ -131,6 +134,10 @@ type SelfStore = SeatPrivate & {
 };
 
 export const useSelf = create<SelfStore>((set) => ({
+  started: false,
+  mode: null,
+  setStarted: (started) => set({ started }),
+  setMode: (mode) => set({ mode }),
   seat: "01A",
   screen: "idle",
   lang: "en",

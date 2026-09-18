@@ -27,6 +27,8 @@ export type BenchState = {
   heard: boolean;
   /** Progress ranges nobody heard, accumulated as `heard` is switched off. */
   gaps: Array<[number, number]>;
+  /** Whether the ground has sent up a departure board for the destination. */
+  connections: boolean;
 
   paOverride: null | "safety" | "captain";
 
@@ -54,6 +56,7 @@ export const useBench = create<BenchState>((set) => ({
 
   heard: true,
   gaps: [],
+  connections: true,
 
   paOverride: null,
 

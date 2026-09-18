@@ -1,4 +1,9 @@
-import type { Airport, FlightPhase, TrackPoint } from "../flight-state/types";
+import type {
+  Airport,
+  Connection,
+  FlightPhase,
+  TrackPoint,
+} from "../flight-state/types";
 import { greatCircleKm, interpolate } from "../flight-state/geo";
 
 // A flight that does not exist, advancing along a great circle so the map has
@@ -158,4 +163,70 @@ export function blockMinutes(from: Airport, to: Airport, cruiseKt = 480) {
   const km = greatCircleKm(from, to);
   const nm = km / 1.852;
   return Math.round((nm / cruiseKt) * 60 + 25);
+}
+
+/**
+ * A departure board for the airport this flight is landing at.
+ *
+ * This is the bench's, like the flight itself: nobody has told this aircraft
+ * anything, and in a real cabin the board would arrive from the airline's
+ * operations feed on the ground link. What matters is the shape — three of
+ * these rows are the schedule and nothing more, and two have been confirmed
+ * since, which is the distinction the screen is there to draw.
+ */
+export function mockConnections(etaUtc: string): Connection[] {
+  const eta = Date.parse(etaUtc);
+  const at = (minutes: number) => new Date(eta + minutes * 60_000).toISOString();
+  return [
+    {
+      flightNo: "STR 214",
+      carrier: "STRATUM",
+      to: { city: { en: "Stockholm", zh: "斯德哥尔摩" }, iata: "ARN" },
+      departsUtc: at(75),
+      gate: "C18",
+      terminal: "3",
+      status: "onTime",
+      confirmed: true,
+    },
+    {
+      flightNo: "STR 118",
+      carrier: "STRATUM",
+      to: { city: { en: "Malmö", zh: "马尔默" }, iata: "MMX" },
+      departsUtc: at(110),
+      gate: "F26",
+      terminal: "1",
+      status: "onTime",
+      confirmed: true,
+    },
+    {
+      flightNo: "STR 402",
+      carrier: "STRATUM",
+      to: { city: { en: "Oslo", zh: "奥斯陆" }, iata: "OSL" },
+      departsUtc: at(145),
+      gate: null,
+      terminal: "2",
+      status: "delayed",
+      confirmed: false,
+    },
+    {
+      flightNo: "STR 907",
+      carrier: "STRATUM",
+      to: { city: { en: "Copenhagen", zh: "哥本哈根" }, iata: "CPH" },
+      departsUtc: at(190),
+      gate: null,
+      terminal: null,
+      status: "cancelled",
+      confirmed: false,
+    },
+    {
+      flightNo: "STR 365",
+      carrier: "STRATUM",
+      to: { city: { en: "Chicago", zh: "芝加哥" }, iata: "ORD" },
+      departsUtc: at(230),
+      gate: "B16",
+      terminal: "2",
+      status: "onTime",
+      confirmed: false,
+    },
+  ];
 }

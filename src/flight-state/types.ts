@@ -67,6 +67,12 @@ export type FlightState = {
   phase: FlightPhase;
   position: FlightPosition;
   track: TrackPoint[];
+  /**
+   * What is leaving the airport this flight is landing at. Empty until the
+   * cabin has been given one — the screen has no way of knowing this and
+   * never guesses it.
+   */
+  connections: Connection[];
   /** ISO 8601, UTC. */
   etaUtc: string;
   /** True when the arrival time is computed rather than reported. */
@@ -99,6 +105,11 @@ export type ScreenName =
   | "music"
   | "games"
   | "chat"
+  /** The three screens a seat shows before it shows anything else. */
+  | "language"
+  | "start"
+  | "overview"
+  | "connections"
   /** A film is on the glass. It takes the whole surface, chrome included. */
   | "film";
 
@@ -129,9 +140,43 @@ export type CabinMessage = {
   seenUtc: string | null;
 };
 
+/**
+ * What a passenger said they were going to do with the flight.
+ *
+ * A real cabin asks this once, on the first touch, and it is not a
+ * personality quiz: each answer is a destination and, for one of them, an
+ * action in the cabin. Nothing else in the interface changes because of it —
+ * a mode that quietly reorders everything is a system that has decided who
+ * you are.
+ */
+export type SeatMode = "watch" | "listen" | "look" | "rest";
+
+/**
+ * A flight leaving the airport this one is landing at.
+ *
+ * `confirmed` is the evidence rule in its third place. A schedule is a
+ * statement about the future and nothing has happened yet: until the ground
+ * tells the aircraft otherwise, every row here is what was planned rather
+ * than what is known, and the board draws the difference.
+ */
+export type Connection = {
+  flightNo: string;
+  carrier: string;
+  to: { city: { en: string; zh: string }; iata: string };
+  /** ISO 8601, UTC. */
+  departsUtc: string;
+  gate: string | null;
+  terminal: string | null;
+  status: "onTime" | "delayed" | "cancelled";
+  confirmed: boolean;
+};
+
 /** This seat, as only its occupant sees it. */
 export type SeatPrivate = {
   screen: ScreenName;
+  /** False until this seat has been through language and the first question. */
+  started: boolean;
+  mode: SeatMode | null;
   /** Nobody else's business what you read the cabin in. */
   lang: "en" | "zh";
   /**
