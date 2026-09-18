@@ -93,6 +93,39 @@ export function BottomRail({
 
   return (
     <div className="ife-rail">
+      {/* How far through, along the top edge of the rail.
+ 
+          It was a 292px bar on a row of its own under the keys, and that row
+          is what kept the keys half the size of every other key in the
+          cabin — a 116px rail cannot hold an 86px key and a second row of
+          anything. So the bar is the rail's edge now: it costs no height at
+          all, it is 1920 wide instead of 292, and the lit lip along the top
+          of this row was already drawing a line there. A line that says how
+          far through the track you are is a better use of that line than a
+          highlight.
+ 
+          The offset comes from the event, never from a bounding rect: under
+          the CSS 3D transform that puts this screen on a seat back, a
+          bounding rect is the projected quad. */}
+      {(playing || media) && !interrupted && (
+        <button
+          className="ife-rail-seek"
+          aria-label={t("seek")}
+          style={{ ["--stationColor" as string]: now.station.color }}
+          onClick={(e) =>
+            seek(
+              e.nativeEvent.offsetX /
+                (e.currentTarget as HTMLElement).clientWidth,
+            )
+          }
+        >
+          <span
+            className="ife-rail-seek-fill"
+            style={{ width: `${Math.round(progress * 1000) / 10}%` }}
+          />
+        </button>
+      )}
+
       {/* Three zones, the shape every player bar has settled on: what is
           playing on the left, the transport in the middle, the controls on
           the right. */}
@@ -133,8 +166,18 @@ export function BottomRail({
           </span>
           <span className="ife-rail-now-text">
             <span className="ife-rail-now-title">{now.title}</span>
-            <span className="ife-rail-now-sub">
-              {now.artist || now.station.name}
+            {/* Who is playing and how far in, on one line. The clocks used to
+                sit at the two ends of a bar in the middle of the rail; the
+                keys are full height now and there is no second row left
+                there, so the two numbers come here, to the block that is
+                already about this track. */}
+            <span className="ife-rail-now-line">
+              <span className="ife-rail-now-sub">
+                {now.artist || now.station.name}
+              </span>
+              <span className="ife-rail-now-time ife-mono">
+                {clock(elapsed)} / {clock(duration || trackSeconds)}
+              </span>
             </span>
           </span>
         </button>
@@ -168,28 +211,28 @@ export function BottomRail({
               data-on={shuffle}
               onClick={toggleShuffle}
             >
-              <IconShuffle size={32} />
+              <IconShuffle size={48} />
             </button>
             <button
               className="ife-transport"
               aria-label={t("previous")}
               onClick={prev}
             >
-              <IconPrev size={32} />
+              <IconPrev size={48} />
             </button>
             <button
               className="ife-transport ife-transport--play"
               aria-label={playing ? t("pause") : t("play")}
               onClick={togglePlay}
             >
-              {playing ? <IconPause size={36} /> : <IconPlay size={36} />}
+              {playing ? <IconPause size={48} /> : <IconPlay size={48} />}
             </button>
             <button
               className="ife-transport"
               aria-label={t("next")}
               onClick={next}
             >
-              <IconNext size={32} />
+              <IconNext size={48} />
             </button>
             <button
               className="ife-transport"
@@ -197,33 +240,10 @@ export function BottomRail({
               data-on={repeat !== "off"}
               onClick={cycleRepeat}
             >
-              <IconRepeat size={32} one={repeat === "one"} />
+              <IconRepeat size={48} one={repeat === "one"} />
             </button>
           </span>
 
-          {/* The clock at both ends of a bar you can drag, which is the shape
-              this has had since a tape deck had a counter on it. */}
-          <span className="ife-mini-seekrow">
-            <span className="ife-mini-clock ife-mono">{clock(elapsed)}</span>
-            <button
-              className="ife-mini-seek"
-              aria-label={t("seek")}
-              onClick={(e) =>
-                seek(
-                  e.nativeEvent.offsetX /
-                    (e.currentTarget as HTMLElement).clientWidth,
-                )
-              }
-            >
-              <span
-                className="ife-mini-seek-fill"
-                style={{ width: `${Math.round(progress * 100)}%` }}
-              />
-            </button>
-            <span className="ife-mini-clock ife-mono">
-              {clock(duration || trackSeconds)}
-            </span>
-          </span>
         </div>
       )}
 

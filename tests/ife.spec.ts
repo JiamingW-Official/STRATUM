@@ -715,11 +715,21 @@ test.describe("IFE bench", () => {
     // Five keys: shuffle, back, play, forward, repeat — the row every player
     // has.
     await expect(mini.locator(".ife-transport")).toHaveCount(5);
-    // The clock at each end is filled from the measured length, so it is a
-    // time before the audio element has loaded enough to agree.
-    await expect(mini.locator(".ife-mini-clock").last()).not.toHaveText(
-      "--:--",
-    );
+    // How far through, beside the artist, filled from the measured length so
+    // it is a time before the audio element has loaded enough to agree.
+    await expect(page.locator(".ife-rail-now-time")).not.toContainText("--:--");
+    // And the bar is the rail's own top edge rather than a row under the
+    // keys, which is what lets those keys be 86px like every other key here.
+    const keys = mini.locator(".ife-transport");
+    for (const box of await keys.evaluateAll((els) =>
+      els.map((e) => (e as HTMLElement).offsetWidth),
+    ))
+      expect(box).toBe(86);
+    expect(
+      await page
+        .locator(".ife-rail-seek")
+        .evaluate((e) => (e as HTMLElement).offsetWidth),
+    ).toBe(1920);
     // No second bar above it.
     await expect(page.locator(".ife-now")).toHaveCount(0);
 

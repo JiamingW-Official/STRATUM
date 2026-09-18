@@ -117,7 +117,9 @@
   /* The floor, and it is a floor: the smallest thing on the glass. Rules that
      undercut it were the reason whole lines of this interface could not be
      read from a seat. */
-  --t-cap: 22px;
+  /* Every caption on every screen. 22 was the floor and the floor was
+     too low for a panel at arm's length in a dark cabin. */
+  --t-cap: 24px;
 
   --strip-h: 124px;
   --rail-h: 116px;
@@ -292,6 +294,48 @@
   z-index: 3;
 }
 
+/* How far through, as the top edge of the row.
+ 
+   Full width, because that is the width the rail already is, and the lit lip
+   along the top was drawing a line here anyway — this gives that line
+   something to say. It costs no height, which is the whole reason the keys
+   below it can be 86px like every other key in the cabin.
+ 
+   The strip you can press is 14px and the mark inside it is 5px: the rail is
+   116px tall and the keys are 86, so there are 15px of nothing above them and
+   the target comes out of that rather than out of anything else. */
+.ife-rail-seek {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 14px;
+  background: none;
+  cursor: pointer;
+  z-index: 4;
+}
+
+.ife-rail-seek::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 5px;
+  background: rgba(var(--text-rgb), 0.14);
+}
+
+.ife-rail-seek-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 5px;
+  background: var(--stationColor);
+  box-shadow: 0 0 18px -2px var(--stationColor);
+  pointer-events: none;
+}
+
 /* Pinned to its track, not placed by document order: the player in the
    middle is conditional, and without it the right-hand zone used to fall into
    the middle track and end 673px short of the edge. */
@@ -318,8 +362,8 @@
   appearance: none;
   background: none;
   border: 0;
-  padding: 0 0 0 18px;
-  margin-left: 6px;
+  padding: 0 0 0 10px;
+  margin-left: 4px;
   color: var(--fg);
   font: inherit;
   text-align: left;
@@ -340,6 +384,24 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  flex: 1;
+}
+
+/* The artist, and how far through. One line, the name taking what it needs
+   and the numbers pushed to the far end of the block — which is where a clock
+   belongs and where the eye already goes for one. */
+.ife-rail-now-line {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  min-width: 0;
+}
+
+.ife-rail-now-time {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 23px;
+  color: var(--faint);
 }
 
 .ife-rail-now-title {
@@ -352,9 +414,12 @@
   white-space: nowrap;
 }
 
+/* 24px. It was 21 — the second smallest thing in the cabin, on the name of
+   whoever made what you are listening to. */
 .ife-rail-now-sub {
-  font-size: 21px;
-  color: var(--faint);
+  font-size: 24px;
+  color: var(--dim);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -370,8 +435,8 @@
 .ife-seat-chip {
   display: flex;
   align-items: center;
-  padding: 0 34px 0 12px;
-  margin-right: 6px;
+  padding: 0 20px 0 10px;
+  margin-right: 4px;
   align-self: stretch;
 }
 
@@ -635,7 +700,7 @@
   position: absolute;
   right: 56px;
   bottom: 14px;
-  font-size: 17px;
+  font-size: 22px;
   letter-spacing: 0.06em;
   color: rgba(var(--text-rgb), 0.34);
   max-width: 620px;
@@ -1184,7 +1249,7 @@
 .ife-map .maplibregl-ctrl-attrib {
   /* Required attribution, and it has to be readable to count as attribution.
      MapLibre ships this at 12px for a browser window. */
-  font-size: 17px;
+  font-size: 20px;
   background: rgba(7, 8, 11, 0.72);
   color: var(--faint);
 }
@@ -1468,6 +1533,11 @@
   scrollbar-width: none;
   scroll-snap-type: x proximity;
   padding: 0 var(--gutter);
+  /* Snapping aligns a fact to the scrollport's start edge, and that edge
+     ignores padding unless it is told not to — so the first fact snapped to
+     scrollLeft 72 and the first 72px of "ALTITUDE 37,000 ft" sat behind the
+     gutter. Measured: scrollLeft came to rest at exactly the padding. */
+  scroll-padding-inline: var(--gutter);
 }
 
 .ife-map-strip::-webkit-scrollbar {
@@ -1624,6 +1694,11 @@
    the navigation and lets the record's page carry no back key at all. It is
    the one row without a sleeve, because it is not a record, so it takes the
    cabin's music mark in the sleeve's column and keeps the list's left edge. */
+/* Inset from the column and rounded, so the row you are on is an object
+   sitting in the list rather than a band running off both of its edges — and
+   that is also what lets the list start further left, because the highlight
+   keeps its own margin and the type no longer needs the gutter to look
+   inset. */
 .ife-library-all {
   appearance: none;
   background: transparent;
@@ -1634,8 +1709,9 @@
   font-weight: 500;
   letter-spacing: -0.01em;
   text-align: left;
-  padding: 14px 30px 14px var(--gutter);
-  margin-bottom: 8px;
+  padding: 14px 20px;
+  margin: 0 16px 8px;
+  border-radius: 20px;
   cursor: pointer;
   display: grid;
   grid-template-columns: 48px 1fr;
@@ -1666,7 +1742,9 @@
   color: var(--fg);
   font: inherit;
   text-align: left;
-  padding: 10px 30px 10px var(--gutter);
+  padding: 10px 20px;
+  margin: 0 16px;
+  border-radius: 20px;
   cursor: pointer;
   display: grid;
   grid-template-columns: 48px 1fr;
@@ -1702,7 +1780,7 @@
 
 .ife-library-genre {
   display: block;
-  font-size: 19px;
+  font-size: 22px;
   color: var(--accent-bright);
   letter-spacing: 0.04em;
   margin-top: 2px;
@@ -2151,21 +2229,19 @@
    row rather than in the middle of whatever space the keys left over. */
 /* The centre zone: the keys and the bar, and nothing else. What is playing
    moved to the left zone, where a player bar puts it. */
-/* A rectangle, not a T.
+/* One row, and every key in it the size of every other key in the rail.
  
-   It was 620px wide with a 260px row of keys floating on top of it, so the
-   bar ran out past both ends of the thing it belongs to and the block had no
-   edge of its own. 452 is the width of the seek row at the type size the
-   clocks needed, and the keys are centred in it: two rows, one width, one
-   block. The gap is 2px because the bar is not a separate control from the
-   keys — it is the same player — and 8px of air between them read as two. */
+   It was two rows — a 306px row of 56px keys over a 292px bar — and the
+   second row is what kept these keys two thirds the size of the ones on
+   either side of them: a 116px rail has room for an 86px key or for two rows
+   of something, not both. The bar went to the rail's top edge, which costs no
+   height, and the keys grew into the space it left. 462px is 5 keys at 86
+   with 8px between them, which is exactly the width of the cabin's own keys
+   on the right — so the row reads as one set of controls at one size. */
 .ife-mini {
   grid-column: 2;
-  width: 452px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
   color: var(--fg);
   font: inherit;
 }
@@ -2173,92 +2249,80 @@
 .ife-mini-keys {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
+/* The same key as the ones on either side of it: 86px square, 26px radius,
+   the same glass, the same --dim until it is the one doing something.
+ 
+   These used to have no surface, on the argument that a placard is a door and
+   this row is the state of the sound. That argument held while the player was
+   a small block with a bar and two clocks in it. At 86px with nothing behind
+   them the five marks read as the row's disabled keys — a set of controls
+   flanked on both sides by keys that look pressable, and not looking
+   pressable themselves. They are controls. They look like the controls. */
 .ife-mini-keys .ife-transport {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: 86px;
+  height: 86px;
+  border-radius: 26px;
   color: var(--dim);
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(255, 255, 255, 0.035) 44%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    rgba(255, 255, 255, 0.045);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.55),
+    inset 0 0 26px rgba(255, 255, 255, 0.045),
+    0 10px 22px rgba(0, 0, 0, 0.45);
+  transition:
+    color 130ms ease,
+    background-color 130ms ease;
+}
+
+/* Pressed, the lens goes down into the panel, the same way a placard does. */
+.ife-mini-keys .ife-transport:active {
+  box-shadow:
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.22),
+    inset 0 2px 8px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .ife-mini-keys .ife-transport[data-on="true"] {
   color: var(--accent-bright);
 }
 
-/* No brass disc behind the play key.
+/* No brass disc behind the play key, and no extra size either.
  
-   It was the brightest object in the cabin — a filled yellow lozenge in a
-   row of marks, on a screen whose one accent is reserved for "inferred" and
-   "on". The key still has to be the one your thumb finds without looking, so
-   it is still the largest mark in the row and it is the only one at full
-   brightness while the other four sit at --dim. That is contrast doing the
-   job a filled shape was doing, which is the way the rest of this interface
-   already works. */
+   The disc was the brightest object in the cabin — a filled yellow lozenge in
+   a row of marks, on a screen whose one accent is reserved for "inferred" and
+   "on". And the key is the same 86px as the other four, because a row of
+   controls at two sizes is two rows of controls.
+ 
+   What tells it apart is light. Its glass is lit — a whiter lens and a
+   brighter top lip — and its mark is at full strength while the other four
+   sit at --dim. That is the same move the placards make when one of them is
+   the screen you are on, done in white rather than in brass, and it does not
+   spend the accent on a key that is always there. */
 .ife-mini-keys .ife-transport--play {
-  width: 66px;
-  height: 66px;
-  border-radius: 20px;
   color: var(--fg);
-  background: none;
-  box-shadow: none;
-}
-
-.ife-mini-keys .ife-transport--play:active {
-  color: var(--accent-bright);
-  box-shadow: none;
-}
-
-.ife-mini-seekrow {
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* 25px, not 20. It was the smallest type in the cabin by five points, on the
-   one number a passenger actually reads off this row. Each clock holds its
-   own width so the bar does not jump a pixel sideways when the elapsed time
-   crosses a minute, and they face the bar: elapsed on its left, length on
-   its right. */
-.ife-mini-clock {
-  font-size: 25px;
-  color: var(--dim);
-  flex: 0 0 auto;
-  min-width: 68px;
-}
-
-.ife-mini-clock:first-child {
-  text-align: left;
-}
-
-.ife-mini-clock:last-child {
-  text-align: right;
-}
-
-.ife-mini-seek {
-  appearance: none;
-  border: 0;
-  padding: 0;
-  flex: 1;
-  height: 7px;
-  border-radius: 999px;
-  /* Not black. Black on a near-black rail is a hairline, not a bar — the
-     empty part of a seek bar has to be visible or the full part has nothing
-     to be a fraction of. */
-  background: rgba(var(--text-rgb), 0.17);
-  box-shadow: var(--glass-in);
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-}
-
-.ife-mini-seek-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--stationColor);
-  pointer-events: none;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.26) 0%,
+      rgba(255, 255, 255, 0.09) 46%,
+      rgba(255, 255, 255, 0.02) 100%
+    ),
+    rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
+    inset 0 0 30px rgba(255, 255, 255, 0.08),
+    0 10px 24px rgba(0, 0, 0, 0.45);
 }
 
 
@@ -3884,7 +3948,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 23px;
   font-weight: 500;
 }
 
@@ -3962,7 +4026,7 @@
 }
 
 .ife-chat-msg-meta {
-  font-size: 20px;
+  font-size: 23px;
   color: var(--faint);
   letter-spacing: 0.04em;
 }
