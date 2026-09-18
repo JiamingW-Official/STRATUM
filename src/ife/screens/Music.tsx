@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useT } from "../i18n";
 import { STATIONS, splitTrack } from "../stations";
+import { Sleeve } from "../chrome/Sleeve";
 import { currentTrack, usePlayer } from "../player";
-import { IconMusic } from "../chrome/icons";
 
 /**
  * Real music, not a mock-up: these are the four stations and the actual files
@@ -60,10 +60,11 @@ export function Music() {
             </span>
           </header>
 
-          {/* The shelf. No cover art exists for these files, so each station
-              shows the only thing it honestly has: its own colour, its name,
-              and who is on it. A square of invented artwork would be the one
-              untrue thing in the cabin. */}
+          {/* The shelf. No cover art exists for these files and none is
+              invented: the sleeve is a label — the station's name in the
+              cabin's own face, its colour, and one groove per track — which is
+              what a record with no artwork has always had. A generated
+              picture would be the one untrue thing in here. */}
           <div className="ife-shelf-grid">
             {STATIONS.map((s, i) => {
               const artists = [
@@ -76,13 +77,9 @@ export function Music() {
                   style={{ ["--stationColor" as string]: s.color }}
                   onClick={() => setOpen(i)}
                 >
-                  <span className="ife-album-face">
-                    <IconMusic size={40} />
-                    <span className="ife-album-count ife-mono">
-                      {String(s.tracks.length).padStart(2, "0")}
-                    </span>
-                  </span>
-                  <span className="ife-album-name">{s.name}</span>
+                  {/* The sleeve carries the name, so the label under it does
+                      not repeat it — it says who is on the record. */}
+                  <Sleeve station={s} />
                   <span className="ife-album-artists">
                     {artists.slice(0, 3).join(" · ")}
                   </span>
@@ -110,6 +107,13 @@ export function Music() {
               {STATIONS[open].tracks.length} {lang === "zh" ? "首" : "tracks"}
             </div>
           </header>
+
+          {/* The sleeve stays beside the tracklist, which is how every player
+              and every seat-back system shows a record you have opened: the
+              cover is how you know which one you are inside. */}
+          <div className="ife-station-cover">
+            <Sleeve station={STATIONS[open]} />
+          </div>
 
           <ol
             className="ife-tracklist"

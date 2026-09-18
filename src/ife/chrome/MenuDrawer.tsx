@@ -80,13 +80,11 @@ export function MenuDrawer({
     {
       key: "groupFlight",
       items: [
-        {
-          key: "home",
-          icon: <IconHome size={38} />,
-          label: t("home"),
-          onPress: go("home"),
-          current: screen === "home",
-        },
+        // No Home row. The rail carries a home placard permanently, two
+        // inches below this panel, and the panel opens *over* whatever screen
+        // you are on rather than instead of it — so Home was the one row here
+        // that could never tell anybody anything. Dropping it is also what
+        // buys the other ten rows the air they were missing.
         {
           key: "map",
           icon: <IconMap size={38} />,

@@ -9,6 +9,7 @@ import { FILMS, runtime, stillUrl } from "../films";
 import { useNav } from "../nav";
 import { currentTrack, usePlayer } from "../player";
 import { RouteMini } from "../chrome/RouteMini";
+import { Sleeve } from "../chrome/Sleeve";
 import {
   IconFilm,
   IconGames,
@@ -154,10 +155,12 @@ export function Home() {
     {
       key: "station",
       screen: "music",
+      // The sleeve on this card already says which station, so the type says
+      // what the type is for: what is playing, or where the card goes.
       cap: playing ? t("nowPlaying") : lang === "zh" ? "电台" : "Radio",
-      title: playing ? now.title : now.station.name,
+      title: playing ? now.title : t("music"),
       lines: playing
-        ? [now.artist, now.station.name]
+        ? [now.artist]
         : [`${now.station.tracks.length} ${lang === "zh" ? "首" : "tracks"}`],
       media: "station",
     },
@@ -281,7 +284,15 @@ export function Home() {
                   style={{ backgroundImage: `url(${stillUrl(feature)})` }}
                 />
               )}
-              {c.media === "station" && <span className="ife-card-swatch" />}
+              {/* The record's own sleeve, not a coloured rectangle. It sits
+                  at the top of the card and the card's own lines sit under it,
+                  so the sleeve says which station and the type says which
+                  track — two different facts, not the same one twice. */}
+              {c.media === "station" && (
+                <span className="ife-card-sleeve">
+                  <Sleeve station={now.station} />
+                </span>
+              )}
               {c.icon && <span className="ife-card-icon">{c.icon}</span>}
               {/* The map card carries the route itself. Losing it in a
                   refactor left the tallest card on the screen as an icon and

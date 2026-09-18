@@ -538,7 +538,7 @@ test.describe("IFE bench", () => {
   test("music belongs to the seat, not to the music page", async ({ page }) => {
     await openBench(page);
     await page.locator(".ife-idle").click();
-    await page.getByRole("button", { name: "Music" }).click();
+    await page.locator('.ife-card[data-key="music"]').click();
 
     // It opens on the shelf: the first question is which station, not which
     // song.
@@ -563,7 +563,7 @@ test.describe("IFE bench", () => {
   }) => {
     await openBench(page);
     await page.locator(".ife-idle").click();
-    await page.getByRole("button", { name: "Music" }).click();
+    await page.locator('.ife-card[data-key="music"]').click();
     await page.locator(".ife-album").first().click();
     await page.locator(".ife-track").first().click();
     await expect(page.locator(".ife-mini")).toHaveCount(1, { timeout: 15_000 });
@@ -583,10 +583,25 @@ test.describe("IFE bench", () => {
     await page.locator(".ife-idle").click();
     await page.getByRole("button", { name: "Movies" }).click();
 
-    // Eight real public-domain films, each with a year and a runtime.
+    // Eighteen real public-domain films, each with a year and a runtime, and
+    // a cover that is a frame from the film rather than a poster invented for
+    // it — none of these ever had one.
     const films = page.locator(".ife-film");
-    await expect(films).toHaveCount(8);
+    await expect(films).toHaveCount(18);
     await expect(films.first()).toContainText("1956");
+    await expect(films.first().locator(".ife-poster")).toHaveCount(1);
+
+    // The collections filter the shelf rather than decorating it.
+    await page.getByRole("button", { name: "The atomic age" }).click();
+    await expect(page.locator(".ife-film")).toHaveCount(2);
+    await page.getByRole("button", { name: "Under 15 min" }).click();
+    const short = await page.locator(".ife-film-meta").allInnerTexts();
+    expect(short.length).toBeGreaterThan(6);
+    for (const m of short) {
+      expect(Number(m.match(/(\d+) min/)![1])).toBeLessThanOrEqual(15);
+    }
+    await page.getByRole("button", { name: "Everything" }).click();
+    await expect(page.locator(".ife-film")).toHaveCount(18);
 
     await films.first().click();
     await expect(page.locator(".ife-film-detail-title")).toHaveText(

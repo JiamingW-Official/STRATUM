@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { useSelf } from "../../flight-state/store";
-import { pick, useT } from "../i18n";
-import { FILMS, runtime, stillUrl, synopsis, type Film } from "../films";
+import { pick, useT, type Key } from "../i18n";
+import {
+  FILMS,
+  runtime,
+  stillUrl,
+  synopsis,
+  type Film,
+} from "../films";
+import { Poster } from "../chrome/Poster";
 import { useNav } from "../nav";
 
 /**
@@ -40,33 +47,67 @@ export function Movies() {
   return <Shelf onOpen={setOpen} />;
 }
 
+/**
+ * How the shelf is divided, and it is divided the way the reference cabin
+ * divides its own: a column of collections down the left, the posters filling
+ * the rest, the row at the bottom cut by the edge so a thumb knows to push.
+ *
+ * Four of the six collections are what the films are about; the fifth is
+ * everything, and the sixth is a duration, which is the one thing a passenger
+ * with fifty minutes left actually wants to filter by. That is exactly the
+ * shape of "A-Z / New Releases / Under 2 Hrs" on the screen this is drawn
+ * from — a subject, a subject, a subject, and a clock.
+ */
+type Collection = { key: Key; match: (f: Film) => boolean };
+
+const COLLECTIONS: Collection[] = [
+  { key: "catAll", match: () => true },
+  { key: "catAviation", match: (f) => f.subject === "aviation" },
+  { key: "catRadio", match: (f) => f.subject === "radio" },
+  { key: "catAtomic", match: (f) => f.subject === "atomic" },
+  { key: "catTomorrow", match: (f) => f.subject === "tomorrow" },
+  { key: "catAmateur", match: (f) => f.subject === "amateur" },
+  { key: "catShort", match: (f) => f.seconds <= 900 },
+];
+
 function Shelf({ onOpen }: { onOpen: (f: Film) => void }) {
   const { t, lang } = useT();
+  const [collection, setCollection] = useState<Key>("catAll");
+  const shown = FILMS.filter(
+    COLLECTIONS.find((c) => c.key === collection)!.match,
+  );
+
   return (
     <div className="ife-films">
-      <header className="ife-head">
-        <h2 className="ife-head-title">{t("movies")}</h2>
-        <span className="ife-head-meta ife-cap">
-          {t("onThisAircraft")} · {FILMS.length} {t("films")} ·{" "}
-          {t("publicDomain")}
-        </span>
-      </header>
+      <div className="ife-catalog">
+        <nav className="ife-catalog-cats" aria-label={t("movies")}>
+          <h2 className="ife-catalog-title">{t("movies")}</h2>
+          {COLLECTIONS.map((c) => (
+            <button
+              key={c.key}
+              className="ife-catalog-cat"
+              data-on={collection === c.key}
+              onClick={() => setCollection(c.key)}
+            >
+              {t(c.key)}
+            </button>
+          ))}
+          <div className="ife-catalog-note ife-cap">
+            {FILMS.length} {t("films")} · {t("publicDomain")}
+          </div>
+        </nav>
 
-      <div className="ife-films-grid">
-        {FILMS.map((f) => (
-          <button key={f.id} className="ife-film" onClick={() => onOpen(f)}>
-            {/* The archive's own still, not a poster we invented. Some of
-                these films never had a poster; a frame is what they have. */}
-            <span
-              className="ife-film-still"
-              style={{ backgroundImage: `url(${stillUrl(f)})` }}
-            />
-            <span className="ife-film-title">{pick(f.title, lang)}</span>
-            <span className="ife-film-meta ife-mono">
-              {f.year} · {runtime(f, lang)}
-            </span>
-          </button>
-        ))}
+        <div className="ife-catalog-grid">
+          {shown.map((f) => (
+            <button key={f.id} className="ife-film" onClick={() => onOpen(f)}>
+              <Poster film={f} />
+              <span className="ife-film-title">{pick(f.title, lang)}</span>
+              <span className="ife-film-meta ife-mono">
+                {f.year} · {runtime(f, lang)}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -94,6 +135,15 @@ function Detail({
         <button className="ife-btn ife-btn--quiet" onClick={onBack}>
           ← {t("movies")}
         </button>
+
+        {/* The cover, beside the text rather than blown up behind it. The
+            archive's frame is 180px wide: at a poster's size it is soft, and
+            at the size of a whole screen it was a grey smear. */}
+        <div className="ife-film-detail-cols">
+          <div className="ife-film-detail-poster">
+            <Poster film={film} />
+          </div>
+          <div className="ife-film-detail-text">
         <h2 className="ife-film-detail-title">{pick(film.title, lang)}</h2>
         <div className="ife-film-detail-meta ife-mono">
           {film.year} · {runtime(film, lang)} · {film.megabytes} MB
@@ -112,6 +162,8 @@ function Detail({
             {t("playFilm")}
           </button>
           <span className="ife-cap">{t("publicDomain")}</span>
+        </div>
+          </div>
         </div>
       </div>
     </div>
