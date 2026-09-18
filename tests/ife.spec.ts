@@ -54,7 +54,7 @@ test.describe("IFE bench", () => {
 
     await card(page, "Flight map").click();
     expect(await screenName(page)).toBe("map");
-    await expect(page.locator(".ife-map canvas")).toHaveCount(1);
+    await expect(page.locator(".ife-map .maplibregl-canvas")).toHaveCount(1);
 
     // Home is on the rail, and the corner is the menu's now: back was doing
     // two different jobs depending on which screen you were on.
@@ -151,7 +151,7 @@ test.describe("IFE bench", () => {
 
     // A finger on the map takes the camera. Nothing must pull it back: a map
     // that recentres itself while you are dragging it cannot be read.
-    const box = (await page.locator(".ife-map canvas").boundingBox())!;
+    const box = (await page.locator(".ife-map .maplibregl-canvas").boundingBox())!;
     const mid = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     const before = await cam();
     await page.mouse.move(mid.x, mid.y);
@@ -210,6 +210,18 @@ test.describe("IFE bench", () => {
     await expect
       .poll(async () => (await cam()).zoom, { timeout: 4000 })
       .toBeLessThan(4.5);
+
+    // The aircraft is the sky view's own model, rendered once from directly
+    // above and handed to the marker. It arrives after the GLB does, and the
+    // drawn airliner is what is on the glass until then.
+    await expect
+      .poll(
+        async () =>
+          page.locator(".ife-plane-marker").getAttribute("data-model"),
+        { timeout: 20_000 },
+      )
+      .toBe("true");
+    await expect(page.locator(".ife-plane-model")).toHaveCount(1);
 
     // The names are the point of a map. Both ends of the flight are on it,
     // and the destination is drawn hollow because you have not arrived.

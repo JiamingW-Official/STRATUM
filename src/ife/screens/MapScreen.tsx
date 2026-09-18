@@ -7,6 +7,7 @@ import { duration, fmtInt, localTime } from "../format";
 import { pick, useT } from "../i18n";
 import { nightRing, terminatorLine } from "../sun";
 import { Instruments } from "../chrome/Instruments";
+import { planeSprite } from "../chrome/planeSprite";
 import { IconChevron, IconMinus, IconPlus } from "../chrome/icons";
 
 /**
@@ -282,7 +283,18 @@ export function MapScreen() {
 
     const el = document.createElement("div");
     el.className = "ife-plane-marker";
+    // The drawn airliner is what is on the glass until the model arrives, and
+    // what stays there if it never does.
     el.innerHTML = PLANE_SVG;
+    planeSprite().then((sprite) => {
+      if (!sprite || !el.isConnected) return;
+      sprite.className = "ife-plane-model";
+      el.replaceChildren(sprite);
+      el.dataset.model = "true";
+      // The rotation lives on whatever is inside, so hand the new child the
+      // heading the old one had.
+      sprite.style.transform = el.dataset.rotate ?? "";
+    });
     markerRef.current = new Marker({ element: el, rotationAlignment: "map" })
       .setLngLat([route.from.lon, route.from.lat])
       .addTo(map);
@@ -516,8 +528,10 @@ export function MapScreen() {
     const el = markerRef.current?.getElement();
     if (el) {
       el.dataset.heard = String(position.heard);
-      const svg = el.firstElementChild as SVGElement | null;
-      if (svg) svg.style.transform = `rotate(${position.headingDeg}deg)`;
+      const spin = `rotate(${position.headingDeg}deg)`;
+      el.dataset.rotate = spin;
+      const inner = el.firstElementChild as HTMLElement | null;
+      if (inner) inner.style.transform = spin;
     }
     markerRef.current?.setLngLat([position.lon, position.lat]);
   }, [ready, track, position, route.to.iata]);
