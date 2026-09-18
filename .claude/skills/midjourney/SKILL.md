@@ -182,6 +182,36 @@ PY
 A cutout of a single object usually lands between 8% and 45% opaque. Near 0%
 means it lifted nothing; near 100% means it lifted the whole frame.
 
+## 4b · Album covers, specifically
+
+The four records in the cabin take their sleeve art from `src/covers/`, found
+by a glob rather than by a path in the data: whatever `.jpg` is sitting there
+named after a station's id in `src/data/stations.js` is that station's cover.
+
+    electronic.jpg   Night Shift
+    indie.jpg        First Light
+    relax.jpg        Low Cloud
+    soul.jpg         After Hours
+
+A station with no file gets the drawn sleeve — its name, its colour, one
+groove per track — which is not a placeholder but the sleeve a record with no
+cover has. So an empty folder costs nothing, and dropping a file in is the
+whole installation step. That is also why the files live in `src/` and not in
+`public/`: a path in `public/` to a file that is not there is a 404 on every
+screen that draws a sleeve, and a glob of an empty folder is nothing at all.
+
+Cover art is never cut out and never keyed — it is a field, not an object. The
+one thing it does need is a square trim, because a generated sleeve usually
+arrives photographed on white and the white is not part of the artwork. Use
+`tools/coverfit.py`:
+
+```bash
+python3 .claude/skills/midjourney/tools/coverfit.py ~/Downloads/raw.png src/covers/indie.jpg
+```
+
+Then check it: exactly square, a few hundred kilobytes, and no pale strip
+along any edge.
+
 ## 5 · Report
 
 Say, in one or two lines: the prompt used, which of the four was taken and

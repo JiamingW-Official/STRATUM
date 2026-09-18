@@ -79,9 +79,14 @@ export function Music() {
                   style={{ ["--stationColor" as string]: s.color }}
                   onClick={() => setOpen(i)}
                 >
-                  {/* The sleeve carries the name, so the label under it does
-                      not repeat it — it says who is on the record. */}
+                  {/* The name goes under the sleeve as well as on it. That
+                      was a duplication back when every sleeve was drawn and
+                      printed its own title; with real art on some of them and
+                      not others, a shelf that only names half its records is
+                      a shelf you cannot read. A record label says the title
+                      too. */}
                   <Sleeve station={s} />
+                  <span className="ife-album-name">{s.name}</span>
                   <span className="ife-album-artists">
                     {artists.slice(0, 3).join(" · ")}
                   </span>
