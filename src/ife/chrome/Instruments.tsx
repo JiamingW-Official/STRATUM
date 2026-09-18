@@ -24,8 +24,37 @@ import { useT } from "../i18n";
  * heard, by the same rule as the track on the map.
  */
 
-const W = 1920;
-const H = 1080;
+/**
+ * The panel measures itself.
+ *
+ * It used to declare a 1920x1080 viewBox and stretch it to fit with
+ * `preserveAspectRatio="none"`, which is fine for the tapes — they are
+ * straight lines — and wrong for the one round thing on it: the map stage is
+ * 1920x840, so the compass rose came out as an ellipse. Now the viewBox is
+ * whatever the element actually is, one unit to the pixel, and everything is
+ * placed as a fraction of that. A circle drawn in square units is a circle.
+ */
+function useSize(ref: React.RefObject<SVGSVGElement | null>) {
+  const [size, setSize] = useState({ w: 1920, h: 840 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // clientWidth, not getBoundingClientRect: the glass is scaled by a CSS
+    // transform, and a transform does not change layout. So these are the
+    // panel's own pixels — 1920 by however tall the stage is — which is the
+    // space the rest of this interface is laid out in.
+    const measure = () => {
+      if (el.clientWidth && el.clientHeight) {
+        setSize({ w: el.clientWidth, h: el.clientHeight });
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return size;
+}
 
 export function Instruments({
   position,
@@ -36,18 +65,23 @@ export function Instruments({
 }) {
   const { t } = useT();
   const vs = useVerticalSpeed(position.altFt);
+  const svg = useRef<SVGSVGElement | null>(null);
+  const { w: W, h: H } = useSize(svg);
   const inferred = !position.heard;
   const cls = (base: string) => `${base}${inferred ? " ife-inst--inferred" : ""}`;
 
   return (
     <svg
+      ref={svg}
       className={cls("ife-inst")}
       viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
+      preserveAspectRatio="xMidYMid meet"
       aria-hidden="true"
     >
       <Tape
-        x={300}
+        x={Math.round(W * 0.156)}
+        cy={Math.round(H * 0.44)}
+        h={Math.round(H * 0.5)}
         side="left"
         unit={t("knots")}
         value={position.gsKt}
@@ -61,9 +95,10 @@ export function Instruments({
         ]}
       />
       <Tape
-        // Inboard of the view menu, which lives on the right edge: the tape
-        // and its box were sitting underneath it.
-        x={1390}
+        // Inboard of the view sidebar, which lives on the right edge.
+        x={Math.round(W * 0.724)}
+        cy={Math.round(H * 0.44)}
+        h={Math.round(H * 0.5)}
         side="right"
         unit={t("feet")}
         value={position.altFt}
@@ -75,8 +110,9 @@ export function Instruments({
         extra={{ label: t("verticalSpeed"), value: vs }}
       />
       <Rose
-        cx={960}
-        cy={840}
+        cx={Math.round(W / 2)}
+        cy={Math.round(H * 0.76)}
+        r={Math.round(Math.min(W, H) * 0.165)}
         heading={position.headingDeg}
         toDest={bearingToDest}
       />
@@ -92,6 +128,8 @@ export function Instruments({
  */
 function Tape({
   x,
+  cy,
+  h,
   side,
   unit,
   value,
@@ -102,6 +140,8 @@ function Tape({
   extra,
 }: {
   x: number;
+  cy: number;
+  h: number;
   side: "left" | "right";
   unit: string;
   value: number;
@@ -112,8 +152,6 @@ function Tape({
   under: string[];
   extra?: { label: string; value: number };
 }) {
-  const h = 460;
-  const cy = 470;
   const top = cy - h / 2;
   const span = h / 2 / pxPer;
   const first = Math.ceil((value - span) / step) * step;
@@ -248,15 +286,16 @@ function Tape({
 function Rose({
   cx,
   cy,
+  r,
   heading,
   toDest,
 }: {
   cx: number;
   cy: number;
+  r: number;
   heading: number;
   toDest: number;
 }) {
-  const r = 146;
   const ticks = [];
   for (let d = 0; d < 360; d += 5) {
     const major = d % 30 === 0;

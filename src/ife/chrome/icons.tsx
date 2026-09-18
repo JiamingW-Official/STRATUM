@@ -136,6 +136,25 @@ export const IconPower = ({ size = 24 }: P) => (
    The four shapes every player has used since a tape deck had buttons on it.
    Solid: a transport control is something you hit, not something you read. */
 
+/** Out of order. The two crossing paths everybody reads as shuffle. */
+export const IconShuffle = ({ size = 24 }: P) => (
+  <svg {...line(size)}>
+    <path d="M3 7.2h3.6l3.2 4M14.2 16.8h2.6M3 16.8h3.6l7.6-9.6h2.6" />
+    <path d="m18.4 4.6 2.6 2.6-2.6 2.6M18.4 14.2l2.6 2.6-2.6 2.6" />
+  </svg>
+);
+
+/** Again. One turn of the loop, with a 1 in it when it is one track. */
+export const IconRepeat = ({ size = 24, one = false }: P & { one?: boolean }) => (
+  <svg {...line(size)}>
+    <path d="M7.4 5.6h9.2a3.6 3.6 0 0 1 3.6 3.6v1.4" />
+    <path d="m4.2 5.6 3.2-2.6M4.2 5.6l3.2 2.6" />
+    <path d="M16.6 18.4H7.4a3.6 3.6 0 0 1-3.6-3.6v-1.4" />
+    <path d="m19.8 18.4-3.2-2.6M19.8 18.4l-3.2 2.6" />
+    {one && <path d="M11.4 14.4v-4.2l-1.2.9" strokeWidth="1.8" />}
+  </svg>
+);
+
 export const IconPlay = ({ size = 24 }: P) => (
   <svg {...fill(size)}>
     <path d="M7.4 4.6 19.2 12 7.4 19.4z" />
@@ -163,6 +182,13 @@ export const IconNext = ({ size = 24 }: P) => (
 /* ── Map controls ─────────────────────────────────────────────────────────
    Line marks, not solid ones: these sit on top of a raster basemap, where a
    filled glyph loses its shape against a coastline. */
+
+/** Open it, or shut it. One chevron, turned. */
+export const IconChevron = ({ size = 24, flip = false }: P & { flip?: boolean }) => (
+  <svg {...line(size)} style={{ transform: flip ? "rotate(180deg)" : undefined }}>
+    <path d="M14.4 5.4 7.8 12l6.6 6.6" />
+  </svg>
+);
 
 export const IconPlus = ({ size = 24 }: P) => (
   <svg {...line(size)}>

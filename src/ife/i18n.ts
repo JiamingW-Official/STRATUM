@@ -165,6 +165,8 @@ const DICT = {
   viewGlobe: ["Globe", "地球"],
   best: ["Best", "最高"],
   previous: ["Previous", "上一首"],
+  shuffle: ["Shuffle", "随机"],
+  repeat: ["Repeat", "重复"],
   chooseLanguage: ["Choose a language", "选择语言"],
   continue: ["Continue", "继续"],
   startTitle: [
@@ -266,6 +268,8 @@ const DICT = {
   catTomorrow: ["Tomorrow", "明日世界"],
   catAmateur: ["Home movies", "家庭电影"],
   catShort: ["Under 15 min", "15 分钟内"],
+  views: ["Views", "视角"],
+  zoom: ["Zoom", "缩放"],
   viewForward: ["Forward", "前方"],
   viewLeft: ["Left window", "左舷"],
   viewRight: ["Right window", "右舷"],

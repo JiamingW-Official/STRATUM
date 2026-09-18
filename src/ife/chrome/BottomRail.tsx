@@ -3,6 +3,7 @@ import { useCabin, useSelf } from "../../flight-state/store";
 import type { IFEBridge, ScreenName } from "../../flight-state/types";
 import { useT } from "../i18n";
 import { currentTrack, usePlayer } from "../player";
+import { STATIONS } from "../stations";
 import { Sleeve } from "./Sleeve";
 import {
   IconCall,
@@ -10,6 +11,8 @@ import {
   IconPause,
   IconPlay,
   IconPrev,
+  IconRepeat,
+  IconShuffle,
   IconHome,
   IconLang,
   IconLight,
@@ -33,6 +36,12 @@ import {
  * cycles through four values on tap, which is what volume used to do, makes
  * you press it three times to go back one.
  */
+/** m:ss, and a dash until something has said how long the track is. */
+function clock(sec: number) {
+  if (!sec || !isFinite(sec)) return "--:--";
+  return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+}
+
 export function BottomRail({
   seat,
   bridge,
@@ -47,7 +56,13 @@ export function BottomRail({
   const self = useCabin((s) => s.seats[seat]);
   const { t } = useT();
 
-  const { stationIdx, trackIdx, playing, progress } = usePlayer();
+  const { stationIdx, trackIdx, playing, progress, elapsed, duration } =
+    usePlayer();
+  const shuffle = usePlayer((s) => s.shuffle);
+  const repeat = usePlayer((s) => s.repeat);
+  const toggleShuffle = usePlayer((s) => s.toggleShuffle);
+  const cycleRepeat = usePlayer((s) => s.cycleRepeat);
+  const seek = usePlayer((s) => s.seek);
   const togglePlay = usePlayer((s) => s.toggle);
   const next = usePlayer((s) => s.next);
   const prev = usePlayer((s) => s.prev);
@@ -60,6 +75,9 @@ export function BottomRail({
   const media = usePlayer((s) => s.progress > 0 || s.playing);
   const setPlayerVolume = usePlayer((s) => s.setVolume);
   const now = currentTrack(stationIdx, trackIdx);
+  // The list already knows how long every track is, measured off the file, so
+  // the bar can say so before the audio element has loaded enough to agree.
+  const trackSeconds = STATIONS[stationIdx]?.lengths?.[trackIdx] ?? 0;
 
   const [pop, setPop] = useState<null | "volume">(null);
 
@@ -102,8 +120,13 @@ export function BottomRail({
           It had a bar of its own above the rail on the music page, which meant
           the cabin had two rows of controls stacked on top of each other and
           the player only existed while you were looking at the music. A
-          seat-back system puts it in the one row that is always there — so
-          this is the player, with keys, and it is on every screen.
+          seat-back system puts it in the one row that is always there.
+ 
+          No surface under it. Everything else in this rail is a key and takes
+          a lens; this is not a key, it is the state of the sound, and a panel
+          around it made it look like one more thing to press. It sits in the
+          middle of the rail because that is the middle of the row, not the
+          middle of whatever space the keys happened to leave.
  
           It is a div with buttons in it rather than one button that toggles:
           pressing the thing to find out what it does is not a control. */}
@@ -121,7 +144,16 @@ export function BottomRail({
               {now.artist || now.station.name}
             </span>
           </span>
+
           <span className="ife-mini-keys">
+            <button
+              className="ife-transport"
+              aria-label={t("shuffle")}
+              data-on={shuffle}
+              onClick={toggleShuffle}
+            >
+              <IconShuffle size={26} />
+            </button>
             <button
               className="ife-transport"
               aria-label={t("previous")}
@@ -143,14 +175,39 @@ export function BottomRail({
             >
               <IconNext size={26} />
             </button>
+            <button
+              className="ife-transport"
+              aria-label={t("repeat")}
+              data-on={repeat !== "off"}
+              onClick={cycleRepeat}
+            >
+              <IconRepeat size={26} one={repeat === "one"} />
+            </button>
           </span>
-          {/* How far through, as a line under the whole block rather than a
-              control: the bar you can drag is on the music page, where there
-              is room to hit it. */}
-          <span
-            className="ife-mini-progress"
-            style={{ width: `${Math.round(progress * 100)}%` }}
-          />
+
+          {/* The clock at both ends of a bar you can drag, which is the shape
+              this has had since a tape deck had a counter on it. */}
+          <span className="ife-mini-seekrow">
+            <span className="ife-mini-clock ife-mono">{clock(elapsed)}</span>
+            <button
+              className="ife-mini-seek"
+              aria-label={t("seek")}
+              onClick={(e) =>
+                seek(
+                  e.nativeEvent.offsetX /
+                    (e.currentTarget as HTMLElement).clientWidth,
+                )
+              }
+            >
+              <span
+                className="ife-mini-seek-fill"
+                style={{ width: `${Math.round(progress * 100)}%` }}
+              />
+            </button>
+            <span className="ife-mini-clock ife-mono">
+              {clock(duration || trackSeconds)}
+            </span>
+          </span>
         </div>
       )}
 

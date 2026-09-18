@@ -7,14 +7,7 @@ import { duration, fmtInt, localTime } from "../format";
 import { pick, useT } from "../i18n";
 import { nightRing, terminatorLine } from "../sun";
 import { Instruments } from "../chrome/Instruments";
-import {
-  IconForward,
-  IconMinus,
-  IconPlanet,
-  IconPlus,
-  IconRoute,
-  IconTarget,
-} from "../chrome/icons";
+import { IconChevron, IconMinus, IconPlus } from "../chrome/icons";
 
 /**
  * The moving map, on a real globe.
@@ -81,6 +74,10 @@ export function MapScreen() {
   // the data effect runs, so readiness is state rather than a listener.
   const [ready, setReady] = useState(false);
   const [view, setView] = useState<View>("route");
+  // The view menu is a sidebar, and a sidebar is shut until it is asked for:
+  // six view names permanently parked over the right third of a map is six
+  // words in front of the thing you came to look at.
+  const [menu, setMenu] = useState(false);
   const { route, position, track, etaUtc, etaInferred, departureUtc } =
     useFlight();
   const remaining = Date.parse(etaUtc) - Date.now();
@@ -548,15 +545,28 @@ export function MapScreen() {
           drawn from. It replaces the figures rather than joining them. */}
       {window_ && <Instruments position={position} bearingToDest={toDest} />}
 
-      {/* The view menu.
+      {/* The view menu, as a sidebar that comes in from the right.
  
-          Six stacked icon keys was already one too many, and left and right
-          have no icon anybody would recognise — a left-pointing arrow on a map
-          means "pan left". So the views are written out. A cabin's view menu
-          has always been a list of words, and the two zoom keys sit under it
-          where a pair of keys belongs. */}
-      <div className="ife-mapctl">
-        <div className="ife-mapviews">
+          It was a floating panel parked over the map. Six view names sitting
+          permanently over the right third of the picture is six words in front
+          of the thing you came to look at — so it is shut until it is asked
+          for, and the handle stays on the edge where a hand already is.
+ 
+          Written out rather than drawn: left and right have no icon anybody
+          would recognise, because a left-pointing arrow on a map means "pan
+          left". */}
+      <div className="ife-mapside" data-open={menu}>
+        <button
+          className="ife-mapside-handle"
+          aria-expanded={menu}
+          aria-label={t("views")}
+          onClick={() => setMenu(!menu)}
+        >
+          <IconChevron size={34} flip={menu} />
+        </button>
+
+        <div className="ife-mapside-panel">
+          <div className="ife-mapside-head ife-cap">{t("views")}</div>
           {(
             [
               ["globe", "viewGlobe"],
@@ -576,22 +586,24 @@ export function MapScreen() {
               {t(key)}
             </button>
           ))}
-        </div>
-        <div className="ife-mapzoom">
-          <button
-            className="ife-mapbtn"
-            aria-label={t("zoomOut")}
-            onClick={zoom(-1)}
-          >
-            <IconMinus size={34} />
-          </button>
-          <button
-            className="ife-mapbtn"
-            aria-label={t("zoomIn")}
-            onClick={zoom(1)}
-          >
-            <IconPlus size={34} />
-          </button>
+
+          <div className="ife-mapside-head ife-cap">{t("zoom")}</div>
+          <div className="ife-mapzoom">
+            <button
+              className="ife-mapbtn"
+              aria-label={t("zoomOut")}
+              onClick={zoom(-1)}
+            >
+              <IconMinus size={34} />
+            </button>
+            <button
+              className="ife-mapbtn"
+              aria-label={t("zoomIn")}
+              onClick={zoom(1)}
+            >
+              <IconPlus size={34} />
+            </button>
+          </div>
         </div>
       </div>
 

@@ -25,6 +25,11 @@ type PlayerState = {
   play: () => void;
   pause: () => void;
   toggle: () => void;
+  /** Out of order, and repeat: the two switches every player has. */
+  shuffle: boolean;
+  repeat: "off" | "all" | "one";
+  toggleShuffle: () => void;
+  cycleRepeat: () => void;
   next: () => void;
   /** Back to the top of this track, or to the one before if you are at it. */
   prev: () => void;
@@ -50,7 +55,17 @@ function audio(): HTMLAudioElement {
       duration: a.duration || 0,
     });
   });
-  el.addEventListener("ended", () => usePlayer.getState().next());
+  el.addEventListener("ended", () => {
+    // What happens at the end of a track is the repeat switch's business, and
+    // nothing else's: "one" plays it again, and everything else moves on.
+    const p = usePlayer.getState();
+    if (p.repeat === "one") {
+      el!.currentTime = 0;
+      void el!.play();
+      return;
+    }
+    p.next();
+  });
   return el;
 }
 
@@ -68,6 +83,13 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   playing: false,
   elapsed: 0,
   duration: 0,
+  shuffle: false,
+  repeat: "off",
+  toggleShuffle: () => set((s) => ({ shuffle: !s.shuffle })),
+  cycleRepeat: () =>
+    set((s) => ({
+      repeat: s.repeat === "off" ? "all" : s.repeat === "all" ? "one" : "off",
+    })),
   progress: 0,
   interrupted: false,
 
@@ -108,8 +130,16 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     a.currentTime = Math.max(0, Math.min(1, f)) * a.duration;
   },
   next: () => {
-    const { stationIdx, trackIdx, playing } = get();
-    const n = (trackIdx + 1) % STATIONS[stationIdx].tracks.length;
+    const { stationIdx, trackIdx, playing, shuffle } = get();
+    const count = STATIONS[stationIdx].tracks.length;
+    // Shuffled, "next" is any other track — never the one already playing,
+    // because a shuffle that can hand you the same song twice in a row is the
+    // thing everybody complains about.
+    const n = shuffle
+      ? count < 2
+        ? trackIdx
+        : (trackIdx + 1 + Math.floor(Math.random() * (count - 1))) % count
+      : (trackIdx + 1) % count;
     set({ trackIdx: n });
     load(stationIdx, n);
     if (playing) get().play();
