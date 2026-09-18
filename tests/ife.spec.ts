@@ -212,9 +212,15 @@ test.describe("IFE bench", () => {
     // Utilities, two pieces of media wearing their own faces, and the one
     // card that leaves the cabin.
     const cards = page.locator(".ife-card");
-    await expect(cards).toHaveCount(8);
+    await expect(cards).toHaveCount(9);
     await expect(page.locator('.ife-card[data-tall="true"]')).toHaveCount(3);
+    await expect(page.locator('.ife-card[data-wide="true"]')).toHaveCount(1);
     await expect(page.locator(".ife-card--media")).toHaveCount(2);
+    // Every card says more than one thing: a category name over a count was
+    // the shape they all had, and none of them had that little to say.
+    expect(
+      await page.locator(".ife-card-lines").first().locator("span").count(),
+    ).toBeGreaterThan(1);
 
     // Named for what it is: the rail of cards, not the rail at the bottom.
     const cardRail = page.locator(".ife-rail-cards");

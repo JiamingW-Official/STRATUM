@@ -1,15 +1,20 @@
 /**
  * The cabin's own pictograms.
  *
- * One construction for the whole rail: stroked, one weight, one grid, one
- * size. The set before this mixed filled shapes with stroked ones and a pair
- * of type glyphs, and a mixed set cannot have a consistent weight — there is
- * no number that a filled house and a stroked speaker share. With a single
- * stroke the weight is literally one value, which is the only way "the same
- * size and thickness" is a thing you can check rather than a thing you judge.
+ * One construction for the whole rail, and it is solid: filled shapes on one
+ * grid at one size, with no strokes anywhere in the set. That is what keeps
+ * the weight consistent — a set that mixes fills with strokes has no single
+ * number describing how heavy it is, which was the fault in the version
+ * before the last one. Going solid keeps that property and reads harder
+ * across a dark cabin, which is what the placards above a seat do.
  *
- * The weight is heavier than an icon library's default, because these are
- * read across a dark cabin at an angle rather than on a desk.
+ * Where a filled shape would lose its meaning — a globe is only a globe
+ * because of its meridians — the detail is punched out of the solid with
+ * evenodd rather than drawn on top of it. That is how a stencil works, and it
+ * means the mark has one colour and no hairlines to thin out at size.
+ *
+ * Content icons, further down, stay stroked: they sit at 96px inside a card,
+ * where a placard weight shouts.
  */
 type P = { size?: number };
 
@@ -27,64 +32,81 @@ const line = (size: number) => ({
   "aria-hidden": true as const,
 });
 
-/* ── Rail ───────────────────────────────────────────────────────────────── */
+/* ── Rail: solid ────────────────────────────────────────────────────────── */
+
+const fill = (size: number) => ({
+  width: size,
+  height: size,
+  viewBox: "0 0 24 24",
+  fill: "currentColor",
+  "aria-hidden": true as const,
+});
 
 export const IconHome = ({ size = 24 }: P) => (
-  <svg {...line(size)}>
-    <path d="M3.6 10.6 12 3.4l8.4 7.2" />
-    <path d="M5.7 12.4v8h12.6v-8" />
-    <path d="M9.9 20.4v-5.2h4.2v5.2" />
+  <svg {...fill(size)}>
+    <path
+      d="M12 2.9 2.3 11.2l1.5 1.7 1.2-1v9.2h5.3v-5.7h3.4v5.7h5.3v-9.2l1.2 1 1.5-1.7z"
+      fillRule="evenodd"
+    />
   </svg>
 );
 
 /**
- * The flight map, as the aircraft the map itself draws. The button and the
- * thing it opens are one mark, and it leaves the globe free to mean language.
+ * The flight map, as the aircraft the map itself draws, seen from above. The
+ * button and the thing it opens are one mark, which leaves the globe free to
+ * mean language.
  */
 export const IconPlan = ({ size = 24 }: P) => (
-  <svg {...line(size)}>
-    <path d="M12 3.1c.7 0 1.2.6 1.25 1.35l.27 4.5 7.08 4.1v1.6l-7.08-1.9-.33 3.4 2.2 1.7v1.25L12 18.4l-3.37.9V18l2.2-1.7-.33-3.4-7.08 1.9v-1.6l7.08-4.1.27-4.5C10.8 3.7 11.3 3.1 12 3.1z" />
+  <svg {...fill(size)}>
+    <path d="M12 2.5c.78 0 1.36.64 1.42 1.48l.3 4.86 7.88 4.56v2.04l-7.88-2.14-.36 3.82 2.44 1.9v1.52L12 19.6l-3.8 1.04v-1.52l2.44-1.9-.36-3.82L2.4 15.54V13.5l7.88-4.56.3-4.86C10.64 3.14 11.22 2.5 12 2.5z" />
   </svg>
 );
 
-/** Language. A globe, which is what every system in the world uses for it —
- *  and the map button is an aircraft now, so nothing else is claiming one. */
+/**
+ * Language: a globe, solid, with its grid cut out of it — and cut off centre,
+ * because a line through the middle each way makes a target rather than a
+ * sphere.
+ *
+ * The cuts are straight bands. Two earlier attempts built the meridian from
+ * arcs, and even-odd filling turned it into a positive shape both times: what
+ * came out was a solid leaf sitting inside the disc rather than a gap through
+ * it. Straight edges wind predictably, and at 38px nobody can tell a straight
+ * meridian from a curved one anyway.
+ */
 export const IconLang = ({ size = 24 }: P) => (
-  <svg {...line(size)}>
-    <circle cx="12" cy="12" r="8.7" />
-    <path d="M3.3 12h17.4" />
-    <path d="M12 3.3c3 3.4 3 14 0 17.4-3-3.4-3-14 0-17.4z" />
+  <svg {...fill(size)}>
+    <path
+      fillRule="evenodd"
+      d="M12 2.8a9.2 9.2 0 1 1 0 18.4 9.2 9.2 0 0 1 0-18.4z
+         M2.9 10.6h18.2v1.5H2.9z
+         M4.1 15.2h15.8v1.5H4.1z
+         M13.1 3.1h1.6v17.8h-1.6z"
+    />
   </svg>
 );
 
 export const IconVolume = ({ size = 24 }: P) => (
-  <svg {...line(size)}>
-    <path d="M4 9.3h3.3L11.8 5.2v13.6L7.3 14.7H4z" />
-    <path d="M15 9.4a4 4 0 0 1 0 5.2" />
-    <path d="M17.8 7a7.5 7.5 0 0 1 0 10" />
+  <svg {...fill(size)}>
+    <path d="M3.6 8.9h3.4L11.9 4.6v14.8L7 15.1H3.6a.9.9 0 0 1-.9-.9V9.8a.9.9 0 0 1 .9-.9z" />
+    <path d="M14.3 8.2a5.6 5.6 0 0 1 0 7.6l1.5 1.5a7.7 7.7 0 0 0 0-10.6z" />
+    <path d="M17.7 4.6a10.6 10.6 0 0 1 0 14.8l1.5 1.5a12.7 12.7 0 0 0 0-17.8z" />
   </svg>
 );
 
-/**
- * The reading light: a bulb, the ordinary kind.
- *
- * It was a lamp shade with three rays leaving it, and at rail size that read
- * as a shower head — the rays and the shade together make a spray, not a
- * light. A bulb has one silhouette everybody already knows.
- */
+/** The reading light: a bulb, the ordinary kind, and nothing else. */
 export const IconLight = ({ size = 24 }: P) => (
-  <svg {...line(size)}>
-    <path d="M12 3.2a5.6 5.6 0 0 1 3.4 10.06c-.8.62-1.25 1.4-1.35 2.34h-4.1c-.1-.94-.55-1.72-1.35-2.34A5.6 5.6 0 0 1 12 3.2z" />
-    <path d="M10 18.2h4M10.7 20.8h2.6" />
+  <svg {...fill(size)}>
+    <path d="M12 2.6a6 6 0 0 0-3.7 10.72c.78.6 1.2 1.3 1.32 2.18h4.76c.12-.88.54-1.58 1.32-2.18A6 6 0 0 0 12 2.6z" />
+    <path d="M9.5 17.2h5v1.9h-5zM10.3 20.4h3.4v1.5h-3.4z" />
   </svg>
 );
 
-/** The attendant call: a figure with a raised arm. The arm is the meaning. */
+/** The attendant call: the figure. It had a raised arm, which was a second
+ *  idea in a mark that only needs one. */
 export const IconCall = ({ size = 24 }: P) => (
-  <svg {...line(size)}>
-    <circle cx="9.8" cy="6.2" r="2.7" />
-    <path d="M5.3 20.8v-4.4a4.5 4.5 0 0 1 9 0v4.4" />
-    <path d="M13.6 13.4 19.2 6.6" />
+  <svg {...fill(size)}>
+    <circle cx="12" cy="6.3" r="3.1" />
+    <path d="M5.9 21.4v-4.9a6.1 6.1 0 0 1 12.2 0v4.9z" />
   </svg>
 );
 

@@ -37,7 +37,15 @@ import {
  */
 export function Home() {
   const setScreen = useSelf((s) => s.setScreen);
-  const { route, position, etaUtc, etaInferred, phase, flightNo } = useFlight();
+  const {
+    route,
+    position,
+    etaUtc,
+    etaInferred,
+    phase,
+    flightNo,
+    departureUtc,
+  } = useFlight();
   const { t, lang } = useT();
   const dest = useDestination(route.to);
   const wx = useWeather(route.to);
@@ -49,44 +57,123 @@ export function Home() {
   const feature = FILMS[0];
   const remaining = Date.parse(etaUtc) - Date.now();
 
+  /**
+   * The rail fills the glass rather than floating a row of equal squares in
+   * it, and the sizes are mixed on purpose: a grid of identical tiles is a
+   * contact sheet, and it forces every card to carry the same amount, which
+   * is never true. The flight map earns two rows, the weather earns two
+   * columns, and the rest take one of each.
+   *
+   * Each card carries what it knows rather than a category name. "Movies"
+   * over "8 films" is a label over a count; a film's own title and year is
+   * the thing itself.
+   */
   const cards: Array<{
-    screen: ScreenName;
-    key: Key;
-    icon: React.ReactNode;
-    note: string;
-    soon?: boolean;
+    key: string;
+    screen?: ScreenName;
+    onPress?: () => void;
+    title: string;
+    icon?: React.ReactNode;
+    lines: string[];
+    tall?: boolean;
+    wide?: boolean;
+    media?: "film" | "station";
   }> = [
     {
+      key: "map",
       screen: "map",
-      key: "flightMap",
+      title: t("flightMap"),
       icon: <IconMap size={96} />,
-      note: `${fmtInt(position.altFt)} ft`,
+      lines: [
+        `${fmtInt(position.altFt)} ft`,
+        `${fmtInt(position.gsKt)} kt`,
+        `${Math.round(position.headingDeg).toString().padStart(3, "0")}°`,
+      ],
+      tall: true,
     },
     {
+      key: "info",
       screen: "flightInfo",
-      key: "flightInformation",
+      title: t("flightInformation"),
       icon: <IconGauge size={96} />,
-      note: `${route.from.iata} → ${route.to.iata}`,
+      lines: [
+        `${route.from.iata} → ${route.to.iata}`,
+        `${duration(Date.now() - Date.parse(departureUtc), lang)} ${t("elapsed")}`,
+      ],
     },
     {
-      screen: "music",
       key: "music",
+      screen: "music",
+      title: t("music"),
       icon: <IconMusic size={96} />,
-      note: playing
-        ? now.title
-        : `${STATIONS.length} ${lang === "zh" ? "个频道" : "stations"}`,
+      lines: [
+        `${STATIONS.length} ${lang === "zh" ? "个频道" : "stations"}`,
+        `${STATIONS.reduce((n, st) => n + st.tracks.length, 0)} ${
+          lang === "zh" ? "首" : "tracks"
+        }`,
+      ],
     },
     {
-      screen: "movies",
+      key: "weather",
+      screen: "flightInfo",
+      title: wx
+        ? `${Math.round(wx.tempC)}° ${conditionKey(wx.code)[lang === "zh" ? 1 : 0]}`
+        : "--°",
+      lines: wx
+        ? [
+            `${t("feelsLike")} ${Math.round(wx.feelsC)}°`,
+            `${t("wind")} ${Math.round(wx.windKph)} km/h`,
+            `${pick(route.to.city, lang)} ${localTime(
+              new Date().toISOString(),
+              route.to,
+            )}`,
+          ]
+        : [t("weather")],
+      wide: true,
+    },
+    {
       key: "movies",
+      screen: "movies",
+      title: t("movies"),
       icon: <IconFilm size={96} />,
-      note: `${FILMS.length} ${lang === "zh" ? "部" : "films"}`,
+      lines: [
+        `${FILMS.length} ${lang === "zh" ? "部" : "films"}`,
+        lang === "zh" ? "公有领域" : "public domain",
+      ],
     },
     {
-      screen: "games",
       key: "games",
+      screen: "games",
+      title: t("games"),
       icon: <IconGames size={96} />,
-      note: lang === "zh" ? "2 个游戏" : "2 games",
+      lines: [t("sudoku"), t("overhead")],
+    },
+    {
+      key: "film",
+      onPress: () => {
+        openFilm(feature.id);
+        setScreen("movies");
+      },
+      title: pick(feature.title, lang),
+      lines: [feature.year, runtime(feature, lang)],
+      tall: true,
+      media: "film",
+    },
+    {
+      key: "station",
+      screen: "music",
+      title: now.station.name,
+      lines: playing
+        ? [now.title, now.artist]
+        : [`${now.station.tracks.length} ${lang === "zh" ? "首" : "tracks"}`],
+      media: "station",
+    },
+    {
+      key: "sky",
+      title: t("theSky"),
+      icon: <IconSky size={96} />,
+      lines: [t("liveAdsb")],
+      tall: true,
     },
   ];
 
@@ -144,66 +231,59 @@ export function Home() {
       </div>
 
       <div className="ife-rail-cards" role="navigation">
-        {cards.map((c) => (
-          <button
-            key={c.screen}
-            className="ife-card"
-            data-tall={c.screen === "map"}
-            data-soon={!!c.soon}
-            onClick={() => setScreen(c.screen)}
-          >
-            <span className="ife-card-icon">{c.icon}</span>
-            {c.screen === "map" && <RouteMini />}
-            <span className="ife-card-name">{t(c.key)}</span>
-            <span className="ife-card-note ife-mono">{c.note}</span>
-          </button>
-        ))}
-
-        {/* The last card leaves the cabin. From a seat you can open the sky
-            the rest of this work is about — the one the aircraft you are
-            sitting in is being heard from. It is a link, and it says so. */}
-        {/* Media sits in the rail as itself, not behind a category. The
-            reference home screen does the same: a poster among the utilities,
-            because a title is a better invitation than the word "Movies". */}
-        <button
-          className="ife-card ife-card--media"
-          data-tall="true"
-          onClick={() => {
-            openFilm(feature.id);
-            setScreen("movies");
-          }}
-        >
-          <span
-            className="ife-card-still"
-            style={{ backgroundImage: `url(${stillUrl(feature)})` }}
-          />
-          <span className="ife-card-name">{pick(feature.title, lang)}</span>
-          <span className="ife-card-note ife-mono">
-            {feature.year} · {runtime(feature, lang)}
-          </span>
-        </button>
-
-        <button
-          className="ife-card ife-card--media"
-          style={{ ["--stationColor" as string]: now.station.color }}
-          onClick={() => setScreen("music")}
-        >
-          <span className="ife-card-swatch" />
-          <span className="ife-card-name">{now.station.name}</span>
-          <span className="ife-card-note ife-mono">
-            {playing
-              ? now.title
-              : `${now.station.tracks.length} ${lang === "zh" ? "首" : "tracks"}`}
-          </span>
-        </button>
-
-        <a className="ife-card ife-card--out" data-tall="true" href="/">
-          <span className="ife-card-icon">
-            <IconSky size={96} />
-          </span>
-          <span className="ife-card-name">{t("theSky")}</span>
-          <span className="ife-card-note ife-mono">{t("liveAdsb")}</span>
-        </a>
+        {cards.map((c) => {
+          const body = (
+            <>
+              {c.media === "film" && (
+                <span
+                  className="ife-card-still"
+                  style={{ backgroundImage: `url(${stillUrl(feature)})` }}
+                />
+              )}
+              {c.media === "station" && <span className="ife-card-swatch" />}
+              {c.icon && <span className="ife-card-icon">{c.icon}</span>}
+              {/* The map card carries the route itself. Losing it in a
+                  refactor left the tallest card on the screen as an icon and
+                  three numbers with a hole between them. */}
+              {c.key === "map" && <RouteMini />}
+              <span className="ife-card-name">{c.title}</span>
+              <span className="ife-card-lines ife-mono">
+                {c.lines.filter(Boolean).map((l) => (
+                  <span key={l}>{l}</span>
+                ))}
+              </span>
+            </>
+          );
+          const shared = {
+            "data-tall": !!c.tall,
+            "data-wide": !!c.wide,
+            style:
+              c.media === "station"
+                ? ({
+                    ["--stationColor" as string]: now.station.color,
+                  } as React.CSSProperties)
+                : undefined,
+          };
+          const cls = `ife-card${c.media ? " ife-card--media" : ""}`;
+          // The one card that leaves the cabin is a link, and says so.
+          if (c.key === "sky") {
+            return (
+              <a key={c.key} href="/" className={`${cls} ife-card--out`} {...shared}>
+                {body}
+              </a>
+            );
+          }
+          return (
+            <button
+              key={c.key}
+              className={cls}
+              {...shared}
+              onClick={c.onPress ?? (() => c.screen && setScreen(c.screen))}
+            >
+              {body}
+            </button>
+          );
+        })}
       </div>
 
     </div>

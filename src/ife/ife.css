@@ -282,12 +282,12 @@
 
 .ife-pop {
   position: absolute;
-  bottom: calc(100% + 16px);
+  bottom: calc(100% + 18px);
   right: 0;
   z-index: 30;
-  min-width: 320px;
-  padding: 24px 26px 26px;
-  border-radius: 14px;
+  min-width: 460px;
+  padding: 32px 34px 34px;
+  border-radius: 18px;
   background: rgba(14, 17, 23, 0.96);
   -webkit-backdrop-filter: blur(24px) saturate(1.3);
   backdrop-filter: blur(24px) saturate(1.3);
@@ -303,20 +303,20 @@
 }
 
 .ife-pop-title {
-  margin-bottom: 14px;
+  margin-bottom: 20px;
 }
 
 .ife-pop-row {
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   color: var(--fg);
   font: inherit;
-  font-size: 28px;
+  font-size: 32px;
   width: 100%;
   text-align: left;
-  padding: 16px 18px;
+  padding: 22px 22px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -357,8 +357,8 @@
 
 .ife-vol {
   position: relative;
-  width: 64px;
-  height: 300px;
+  width: 82px;
+  height: 360px;
   border-radius: 32px;
   background: rgba(var(--text-rgb), 0.12);
   overflow: hidden;
@@ -375,7 +375,7 @@
 }
 
 .ife-vol-read {
-  font-size: 28px;
+  font-size: 32px;
   color: var(--dim);
 }
 
@@ -658,19 +658,21 @@
    more than two columns are in reach without a scroll, and the column beyond
    the edge is left cut on purpose: that is the only "more this way" a thumb
    has ever needed. */
+/* Two rows that fill the height, columns that keep coming, and cards that are
+   not all one size. `dense` matters: with a two-row card and a two-column card
+   in the same flow, the packer has to be allowed to go back and fill the gaps
+   they leave, or the rail grows holes. */
 .ife-rail-cards {
   position: absolute;
   left: 748px;
   right: 0;
-  top: 0;
-  bottom: 0;
+  top: 34px;
+  bottom: 34px;
   display: grid;
-  grid-template-rows: repeat(2, 296px);
-  grid-auto-flow: column;
-  grid-auto-columns: 296px;
+  grid-template-rows: repeat(2, 1fr);
+  grid-auto-flow: column dense;
+  grid-auto-columns: 300px;
   gap: 22px;
-  align-content: center;
-  padding-right: 0;
   overflow-x: auto;
   scrollbar-width: none;
   scroll-snap-type: x proximity;
@@ -685,11 +687,15 @@
    the only shape that owes neither of them anything; a small radius because
    an injection-moulded panel has a ~6 mm corner, not a phone's. No shadows —
    these sit on a photograph, where a drop shadow reads as a mistake. */
-/* One card is tall, spanning both rows. A rail of identical squares is a
-   contact sheet; giving the flight map the height it deserves makes the rail
-   a composition and says which card matters without a badge. */
+/* Mixed spans. A rail of identical squares is a contact sheet; a card that
+   takes two rows or two columns says what matters without a badge, and gives
+   the thing inside it room to say more than a count. */
 .ife-card[data-tall="true"] {
   grid-row: span 2;
+}
+
+.ife-card[data-wide="true"] {
+  grid-column: span 2;
 }
 
 /* The one card that leaves the cabin. It says so by being the only one lit
@@ -769,7 +775,7 @@
 }
 
 .ife-card--media .ife-card-name,
-.ife-card--media .ife-card-note {
+.ife-card--media .ife-card-lines {
   position: relative;
   z-index: 1;
   padding: 0 32px;
@@ -779,7 +785,7 @@
   margin-top: auto;
 }
 
-.ife-card--media .ife-card-note {
+.ife-card--media .ife-card-lines {
   padding-bottom: 32px;
 }
 
@@ -797,11 +803,19 @@
   line-height: 1.1;
 }
 
-.ife-card-note {
-  margin-top: 10px;
+/* A card says several things, one per line, rather than one thing with the
+   others cut off by an ellipsis. */
+.ife-card-lines {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-size: 22px;
   color: var(--faint);
   max-width: 100%;
+}
+
+.ife-card-lines > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

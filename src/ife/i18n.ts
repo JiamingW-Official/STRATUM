@@ -154,6 +154,7 @@ const DICT = {
   language: ["Language", "语言"],
   close: ["Close", "关闭"],
   photograph: ["Photograph", "照片"],
+  elapsed: ["elapsed", "已飞"],
   exploreDestination: ["Explore the destination", "了解目的地"],
   imageCredit: ["Image", "图片"],
   mapUnavailable: ["Map unavailable", "地图不可用"],
