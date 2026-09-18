@@ -3,6 +3,7 @@ import { useCabin, useFlight, useSelf } from "../flight-state/store";
 import type { IFEBridge } from "../flight-state/types";
 import { JourneyStrip } from "./chrome/JourneyStrip";
 import { BottomRail } from "./chrome/BottomRail";
+import { MenuDrawer } from "./chrome/MenuDrawer";
 import { Idle } from "./screens/Idle";
 import { Home } from "./screens/Home";
 import { MapScreen } from "./screens/MapScreen";
@@ -10,10 +11,10 @@ import { FlightInfo } from "./screens/FlightInfo";
 import { Music } from "./screens/Music";
 import { Movies } from "./screens/Movies";
 import { Games } from "./screens/Games";
-import { Menu } from "./screens/Menu";
 import { Screening } from "./screens/Screening";
 import { PAOverlay } from "./screens/PAOverlay";
 import { usePlayer } from "./player";
+import { useNav } from "./nav";
 import "./ife.css";
 
 /** Idle after this long without a touch, like every seat-back screen. */
@@ -31,6 +32,8 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
   const setSeat = useSelf((s) => s.setSeat);
   const paOverride = useFlight((s) => s.paOverride);
   const ensureSeat = useCabin((s) => s.setSeat);
+  const setMenuOpen = useNav((s) => s.setMenuOpen);
+  const menuOpen = useNav((s) => s.menuOpen);
 
   // The screen follows whichever seat it is mounted for.
   useEffect(() => {
@@ -84,8 +87,17 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
     };
   }, [screen, paOverride, setScreen]);
 
+  // A screen the passenger put out with the drawer's own switch, which one
+  // touch brings back: a dark panel with no way out of it would be a trap,
+  // and waking on touch is what the real thing does.
   if (screen === "off") {
-    return <div className="ife-root" data-screen="off" />;
+    return (
+      <div
+        className="ife-root ife-off"
+        data-screen="off"
+        onPointerDown={() => setScreen("idle")}
+      />
+    );
   }
 
   if (screen === "idle") {
@@ -112,11 +124,11 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
   return (
     <div className="ife-root" data-screen={screen}>
       <JourneyStrip
-        onBack={() => setScreen(screen === "home" ? "idle" : "home")}
+        menuOpen={menuOpen}
+        onMenu={() => setMenuOpen(!menuOpen)}
       />
       <div className="ife-stage">
         {screen === "home" && <Home />}
-        {screen === "menu" && <Menu seat={seat} bridge={bridge} />}
         {screen === "map" && <MapScreen />}
         {screen === "flightInfo" && <FlightInfo />}
         {screen === "music" && <Music />}
@@ -124,6 +136,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
         {screen === "games" && <Games />}
       </div>
       <BottomRail seat={seat} bridge={bridge} />
+      <MenuDrawer seat={seat} bridge={bridge} />
       <PAOverlay />
     </div>
   );

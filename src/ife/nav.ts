@@ -13,10 +13,16 @@ type Nav = {
   filmId: string | null;
   openFilm: (id: string) => void;
   clear: () => void;
+  /** The left drawer. Open over whatever screen you were on, never instead
+      of it: half of what it carries are switches, not destinations. */
+  menuOpen: boolean;
+  setMenuOpen: (open: boolean) => void;
 };
 
 export const useNav = create<Nav>((set) => ({
   filmId: null,
   openFilm: (filmId) => set({ filmId }),
   clear: () => set({ filmId: null }),
+  menuOpen: false,
+  setMenuOpen: (menuOpen) => set({ menuOpen }),
 }));

@@ -6,7 +6,6 @@ import { currentTrack, usePlayer } from "../player";
 import {
   IconCall,
   IconHome,
-  IconMenu,
   IconLang,
   IconLight,
   IconPlan,
@@ -70,13 +69,6 @@ export function BottomRail({
         <span className="ife-seat-chip-no">{seat}</span>
       </div>
 
-      {/* The index of everything, which a shelf that scrolls cannot be. */}
-      <RailButton
-        label={t("menu")}
-        icon={<IconMenu size={46} />}
-        current={screen === "menu"}
-        onClick={go("menu")}
-      />
       <RailButton
         label={t("home")}
         icon={<IconHome size={46} />}

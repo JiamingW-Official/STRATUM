@@ -115,9 +115,45 @@ export const IconMenu = ({ size = 24 }: P) => (
   </svg>
 );
 
-export const IconBack = ({ size = 24 }: P) => (
+/** Put the screen out. The one control on the drawer that is not a place. */
+export const IconPower = ({ size = 24 }: P) => (
   <svg {...line(size)}>
-    <path d="M15 5 8 12l7 7" />
+    <path d="M12 2.6v8.2" />
+    <path d="M6.5 5.4a8 8 0 1 0 11 0" />
+  </svg>
+);
+
+/* ── Map controls ─────────────────────────────────────────────────────────
+   Line marks, not solid ones: these sit on top of a raster basemap, where a
+   filled glyph loses its shape against a coastline. */
+
+export const IconPlus = ({ size = 24 }: P) => (
+  <svg {...line(size)}>
+    <path d="M12 4.5v15M4.5 12h15" />
+  </svg>
+);
+
+export const IconMinus = ({ size = 24 }: P) => (
+  <svg {...line(size)}>
+    <path d="M4.5 12h15" />
+  </svg>
+);
+
+/** Put the aircraft in the middle and keep it there. */
+export const IconTarget = ({ size = 24 }: P) => (
+  <svg {...line(size)}>
+    <circle cx="12" cy="12" r="6.4" />
+    <path d="M12 1.8v3.4M12 18.8v3.4M1.8 12h3.4M18.8 12h3.4" />
+    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+/** The whole flight in the frame: a great circle between two airports. */
+export const IconRoute = ({ size = 24 }: P) => (
+  <svg {...line(size)}>
+    <path d="M3.6 17.4C7 8.6 14 5.2 20.4 6.6" />
+    <circle cx="3.6" cy="17.4" r="2.1" fill="currentColor" stroke="none" />
+    <circle cx="20.4" cy="6.6" r="2.1" />
   </svg>
 );
 

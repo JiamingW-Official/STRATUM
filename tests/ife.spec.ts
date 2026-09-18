@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { subsolarPoint } from "../src/ife/sun";
 
 const BENCH = "/dev/ife/";
 const GLASS = ".bench-glass";
@@ -31,7 +32,7 @@ const screenName = (page: Page) =>
   page.locator(".ife-root").getAttribute("data-screen");
 
 test.describe("IFE bench", () => {
-  test("idle to home to map and back", async ({ page }) => {
+  test("idle to home to map and back to home", async ({ page }) => {
     const errors = await openBench(page);
 
     expect(await screenName(page)).toBe("idle");
@@ -44,11 +45,17 @@ test.describe("IFE bench", () => {
     expect(await screenName(page)).toBe("map");
     await expect(page.locator(".ife-map canvas")).toHaveCount(1);
 
-    // The strip's back control returns to home from any screen.
-    await page.getByRole("button", { name: "Back" }).click();
+    // Home is on the rail, and the corner is the menu's now: back was doing
+    // two different jobs depending on which screen you were on.
+    await rail(page, "Home").click();
     expect(await screenName(page)).toBe("home");
-    // And from home it puts the screen away.
-    await page.getByRole("button", { name: "Back" }).click();
+
+    // And the screen can be put out from the drawer, which is the only thing
+    // the corner arrow did that nothing else could — one touch wakes it.
+    await page.locator(".ife-strip-menu").click();
+    await page.locator(".ife-drawer").getByRole("button", { name: "Screen off" }).click();
+    expect(await screenName(page)).toBe("off");
+    await page.locator(".ife-off").click();
     expect(await screenName(page)).toBe("idle");
 
     expect(errors).toEqual([]);
@@ -112,6 +119,104 @@ test.describe("IFE bench", () => {
     );
     // The gap stays on the map: it happened, and the record keeps it.
     expect((await runs()).unheard).toBeGreaterThan(0);
+  });
+
+  test("the map is the passenger's, and it can be given back", async ({
+    page,
+  }) => {
+    await openBench(page);
+    await page.locator(".ife-idle").click();
+    await card(page, "Flight map").click();
+    await page.waitForFunction(() => !!(window as any).__ifeMap?.loaded());
+    const cam = () => page.evaluate(() => {
+      const m = (window as any).__ifeMap;
+      return { ...m.getCenter(), zoom: m.getZoom() };
+    });
+
+    // It opens framing the whole flight, and that button says so.
+    await expect(
+      page.getByRole("button", { name: "Whole route" }),
+    ).toHaveAttribute("data-on", "true");
+
+    // A finger on the map takes the camera. Nothing must pull it back: a map
+    // that recentres itself while you are dragging it cannot be read.
+    const box = (await page.locator(".ife-map canvas").boundingBox())!;
+    const mid = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const before = await cam();
+    await page.mouse.move(mid.x, mid.y);
+    await page.mouse.down();
+    await page.mouse.move(mid.x - 240, mid.y - 60, { steps: 12 });
+    await page.mouse.up();
+    const dragged = await cam();
+    expect(Math.abs(dragged.lng - before.lng)).toBeGreaterThan(1);
+    await expect(
+      page.getByRole("button", { name: "Whole route" }),
+    ).toHaveAttribute("data-on", "false");
+
+    // Zoom is a control a thumb can hit, not a 29px square with a compass.
+    const zbox = (await page
+      .getByRole("button", { name: "Zoom in" })
+      .boundingBox())!;
+    expect(Math.min(zbox.width, zbox.height)).toBeGreaterThan(40);
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await expect
+      .poll(async () => (await cam()).zoom, { timeout: 4000 })
+      .toBeGreaterThan(dragged.zoom + 0.5);
+
+    // And the two buttons take it back.
+    await page.getByRole("button", { name: "Follow aircraft" }).click();
+    await expect(
+      page.getByRole("button", { name: "Follow aircraft" }),
+    ).toHaveAttribute("data-on", "true");
+    // Following means the aircraft is in the frame and low in it, which is
+    // where a passenger wants it: what is ahead is the part they cannot see
+    // out of the window.
+    await expect
+      .poll(
+        async () => {
+          const m = (await page.locator(".ife-plane-marker").boundingBox())!;
+          return Math.abs(m.x + m.width / 2 - mid.x);
+        },
+        { timeout: 5000 },
+      )
+      .toBeLessThan(box.width * 0.12);
+
+    await page.getByRole("button", { name: "Whole route" }).click();
+    await expect
+      .poll(async () => (await cam()).zoom, { timeout: 4000 })
+      .toBeLessThan(4.5);
+
+    // The names are the point of a map. Both ends of the flight are on it,
+    // and the destination is drawn hollow because you have not arrived.
+    await expect(page.locator('.ife-ap-marker[data-role="from"]')).toContainText(
+      "JFK",
+    );
+    await expect(page.locator('.ife-ap-marker[data-role="to"]')).toContainText(
+      "London",
+    );
+
+    // Night is computed from the clock and it is in the right place. Point
+    // the camera at the spot the sun is directly over and nothing should be
+    // shaded; point it at the opposite side of the earth and everything
+    // should be. This is the one thing on a moving map that is not about the
+    // aircraft, and it is checkable, so it gets checked.
+    const sun = subsolarPoint(new Date());
+    const shadedAt = (lon: number, lat: number) =>
+      page.evaluate(
+        ([x, y]) => {
+          const m = (window as any).__ifeMap;
+          m.jumpTo({ center: [x, y], zoom: 3 });
+          return new Promise((done) =>
+            m.once("idle", () =>
+              done(m.queryRenderedFeatures({ layers: ["night"] }).length),
+            ),
+          );
+        },
+        [lon, lat],
+      );
+    expect(await shadedAt(sun.lon, sun.lat)).toBe(0);
+    const anti = (((sun.lon + 180) % 360) + 540) % 360 - 180;
+    expect(await shadedAt(anti, -sun.lat)).toBeGreaterThan(0);
   });
 
   test("reading light and the attendant call leave the screen", async ({
@@ -298,17 +403,30 @@ test.describe("IFE bench", () => {
     await expect(page.locator(".ife-vol")).toHaveCount(0);
   });
 
-  test("the menu is an index of everything, and it works", async ({ page }) => {
+  test("the drawer is an index of everything, and it works", async ({
+    page,
+  }) => {
     await openBench(page);
     await page.locator(".ife-idle").click();
 
-    // The rail's first placard. The home rail scrolls sideways, so a page
-    // that lists what is on board is not a duplicate of it.
-    await rail(page, "Menu").click();
-    const menu = page.locator(".ife-menu-screen");
+    // The hamburger is in the top-left corner of the strip, and it toggles.
+    await page.locator(".ife-strip-menu").click();
+    const menu = page.locator(".ife-drawer");
+    await expect(page.locator(".ife-drawer-layer")).toHaveAttribute(
+      "data-open",
+      "true",
+    );
     await expect(menu).toContainText("Flight");
     await expect(menu).toContainText("Entertainment");
     await expect(menu).toContainText("Cabin");
+
+    // Every row of it fits on the glass. A seat-back menu that has to be
+    // scrolled to reach the reading light is a menu with a bug in it.
+    const fit = await page.locator(".ife-drawer-body").evaluate((el) => ({
+      scroll: el.scrollHeight,
+      client: el.clientHeight,
+    }));
+    expect(fit.scroll).toBeLessThanOrEqual(fit.client);
 
     // The counts on it are the real manifest, not a label.
     await expect(menu).toContainText("8 films");
@@ -324,9 +442,23 @@ test.describe("IFE bench", () => {
       "true",
     );
 
-    // And it navigates: the map is one press away from the index.
+    // It does not take the screen: the drawer is chrome, and whatever was
+    // behind it is still there when it closes.
+    expect(await screenName(page)).toBe("home");
+    await page.locator(".ife-drawer-scrim").click();
+    await expect(page.locator(".ife-drawer-layer")).toHaveAttribute(
+      "data-open",
+      "false",
+    );
+
+    // And it navigates.
+    await page.locator(".ife-strip-menu").click();
     await menu.getByRole("button", { name: "Flight map" }).click();
-    await expect(page.locator(".ife-menu-screen")).toHaveCount(0);
+    expect(await screenName(page)).toBe("map");
+    await expect(page.locator(".ife-drawer-layer")).toHaveAttribute(
+      "data-open",
+      "false",
+    );
   });
 
   test("changing the seat updates the idle screen", async ({ page }) => {

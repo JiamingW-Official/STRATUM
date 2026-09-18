@@ -93,7 +93,6 @@ export type ScreenName =
   | "off"
   | "idle"
   | "home"
-  | "menu"
   | "map"
   | "flightInfo"
   | "movies"

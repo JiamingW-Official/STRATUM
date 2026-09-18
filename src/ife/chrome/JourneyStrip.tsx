@@ -2,7 +2,7 @@ import { useFlight } from "../../flight-state/store";
 import { progressAlong } from "../../flight-state/geo";
 import { duration, localTime } from "../format";
 import { pick, useT } from "../i18n";
-import { IconBack } from "./icons";
+import { IconMenu } from "./icons";
 
 /**
  * The strip a seat-back system keeps above everything else: where you left,
@@ -14,7 +14,13 @@ import { IconBack } from "./icons";
  * who watches a gap open behind the aircraft and then close again has been
  * told everything the piece has to say about who gets to be seen.
  */
-export function JourneyStrip({ onBack }: { onBack?: () => void }) {
+export function JourneyStrip({
+  onMenu,
+  menuOpen,
+}: {
+  onMenu?: () => void;
+  menuOpen?: boolean;
+}) {
   const { route, position, track, etaUtc, etaInferred, phase } = useFlight();
   const { t, lang } = useT();
   const progress = progressAlong(route.from, route.to, position);
@@ -38,13 +44,19 @@ export function JourneyStrip({ onBack }: { onBack?: () => void }) {
 
   return (
     <div className="ife-strip">
+      {/* The corner belongs to the menu, not to a back arrow. Back was doing
+          two different jobs depending on which screen you were on, and on a
+          system where every destination is one press away in the drawer and
+          home is on the rail, the second job was the only real one. */}
       <button
-        className="ife-tool"
-        onClick={onBack}
-        aria-label={t("back")}
-        style={{ marginLeft: -22 }}
+        className="ife-tool ife-strip-menu"
+        onClick={onMenu}
+        aria-label={t("menu")}
+        title={t("menu")}
+        aria-expanded={!!menuOpen}
+        data-current={!!menuOpen}
       >
-        <IconBack />
+        <IconMenu size={40} />
       </button>
 
       <div className="ife-strip-city">

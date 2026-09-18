@@ -935,6 +935,25 @@
   background: #070a0f;
 }
 
+/* The figures sit on the map, and at the zoom where the map is worth reading
+   it is full of names — "HEADING" landed on top of Île d'Anticosti. The same
+   scrim the home screen puts under its type, for the same reason: a gradient
+   lets the map come through, and a panel would cut a hole in it. */
+.ife-map::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 300px;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(7, 8, 11, 0.92) 0%,
+    rgba(7, 8, 11, 0.6) 46%,
+    rgba(7, 8, 11, 0) 100%
+  );
+}
+
 .ife-map .maplibregl-canvas {
   outline: none;
 }
@@ -951,14 +970,116 @@
   color: var(--faint);
 }
 
+/* The figures sit on the map, and the map is now draggable: this row has to
+   be transparent to a finger or the bottom of the world cannot be pulled up. */
 .ife-map-readout {
   position: absolute;
   left: var(--gutter);
-  bottom: 44px;
+  bottom: 40px;
   display: flex;
-  gap: 76px;
+  gap: 62px;
   align-items: flex-end;
   pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Map controls ─────────────────────────────────────────────────────────
+   MapLibre's own controls are 29px squares with a compass in them, which is
+   two problems: a compass is meaningless on a map that cannot rotate, and
+   29px is a mouse target. These are 84px, on the right, where a right thumb
+   finds them without crossing the map it is reading.
+
+   They carry a background, unlike the placards on the rail. The rail sits on
+   a panel; these sit on a photograph of the earth, and a borderless glyph
+   over a coastline is a glyph you cannot find. */
+.ife-mapctl {
+  position: absolute;
+  right: 34px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  z-index: 2;
+}
+
+.ife-mapbtn {
+  appearance: none;
+  width: 84px;
+  height: 84px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(12, 15, 21, 0.82);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--pane);
+  color: var(--fg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The camera is this button's. Brass, as everywhere else in the cabin. */
+.ife-mapbtn[data-on="true"] {
+  color: var(--accent-bright);
+  background: rgba(201, 164, 92, 0.18);
+  box-shadow: inset 0 1px 0 rgba(219, 182, 108, 0.36), var(--lift-sm);
+}
+
+/* ── Airports on the map ──────────────────────────────────────────────────
+   Two dots with their names on them. MapLibre can only set text from a glyph
+   server, and there is no glyph server here — so these are DOM markers, which
+   is also how the aircraft is drawn, and they inherit the cabin's own type
+   instead of a webfont someone would have to host. */
+.ife-ap-marker {
+  pointer-events: none;
+}
+
+.ife-ap-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* Anchored by its left edge, so the dot is pulled back over the coordinate
+     by half of itself. */
+  margin-left: -7px;
+}
+
+.ife-ap-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--fg);
+  box-shadow: 0 0 0 4px rgba(7, 8, 11, 0.7);
+}
+
+/* Where you are going is drawn the way the end of the journey strip is drawn:
+   hollow, because you have not arrived. */
+.ife-ap-marker[data-role="to"] .ife-ap-dot {
+  background: transparent;
+  box-shadow:
+    inset 0 0 0 2.5px var(--fg),
+    0 0 0 4px rgba(7, 8, 11, 0.7);
+}
+
+.ife-ap-text {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95);
+}
+
+.ife-ap-code {
+  font-size: 26px;
+  letter-spacing: 0.06em;
+  color: var(--fg);
+}
+
+.ife-ap-city {
+  font-size: 22px;
+  color: var(--dim);
 }
 
 .ife-map-fail {
@@ -969,6 +1090,12 @@
   justify-content: center;
   padding: 0 var(--gutter);
   color: var(--dim);
+}
+
+/* The aircraft has to be findable over a coastline, a city's worth of labels
+   or the middle of an ocean, so it carries its own shadow. */
+.ife-plane-marker svg {
+  filter: drop-shadow(0 0 7px rgba(0, 0, 0, 0.95));
 }
 
 .ife-plane-marker svg path {
@@ -2333,103 +2460,166 @@
   font-style: italic;
 }
 
-/* ── Menu ────────────────────────────────────────────────────────────────
-   Every seat-back system has this page behind a hamburger, and it is not a
-   duplicate of home: home is a shelf that shows you things, this is an index
-   that tells you what is on board. The difference matters here because the
-   shelf scrolls sideways — a passenger who has pushed it three columns along
-   has no way to know what is off the end of it.
+/* ── The menu drawer ─────────────────────────────────────────────────────
+   It comes in from the left edge, over whatever screen you were on, and goes
+   away again. That is the difference between it and a page: half of what it
+   carries are switches, and taking the glass away from the film you were
+   watching to reach the reading light would be absurd.
 
-   Three columns rather than one long list, because the list is short enough to
-   fit on the glass at once, and a page you have to scroll to see all of is not
-   an index. */
-.ife-menu-screen {
+   The hamburger that opens it is in the top-left corner of the strip, where
+   United, Panasonic and Thales all put it, and where the back arrow used to
+   be — back was doing two different jobs depending on the screen, and the
+   drawer does the real one better. */
+.ife-drawer-layer {
   position: absolute;
   inset: 0;
-  padding: 16px var(--gutter) var(--gutter);
+  z-index: 8;
+  pointer-events: none;
+}
+
+.ife-drawer-layer[data-open="false"] {
+  visibility: hidden;
+}
+
+.ife-drawer-scrim {
+  position: absolute;
+  inset: var(--strip-h) 0 0 0;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(4, 5, 8, 0.6);
+  opacity: 0;
+  transition: opacity 260ms ease;
+  pointer-events: auto;
+}
+
+.ife-drawer-layer[data-open="true"] .ife-drawer-scrim {
+  opacity: 1;
+}
+
+/* It stops under the strip rather than covering it. Two reasons, and the
+   second is the real one: the button that opens it stays visible and becomes
+   the button that closes it, and a seat-back screen never hides where the
+   aircraft is going — not even behind its own menu. */
+.ife-drawer {
+  position: absolute;
+  left: 0;
+  top: var(--strip-h);
+  bottom: 0;
+  width: 620px;
   display: flex;
   flex-direction: column;
+  background: rgba(10, 12, 17, 0.97);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  backdrop-filter: blur(20px) saturate(1.3);
+  box-shadow: inset -1px 0 0 var(--specular), 30px 0 70px rgba(0, 0, 0, 0.6);
+  transform: translateX(-100%);
+  transition: transform 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  pointer-events: auto;
 }
 
-/* The rows stretch to the floor of the glass rather than stacking at their
-   natural height and leaving the bottom half of the page empty. Three groups
-   three deep is what makes that work, and it is why the cabin group carries
-   language as well as the two switches. */
-.ife-menu-cols {
+.ife-drawer-layer[data-open="true"] .ife-drawer {
+  transform: translateX(0);
+}
+
+.ife-drawer-body {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 30px;
-  padding-top: 14px;
-}
-
-.ife-menu-group {
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 22px calc(var(--gutter) - 14px) 14px;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  min-height: 0;
 }
 
-.ife-menu-row {
-  flex: 1;
-  min-height: 0;
+.ife-drawer-body::-webkit-scrollbar {
+  display: none;
 }
 
-.ife-menu-group-name {
+.ife-drawer-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ife-drawer-group-name {
   color: var(--accent-bright);
-  padding-bottom: 6px;
-  box-shadow: inset 0 -1px 0 rgba(219, 182, 108, 0.26);
+  padding: 0 14px 8px;
 }
 
-.ife-menu-row {
+/* A row, not a card: a list of eleven boxes each with its own shadow is a
+   filing cabinet. The only thing that separates them is the light on their
+   top edge, and the only one with a background is the one that is on. */
+/* One line per row, with whatever the row knows pushed to the right edge —
+   the state of a switch, the count of a shelf, the station that is playing.
+   Stacked, eleven rows did not fit on the glass; in a column 620px wide they
+   do, and a settings list is where a value belongs on the right anyway. */
+.ife-drawer-row {
   appearance: none;
-  background: rgba(16, 19, 26, 0.72);
+  background: none;
   border: 0;
-  border-radius: 10px;
-  box-shadow: var(--pane);
+  border-radius: 8px;
   color: var(--fg);
   font: inherit;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
   display: flex;
-  align-items: center;
-  gap: 28px;
-  padding: 26px 34px;
+  align-items: baseline;
+  gap: 24px;
+  padding: 10px 14px;
 }
 
-/* On is brass, as everywhere in this cabin. */
-.ife-menu-row[data-on="true"] {
+.ife-drawer-row[data-current="true"] {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ife-drawer-row[data-on="true"] {
   background: rgba(201, 164, 92, 0.16);
-  box-shadow: inset 0 1px 0 rgba(219, 182, 108, 0.34), var(--lift-sm);
 }
 
-.ife-menu-row-icon {
+.ife-drawer-row[data-on="true"] .ife-drawer-row-note {
+  color: var(--accent-bright);
+}
+
+.ife-drawer-row-icon {
   color: var(--accent-bright);
   display: flex;
   justify-content: center;
-  flex: 0 0 56px;
+  align-self: center;
+  flex: 0 0 40px;
 }
 
-.ife-menu-row-text {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.ife-menu-row-label {
+.ife-drawer-row-label {
   font-family: var(--font-display);
-  font-size: 34px;
+  font-size: 31px;
   font-weight: 500;
   letter-spacing: -0.015em;
+  white-space: nowrap;
 }
 
-.ife-menu-row-note {
-  font-size: 23px;
-  color: var(--dim);
+.ife-drawer-row-note {
+  margin-left: auto;
+  font-size: 22px;
+  color: var(--faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-left: 10px;
+}
+
+/* The hamburger sits at the very corner, so it keeps the strip's own gutter
+   rather than the negative margin the back arrow had. */
+.ife-strip-menu {
+  margin-left: -18px;
+  flex: 0 0 auto;
+}
+
+/* A screen that has been put out. It is pressable everywhere, and nothing is
+   drawn on it — a dark panel with a hint on it is not off. */
+.ife-off {
+  background: #000;
+  cursor: pointer;
 }
