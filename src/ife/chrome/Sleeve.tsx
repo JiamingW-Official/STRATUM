@@ -63,6 +63,12 @@ export function Sleeve({ station }: { station: Station }) {
           alt={station.name}
           onError={() => setArtFailed(true)}
         />
+        {/* The record's name, on the record, the way a sleeve carries it —
+            and the way the reference's own covers do. It appears only on a
+            sleeve big enough to read it: a container query, because the same
+            component is 62px in the rail and 340px beside a tracklist, and a
+            title at 62px is a smear. */}
+        <span className="ife-sleeve-caption">{station.name}</span>
       </span>
     );
   }

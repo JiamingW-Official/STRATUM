@@ -267,10 +267,18 @@
 }
 
 /* ── Bottom rail (persistent) ────────────────────────────────────────── */
+/* Three zones, which is the shape every player bar has settled on: what is
+   playing on the left, the transport in the middle, the controls on the
+   right. Before this the player was absolutely centred in the row and the
+   cabin keys were laid out around it, so the two crowded each other from
+   opposite directions — the middle was tight and the right-hand keys were
+   pressed against it. A grid gives each zone its own width and neither can
+   take the other's. */
 .ife-rail {
   position: relative;
   height: var(--rail-h);
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 0 calc(var(--gutter) - 16px);
@@ -282,6 +290,66 @@
     0 -20px 46px rgba(0, 0, 0, 0.5);
   position: relative;
   z-index: 3;
+}
+
+.ife-rail-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ife-rail-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* What is playing, and a door. Pressing the art opens the record it belongs
+   to, which is what pressing the art does in every music app there is. */
+.ife-rail-now {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0 0 0 18px;
+  margin-left: 6px;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.ife-rail-now-art {
+  width: 62px;
+  flex: 0 0 auto;
+}
+
+.ife-rail-now-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ife-rail-now-title {
+  font-size: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ife-rail-now-sub {
+  font-size: 21px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ife-rail-spacer {
@@ -1523,7 +1591,7 @@
 .ife-library {
   grid-row: 1 / 2;
   background: rgba(var(--text-rgb), 0.022);
-  padding: 34px 0 20px;
+  padding: 26px 0 20px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -1558,9 +1626,17 @@
   background: rgba(var(--text-rgb), 0.04);
 }
 
+/* No bar down the left of the selected row. It is the third time a coloured
+   rule beside a list item has had to come out of this interface, and the
+   reason is the same every time: the row is already darker, its name is
+   already brighter, and the bar is a fourth thing saying what two things have
+   said. */
 .ife-library-row[data-on="true"] {
-  background: rgba(var(--text-rgb), 0.08);
-  box-shadow: inset 3px 0 0 var(--stationColor);
+  background: rgba(var(--text-rgb), 0.07);
+}
+
+.ife-library-row[data-on="true"] .ife-library-name {
+  color: var(--fg);
 }
 
 /* Each station has a colour already, from the dial in the sky view. It lands
@@ -1694,6 +1770,38 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* The name on the record. Hidden by default and shown only when the sleeve is
+   wide enough to carry it — the same component is 62px in the rail and 340px
+   beside a tracklist, and a title at 62px is a smear rather than a name. */
+.ife-sleeve-caption {
+  display: none;
+}
+
+@container (min-width: 200px) {
+  .ife-sleeve-caption {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    display: block;
+    padding: 6cqw 7cqw 9cqw;
+    font-family: var(--font-display);
+    font-size: 7.4cqw;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-align: center;
+    text-transform: uppercase;
+    color: rgba(255, 252, 246, 0.95);
+    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.75);
+    background: linear-gradient(
+      to bottom,
+      rgba(7, 8, 11, 0.62) 0%,
+      rgba(7, 8, 11, 0.28) 62%,
+      rgba(7, 8, 11, 0) 100%
+    );
+  }
 }
 
 .ife-sleeve-grooves {
@@ -1990,20 +2098,14 @@
    it is the state of the sound — and a panel around it made it look like one
    more thing to press. So it has no surface, and it sits in the middle of the
    row rather than in the middle of whatever space the keys left over. */
+/* The centre zone: the keys and the bar, and nothing else. What is playing
+   moved to the left zone, where a player bar puts it. */
 .ife-mini {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  top: 50%;
-  margin-top: -46px;
-  width: 700px;
-  height: 92px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
-  column-gap: 20px;
-  row-gap: 8px;
+  width: 620px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 8px;
   color: var(--fg);
   font: inherit;
 }
@@ -2027,12 +2129,9 @@
 }
 
 .ife-mini-keys {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: end;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .ife-mini-keys .ife-transport {
@@ -2054,8 +2153,7 @@
 }
 
 .ife-mini-seekrow {
-  grid-column: 2 / 4;
-  grid-row: 2;
+  align-self: stretch;
   display: flex;
   align-items: center;
   gap: 14px;

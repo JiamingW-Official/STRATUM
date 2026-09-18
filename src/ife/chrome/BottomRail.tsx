@@ -93,6 +93,10 @@ export function BottomRail({
 
   return (
     <div className="ife-rail">
+      {/* Three zones, the shape every player bar has settled on: what is
+          playing on the left, the transport in the middle, the controls on
+          the right. */}
+      <div className="ife-rail-left">
       {/* The seat, printed on the glass the way it is printed on a real bezel.
           The cabin class used to sit beside it; it is on the boarding pass, on
           the home screen, and implied by the seat number itself. */}
@@ -113,7 +117,29 @@ export function BottomRail({
         onClick={go("map")}
       />
 
-      <div className="ife-rail-spacer" />
+      {/* What is playing, at this end, where it is on every player bar there
+          has ever been — and the cover is a door: pressing it opens the record
+          it belongs to, which is what pressing the art does in every music
+          app. */}
+      {(playing || media) && !interrupted && (
+        <button
+          className="ife-rail-now"
+          onClick={go("music")}
+          aria-label={now.station.name}
+          style={{ ["--stationColor" as string]: now.station.color }}
+        >
+          <span className="ife-rail-now-art">
+            <Sleeve station={now.station} />
+          </span>
+          <span className="ife-rail-now-text">
+            <span className="ife-rail-now-title">{now.title}</span>
+            <span className="ife-rail-now-sub">
+              {now.artist || now.station.name}
+            </span>
+          </span>
+        </button>
+      )}
+      </div>
 
       {/* The player lives here.
  
@@ -135,16 +161,6 @@ export function BottomRail({
           className="ife-mini"
           style={{ ["--stationColor" as string]: now.station.color }}
         >
-          <span className="ife-mini-art">
-            <Sleeve station={now.station} />
-          </span>
-          <span className="ife-mini-text">
-            <span className="ife-mini-title">{now.title}</span>
-            <span className="ife-mini-station">
-              {now.artist || now.station.name}
-            </span>
-          </span>
-
           <span className="ife-mini-keys">
             <button
               className="ife-transport"
@@ -211,6 +227,7 @@ export function BottomRail({
         </div>
       )}
 
+      <div className="ife-rail-right">
       {/* The language is a screen, not a popover hanging off a placard. It
           is the first question a seat-back system asks and the one a
           passenger comes back to when somebody else sits down; a two-row
@@ -267,6 +284,8 @@ export function BottomRail({
         icon={<IconPower size={46} />}
         onClick={() => setScreen("off")}
       />
+
+      </div>
 
       {pop && (
         <button

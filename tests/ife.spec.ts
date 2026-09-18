@@ -660,11 +660,13 @@ test.describe("IFE bench", () => {
 
     await page.locator(".ife-track").first().click();
 
-    // The player is in the rail, on every screen, and it has keys rather than
-    // being one button you press to find out what it does.
+    // The player is in the rail, on every screen, in the three zones every
+    // player bar has settled on: what is playing on the left, the keys in the
+    // middle, the cabin's own controls on the right.
     const mini = page.locator(".ife-mini");
+    const nowPlaying = page.locator(".ife-rail-now");
     await expect(mini).toHaveCount(1);
-    await expect(mini).toContainText("SENSATION");
+    await expect(nowPlaying).toContainText("SENSATION");
     // Five keys: shuffle, back, play, forward, repeat — the row every player
     // has.
     await expect(mini.locator(".ife-transport")).toHaveCount(5);
@@ -677,9 +679,9 @@ test.describe("IFE bench", () => {
     await expect(page.locator(".ife-now")).toHaveCount(0);
 
     await mini.getByRole("button", { name: "Next" }).click();
-    await expect(mini.locator(".ife-mini-title")).toHaveText("Ataca");
+    await expect(page.locator(".ife-rail-now-title")).toHaveText("Ataca");
     await mini.getByRole("button", { name: "Previous" }).click();
-    await expect(mini.locator(".ife-mini-title")).toHaveText("SENSATION");
+    await expect(page.locator(".ife-rail-now-title")).toHaveText("SENSATION");
 
     // Shuffle and repeat are switches, and they are checked last because
     // shuffle changes what "next" means — which is the whole point of it.
@@ -695,6 +697,17 @@ test.describe("IFE bench", () => {
     // It stays when the screen changes, because the sound belongs to the seat.
     await rail(page, "Home").click();
     await expect(mini).toHaveCount(1);
+
+    // And the cover is a door: pressing the art opens the record it belongs
+    // to, which is what pressing the art does in every music app.
+    await nowPlaying.click();
+    expect(await screenName(page)).toBe("music");
+
+    // The record's name is on the record where the sleeve is big enough to
+    // carry it, and not on the 62px one in the rail.
+    await expect(
+      page.locator(".ife-library-art .ife-sleeve-caption").first(),
+    ).toBeHidden();
 
     // And the menu is a list of doors: the keys are in the rail, not in it.
     await page.locator(".ife-strip-menu").click();
