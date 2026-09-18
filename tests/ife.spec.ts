@@ -20,6 +20,13 @@ async function openBench(page: Page) {
 // The glass is scaled to fit the window, so an element's rendered box is not
 // 1920 wide. Click targets by role or by centre; never by a coordinate taken
 // from the IFE's own coordinate space.
+// The rail and the home cards are two ways to the same screens, so a plain
+// role+name can match both. Say which affordance is being pressed.
+const card = (page: Page, name: string) =>
+  page.locator(".ife-rail-cards").getByRole("button", { name });
+const rail = (page: Page, name: string) =>
+  page.locator(".ife-rail").getByRole("button", { name });
+
 const screenName = (page: Page) =>
   page.locator(".ife-root").getAttribute("data-screen");
 
@@ -33,7 +40,7 @@ test.describe("IFE bench", () => {
     await page.locator(".ife-idle").click();
     expect(await screenName(page)).toBe("home");
 
-    await page.getByRole("button", { name: "Flight map" }).click();
+    await card(page, "Flight map").click();
     expect(await screenName(page)).toBe("map");
     await expect(page.locator(".ife-map canvas")).toHaveCount(1);
 
@@ -52,7 +59,7 @@ test.describe("IFE bench", () => {
   }) => {
     await openBench(page);
     await page.locator(".ife-idle").click();
-    await page.getByRole("button", { name: "Flight map" }).click();
+    await card(page, "Flight map").click();
     await page.waitForFunction(
       () => (window as any).__ifeMap?.isStyleLoaded?.() === true,
       undefined,
@@ -187,21 +194,31 @@ test.describe("IFE bench", () => {
       await expect(temp).toHaveText("--°");
     }
 
-    // A Wikimedia photograph is credited or it is not shown.
+    // The photograph carries no watermark. Commons is mostly licensed on the
+    // condition that it is attributed, so the credit has not gone — it moved
+    // to the flight-information page, which is a page of facts about the
+    // flight, and a credit is one.
+    await expect(page.locator(".ife-credit")).toHaveCount(0);
     if (await page.locator(".ife-home .ife-photo").count()) {
-      await expect(page.locator(".ife-credit")).toContainText(
+      await card(page, "Flight information").click();
+      await expect(page.locator(".ife-fi-credit")).toContainText(
         "Wikimedia Commons",
       );
+      await rail(page, "Home").click();
     }
 
     // A rail of cards the hand pushes sideways, with one tall card breaking
     // the rhythm so it is a composition rather than a contact sheet.
+    // Utilities, two pieces of media wearing their own faces, and the one
+    // card that leaves the cabin.
     const cards = page.locator(".ife-card");
-    await expect(cards).toHaveCount(6);
-    await expect(page.locator('.ife-card[data-tall="true"]')).toHaveCount(2);
+    await expect(cards).toHaveCount(8);
+    await expect(page.locator('.ife-card[data-tall="true"]')).toHaveCount(3);
+    await expect(page.locator(".ife-card--media")).toHaveCount(2);
 
-    const rail = page.locator(".ife-rail-cards");
-    const scroll = await rail.evaluate((el) => ({
+    // Named for what it is: the rail of cards, not the rail at the bottom.
+    const cardRail = page.locator(".ife-rail-cards");
+    const scroll = await cardRail.evaluate((el) => ({
       w: el.clientWidth,
       sw: el.scrollWidth,
     }));
@@ -213,19 +230,64 @@ test.describe("IFE bench", () => {
   test("the language switch reaches every surface", async ({ page }) => {
     await openBench(page);
     await page.locator(".ife-idle").click();
-    await expect(page.locator(".ife-rail")).toContainText("Reading light");
 
+    // The rail is placards now, so its words live in the accessible name
+    // rather than on the glass — which is also the only place a screen reader
+    // ever read them.
+    await expect(
+      page.getByRole("button", { name: "Reading light" }),
+    ).toHaveCount(1);
+
+    // Language is a panel, because it is a setting rather than an action.
+    await page.getByRole("button", { name: "Language" }).click();
     await page.getByRole("button", { name: "中文" }).click();
-    // Chrome, menu and the journey strip all follow.
-    await expect(page.locator(".ife-rail")).toContainText("阅读灯");
+
+    await expect(
+      page.getByRole("button", { name: "阅读灯" }),
+    ).toHaveCount(1);
     await expect(page.locator(".ife-rail-cards")).toContainText("航班信息");
     await expect(page.locator(".ife-strip")).toContainText("还有");
     // Including the units inside a duration, which is where a half-translated
     // interface always shows.
     await expect(page.locator(".ife-strip-remaining")).toContainText("小时");
+    // And a phrase that takes a place name has to put it where that language
+    // puts it: "Time to London" is "距伦敦还有", not "还有 伦敦".
+    await expect(page.locator(".ife-home-eta .ife-cap")).toHaveText("距伦敦还有");
 
-    await page.getByRole("button", { name: "EN", exact: true }).click();
-    await expect(page.locator(".ife-rail")).toContainText("Reading light");
+    await page.getByRole("button", { name: "语言" }).click();
+    await page.getByRole("button", { name: "English" }).click();
+    await expect(
+      page.getByRole("button", { name: "Reading light" }),
+    ).toHaveCount(1);
+  });
+
+  test("volume is a panel with a slider, not a number that cycles", async ({
+    page,
+  }) => {
+    await openBench(page);
+    await page.locator(".ife-idle").click();
+
+    await page.getByRole("button", { name: "Volume" }).click();
+    const slider = page.locator(".ife-vol");
+    await expect(slider).toHaveCount(1);
+
+    // It is a column, and louder is up: pointing a third of the way down the
+    // track sets it to roughly two thirds. The handler reads offsetY inside
+    // the element, which is what survives the CSS 3D transform that will put
+    // this screen on a seat back — a bounding rect there is the projected
+    // quad.
+    await expect(slider).toHaveAttribute("aria-orientation", "vertical");
+    const box = (await slider.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.3);
+    await expect(slider).toHaveAttribute("aria-valuenow", "70");
+
+    // And it reaches the player, not just the label.
+    expect(
+      await page.evaluate(() => (document.querySelector("audio") ? 1 : 0)),
+    ).toBeDefined();
+
+    await page.locator(".ife-pop-away").click();
+    await expect(page.locator(".ife-vol")).toHaveCount(0);
   });
 
   test("changing the seat updates the idle screen", async ({ page }) => {
@@ -257,7 +319,7 @@ test.describe("IFE bench", () => {
     // the screen does.
     const mini = page.locator(".ife-mini");
     await expect(mini).toHaveCount(1, { timeout: 15_000 });
-    await page.getByRole("button", { name: "Home", exact: true }).click();
+    await rail(page, "Home").click();
     await page.getByRole("button", { name: "Flight information" }).click();
     expect(await screenName(page)).toBe("flightInfo");
     await expect(mini).toHaveCount(1);

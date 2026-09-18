@@ -23,6 +23,7 @@
      to be seen" up there; here it keeps that job and takes on "this control
      is on". One accent, two related meanings, no third. */
   --accent: #c9a45c;
+  --accent-rgb: 201, 164, 92;
   --accent-bright: #dbb66c;
   --accent-dim: rgba(201, 164, 92, 0.14);
   /* Cool counterpart, also the sky view's: it marks descent there, and here it
@@ -52,7 +53,10 @@
   --t-hero: 190px;
   --t-xl: 72px;
   --t-md: 32px;
-  --t-cap: 19px;
+  /* The floor, and it is a floor: the smallest thing on the glass. Rules that
+     undercut it were the reason whole lines of this interface could not be
+     read from a seat. */
+  --t-cap: 22px;
 
   --strip-h: 124px;
   --rail-h: 116px;
@@ -135,7 +139,7 @@
 .ife-strip-city-zh {
   font-family: var(--font-sans);
   color: var(--faint);
-  font-size: 21px;
+  font-size: 23px;
   letter-spacing: 0.04em;
   margin-left: 12px;
 }
@@ -208,15 +212,14 @@
 .ife-seat-chip {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 40px 0 16px;
-  margin-right: 8px;
+  padding: 0 34px 0 12px;
+  margin-right: 6px;
   align-self: stretch;
 }
 
 .ife-seat-chip-no {
   font-family: var(--font-mono);
-  font-size: 32px;
+  font-size: 34px;
   font-weight: 500;
   letter-spacing: -0.01em;
 }
@@ -228,16 +231,22 @@
   color: var(--dim);
   font: inherit;
   font-size: 24px;
-  height: 76px;
-  padding: 0 22px;
-  border-radius: 4px;
+  height: 78px;
+  min-width: 78px;
+  padding: 0 16px;
+  border-radius: 12px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   transition:
     color 130ms ease,
     background-color 130ms ease;
+}
+
+.ife-tool-value {
+  font-size: 24px;
 }
 
 .ife-tool:hover {
@@ -262,35 +271,112 @@
   display: block;
 }
 
-/* Language is a pair of words, not a globe: two scripts side by side say what
-   they do in the script that is being offered. */
-.ife-lang {
+/* ── Popovers ────────────────────────────────────────────────────────────
+   Language and volume are settings, so they open a panel above their placard
+   rather than acting on the press. Volume especially: cycling through four
+   values on tap meant pressing three times to go back one. */
+.ife-pop-anchor {
+  position: relative;
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 10px;
 }
 
-.ife-lang button {
+.ife-pop {
+  position: absolute;
+  bottom: calc(100% + 16px);
+  right: 0;
+  z-index: 30;
+  min-width: 320px;
+  padding: 24px 26px 26px;
+  border-radius: 14px;
+  background: rgba(14, 17, 23, 0.96);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  backdrop-filter: blur(24px) saturate(1.3);
+  box-shadow: inset 0 1px 0 var(--specular), var(--lift);
+  animation: ife-pop-in 160ms ease both;
+}
+
+@keyframes ife-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.ife-pop-title {
+  margin-bottom: 14px;
+}
+
+.ife-pop-row {
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: 999px;
-  color: var(--faint);
-  font: inherit;
-  font-size: 22px;
-  padding: 13px 24px;
-  cursor: pointer;
-  transition: color 130ms ease, background-color 130ms ease;
-}
-
-.ife-lang button:hover {
+  border-radius: 10px;
   color: var(--fg);
+  font: inherit;
+  font-size: 28px;
+  width: 100%;
+  text-align: left;
+  padding: 16px 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background-color 130ms ease;
 }
 
-.ife-lang button[data-on="true"] {
-  color: var(--bg);
+.ife-pop-row:hover {
+  background: rgba(var(--text-rgb), 0.06);
+}
+
+.ife-pop-row[data-on="true"] {
+  color: var(--accent-bright);
+  background: rgba(var(--accent-rgb, 201, 164, 92), 0.12);
+}
+
+/* Closing by pressing anywhere else. It sits under the panel and over
+   everything else, and it is a button so a keyboard can reach it too. */
+.ife-pop-away {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  cursor: default;
+}
+
+/* Louder is up. A horizontal bar for a vertical quantity asks the hand to
+   translate one into the other. */
+.ife-volwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 0 2px;
+}
+
+.ife-vol {
+  position: relative;
+  width: 64px;
+  height: 300px;
+  border-radius: 32px;
+  background: rgba(var(--text-rgb), 0.12);
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.ife-vol-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: var(--accent);
+}
+
+.ife-vol-read {
+  font-size: 28px;
+  color: var(--dim);
 }
 
 /* ── Screen body ─────────────────────────────────────────────────────── */
@@ -334,7 +420,7 @@
   position: absolute;
   right: 56px;
   bottom: 14px;
-  font-size: 14px;
+  font-size: 17px;
   letter-spacing: 0.06em;
   color: rgba(var(--text-rgb), 0.34);
   max-width: 620px;
@@ -497,7 +583,7 @@
   position: absolute;
   left: var(--gutter);
   top: 60px;
-  width: 720px;
+  width: 620px;
 }
 
 .ife-home-ident {
@@ -506,13 +592,10 @@
   letter-spacing: 0.06em;
 }
 
-.ife-home-next {
-  margin-top: 30px;
-}
-
 .ife-home-city {
+  margin-top: 26px;
   font-family: var(--font-display);
-  font-size: 118px;
+  font-size: 104px;
   font-weight: 500;
   letter-spacing: -0.04em;
   line-height: 0.98;
@@ -521,8 +604,14 @@
 
 /* One fact, at the size of a fact you look up from a book to read. Everything
    else about the flight is one card away. */
+.ife-home-apt {
+  font-size: 26px;
+  color: var(--dim);
+  margin-top: 16px;
+}
+
 .ife-home-eta {
-  margin-top: 58px;
+  margin-top: 52px;
 }
 
 .ife-home-eta-value {
@@ -571,7 +660,7 @@
    has ever needed. */
 .ife-rail-cards {
   position: absolute;
-  left: 860px;
+  left: 748px;
   right: 0;
   top: 0;
   bottom: 0;
@@ -630,20 +719,12 @@
   flex-direction: column;
   align-items: flex-start;
   padding: 40px 38px 34px;
-  transition:
-    box-shadow 180ms ease,
-    background-color 180ms ease,
-    transform 180ms ease,
-    color 150ms ease;
 }
 
-.ife-card:hover {
-  background: rgba(15, 18, 25, 0.94);
-  transform: translateY(-4px);
-  box-shadow:
-    inset 0 1px 0 rgba(219, 182, 108, 0.32),
-    0 30px 66px rgba(0, 0, 0, 0.6);
-}
+/* No hover state. This is a touch screen: a pointer never rests on a card, so
+   a lift on hover is a promise made to a device that is not there — and on the
+   bench it just made the row twitch as the cursor crossed it. Pressing is the
+   only interaction, and the screen it opens is the feedback. */
 
 .ife-card[data-soon="true"] {
   color: var(--dim);
@@ -654,6 +735,52 @@
 .ife-card-icon {
   color: var(--accent-bright);
   display: block;
+}
+
+/* A card that is a piece of media shows the media. */
+.ife-card--media {
+  padding: 0;
+  overflow: hidden;
+  justify-content: flex-end;
+}
+
+.ife-card-still,
+.ife-card-swatch {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.ife-card-still {
+  background-size: cover;
+  background-position: center;
+  filter: saturate(0.8) brightness(0.62);
+}
+
+.ife-card-swatch {
+  background:
+    linear-gradient(to top, rgba(7, 8, 11, 0.86) 0%, transparent 62%),
+    var(--stationColor);
+  opacity: 0.9;
+}
+
+.ife-card--media {
+  position: relative;
+}
+
+.ife-card--media .ife-card-name,
+.ife-card--media .ife-card-note {
+  position: relative;
+  z-index: 1;
+  padding: 0 32px;
+}
+
+.ife-card--media .ife-card-name {
+  margin-top: auto;
+}
+
+.ife-card--media .ife-card-note {
+  padding-bottom: 32px;
 }
 
 .ife-card[data-soon="true"] .ife-card-icon {
@@ -672,7 +799,7 @@
 
 .ife-card-note {
   margin-top: 10px;
-  font-size: 20px;
+  font-size: 22px;
   color: var(--faint);
   max-width: 100%;
   overflow: hidden;
@@ -713,7 +840,9 @@
 }
 
 .ife-map .maplibregl-ctrl-attrib {
-  font-size: 12px;
+  /* Required attribution, and it has to be readable to count as attribution.
+     MapLibre ships this at 12px for a browser window. */
+  font-size: 17px;
   background: rgba(7, 8, 11, 0.72);
   color: var(--faint);
 }
@@ -839,7 +968,7 @@
 .ife-library-sub {
   display: block;
   color: var(--faint);
-  font-size: 20px;
+  font-size: 22px;
   margin-top: 6px;
 }
 
@@ -933,7 +1062,7 @@
 .ife-album-artists {
   display: block;
   color: var(--faint);
-  font-size: 19px;
+  font-size: 22px;
   margin-top: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1046,7 +1175,7 @@
 }
 
 .ife-track-n {
-  font-size: 20px;
+  font-size: 22px;
   color: var(--faint);
 }
 
@@ -1061,7 +1190,7 @@
 }
 
 .ife-track-artist {
-  font-size: 21px;
+  font-size: 23px;
   color: var(--faint);
   white-space: nowrap;
 }
@@ -1110,7 +1239,7 @@
 .ife-now-artist {
   display: block;
   color: var(--faint);
-  font-size: 21px;
+  font-size: 23px;
   margin-top: 2px;
 }
 
@@ -1176,7 +1305,7 @@
 
 .ife-mini-station {
   display: block;
-  font-size: 17px;
+  font-size: 22px;
   color: var(--faint);
   letter-spacing: 0.06em;
 }
@@ -1326,6 +1455,11 @@
   font-size: 24px;
 }
 
+.ife-fi-credit {
+  margin-top: 26px;
+  color: var(--faint);
+}
+
 .ife-profile-note {
   margin-top: 10px;
   color: var(--faint);
@@ -1433,7 +1567,7 @@
 .ife-film-meta {
   display: block;
   color: var(--faint);
-  font-size: 19px;
+  font-size: 22px;
   margin-top: 7px;
 }
 
@@ -1775,7 +1909,7 @@
   background: rgba(var(--text-rgb), 0.06);
   border-radius: 3px;
   font-family: var(--font-mono);
-  font-size: 20px;
+  font-size: 22px;
   color: var(--dim);
 }
 

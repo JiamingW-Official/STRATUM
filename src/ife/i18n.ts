@@ -77,7 +77,16 @@ const DICT = {
   ],
   nowPlaying: ["Now playing", "正在播放"],
   nextStop: ["Next stop", "下一站"],
-  timeTo: ["Time to", "还有"],
+  /**
+   * Phrases that take a place name, as phrases rather than as a prefix.
+   *
+   * This was `timeTo: ["Time to", "还有"]` and the screen wrote
+   * `t("timeTo") + " " + city`. In English that is "Time to London"; in
+   * Chinese it came out "还有 伦敦" — "there is still London" — because the
+   * place name goes in the middle, not the end. A word order is not a
+   * translation.
+   */
+  timeToPlace: ["Time to {}", "距{}还有"],
   onBoard: ["On board", "机上"],
   browse: ["Browse", "浏览"],
   whereAreWe: ["Where are we?", "我们在哪？"],
@@ -142,6 +151,9 @@ const DICT = {
   pause: ["Pause", "暂停"],
   next: ["Next", "下一首"],
   volume: ["Volume", "音量"],
+  language: ["Language", "语言"],
+  close: ["Close", "关闭"],
+  photograph: ["Photograph", "照片"],
   exploreDestination: ["Explore the destination", "了解目的地"],
   imageCredit: ["Image", "图片"],
   mapUnavailable: ["Map unavailable", "地图不可用"],
@@ -168,6 +180,11 @@ export function t(key: Key, lang: Lang): string {
 export function useT() {
   const lang = useSelf((s) => s.lang);
   return { lang, t: (key: Key) => t(key, lang) } as const;
+}
+
+/** Fills the {} in a phrase like timeToPlace. */
+export function phrase(key: Key, lang: Lang, value: string) {
+  return t(key, lang).replace("{}", value);
 }
 
 /** City and airport names carry their own pair. */

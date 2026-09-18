@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import { fileURLToPath } from "node:url";
+import react from "@vitejs/plugin-react";
 // vite.config.js is an ES module, so __dirname does not exist here.
 const r = (p) => fileURLToPath(new URL(p, import.meta.url));
 import { execSync } from "node:child_process";
@@ -121,12 +122,17 @@ for (const prefix of WORKER_ROUTES) {
 }
 
 export default defineConfig({
-  plugins: [],
-  // .tsx compiles through Vite's own esbuild. @vitejs/plugin-react is not used:
-  // the version that matches Vite 7 could not be installed from this network,
-  // and all it would add is Fast Refresh. Editing an IFE file reloads the page
-  // instead of patching it in place — worth revisiting when npm cooperates.
-  esbuild: { jsx: "automatic" },
+  // Fast Refresh, at last. Only .tsx/.jsx go through it, so the sky view's
+  // Vanilla JS is untouched.
+  //
+  // The note that used to sit here said the matching plugin could not be
+  // installed from this network. That was wrong about which package was
+  // missing: @vitejs/plugin-react@5 does support Vite 7 and had in fact
+  // installed, and the hole was react-refresh — which an earlier install
+  // reported as a success without ever writing it to disk. Without Fast
+  // Refresh an edit needed a manual reload, and a stale service worker made
+  // even that unreliable, so two problems were wearing each other's clothes.
+  plugins: [react()],
   optimizeDeps: {
     // maplibre spawns its tile worker with `new Worker(new URL(...))`. Run
     // through the dep optimiser that URL points at a chunk which is never

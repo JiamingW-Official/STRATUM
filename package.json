@@ -28,6 +28,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "https-proxy-agent": "^9.1.0",
+    "react-refresh": "^0.19.0",
     "terser": "^5.46.1",
     "typescript": "^7.0.2",
     "wrangler": "^4.0.0"

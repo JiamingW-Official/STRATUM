@@ -1,15 +1,31 @@
+import { useEffect, useRef, useState } from "react";
 import { useCabin, useSelf } from "../../flight-state/store";
 import type { IFEBridge, ScreenName } from "../../flight-state/types";
-import { useEffect } from "react";
 import { useT } from "../i18n";
 import { currentTrack, usePlayer } from "../player";
-import { IconCall, IconHome, IconLight, IconMap, IconVolume } from "./icons";
+import {
+  IconCall,
+  IconHome,
+  IconLang,
+  IconLight,
+  IconPlan,
+  IconVolume,
+} from "./icons";
 
 /**
- * The rail a passenger reaches for without looking. Home and the map on the
- * left because they are navigation; the two cabin controls on the right
- * because they are not — pressing them changes something outside this screen,
- * where other people can see it.
+ * The rail a passenger reaches for without looking.
+ *
+ * It is placards now, not labelled buttons. Every seat-back system ends up
+ * here and for the same two reasons: the row has to survive translation into
+ * a language whose words are a different length, and a symbol at 30px is
+ * legible across a dark cabin where 22px of text is not. The words have not
+ * gone anywhere — they are the accessible name of each control, which is what
+ * a screen reader reads and what a test clicks.
+ *
+ * Two of them open a panel instead of doing something immediately, because
+ * they are settings rather than actions: language, and volume. A control that
+ * cycles through four values on tap, which is what volume used to do, makes
+ * you press it three times to go back one.
  */
 export function BottomRail({
   seat,
@@ -22,59 +38,49 @@ export function BottomRail({
   const setScreen = useSelf((s) => s.setScreen);
   const volume = useSelf((s) => s.volume);
   const setVolume = useSelf((s) => s.setVolume);
-  const self = useCabin((s) => s.seats[seat]);
   const lang = useSelf((s) => s.lang);
   const setLang = useSelf((s) => s.setLang);
+  const self = useCabin((s) => s.seats[seat]);
   const { t } = useT();
-
-  const go = (s: ScreenName) => () => setScreen(s);
-  const light = !!self?.readingLight;
-  const calling = !!self?.callAttendant;
-
-  // Four steps rather than a slider: a slider needs a fine target and there is
-  // nothing playing yet to judge it against. It can grow a track when media
-  // arrives.
-  const cycleVolume = () => {
-    const steps = [0, 0.3, 0.6, 1];
-    const i = steps.findIndex((s) => s >= volume - 0.01);
-    setVolume(steps[(i + 1) % steps.length]);
-  };
-
-  const cabinClass = self?.cabinClass ?? "economy";
 
   const { stationIdx, trackIdx, playing } = usePlayer();
   const togglePlay = usePlayer((s) => s.toggle);
   const setPlayerVolume = usePlayer((s) => s.setVolume);
   const now = currentTrack(stationIdx, trackIdx);
 
+  const [pop, setPop] = useState<null | "lang" | "volume">(null);
+
   // The volume in the rail used to be a number with nothing behind it.
   useEffect(() => setPlayerVolume(volume), [volume, setPlayerVolume]);
 
+  const go = (s: ScreenName) => () => {
+    setPop(null);
+    setScreen(s);
+  };
+  const light = !!self?.readingLight;
+  const calling = !!self?.callAttendant;
+
   return (
     <div className="ife-rail">
+      {/* The seat, printed on the glass the way it is printed on a real bezel.
+          The cabin class used to sit beside it; it is on the boarding pass, on
+          the home screen, and implied by the seat number itself. */}
       <div className="ife-seat-chip">
         <span className="ife-seat-chip-no">{seat}</span>
-        <span className="ife-cap">
-          {t(cabinClass === "business" ? "business" : "economy")}
-        </span>
       </div>
 
-      <button
-        className="ife-tool"
+      <RailButton
+        label={t("home")}
+        icon={<IconHome size={38} />}
+        current={screen === "home"}
         onClick={go("home")}
-        data-current={screen === "home"}
-      >
-        <IconHome />
-        {t("home")}
-      </button>
-      <button
-        className="ife-tool"
+      />
+      <RailButton
+        label={t("flightMap")}
+        icon={<IconPlan size={38} />}
+        current={screen === "map"}
         onClick={go("map")}
-        data-current={screen === "map"}
-      >
-        <IconMap />
-        {t("map")}
-      </button>
+      />
 
       <div className="ife-rail-spacer" />
 
@@ -100,41 +106,205 @@ export function BottomRail({
         </button>
       )}
 
-      {/* Two words in their own scripts. A globe icon would make a passenger
-          guess which languages are behind it; these two do not. */}
-      <div className="ife-lang">
-        <button data-on={lang === "en"} onClick={() => setLang("en")}>
-          EN
-        </button>
-        <button data-on={lang === "zh"} onClick={() => setLang("zh")}>
-          中文
-        </button>
-      </div>
-
-      <button className="ife-tool" onClick={cycleVolume}>
-        <IconVolume />
-        <span className="ife-mono">{Math.round(volume * 100)}</span>
-      </button>
-      <button
-        className="ife-tool"
-        data-on={light}
-        aria-pressed={light}
-        onClick={() => bridge.setReadingLight(!light)}
+      <Popover
+        open={pop === "lang"}
+        onToggle={() => setPop(pop === "lang" ? null : "lang")}
+        label={t("language")}
+        icon={<IconLang size={38} />}
       >
-        <IconLight />
-        {t("readingLight")}
-      </button>
+        <div className="ife-pop-title ife-cap">{t("language")}</div>
+        {(
+          [
+            ["en", "English"],
+            ["zh", "中文"],
+          ] as const
+        ).map(([code, name]) => (
+          <button
+            key={code}
+            className="ife-pop-row"
+            data-on={lang === code}
+            onClick={() => {
+              setLang(code);
+              setPop(null);
+            }}
+          >
+            <span>{name}</span>
+            {lang === code && <Tick />}
+          </button>
+        ))}
+      </Popover>
+
+      <Popover
+        open={pop === "volume"}
+        onToggle={() => setPop(pop === "volume" ? null : "volume")}
+        label={t("volume")}
+        icon={<IconVolume size={38} />}
+        value={Math.round(volume * 100)}
+      >
+        <div className="ife-pop-title ife-cap">{t("volume")}</div>
+        <VolumeColumn value={volume} onChange={setVolume} />
+      </Popover>
+
+      <RailButton
+        label={t("readingLight")}
+        icon={<IconLight size={38} />}
+        on={light}
+        pressed={light}
+        onClick={() => bridge.setReadingLight(!light)}
+      />
       {/* A call already placed says so and offers to take it back, because the
           light it turned on is above your head and everyone can see it. */}
-      <button
-        className="ife-tool"
-        data-alert={calling}
-        aria-pressed={calling}
+      <RailButton
+        label={calling ? t("cancelCall") : t("callAttendant")}
+        icon={<IconCall size={38} />}
+        alert={calling}
+        pressed={calling}
         onClick={() => bridge.callAttendant(!calling)}
-      >
-        <IconCall />
-        {calling ? t("cancelCall") : t("callAttendant")}
-      </button>
+      />
+
+      {pop && (
+        <button
+          className="ife-pop-away"
+          aria-label={t("close")}
+          onClick={() => setPop(null)}
+        />
+      )}
     </div>
   );
 }
+
+function RailButton({
+  label,
+  icon,
+  onClick,
+  current,
+  on,
+  alert,
+  pressed,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  current?: boolean;
+  on?: boolean;
+  alert?: boolean;
+  pressed?: boolean;
+}) {
+  return (
+    <button
+      className="ife-tool"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      data-current={current ?? false}
+      data-on={on ?? false}
+      data-alert={alert ?? false}
+      {...(pressed === undefined ? {} : { "aria-pressed": pressed })}
+    >
+      {icon}
+    </button>
+  );
+}
+
+function Popover({
+  open,
+  onToggle,
+  label,
+  icon,
+  value,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+  icon: React.ReactNode;
+  value?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="ife-pop-anchor">
+      <button
+        className="ife-tool"
+        onClick={onToggle}
+        aria-label={label}
+        title={label}
+        aria-expanded={open}
+        data-current={open}
+      >
+        {icon}
+        {value !== undefined && (
+          <span className="ife-tool-value ife-mono">{value}</span>
+        )}
+      </button>
+      {open && <div className="ife-pop">{children}</div>}
+    </div>
+  );
+}
+
+/**
+ * A vertical column, because that is the shape of the thing it sets: louder is
+ * up, and a horizontal bar asks you to translate left and right into it.
+ *
+ * It reads the pointer's offset inside its own track, never a bounding rect —
+ * the same rule the film's scrub bar follows and for the same reason: under
+ * the CSS 3D transform that puts this screen on a seat back, a bounding rect
+ * is the projected quad and arithmetic against it comes out wrong.
+ */
+function VolumeColumn({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const dragging = useRef(false);
+  const set = (e: React.PointerEvent<HTMLDivElement>) => {
+    const track = e.currentTarget;
+    // Up is louder, so the offset is measured from the bottom.
+    const frac = Math.min(
+      1,
+      Math.max(0, 1 - e.nativeEvent.offsetY / track.clientHeight),
+    );
+    onChange(Math.round(frac * 20) / 20);
+  };
+  return (
+    <div className="ife-volwrap">
+      <div
+        className="ife-vol"
+        role="slider"
+        aria-orientation="vertical"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(value * 100)}
+        onPointerDown={(e) => {
+          dragging.current = true;
+          set(e);
+        }}
+        onPointerMove={(e) => {
+          if (dragging.current && e.buttons === 1) set(e);
+        }}
+        onPointerUp={() => {
+          dragging.current = false;
+        }}
+        onPointerLeave={() => {
+          dragging.current = false;
+        }}
+      >
+        <span className="ife-vol-fill" style={{ height: `${value * 100}%` }} />
+      </div>
+      <span className="ife-vol-read ife-mono">{Math.round(value * 100)}</span>
+    </div>
+  );
+}
+
+const Tick = () => (
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="m5 12.6 4.6 4.6L19 7.8"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);

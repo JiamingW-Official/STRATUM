@@ -1,11 +1,12 @@
 import { useFlight, useSelf } from "../../flight-state/store";
 import type { ScreenName } from "../../flight-state/types";
 import { duration, fmtInt, localTime } from "../format";
-import { pick, useT, type Key } from "../i18n";
+import { phrase, pick, useT, type Key } from "../i18n";
 import { useDestination } from "../destination";
 import { conditionKey, useWeather } from "../weather";
 import { STATIONS } from "../stations";
-import { FILMS } from "../films";
+import { FILMS, runtime, stillUrl } from "../films";
+import { useNav } from "../nav";
 import { currentTrack, usePlayer } from "../player";
 import { RouteMini } from "../chrome/RouteMini";
 import {
@@ -43,6 +44,9 @@ export function Home() {
   const seat = useSelf((s) => s.seat);
   const { stationIdx, trackIdx, playing } = usePlayer();
   const now = currentTrack(stationIdx, trackIdx);
+  const openFilm = useNav((s) => s.openFilm);
+  // The aviation film, which is the one this cabin would put on its home rail.
+  const feature = FILMS[0];
   const remaining = Date.parse(etaUtc) - Date.now();
 
   const cards: Array<{
@@ -56,13 +60,13 @@ export function Home() {
       screen: "map",
       key: "flightMap",
       icon: <IconMap size={96} />,
-      note: `${fmtInt(position.altFt)} ft · ${fmtInt(position.gsKt)} kt`,
+      note: `${fmtInt(position.altFt)} ft`,
     },
     {
       screen: "flightInfo",
       key: "flightInformation",
       icon: <IconGauge size={96} />,
-      note: `${pick(route.from.city, lang)} → ${pick(route.to.city, lang)}`,
+      note: `${route.from.iata} → ${route.to.iata}`,
     },
     {
       screen: "music",
@@ -100,8 +104,14 @@ export function Home() {
         <div className="ife-home-ident ife-mono">
           {seat} · {flightNo}
         </div>
-        <div className="ife-home-next ife-cap">{t("nextStop")}</div>
+        {/* No label over the city. "NEXT STOP" was a caption introducing a
+            word set at 118px — the largest thing on the screen does not need
+            to be announced, and in Chinese the phrase read as a signpost on a
+            coach route. */}
         <div className="ife-home-city">{pick(route.to.city, lang)}</div>
+        <div className="ife-home-apt">
+          {pick(route.to.name, lang)} · {route.to.iata}
+        </div>
 
         {/* One fact, at the size of a fact you look up from a book to read.
             It had a brass bar down its left and a tinted box behind it, which
@@ -109,7 +119,7 @@ export function Home() {
             type is 86px against a 19px label; nothing else is needed. */}
         <div className="ife-home-eta">
           <div className="ife-cap">
-            {t("timeTo")} {pick(route.to.city, lang)}
+            {phrase("timeToPlace", lang, pick(route.to.city, lang))}
           </div>
           <div
             className={`ife-home-eta-value ife-mono${
@@ -130,7 +140,6 @@ export function Home() {
           <span className="ife-home-wx-cond">
             {wx ? conditionKey(wx.code)[lang === "zh" ? 1 : 0] : "--"}
           </span>
-          <span className="ife-home-wx-apt">{pick(route.to.name, lang)}</span>
         </div>
       </div>
 
@@ -153,6 +162,41 @@ export function Home() {
         {/* The last card leaves the cabin. From a seat you can open the sky
             the rest of this work is about — the one the aircraft you are
             sitting in is being heard from. It is a link, and it says so. */}
+        {/* Media sits in the rail as itself, not behind a category. The
+            reference home screen does the same: a poster among the utilities,
+            because a title is a better invitation than the word "Movies". */}
+        <button
+          className="ife-card ife-card--media"
+          data-tall="true"
+          onClick={() => {
+            openFilm(feature.id);
+            setScreen("movies");
+          }}
+        >
+          <span
+            className="ife-card-still"
+            style={{ backgroundImage: `url(${stillUrl(feature)})` }}
+          />
+          <span className="ife-card-name">{pick(feature.title, lang)}</span>
+          <span className="ife-card-note ife-mono">
+            {feature.year} · {runtime(feature, lang)}
+          </span>
+        </button>
+
+        <button
+          className="ife-card ife-card--media"
+          style={{ ["--stationColor" as string]: now.station.color }}
+          onClick={() => setScreen("music")}
+        >
+          <span className="ife-card-swatch" />
+          <span className="ife-card-name">{now.station.name}</span>
+          <span className="ife-card-note ife-mono">
+            {playing
+              ? now.title
+              : `${now.station.tracks.length} ${lang === "zh" ? "首" : "tracks"}`}
+          </span>
+        </button>
+
         <a className="ife-card ife-card--out" data-tall="true" href="/">
           <span className="ife-card-icon">
             <IconSky size={96} />
@@ -162,9 +206,6 @@ export function Home() {
         </a>
       </div>
 
-      {dest?.credit && (
-        <div className="ife-credit">Wikimedia Commons · {dest.credit}</div>
-      )}
     </div>
   );
 }

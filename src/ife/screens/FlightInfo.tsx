@@ -2,6 +2,7 @@ import { useFlight } from "../../flight-state/store";
 import { duration, fmtInt, localTime } from "../format";
 import { pick, useT, type Key } from "../i18n";
 import { Profile } from "../chrome/Profile";
+import { useDestination } from "../destination";
 
 function Figure({
   label,
@@ -29,6 +30,7 @@ export function FlightInfo() {
   const { route, position, departureUtc, etaUtc, etaInferred, phase } =
     useFlight();
   const { t, lang } = useT();
+  const dest = useDestination(route.to);
   const now = Date.now();
   const elapsed = now - Date.parse(departureUtc);
   const remaining = Date.parse(etaUtc) - now;
@@ -70,6 +72,17 @@ export function FlightInfo() {
           value={localTime(departureUtc, route.from)}
         />
       </div>
+      {/* The destination photograph's credit lives here rather than across the
+          picture itself. Most of Wikimedia Commons is licensed on the
+          condition that it is attributed, so the line cannot simply go — but
+          a watermark over the one image on the screen was the wrong place for
+          it, and this is a page of facts about the flight, which is what a
+          credit is. */}
+      {dest?.credit && (
+        <div className="ife-fi-credit ife-cap">
+          {t("photograph")} · Wikimedia Commons · {dest.credit}
+        </div>
+      )}
     </div>
   );
 }

@@ -75,10 +75,10 @@ export function Idle({ seat }: { seat: string }) {
         </div>
 
         <div className="ife-idle-bottom">
-          <div>
-            <div className="ife-idle-welcome">{t("welcome")}</div>
-            <div className="ife-idle-hint ife-cap">{t("touchToBegin")}</div>
-          </div>
+          {/* "Welcome aboard. Your screen is ready whenever you are." is the
+              voice of a brand, not of this work, and it told a passenger
+              nothing the blinking hint below does not. */}
+          <div className="ife-idle-hint ife-cap">{t("touchToBegin")}</div>
           <div className="ife-idle-clock">
             <div className="ife-cap">
               {pick(route.to.city, lang)} · {t("localTime")}
@@ -93,7 +93,6 @@ export function Idle({ seat }: { seat: string }) {
         </div>
       </div>
 
-      {dest?.credit && <div className="ife-credit">Wikimedia Commons · {dest.credit}</div>}
     </div>
   );
 }

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSelf } from "../../flight-state/store";
 import { pick, useT } from "../i18n";
 import { FILMS, runtime, stillUrl, synopsis, type Film } from "../films";
+import { useNav } from "../nav";
 
 /**
  * A shelf, a page for one film, and a player. Nothing here is a mock-up: every
@@ -11,6 +12,17 @@ export function Movies() {
   const [open, setOpen] = useState<Film | null>(null);
   const setScreen = useSelf((s) => s.setScreen);
   const setMedia = useSelf((s) => s.setMedia);
+  const wanted = useNav((s) => s.filmId);
+  const clearWanted = useNav((s) => s.clear);
+
+  // A card on the home rail can ask for one film by name; it lands on that
+  // film's page rather than on the shelf with the film somewhere in it.
+  useEffect(() => {
+    if (!wanted) return;
+    const f = FILMS.find((x) => x.id === wanted);
+    clearWanted();
+    if (f) setOpen(f);
+  }, [wanted, clearWanted]);
 
   // Playing is a change of screen, not a third state of this one: the film
   // takes the whole glass, and only IFEApp can stand the strip and the rail
