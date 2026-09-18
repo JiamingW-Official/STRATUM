@@ -719,12 +719,13 @@ test.describe("IFE bench", () => {
     // it is a time before the audio element has loaded enough to agree.
     await expect(page.locator(".ife-rail-now-time")).not.toContainText("--:--");
     // And the bar is the rail's own top edge rather than a row under the
-    // keys, which is what lets those keys be 86px like every other key here.
+    // keys, which is what lets those keys be the same 76px square as every
+    // other key in this row.
     const keys = mini.locator(".ife-transport");
     for (const box of await keys.evaluateAll((els) =>
       els.map((e) => (e as HTMLElement).offsetWidth),
     ))
-      expect(box).toBe(86);
+      expect(box).toBe(76);
     expect(
       await page
         .locator(".ife-rail-seek")

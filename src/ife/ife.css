@@ -122,7 +122,9 @@
   --t-cap: 24px;
 
   --strip-h: 124px;
-  --rail-h: 116px;
+  /* 96, not 116. The row held an 86px key inside a lens that needed air
+     round it; the keys are marks now and the 20px goes back to the screen. */
+  --rail-h: 96px;
   --gutter: 72px;
 
   position: relative;
@@ -282,8 +284,13 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
-  padding: 0 calc(var(--gutter) - 16px);
+  gap: 2px;
+  /* The gutter, less the 14px a key carries between its edge and its mark,
+     so the outermost mark in the row lands on the gutter — the same line the
+     hamburger's mark and the city's first letter land on — rather than
+     wherever its invisible box happens to stop. Measured: the mark now
+     starts and ends at 72. */
+  padding: 0 calc(var(--gutter) - 14px);
   background: rgba(7, 9, 13, 0.72);
   -webkit-backdrop-filter: blur(22px) saturate(1.3);
   backdrop-filter: blur(22px) saturate(1.3);
@@ -301,8 +308,8 @@
    something to say. It costs no height, which is the whole reason the keys
    below it can be 86px like every other key in the cabin.
  
-   The strip you can press is 14px and the mark inside it is 5px: the rail is
-   116px tall and the keys are 86, so there are 15px of nothing above them and
+   The strip you can press is 10px and the mark inside it is 5px: the rail is
+   96px tall and the keys are 76, so there are 10px of nothing above them and
    the target comes out of that rather than out of anything else. */
 .ife-rail-seek {
   appearance: none;
@@ -312,7 +319,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 14px;
+  height: 10px;
   background: none;
   cursor: pointer;
   z-index: 4;
@@ -343,7 +350,7 @@
   grid-column: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -352,7 +359,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -435,8 +442,10 @@
 .ife-seat-chip {
   display: flex;
   align-items: center;
-  padding: 0 20px 0 10px;
-  margin-right: 4px;
+  /* The seat is a label, not a key, so it keeps a gap the keys do not have —
+     without it, at a 2px rail gap, "12K" reads as the first button. */
+  padding: 0 14px;
+  margin-right: 22px;
   align-self: stretch;
 }
 
@@ -447,110 +456,67 @@
   letter-spacing: -0.01em;
 }
 
-/* No hover, no frame. This is a touch screen: nothing ever hovers, and a
-   button that is only a symbol does not need a box drawn round it to be a
-   button — the symbol is the target and the whole 86px square is the hit
-   area. What is left to show is which screen you are on, and that is a change
-   of colour rather than a chip. */
-/* ── The placards, as glass ───────────────────────────────────────────────
-   These were bare marks on the panel, which is what the rail asked for when
-   the complaint was that they looked cheap and bordered. The ask now is the
-   other way — a lens rather than a sticker — and it is the same principle
-   this cabin has used from the start, only turned up: depth from light. Each
-   one is a piece of glass lying on the panel, so it has a lit top lip, a dark
-   bottom edge, a body that carries a little of what is behind it, and a
-   shadow underneath. Nothing is outlined.
+/* ── The placards, as marks ──────────────────────────────────────────────
+   No surface under any of them. They were bare, then they were glass, and
+   they are bare again — and the reason to land here is that a row of eleven
+   lenses is eleven rectangles competing with the one thing on the row that
+   is a picture, which is the record's sleeve. Without the lenses the row is
+   what it is: a line of marks on the panel, the way the printing on a real
+   bezel is a line of marks on the bezel.
 
-   The radius is large and continuous because that is what a moulded key in a
-   cabin looks like — and because a 24px radius on an 86px tile is the shape
-   iOS 26 settled on for the same reason. */
+   The whole 76px square is still the hit area; it is just not drawn. What is
+   left to say is which one you are on and which one is on, and that is
+   colour — full strength for the screen you are on, brass for a thing that
+   is switched on, red for a call already placed, --dim for the rest. Those
+   are the same four states the lens was carrying, said with the only
+   property a mark has.
+
+   Pressed, it goes down. A key with no surface cannot press its surface in,
+   so the mark itself takes the touch. */
 .ife-tool {
   appearance: none;
   border: 0;
-  color: var(--dim);
+  background: none;
+  /* Below --dim on purpose. With a lens under it, --dim against the lit key
+     was signal enough; with nothing under it the only thing separating "the
+     screen you are on" from the rest is how bright the mark is, and --dim put
+     them 1.44 apart — measured off the rendered glyphs, 147 against 211. At
+     0.5 it is 1.74, 121 against 211, and 121 on a near-black panel is still a
+     mark anybody can see. An idle key is idle. */
+  color: rgba(var(--text-rgb), 0.5);
   font: inherit;
-  height: 86px;
-  min-width: 86px;
-  padding: 0 14px;
+  height: 76px;
+  min-width: 76px;
+  padding: 0 8px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 26px;
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.13) 0%,
-      rgba(255, 255, 255, 0.035) 44%,
-      rgba(255, 255, 255, 0) 100%
-    ),
-    rgba(255, 255, 255, 0.045);
-  /* No backdrop-filter. The rail behind these already blurs the row, so a
-     second blur of an already-blurred backdrop showed nothing — and it put
-     every key on its own composited layer, which inside the glass's
-     fractional transform is rasterised at one size and resampled to
-     another. Measured on the Home key: dropping it took the mean absolute
-     Laplacian from 9.4 to 13.3 and the peak edge contrast from 221 to 429.
-     That is the whole of why the marks looked soft. The lens is the
-     gradient, the lit lip, the dark under-edge and the shadow; none of
-     those needed it. */
-  box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.55),
-    inset 0 0 26px rgba(255, 255, 255, 0.045),
-    0 10px 22px rgba(0, 0, 0, 0.45);
   transition:
     color 130ms ease,
-    background-color 130ms ease;
+    transform 90ms ease;
 }
 
-/* Pressed, the lens goes down into the panel: the lit lip moves to the bottom
-   and the shadow goes inside. */
 .ife-tool:active {
-  box-shadow:
-    inset 0 -1.5px 0 rgba(255, 255, 255, 0.22),
-    inset 0 2px 8px rgba(0, 0, 0, 0.6),
-    0 2px 6px rgba(0, 0, 0, 0.3);
+  color: var(--fg);
+  transform: scale(0.9);
 }
 
-/* Lit. The glass itself takes the brass rather than only the mark inside it. */
-.ife-tool[data-current="true"],
+/* On: the reading light burning, the volume panel open. Brass, which in this
+   cabin means exactly this and "inferred" and nothing else. */
 .ife-tool[data-on="true"],
 .ife-tool[aria-expanded="true"] {
   color: var(--accent-bright);
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(219, 182, 108, 0.26) 0%,
-      rgba(201, 164, 92, 0.1) 46%,
-      rgba(201, 164, 92, 0.04) 100%
-    ),
-    rgba(201, 164, 92, 0.06);
-  box-shadow:
-    inset 0 1.5px 0 rgba(255, 226, 170, 0.45),
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
-    inset 0 0 30px rgba(219, 182, 108, 0.12),
-    0 10px 24px rgba(0, 0, 0, 0.45);
 }
 
-.ife-tool[data-alert="true"] {
-  color: var(--alert);
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(176, 80, 72, 0.3) 0%,
-      rgba(176, 80, 72, 0.1) 50%,
-      rgba(176, 80, 72, 0.04) 100%
-    ),
-    rgba(176, 80, 72, 0.06);
-}
-
-
-
+/* A call already placed. The light it turned on is above your head and
+   everyone can see it, so this is the one mark that gets the red. */
 .ife-tool[data-alert="true"] {
   color: var(--alert);
 }
 
+/* Where you are. Full strength against the rest at --dim, which is the same
+   distinction the play key in the middle of this row is drawn with. */
 .ife-tool[data-current="true"] {
   color: var(--fg);
 }
@@ -2249,47 +2215,26 @@
 .ife-mini-keys {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
 }
 
-/* The same key as the ones on either side of it: 86px square, 26px radius,
-   the same glass, the same --dim until it is the one doing something.
- 
-   These used to have no surface, on the argument that a placard is a door and
-   this row is the state of the sound. That argument held while the player was
-   a small block with a bar and two clocks in it. At 86px with nothing behind
-   them the five marks read as the row's disabled keys — a set of controls
-   flanked on both sides by keys that look pressable, and not looking
-   pressable themselves. They are controls. They look like the controls. */
+/* The same key as the ones on either side of it, which now means the same
+   76px square with nothing drawn under it. */
 .ife-mini-keys .ife-transport {
-  width: 86px;
-  height: 86px;
-  border-radius: 26px;
-  color: var(--dim);
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.13) 0%,
-      rgba(255, 255, 255, 0.035) 44%,
-      rgba(255, 255, 255, 0) 100%
-    ),
-    rgba(255, 255, 255, 0.045);
-  box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.55),
-    inset 0 0 26px rgba(255, 255, 255, 0.045),
-    0 10px 22px rgba(0, 0, 0, 0.45);
+  width: 76px;
+  height: 76px;
+  color: rgba(var(--text-rgb), 0.5);
+  background: none;
+  box-shadow: none;
   transition:
     color 130ms ease,
-    background-color 130ms ease;
+    transform 90ms ease;
 }
 
-/* Pressed, the lens goes down into the panel, the same way a placard does. */
 .ife-mini-keys .ife-transport:active {
-  box-shadow:
-    inset 0 -1.5px 0 rgba(255, 255, 255, 0.22),
-    inset 0 2px 8px rgba(0, 0, 0, 0.6),
-    0 2px 6px rgba(0, 0, 0, 0.3);
+  color: var(--fg);
+  box-shadow: none;
+  transform: scale(0.9);
 }
 
 .ife-mini-keys .ife-transport[data-on="true"] {
@@ -2303,26 +2248,15 @@
    "on". And the key is the same 86px as the other four, because a row of
    controls at two sizes is two rows of controls.
  
-   What tells it apart is light. Its glass is lit — a whiter lens and a
-   brighter top lip — and its mark is at full strength while the other four
-   sit at --dim. That is the same move the placards make when one of them is
-   the screen you are on, done in white rather than in brass, and it does not
-   spend the accent on a key that is always there. */
+   What tells it apart is light: its mark is at full strength while the other
+   four sit at --dim. That is the same distinction the placard for the screen
+   you are on is drawn with, and it does not spend the accent on a key that is
+   always there. It is also the heaviest shape in the set — two solid bars or
+   one solid triangle against four thin ones. */
 .ife-mini-keys .ife-transport--play {
   color: var(--fg);
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.26) 0%,
-      rgba(255, 255, 255, 0.09) 46%,
-      rgba(255, 255, 255, 0.02) 100%
-    ),
-    rgba(255, 255, 255, 0.07);
-  box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
-    inset 0 0 30px rgba(255, 255, 255, 0.08),
-    0 10px 24px rgba(0, 0, 0, 0.45);
+  background: none;
+  box-shadow: none;
 }
 
 
