@@ -311,6 +311,67 @@ test.describe("IFE bench", () => {
         intervals: [1000],
       })
       .toBeGreaterThan(0);
+
+    // The film has the whole surface: no journey strip, no rail, and the
+    // element is the full 1920x1080 rather than a pane inside it.
+    expect(await screenName(page)).toBe("film");
+    await expect(page.locator(".ife-strip")).toHaveCount(0);
+    await expect(page.locator(".ife-rail")).toHaveCount(0);
+    expect(
+      await video.evaluate((v: HTMLVideoElement) => [
+        v.offsetWidth,
+        v.offsetHeight,
+      ]),
+    ).toEqual([1920, 1080]);
+
+    // The controls are this project's, not the browser's. The native set
+    // lives in a closed shadow root and could never be reached once this
+    // screen hangs on a seat in a 3D cabin.
+    expect(
+      await video.evaluate((v: HTMLVideoElement) => v.hasAttribute("controls")),
+    ).toBe(false);
+    await expect(page.locator(".ife-seek")).toHaveCount(1);
+
+    // The controls get out of the way on their own and come back on a touch,
+    // which is also why the seek below has to wake them first: hidden, they
+    // take no pointer events and the click lands on the picture instead.
+    const shell = page.locator(".ife-screening");
+    await expect
+      .poll(async () => shell.getAttribute("data-chrome"), { timeout: 15_000 })
+      .toBe("false");
+    await shell.hover();
+    await expect(shell).toHaveAttribute("data-chrome", "true");
+
+    // Seeking works, and works through the element's own coordinates rather
+    // than a bounding rect — which is what survives a 3D transform.
+    const seek = page.locator(".ife-seek");
+    const box = (await seek.boundingBox())!;
+    await page.mouse.click(box.x + box.width * 0.6, box.y + box.height / 2);
+    const total = await video.evaluate((v: HTMLVideoElement) => v.duration);
+    await expect
+      .poll(async () => video.evaluate((v: HTMLVideoElement) => v.currentTime), {
+        timeout: 15_000,
+      })
+      .toBeGreaterThan(total * 0.5);
+
+    // And the announcement takes the picture too, then gives back the frame
+    // it took. The panel is outside the glass, so it needs no waking.
+    await page.getByRole("button", { name: "Captain" }).click();
+    await expect
+      .poll(async () => video.evaluate((v: HTMLVideoElement) => v.paused), {
+        timeout: 10_000,
+      })
+      .toBe(true);
+    const held = await video.evaluate((v: HTMLVideoElement) => v.currentTime);
+    await page.getByRole("button", { name: "None" }).click();
+    await expect
+      .poll(async () => video.evaluate((v: HTMLVideoElement) => v.paused), {
+        timeout: 10_000,
+      })
+      .toBe(false);
+    expect(
+      await video.evaluate((v: HTMLVideoElement) => v.currentTime),
+    ).toBeGreaterThanOrEqual(held - 0.5);
   });
 
   test("sudoku deals a board that can only be solved one way", async ({

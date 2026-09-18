@@ -10,6 +10,7 @@ import { FlightInfo } from "./screens/FlightInfo";
 import { Music } from "./screens/Music";
 import { Movies } from "./screens/Movies";
 import { Games } from "./screens/Games";
+import { Screening } from "./screens/Screening";
 import { PAOverlay } from "./screens/PAOverlay";
 import { usePlayer } from "./player";
 import "./ife.css";
@@ -56,10 +57,18 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
     setInterrupted(!!paOverride);
   }, [paOverride, setInterrupted]);
 
-  // Idle timeout. Suspended during an announcement: the screen is not the
-  // passenger's to leave.
+  // Idle timeout. Suspended during an announcement, because the screen is not
+  // the passenger's to leave — and suspended during a film, because watching
+  // one is precisely twenty minutes of not touching anything. Left armed, the
+  // idle screen interrupted the thing it exists to wait for.
   useEffect(() => {
-    if (screen === "idle" || screen === "off" || paOverride) return;
+    if (
+      screen === "idle" ||
+      screen === "off" ||
+      screen === "film" ||
+      paOverride
+    )
+      return;
     let id: number;
     const arm = () => {
       window.clearTimeout(id);
@@ -82,6 +91,18 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
     return (
       <div className="ife-root" data-screen="idle">
         <Idle seat={seat} />
+        <PAOverlay />
+      </div>
+    );
+  }
+
+  // A film gets the whole surface. On a seat-back screen "full screen" is not
+  // a browser mode to request — the glass is the window — so it is simply the
+  // one screen the journey strip and the rail stand down for.
+  if (screen === "film") {
+    return (
+      <div className="ife-root" data-screen="film">
+        <Screening />
         <PAOverlay />
       </div>
     );

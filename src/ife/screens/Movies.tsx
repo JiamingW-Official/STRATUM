@@ -1,15 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useSelf } from "../../flight-state/store";
 import { pick, useT } from "../i18n";
-import {
-  FILMS,
-  runtime,
-  stillUrl,
-  streamUrl,
-  synopsis,
-  type Film,
-} from "../films";
-import { usePlayer } from "../player";
+import { FILMS, runtime, stillUrl, synopsis, type Film } from "../films";
 
 /**
  * A shelf, a page for one film, and a player. Nothing here is a mock-up: every
@@ -17,18 +9,20 @@ import { usePlayer } from "../player";
  */
 export function Movies() {
   const [open, setOpen] = useState<Film | null>(null);
-  const [playing, setPlaying] = useState<Film | null>(null);
+  const setScreen = useSelf((s) => s.setScreen);
+  const setMedia = useSelf((s) => s.setMedia);
 
-  if (playing) {
-    return <Screening film={playing} onExit={() => setPlaying(null)} />;
-  }
+  // Playing is a change of screen, not a third state of this one: the film
+  // takes the whole glass, and only IFEApp can stand the strip and the rail
+  // down.
+  const play = (f: Film) => {
+    setMedia({ id: f.id, positionSec: 0 });
+    setScreen("film");
+  };
+
   if (open) {
     return (
-      <Detail
-        film={open}
-        onBack={() => setOpen(null)}
-        onPlay={() => setPlaying(open)}
-      />
+      <Detail film={open} onBack={() => setOpen(null)} onPlay={() => play(open)} />
     );
   }
   return <Shelf onOpen={setOpen} />;
@@ -108,59 +102,6 @@ function Detail({
           <span className="ife-cap">{t("publicDomain")}</span>
         </div>
       </div>
-    </div>
-  );
-}
-
-/**
- * The film, full bleed. Two things happen when it starts that would happen on
- * an aircraft: the music stops, because one seat has one pair of ears; and the
- * chrome gets out of the way.
- */
-function Screening({ film, onExit }: { film: Film; onExit: () => void }) {
-  const { t, lang } = useT();
-  const ref = useRef<HTMLVideoElement | null>(null);
-  const [failed, setFailed] = useState(false);
-  const volume = useSelf((s) => s.volume);
-  const pauseAudio = usePlayer((s) => s.pause);
-
-  useEffect(() => {
-    pauseAudio();
-  }, [pauseAudio]);
-
-  useEffect(() => {
-    const v = ref.current;
-    if (v) v.volume = volume;
-  }, [volume]);
-
-  return (
-    <div className="ife-screening">
-      <video
-        ref={ref}
-        className="ife-screening-video"
-        src={streamUrl(film)}
-        controls
-        autoPlay
-        playsInline
-        onError={() => setFailed(true)}
-      />
-      <div className="ife-screening-bar">
-        <button className="ife-btn ife-btn--quiet" onClick={onExit}>
-          ← {t("stop")}
-        </button>
-        <span className="ife-screening-title">{pick(film.title, lang)}</span>
-        <span className="ife-cap">
-          {film.year} · {film.creator}
-        </span>
-        <span className="ife-rail-spacer" />
-        <span className="ife-cap">{t("streamingNote")}</span>
-      </div>
-      {failed && (
-        <div className="ife-screening-fail">
-          <div className="ife-title">{pick(film.title, lang)}</div>
-          <p className="ife-soon-text">{t("streamingNote")}</p>
-        </div>
-      )}
     </div>
   );
 }

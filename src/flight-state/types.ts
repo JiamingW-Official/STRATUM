@@ -97,13 +97,20 @@ export type ScreenName =
   | "flightInfo"
   | "movies"
   | "music"
-  | "games";
+  | "games"
+  /** A film is on the glass. It takes the whole surface, chrome included. */
+  | "film";
 
 /** This seat, as only its occupant sees it. */
 export type SeatPrivate = {
   screen: ScreenName;
   /** Nobody else's business what you read the cabin in. */
   lang: "en" | "zh";
+  /**
+   * What is loaded and where it had got to. The position is state, not a
+   * detail of the player: an announcement has to give the screen back exactly
+   * as it was, and "exactly" includes the frame it was on.
+   */
   media?: { id: string; positionSec: number };
   /** 0–1. */
   volume: number;
