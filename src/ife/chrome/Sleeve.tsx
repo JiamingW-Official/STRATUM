@@ -4,21 +4,21 @@ import { splitTrack, type Station } from "../stations";
 /**
  * The sleeve art, if any has been made.
  *
- * Found rather than declared: whatever .jpg is sitting in src/covers named
+ * Found rather than declared: whatever .webp is sitting in src/covers named
  * after a station's id is that station's cover, and a station with no file is
  * simply absent from this map. That is the whole reason it is a glob and not
  * a path in the data — a path to a file that does not exist is a 404 on every
  * screen that draws a sleeve, and this way an empty folder costs nothing and
  * dropping a file in is the entire installation step.
  */
-const COVERS = import.meta.glob("../../covers/*.jpg", {
+const COVERS = import.meta.glob("../../covers/*.webp", {
   eager: true,
   query: "?url",
   import: "default",
 }) as Record<string, string>;
 
 function coverFor(id: string): string | undefined {
-  const key = Object.keys(COVERS).find((k) => k.endsWith(`/${id}.jpg`));
+  const key = Object.keys(COVERS).find((k) => k.endsWith(`/${id}.webp`));
   return key ? COVERS[key] : undefined;
 }
 

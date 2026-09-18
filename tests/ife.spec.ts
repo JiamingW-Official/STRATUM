@@ -647,6 +647,11 @@ test.describe("IFE bench", () => {
       "Electronic",
     );
 
+    // Every record has its sleeve art, and none of them falls back to the
+    // drawn sleeve: four in the library column, four on the shelf.
+    await expect(page.locator(".ife-sleeve--art")).toHaveCount(8);
+    await expect(page.locator(".ife-sleeve-grooves")).toHaveCount(0);
+
     await page.locator(".ife-album").first().click();
     // Every length is measured off the file, so none of them is a dash.
     const lens = await page.locator(".ife-track-len").allInnerTexts();
