@@ -148,6 +148,39 @@ export const IconTarget = ({ size = 24 }: P) => (
   </svg>
 );
 
+/** The whole planet. A lit limb and a terminator, which is the one thing that
+ *  tells a sphere from a circle — and it is what the globe view actually puts
+ *  on the glass. Deliberately not the wire globe: that mark is language's. */
+export const IconPlanet = ({ size = 24 }: P) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+    <circle cx="12" cy="13.2" r="8.1" fill="currentColor" />
+    {/* The atmosphere, outside the limb. Not latitude lines and not a wire
+        frame: the language placard in the rail is the wire globe, and two
+        globes on one screen that mean different things have to look
+        different. This one is the planet as this view actually draws it —
+        a lit sphere with air around it. */}
+    <path
+      d="M2.1 14.4A10.6 10.6 0 0 1 21.9 14.4"
+      fill="none"
+      stroke="currentColor"
+      strokeOpacity="0.55"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+/** Looking forward from the aircraft: a horizon with the ground running away
+ *  under it. The one mark in the set that is a picture of a view. */
+export const IconForward = ({ size = 24 }: P) => (
+  <svg {...line(size)}>
+    <path d="M2.6 9.4h18.8" />
+    <path d="M9.4 21.4 11.2 9.4" />
+    <path d="M14.6 21.4 12.8 9.4" />
+    <path d="M4.6 15.4h14.8" />
+  </svg>
+);
+
 /** The whole flight in the frame: a great circle between two airports. */
 export const IconRoute = ({ size = 24 }: P) => (
   <svg {...line(size)}>

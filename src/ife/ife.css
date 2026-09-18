@@ -985,6 +985,126 @@
   z-index: 2;
 }
 
+/* ── Instruments (the forward view) ───────────────────────────────────────
+   Drawn from the cabin this piece references: a knots tape down the left with
+   the value boxed and the conversions under it, a feet tape down the right,
+   and a compass rose along the bottom. Everything is white with its own
+   shadow, because it sits over photographed ground that can be any colour —
+   this is the one surface in the cabin that cannot rely on the palette.
+
+   The attitude ladder that reference has is deliberately absent: ADS-B
+   carries no attitude, and drawing a pitch ladder would mean inventing the
+   one number on the panel nobody measured. */
+.ife-inst {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.85));
+}
+
+.ife-inst text {
+  fill: var(--fg);
+  font-family: var(--font-mono);
+}
+
+.ife-inst-unit {
+  font-size: 30px;
+  fill: rgba(var(--text-rgb), 0.72);
+  letter-spacing: 0.04em;
+}
+
+.ife-inst-rule,
+.ife-inst-tick {
+  stroke: rgba(var(--text-rgb), 0.82);
+  stroke-width: 1.6;
+}
+
+.ife-inst-tick[data-major="true"] {
+  stroke-width: 2.2;
+}
+
+.ife-inst-tick-num {
+  font-size: 26px;
+  fill: rgba(var(--text-rgb), 0.86);
+}
+
+/* The box is an outline, not a panel: a filled block here would hide the
+   ground, which is the thing the passenger is looking at. */
+.ife-inst-box {
+  fill: rgba(7, 8, 11, 0.62);
+  stroke: var(--fg);
+  stroke-width: 2.4;
+}
+
+.ife-inst-value {
+  font-size: 44px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.ife-inst-under {
+  font-size: 26px;
+  fill: rgba(var(--text-rgb), 0.7);
+}
+
+.ife-inst-extra-label {
+  font-size: 22px;
+  fill: rgba(var(--text-rgb), 0.55);
+  letter-spacing: 0.1em;
+}
+
+.ife-inst-extra {
+  font-size: 34px;
+  fill: rgba(var(--text-rgb), 0.9);
+}
+
+.ife-inst-rose-tick {
+  stroke: rgba(var(--text-rgb), 0.6);
+  stroke-width: 1.4;
+}
+
+.ife-inst-rose-tick[data-major="true"] {
+  stroke: rgba(var(--text-rgb), 0.9);
+  stroke-width: 2.4;
+}
+
+.ife-inst-rose-mark {
+  font-size: 28px;
+  fill: rgba(var(--text-rgb), 0.9);
+}
+
+.ife-inst-rose-hub {
+  fill: rgba(var(--text-rgb), 0.9);
+}
+
+/* The way to the destination, in the brass that means "computed" everywhere
+   else in this work — because that is exactly what a bearing is. */
+.ife-inst-needle {
+  fill: var(--accent-bright);
+}
+
+/* The whole panel when the position behind it was not heard. Same rule as the
+   track on the map and the arrival time in the strip: the figures do not stop,
+   they stop claiming to be measurements. */
+.ife-inst--inferred text,
+.ife-inst--inferred .ife-inst-rose-hub {
+  fill: var(--accent);
+}
+
+.ife-inst--inferred .ife-inst-box {
+  stroke: var(--accent);
+  stroke-dasharray: 6 4;
+}
+
+.ife-inst--inferred .ife-inst-rule,
+.ife-inst--inferred .ife-inst-tick,
+.ife-inst--inferred .ife-inst-rose-tick {
+  stroke: rgba(201, 164, 92, 0.8);
+}
+
 /* ── Map controls ─────────────────────────────────────────────────────────
    MapLibre's own controls are 29px squares with a compass in them, which is
    two problems: a compass is meaningless on a map that cannot rotate, and
@@ -1096,6 +1216,10 @@
 
 /* The aircraft has to be findable over a coastline, a city's worth of labels
    or the middle of an ocean, so it carries its own shadow. */
+.ife-map[data-view="forward"] .ife-plane-marker {
+  display: none;
+}
+
 .ife-plane-marker svg {
   filter: drop-shadow(0 0 7px rgba(0, 0, 0, 0.95));
 }

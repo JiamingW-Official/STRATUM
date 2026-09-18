@@ -2,50 +2,64 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LngLatBounds, Map as MLMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useFlight } from "../../flight-state/store";
-import { arc, greatCircleKm } from "../../flight-state/geo";
+import { arc, bearing, greatCircleKm } from "../../flight-state/geo";
 import { fmtInt } from "../format";
 import { pick, useT } from "../i18n";
-import { nightRing } from "../sun";
-import { IconMinus, IconPlus, IconRoute, IconTarget } from "../chrome/icons";
+import { nightRing, terminatorLine } from "../sun";
+import { Instruments } from "../chrome/Instruments";
+import {
+  IconForward,
+  IconMinus,
+  IconPlanet,
+  IconPlus,
+  IconRoute,
+  IconTarget,
+} from "../chrome/icons";
 
 /**
- * Basemap: Esri's World Dark Gray, as raster tiles, in two layers.
+ * The moving map, on a real globe.
  *
- * Chosen because it needs no API key and because the sky view already runs on
- * it — CARTO stamps "API KEY REQUIRED" across every keyless tile, and a
- * moving map is not the place to take a second unproven tile host as a
- * dependency. The limits are real and worth stating: it is a courtesy service
- * with no SLA, it is raster so the labels cannot be restyled or translated,
- * and the attribution below the map is required, not decorative.
+ * Every tile service here is keyless and every one of them is named in the
+ * attribution, because a seat-back map that quietly borrows someone's tiles is
+ * the same kind of dishonesty this whole piece is about.
  *
- * The second layer is the reason this map reads as a map now. Esri ships the
- * ground and the names as separate services, and only the ground was being
- * drawn: a passenger looking for where they were flying over got grey shapes
- * with nothing named on any of them. The Reference layer is the real
- * cartography — every label placed by someone who does this properly, at
- * every zoom, in the right position, which is not something a handful of
- * hand-placed city dots was ever going to imitate.
+ *   imagery  Esri World Imagery. The earth as it is photographed, which is
+ *            what "a real globe" means and what the reference cabin shows —
+ *            a cartographic grey is a diagram of the earth, not the earth.
+ *   places   Esri's Boundaries and Places, the transparent label layer made
+ *            to go over imagery. Esri ships the ground and the names as
+ *            separate services; drawing only the ground leaves a passenger
+ *            looking at unnamed shapes.
+ *   dem      Terrarium elevation tiles from the AWS Open Data registry, used
+ *            only in the forward view, where the ground has to have relief
+ *            for the view to mean anything.
  */
-const BASE =
-  "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
-const LABELS =
-  "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}";
+const IMAGERY =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const PLACES =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+const DEM =
+  "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 
 const FLOWN_HEARD = "flown-heard";
 const FLOWN_UNHEARD = "flown-unheard";
 const AHEAD = "ahead";
 const NIGHT = "night";
+const TERMINATOR = "terminator";
 
 /**
- * Who the camera belongs to.
+ * Who the camera belongs to, and where it is standing.
  *
  * A seat-back map that cannot be touched is a screensaver, and one that can
  * only be touched is useless — pan away once and you have lost the aircraft.
- * So the camera has two modes the system drives and one the passenger does,
- * and the moment a finger moves the map it becomes theirs. The two buttons
- * take it back, which is the whole contract.
+ * So the camera has four places the system will put it and one the passenger
+ * does, and the moment a finger moves the map it becomes theirs.
+ *
+ * The four are the ones a real cabin offers, in the order a real cabin offers
+ * them: the whole planet, the whole flight, overhead, and looking forward
+ * from the aircraft at the country ahead.
  */
-type Camera = "route" | "aircraft" | "free";
+type View = "globe" | "route" | "aircraft" | "forward" | "free";
 
 export function MapScreen() {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -56,7 +70,7 @@ export function MapScreen() {
   // The style's load event fires once and may already have fired by the time
   // the data effect runs, so readiness is state rather than a listener.
   const [ready, setReady] = useState(false);
-  const [camera, setCamera] = useState<Camera>("route");
+  const [view, setView] = useState<View>("route");
   const { route, position, track } = useFlight();
   const { t, lang } = useT();
 
@@ -70,91 +84,139 @@ export function MapScreen() {
         container: ref.current,
         style: {
           version: 8,
+          projection: { type: "globe" },
+          // The atmosphere. On a globe this is what makes the limb read as a
+          // planet rather than a circle with a picture in it, and in the
+          // forward view it is the haze the horizon sits in. The colour is the
+          // sky view's own cool. It is a root property of the style, not a
+          // layer: as a layer it is simply ignored.
+          sky: {
+            "sky-color": "#0a1a30",
+            "horizon-color": "#6aadcc",
+            "fog-color": "#08101c",
+            "sky-horizon-blend": 0.55,
+            "horizon-fog-blend": 0.5,
+            "fog-ground-blend": 0.72,
+            "atmosphere-blend": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              0,
+              0.95,
+              5,
+              0.7,
+              9,
+              0.2,
+            ],
+          },
           sources: {
-            base: {
+            imagery: {
               type: "raster",
-              tiles: [BASE],
+              tiles: [IMAGERY],
               tileSize: 256,
               maxzoom: 16,
-              attribution: "Esri, HERE, Garmin, © OpenStreetMap contributors",
+              attribution:
+                "Esri, Maxar, Earthstar Geographics, HERE, Garmin, © OpenStreetMap contributors, Mapzen/AWS",
             },
-            labels: {
+            places: {
               type: "raster",
-              tiles: [LABELS],
+              tiles: [PLACES],
               tileSize: 256,
               maxzoom: 16,
+            },
+            dem: {
+              type: "raster-dem",
+              tiles: [DEM],
+              tileSize: 256,
+              maxzoom: 13,
+              encoding: "terrarium",
             },
           },
           layers: [
             {
-              id: "bg",
-              type: "background",
-              paint: { "background-color": "#070a0f" },
-            },
-            {
-              id: "base",
+              id: "imagery",
               type: "raster",
-              source: "base",
-              paint: { "raster-opacity": 0.82, "raster-saturation": -0.2 },
+              source: "imagery",
+              paint: {
+                // Turned down a little, and only a little: the cabin is dark
+                // and a full-brightness daylight earth is the one thing on
+                // this glass that would glow. Taking it further would be
+                // inventing a planet rather than showing one.
+                "raster-brightness-max": 0.88,
+                "raster-saturation": -0.12,
+              },
             },
           ],
         },
         center: [route.from.lon, route.from.lat],
         zoom: 2,
         attributionControl: { compact: true },
-        // The passenger's map. Rotation and pitch stay off: a moving map that
-        // can end up upside down is a toy, and north-up is the one thing
-        // every passenger already knows about a map.
+        // The passenger's map. Rotation and pitch are on, because the views
+        // that need them are the point; the bearing is still always the
+        // system's in the three level views, which are north-up.
         interactive: true,
-        dragRotate: false,
-        pitchWithRotate: false,
-        touchPitch: false,
-        minZoom: 1,
-        maxZoom: 11,
+        maxPitch: 80,
+        minZoom: 0.6,
+        maxZoom: 12,
       });
     } catch {
       setFailed(true);
       return;
     }
     mapRef.current = map;
-    map.touchZoomRotate.disableRotation();
     setReady(false);
     if (import.meta.env.DEV) (window as any).__ifeMap = map;
 
     map.on("error", () => setFailed(true));
     map.on("load", () => {
       const empty = { type: "FeatureCollection", features: [] } as const;
-      for (const id of [NIGHT, AHEAD, FLOWN_UNHEARD, FLOWN_HEARD]) {
+      for (const id of [NIGHT, TERMINATOR, AHEAD, FLOWN_UNHEARD, FLOWN_HEARD]) {
         map.addSource(id, { type: "geojson", data: empty as any });
       }
 
-      // Night, under the names and over the ground. Every seat-back map has
+      // Night, over the ground and under the names. Every seat-back map has
       // this line, and it is the only thing on one that is not about the
       // aircraft: it is why the shade beside you is down.
       map.addLayer({
         id: NIGHT,
         type: "fill",
         source: NIGHT,
-        paint: { "fill-color": "#03060e", "fill-opacity": 0.52 },
+        paint: {
+          "fill-color": "#02040a",
+          "fill-antialias": false,
+          // Night is heaviest seen from space and lifts as you come down to
+          // it, which is both what it looks like out of a window — the ground
+          // at night is dark, not black — and what keeps the names and the
+          // relief readable in the forward view.
+          "fill-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            2,
+            0.62,
+            6,
+            0.46,
+            9,
+            0.3,
+          ],
+        },
       });
-      // The terminator's own edge, cool and faint — the sky view's colour for
-      // the part of a flight that has not happened, doing the same job here.
       map.addLayer({
-        id: `${NIGHT}-edge`,
+        id: TERMINATOR,
         type: "line",
-        source: NIGHT,
+        source: TERMINATOR,
         paint: {
           "line-color": "#6aadcc",
-          "line-width": 1.2,
-          "line-opacity": 0.3,
+          "line-width": 1.4,
+          "line-opacity": 0.34,
         },
       });
 
       map.addLayer({
-        id: "labels",
+        id: "places",
         type: "raster",
-        source: "labels",
-        paint: { "raster-opacity": 0.9 },
+        source: "places",
+        paint: { "raster-opacity": 0.92 },
       });
 
       // Route still to fly: dashed and dim. It has not happened, so under the
@@ -164,10 +226,10 @@ export function MapScreen() {
         type: "line",
         source: AHEAD,
         paint: {
-          "line-color": "#7f8894",
+          "line-color": "#cfd6de",
           "line-width": 2,
           "line-dasharray": [2, 3],
-          "line-opacity": 0.75,
+          "line-opacity": 0.8,
         },
       });
       // Flown but unheard: also dashed, but amber — a different kind of
@@ -178,7 +240,7 @@ export function MapScreen() {
         source: FLOWN_UNHEARD,
         paint: {
           "line-color": "#c9a45c",
-          "line-width": 2.5,
+          "line-width": 2.6,
           "line-dasharray": [1.6, 2.2],
         },
       });
@@ -187,19 +249,21 @@ export function MapScreen() {
         id: FLOWN_HEARD,
         type: "line",
         source: FLOWN_HEARD,
-        paint: { "line-color": "#f0ece2", "line-width": 3 },
+        paint: { "line-color": "#f6f3ec", "line-width": 3.2 },
       });
       setReady(true);
     });
 
     // A finger on the map takes the camera. MapLibre's own eased moves carry
     // no originalEvent, which is exactly how a gesture is told apart from the
-    // two buttons calling fitBounds.
+    // buttons calling fitBounds.
     const seize = (e: any) => {
-      if (e?.originalEvent) setCamera("free");
+      if (e?.originalEvent) setView("free");
     };
     map.on("dragstart", seize);
     map.on("zoomstart", seize);
+    map.on("rotatestart", seize);
+    map.on("pitchstart", seize);
 
     const el = document.createElement("div");
     el.className = "ife-plane-marker";
@@ -255,49 +319,112 @@ export function MapScreen() {
     const line = arc(route.from, route.to);
     const bounds = line.reduce(
       (b, c) => b.extend(c as [number, number]),
-      new LngLatBounds(line[0] as [number, number], line[0] as [number, number]),
+      new LngLatBounds(
+        line[0] as [number, number],
+        line[0] as [number, number],
+      ),
     );
-    // Room on the left for the readout and on the right for the controls.
-    // Room for the readout along the bottom, and enough on the right that the
-    // destination's own label clears the controls rather than sliding under
-    // them — the padding has to hold the dot *and* the name hanging off it.
+    // Room for the readout along the bottom and for the control column on the
+    // right — the padding has to hold the destination's dot *and* the name
+    // hanging off it, or the label slides under the buttons.
     map.fitBounds(bounds, {
       padding: { top: 150, bottom: 230, left: 170, right: 400 },
-      duration: 600,
+      bearing: 0,
+      pitch: 0,
+      duration: 900,
     });
   }, [route.from, route.to]);
 
-  // Whichever camera is in force, applied when it changes and when the thing
-  // it follows moves. "free" is the passenger's, and nothing touches it.
+  /**
+   * Terrain costs tiles and it only earns them in the forward view, where the
+   * ground has to have shape. Everywhere else it is a flat globe, which is
+   * also what the reference cabin shows.
+   */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    if (camera === "route") fitRoute();
-    if (camera === "aircraft") {
+    if (view === "forward") {
+      if (!map.getTerrain())
+        map.setTerrain({ source: "dem", exaggeration: 1.3 });
+    } else if (map.getTerrain()) {
+      map.setTerrain(null);
+    }
+  }, [view, ready]);
+
+  // Whichever view is in force, applied when it changes and when the thing it
+  // follows moves. "free" is the passenger's, and nothing touches it.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    if (view === "route") fitRoute();
+    if (view === "globe") {
+      // Not a flat disc of a planet in the middle of the frame: the camera
+      // stands off and looks down at it, so the limb curves across the top
+      // and there is space above it. That is the shot every cabin globe uses,
+      // and it is the difference between a planet and a circle with a map in
+      // it.
+      map.easeTo({
+        center: [position.lon, position.lat],
+        zoom: 2.4,
+        pitch: 34,
+        bearing: 0,
+        offset: [0, 90],
+        duration: 1200,
+      });
+    }
+    if (view === "aircraft") {
       map.easeTo({
         center: [position.lon, position.lat],
         zoom: Math.max(map.getZoom(), 5),
+        pitch: 0,
+        bearing: 0,
         // The aircraft sits low in the frame, because what a passenger wants
-        // from this view is what is coming, not what has gone.
+        // from this view is what is coming.
         offset: [0, 150],
         duration: 700,
       });
     }
-  }, [camera, ready, fitRoute, position.lat, position.lon]);
+    if (view === "forward") {
+      // Standing at the aircraft, looking where it is pointed. The pitch is
+      // what makes this the view it is: the horizon has to be in the frame,
+      // and the country between here and it has to be readable.
+      map.easeTo({
+        center: [position.lon, position.lat],
+        zoom: 6.4,
+        pitch: 74,
+        bearing: position.headingDeg,
+        offset: [0, 210],
+        duration: 900,
+      });
+    }
+  }, [view, ready, fitRoute, position.lat, position.lon, position.headingDeg]);
 
   // Night, recomputed on the minute. The sun moves 0.25° of longitude in that
   // time, which is about a pixel at this zoom.
   useEffect(() => {
     if (!ready) return;
     const paint = () => {
-      const src = mapRef.current?.getSource(NIGHT) as any;
-      src?.setData({
+      const at = new Date();
+      (mapRef.current?.getSource(NIGHT) as any)?.setData({
         type: "FeatureCollection",
         features: [
           {
             type: "Feature",
             properties: {},
-            geometry: { type: "Polygon", coordinates: [nightRing(new Date())] },
+            geometry: { type: "Polygon", coordinates: [nightRing(at)] },
+          },
+        ],
+      });
+      (mapRef.current?.getSource(TERMINATOR) as any)?.setData({
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "LineString",
+              coordinates: terminatorLine(at),
+            },
           },
         ],
       });
@@ -374,8 +501,11 @@ export function MapScreen() {
       duration: 320,
     });
 
+  const forward = view === "forward";
+  const toDest = bearing(position, route.to);
+
   return (
-    <div className="ife-map">
+    <div className="ife-map" data-view={view}>
       <div ref={ref} style={{ position: "absolute", inset: 0 }} />
       {failed && (
         <div className="ife-map-fail">
@@ -384,10 +514,18 @@ export function MapScreen() {
         </div>
       )}
 
+      {/* The forward view is an instrument panel, as it is in the cabin this
+          is drawn from. It replaces the figures rather than joining them. */}
+      {forward && <Instruments position={position} bearingToDest={toDest} />}
+
       {/* On-glass controls rather than MapLibre's own: theirs ship a compass
-          nobody can use on a north-up map, at a size made for a mouse. */}
+          nobody can use, at a size made for a mouse. */}
       <div className="ife-mapctl">
-        <button className="ife-mapbtn" aria-label={t("zoomIn")} onClick={zoom(1)}>
+        <button
+          className="ife-mapbtn"
+          aria-label={t("zoomIn")}
+          onClick={zoom(1)}
+        >
           <IconPlus size={36} />
         </button>
         <button
@@ -399,47 +537,65 @@ export function MapScreen() {
         </button>
         <button
           className="ife-mapbtn"
+          aria-label={t("viewGlobe")}
+          data-on={view === "globe"}
+          onClick={() => setView("globe")}
+        >
+          <IconPlanet size={36} />
+        </button>
+        <button
+          className="ife-mapbtn"
+          aria-label={t("wholeRoute")}
+          data-on={view === "route"}
+          onClick={() => setView("route")}
+        >
+          <IconRoute size={36} />
+        </button>
+        <button
+          className="ife-mapbtn"
           aria-label={t("followAircraft")}
-          data-on={camera === "aircraft"}
-          onClick={() => setCamera("aircraft")}
+          data-on={view === "aircraft"}
+          onClick={() => setView("aircraft")}
         >
           <IconTarget size={36} />
         </button>
         <button
           className="ife-mapbtn"
-          aria-label={t("wholeRoute")}
-          data-on={camera === "route"}
-          onClick={() => setCamera("route")}
+          aria-label={t("viewForward")}
+          data-on={forward}
+          onClick={() => setView("forward")}
         >
-          <IconRoute size={36} />
+          <IconForward size={36} />
         </button>
       </div>
 
-      <div className="ife-map-readout">
-        <Readout
-          label={t("altitude")}
-          value={fmtInt(position.altFt)}
-          unit="ft"
-          inferred={!position.heard}
-        />
-        <Readout
-          label={t("groundSpeed")}
-          value={fmtInt(position.gsKt)}
-          unit="kt"
-          inferred={!position.heard}
-        />
-        <Readout
-          label={t("heading")}
-          value={`${Math.round(position.headingDeg).toString().padStart(3, "0")}°`}
-          inferred={!position.heard}
-        />
-        <Readout
-          label={t("distanceToGo")}
-          value={fmtInt(greatCircleKm(position, route.to))}
-          unit="km"
-          inferred={!position.heard}
-        />
-      </div>
+      {!forward && (
+        <div className="ife-map-readout">
+          <Readout
+            label={t("altitude")}
+            value={fmtInt(position.altFt)}
+            unit="ft"
+            inferred={!position.heard}
+          />
+          <Readout
+            label={t("groundSpeed")}
+            value={fmtInt(position.gsKt)}
+            unit="kt"
+            inferred={!position.heard}
+          />
+          <Readout
+            label={t("heading")}
+            value={`${Math.round(position.headingDeg).toString().padStart(3, "0")}°`}
+            inferred={!position.heard}
+          />
+          <Readout
+            label={t("distanceToGo")}
+            value={fmtInt(greatCircleKm(position, route.to))}
+            unit="km"
+            inferred={!position.heard}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -458,7 +614,9 @@ function Readout({
   return (
     <div>
       <div className="ife-cap">{label}</div>
-      <div className={`ife-figure-value ife-mono${inferred ? " ife-inferred" : ""}`}>
+      <div
+        className={`ife-figure-value ife-mono${inferred ? " ife-inferred" : ""}`}
+      >
         {value}
         {unit && <span className="ife-figure-unit">{unit}</span>}
       </div>

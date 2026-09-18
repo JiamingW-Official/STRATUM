@@ -195,6 +195,54 @@ test.describe("IFE bench", () => {
       "London",
     );
 
+    // The globe is a globe: the projection, not a picture of one.
+    await page.getByRole("button", { name: "Globe" }).click();
+    await expect
+      .poll(async () => (await cam()).zoom, { timeout: 5000 })
+      .toBeLessThan(3);
+    expect(
+      await page.evaluate(() => (window as any).__ifeMap.getProjection().type),
+    ).toBe("globe");
+
+    // The forward view stands at the aircraft and looks where it is pointed,
+    // and it is an instrument panel rather than a row of figures.
+    await page.getByRole("button", { name: "Forward view" }).click();
+    await expect(page.locator(".ife-inst")).toHaveCount(1);
+    await expect(page.locator(".ife-map-readout")).toHaveCount(0);
+    await expect
+      .poll(
+        async () => page.evaluate(() => (window as any).__ifeMap.getPitch()),
+        { timeout: 5000 },
+      )
+      .toBeGreaterThan(60);
+    const camera = await page.evaluate(() => ({
+      bearing: (window as any).__ifeMap.getBearing(),
+      terrain: !!(window as any).__ifeMap.getTerrain(),
+    }));
+    expect(camera.terrain, "the forward view needs relief").toBe(true);
+    // The instruments read the flight, not a mock: the same figures the
+    // level views print, in a box on a tape.
+    const inst = await page.locator(".ife-inst").textContent();
+    expect(inst).toContain("37,000");
+    expect(inst).toContain("480");
+    expect(inst).toContain(
+      Math.round(camera.bearing).toString().padStart(3, "0"),
+    );
+    // No attitude ladder. ADS-B carries no attitude, and the panel does not
+    // invent the one number nobody measured.
+    expect(inst).not.toContain("PITCH");
+
+    // Standing at the aircraft, the aircraft is not drawn.
+    await expect(page.locator(".ife-plane-marker")).toBeHidden();
+
+    await page.getByRole("button", { name: "Whole route" }).click();
+    await expect
+      .poll(
+        async () => page.evaluate(() => (window as any).__ifeMap.getPitch()),
+        { timeout: 5000 },
+      )
+      .toBeLessThan(2);
+
     // Night is computed from the clock and it is in the right place. Point
     // the camera at the spot the sun is directly over and nothing should be
     // shaded; point it at the opposite side of the earth and everything
