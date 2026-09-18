@@ -1,7 +1,7 @@
 import { useFlight, useSelf } from "../../flight-state/store";
 import type { ScreenName } from "../../flight-state/types";
 import { duration, fmtInt, localTime } from "../format";
-import { phrase, pick, useT, type Key } from "../i18n";
+import { phrase, pick, useT } from "../i18n";
 import { useDestination } from "../destination";
 import { conditionKey, useWeather } from "../weather";
 import { STATIONS } from "../stations";
@@ -30,10 +30,6 @@ import {
  * with things on it instead of two rectangles sharing a screen — and the last
  * column is cut by the edge on purpose, which is the only "scroll for more"
  * a thumb has ever needed.
- *
- * The left column says less than it used to. A paragraph of encyclopaedia and
- * a four-row weather table were two blocks of small type competing with a
- * photograph, and the photograph is the argument.
  */
 export function Home() {
   const setScreen = useSelf((s) => s.setScreen);
@@ -56,56 +52,139 @@ export function Home() {
   // The aviation film, which is the one this cabin would put on its home rail.
   const feature = FILMS[0];
   const remaining = Date.parse(etaUtc) - Date.now();
+  const landed = phase === "landed";
+  // The shelf's own span, which is a fact about it rather than a label on it.
+  const years = [
+    FILMS.reduce((a, f) => (f.year < a ? f.year : a), FILMS[0].year),
+    FILMS.reduce((a, f) => (f.year > a ? f.year : a), FILMS[0].year),
+  ];
 
   /**
    * The rail fills the glass rather than floating a row of equal squares in
    * it, and the sizes are mixed on purpose: a grid of identical tiles is a
    * contact sheet, and it forces every card to carry the same amount, which
-   * is never true. The flight map earns two rows, the weather earns two
-   * columns, and the rest take one of each.
+   * is never true.
    *
-   * Each card carries what it knows rather than a category name. "Movies"
-   * over "8 films" is a label over a count; a film's own title and year is
-   * the thing itself.
+   * Order is by what a hand actually reaches for, not by category: the film
+   * you could start now, the map, the shelf that film came from. A real cabin
+   * leads with something to watch, because that is what the screen is for;
+   * "flight information" leading a home screen is a filing cabinet's idea of
+   * a first row.
+   *
+   * Every card carries what it knows rather than a category name, and the
+   * two-row ones carry a small table of it — an icon with three words under it
+   * in a 300×460 box is mostly empty box.
    */
   const cards: Array<{
     key: string;
     screen?: ScreenName;
     onPress?: () => void;
+    /** Small type above the title: what kind of thing this card is. */
+    cap?: string;
     title: string;
     icon?: React.ReactNode;
-    lines: string[];
+    lines?: string[];
+    /** Label → value rows, aligned, for the cards with room for them. */
+    stats?: Array<[string, string]>;
     tall?: boolean;
     wide?: boolean;
     media?: "film" | "station";
+    /** Brass for the flight, cool for the world outside it. Nothing else. */
+    tint?: "brass" | "cool";
   }> = [
+    {
+      key: "film",
+      onPress: () => {
+        openFilm(feature.id);
+        setScreen("movies");
+      },
+      cap: lang === "zh" ? "正在放映" : "Now showing",
+      title: pick(feature.title, lang),
+      lines: [feature.year, feature.creator, runtime(feature, lang)],
+      tall: true,
+      media: "film",
+    },
     {
       key: "map",
       screen: "map",
+      cap: `${route.from.iata} → ${route.to.iata}`,
       title: t("flightMap"),
-      icon: <IconMap size={96} />,
-      lines: [
-        `${fmtInt(position.altFt)} ft`,
-        `${fmtInt(position.gsKt)} kt`,
-        `${Math.round(position.headingDeg).toString().padStart(3, "0")}°`,
+      stats: [
+        [t("altitude"), `${fmtInt(position.altFt)} ft`],
+        [t("groundSpeed"), `${fmtInt(position.gsKt)} kt`],
+        [
+          t("heading"),
+          `${Math.round(position.headingDeg).toString().padStart(3, "0")}°`,
+        ],
       ],
       tall: true,
+      tint: "brass",
     },
     {
-      key: "info",
-      screen: "flightInfo",
-      title: t("flightInformation"),
-      icon: <IconGauge size={96} />,
+      key: "movies",
+      screen: "movies",
+      title: t("movies"),
+      icon: <IconFilm size={118} />,
       lines: [
-        `${route.from.iata} → ${route.to.iata}`,
-        `${duration(Date.now() - Date.parse(departureUtc), lang)} ${t("elapsed")}`,
+        `${FILMS.length} ${lang === "zh" ? "部" : "films"}`,
+        lang === "zh" ? "公有领域" : "public domain",
+        `${years[0]}–${years[1]}`,
       ],
+    },
+    {
+      key: "weather",
+      screen: "flightInfo",
+      cap: pick(route.to.city, lang),
+      title: wx
+        ? `${Math.round(wx.tempC)}° ${conditionKey(wx.code)[lang === "zh" ? 1 : 0]}`
+        : "--°",
+      stats: wx
+        ? [
+            [t("feelsLike"), `${Math.round(wx.feelsC)}°`],
+            [t("wind"), `${Math.round(wx.windKph)} km/h`],
+            [
+              t("localTime"),
+              localTime(new Date().toISOString(), route.to),
+            ],
+          ]
+        : undefined,
+      wide: true,
+      tint: "cool",
+    },
+    {
+      key: "station",
+      screen: "music",
+      cap: playing ? t("nowPlaying") : lang === "zh" ? "电台" : "Radio",
+      title: playing ? now.title : now.station.name,
+      lines: playing
+        ? [now.artist, now.station.name]
+        : [`${now.station.tracks.length} ${lang === "zh" ? "首" : "tracks"}`],
+      media: "station",
+    },
+    {
+      key: "games",
+      screen: "games",
+      title: t("games"),
+      icon: <IconGames size={118} />,
+      lines: [t("sudoku"), t("overhead")],
+    },
+    {
+      key: "sky",
+      cap: lang === "zh" ? "机外" : "Outside",
+      title: t("theSky"),
+      icon: <IconSky size={118} />,
+      lines: [
+        t("liveAdsb"),
+        lang === "zh" ? "谁被听见，谁没有" : "who is heard, and who is not",
+      ],
+      tall: true,
+      tint: "cool",
     },
     {
       key: "music",
       screen: "music",
       title: t("music"),
-      icon: <IconMusic size={96} />,
+      icon: <IconMusic size={118} />,
       lines: [
         `${STATIONS.length} ${lang === "zh" ? "个频道" : "stations"}`,
         `${STATIONS.reduce((n, st) => n + st.tracks.length, 0)} ${
@@ -114,68 +193,31 @@ export function Home() {
       ],
     },
     {
-      key: "weather",
+      key: "info",
       screen: "flightInfo",
-      title: wx
-        ? `${Math.round(wx.tempC)}° ${conditionKey(wx.code)[lang === "zh" ? 1 : 0]}`
-        : "--°",
-      lines: wx
-        ? [
-            `${t("feelsLike")} ${Math.round(wx.feelsC)}°`,
-            `${t("wind")} ${Math.round(wx.windKph)} km/h`,
-            `${pick(route.to.city, lang)} ${localTime(
-              new Date().toISOString(),
-              route.to,
-            )}`,
-          ]
-        : [t("weather")],
-      wide: true,
-    },
-    {
-      key: "movies",
-      screen: "movies",
-      title: t("movies"),
-      icon: <IconFilm size={96} />,
+      cap: flightNo,
+      title: t("flightInformation"),
       lines: [
-        `${FILMS.length} ${lang === "zh" ? "部" : "films"}`,
-        lang === "zh" ? "公有领域" : "public domain",
+        `${duration(Date.now() - Date.parse(departureUtc), lang)} ${t("elapsed")}`,
+        landed
+          ? t("arrived")
+          : `${duration(remaining, lang)} ${lang === "zh" ? "剩余" : "to go"}`,
       ],
-    },
-    {
-      key: "games",
-      screen: "games",
-      title: t("games"),
-      icon: <IconGames size={96} />,
-      lines: [t("sudoku"), t("overhead")],
-    },
-    {
-      key: "film",
-      onPress: () => {
-        openFilm(feature.id);
-        setScreen("movies");
-      },
-      title: pick(feature.title, lang),
-      lines: [feature.year, runtime(feature, lang)],
-      tall: true,
-      media: "film",
-    },
-    {
-      key: "station",
-      screen: "music",
-      title: now.station.name,
-      lines: playing
-        ? [now.title, now.artist]
-        : [`${now.station.tracks.length} ${lang === "zh" ? "首" : "tracks"}`],
-      media: "station",
-    },
-    {
-      key: "sky",
-      title: t("theSky"),
-      icon: <IconSky size={96} />,
-      lines: [t("liveAdsb")],
-      tall: true,
+      tint: "brass",
     },
   ];
+
+  /** Under the countdown: aligned rows, because a list is not a paragraph. */
+  const facts: Array<[string, string]> = [
+    [t("arrival"), `${localTime(etaUtc, route.to)} ${route.to.iata}`],
+    [t("localTime"), localTime(new Date().toISOString(), route.to)],
+  ];
+  if (wx) {
+    facts.push([
+      t("weather"),
+      `${Math.round(wx.tempC)}° ${conditionKey(wx.code)[lang === "zh" ? 1 : 0]}`,
+    ]);
+  }
 
   return (
     <div className="ife-home">
@@ -192,7 +234,7 @@ export function Home() {
           {seat} · {flightNo}
         </div>
         {/* No label over the city. "NEXT STOP" was a caption introducing a
-            word set at 118px — the largest thing on the screen does not need
+            word set at 104px — the largest thing on the screen does not need
             to be announced, and in Chinese the phrase read as a signpost on a
             coach route. */}
         <div className="ife-home-city">{pick(route.to.city, lang)}</div>
@@ -200,34 +242,33 @@ export function Home() {
           {pick(route.to.name, lang)} · {route.to.iata}
         </div>
 
-        {/* One fact, at the size of a fact you look up from a book to read.
-            It had a brass bar down its left and a tinted box behind it, which
-            is what a layout does when it does not trust its own type. The
-            type is 86px against a 19px label; nothing else is needed. */}
-        <div className="ife-home-eta">
+        {/* One fact at the size of a fact, then the rest of them as a table.
+            Three blocks each with their own type sizes and their own left
+            edge read as three unrelated notices; one hero and one aligned
+            list reads as a column. */}
+        <div className="ife-home-count">
           <div className="ife-cap">
-            {phrase("timeToPlace", lang, pick(route.to.city, lang))}
+            {landed
+              ? t("arrived")
+              : phrase("timeToPlace", lang, pick(route.to.city, lang))}
           </div>
           <div
-            className={`ife-home-eta-value ife-mono${
-              etaInferred && phase !== "landed" ? " ife-inferred" : ""
+            className={`ife-home-count-value ife-mono${
+              etaInferred && !landed ? " ife-inferred" : ""
             }`}
           >
-            {phase === "landed" ? "——" : duration(remaining, lang)}
-          </div>
-          <div className="ife-home-eta-label ife-mono">
-            {localTime(etaUtc, route.to)} · {route.to.iata}
+            {landed ? localTime(etaUtc, route.to) : duration(remaining, lang)}
           </div>
         </div>
 
-        <div className="ife-home-wx">
-          <span className="ife-home-wx-temp ife-mono">
-            {wx ? `${Math.round(wx.tempC)}°` : "--°"}
-          </span>
-          <span className="ife-home-wx-cond">
-            {wx ? conditionKey(wx.code)[lang === "zh" ? 1 : 0] : "--"}
-          </span>
-        </div>
+        <dl className="ife-home-facts">
+          {facts.map(([label, value]) => (
+            <div key={label} className="ife-home-fact">
+              <dt className="ife-cap">{label}</dt>
+              <dd className="ife-mono">{value}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
       <div className="ife-rail-cards" role="navigation">
@@ -246,17 +287,34 @@ export function Home() {
                   refactor left the tallest card on the screen as an icon and
                   three numbers with a hole between them. */}
               {c.key === "map" && <RouteMini />}
+              {c.cap && <span className="ife-card-cap ife-cap">{c.cap}</span>}
               <span className="ife-card-name">{c.title}</span>
-              <span className="ife-card-lines ife-mono">
-                {c.lines.filter(Boolean).map((l) => (
-                  <span key={l}>{l}</span>
-                ))}
-              </span>
+              {c.lines && (
+                <span className="ife-card-lines ife-mono">
+                  {c.lines.filter(Boolean).map((l) => (
+                    <span key={l}>{l}</span>
+                  ))}
+                </span>
+              )}
+              {c.stats && (
+                <span className="ife-card-stats">
+                  {c.stats.map(([label, value]) => (
+                    <span key={label} className="ife-card-stat">
+                      <span className="ife-cap">{label}</span>
+                      <span className="ife-mono">{value}</span>
+                    </span>
+                  ))}
+                </span>
+              )}
             </>
           );
           const shared = {
+            /* Which card this is, for a test that should not have to find the
+               weather by asking which card happens to be two columns wide. */
+            "data-key": c.key,
             "data-tall": !!c.tall,
             "data-wide": !!c.wide,
+            "data-tint": c.tint,
             style:
               c.media === "station"
                 ? ({
@@ -285,7 +343,6 @@ export function Home() {
           );
         })}
       </div>
-
     </div>
   );
 }

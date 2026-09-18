@@ -10,6 +10,7 @@ import { FlightInfo } from "./screens/FlightInfo";
 import { Music } from "./screens/Music";
 import { Movies } from "./screens/Movies";
 import { Games } from "./screens/Games";
+import { Menu } from "./screens/Menu";
 import { Screening } from "./screens/Screening";
 import { PAOverlay } from "./screens/PAOverlay";
 import { usePlayer } from "./player";
@@ -115,6 +116,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
       />
       <div className="ife-stage">
         {screen === "home" && <Home />}
+        {screen === "menu" && <Menu seat={seat} bridge={bridge} />}
         {screen === "map" && <MapScreen />}
         {screen === "flightInfo" && <FlightInfo />}
         {screen === "music" && <Music />}

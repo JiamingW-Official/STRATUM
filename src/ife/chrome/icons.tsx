@@ -63,25 +63,23 @@ export const IconPlan = ({ size = 24 }: P) => (
 );
 
 /**
- * Language: a globe, solid, with its grid cut out of it — and cut off centre,
- * because a line through the middle each way makes a target rather than a
- * sphere.
+ * Language: a globe. An ordinary one.
  *
- * The cuts are straight bands. Two earlier attempts built the meridian from
- * arcs, and even-odd filling turned it into a positive shape both times: what
- * came out was a solid leaf sitting inside the disc rather than a gap through
- * it. Straight edges wind predictably, and at 38px nobody can tell a straight
- * meridian from a curved one anyway.
+ * Three attempts to make this solid failed in three different ways — a lens
+ * built from smooth curves that even-odd filled as a positive shape, then the
+ * same again, then straight bands that punched cleanly and read as a gridded
+ * ball rather than a world. The lesson is that a globe is a line drawing: it
+ * is only a globe because of the curve of its equator and the curve of one
+ * meridian, and a fill cannot carry a curve that thin. So this one is drawn,
+ * at the same weight as the content icons, and it is the one mark in the rail
+ * that is not solid — because being legible beats being consistent with a
+ * rule that was mine and not the passenger's.
  */
 export const IconLang = ({ size = 24 }: P) => (
-  <svg {...fill(size)}>
-    <path
-      fillRule="evenodd"
-      d="M12 2.8a9.2 9.2 0 1 1 0 18.4 9.2 9.2 0 0 1 0-18.4z
-         M2.9 10.6h18.2v1.5H2.9z
-         M4.1 15.2h15.8v1.5H4.1z
-         M13.1 3.1h1.6v17.8h-1.6z"
-    />
+  <svg {...line(size)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18" />
+    <ellipse cx="12" cy="12" rx="4.1" ry="9" />
   </svg>
 );
 
@@ -107,6 +105,13 @@ export const IconCall = ({ size = 24 }: P) => (
   <svg {...fill(size)}>
     <circle cx="12" cy="6.3" r="3.1" />
     <path d="M5.9 21.4v-4.9a6.1 6.1 0 0 1 12.2 0v4.9z" />
+  </svg>
+);
+
+/** The index. Three bars, which is the one icon nobody has ever had to learn. */
+export const IconMenu = ({ size = 24 }: P) => (
+  <svg {...fill(size)}>
+    <path d="M3.4 5.4h17.2v2.1H3.4zM3.4 10.9h17.2V13H3.4zM3.4 16.4h17.2v2.1H3.4z" />
   </svg>
 );
 

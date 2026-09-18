@@ -184,7 +184,7 @@ test.describe("IFE bench", () => {
         timeout: 30_000,
       })
       .catch(() => null);
-    const temp = page.locator(".ife-home-wx-temp");
+    const temp = page.locator('.ife-card[data-key="weather"] .ife-card-name');
     if (wx && wx.ok()) {
       await expect(temp).not.toHaveText("--°", { timeout: 20_000 });
     } else {
@@ -258,7 +258,9 @@ test.describe("IFE bench", () => {
     await expect(page.locator(".ife-strip-remaining")).toContainText("小时");
     // And a phrase that takes a place name has to put it where that language
     // puts it: "Time to London" is "距伦敦还有", not "还有 伦敦".
-    await expect(page.locator(".ife-home-eta .ife-cap")).toHaveText("距伦敦还有");
+    await expect(page.locator(".ife-home-count .ife-cap")).toHaveText(
+      "距伦敦还有",
+    );
 
     await page.getByRole("button", { name: "语言" }).click();
     await page.getByRole("button", { name: "English" }).click();
@@ -294,6 +296,37 @@ test.describe("IFE bench", () => {
 
     await page.locator(".ife-pop-away").click();
     await expect(page.locator(".ife-vol")).toHaveCount(0);
+  });
+
+  test("the menu is an index of everything, and it works", async ({ page }) => {
+    await openBench(page);
+    await page.locator(".ife-idle").click();
+
+    // The rail's first placard. The home rail scrolls sideways, so a page
+    // that lists what is on board is not a duplicate of it.
+    await rail(page, "Menu").click();
+    const menu = page.locator(".ife-menu-screen");
+    await expect(menu).toContainText("Flight");
+    await expect(menu).toContainText("Entertainment");
+    await expect(menu).toContainText("Cabin");
+
+    // The counts on it are the real manifest, not a label.
+    await expect(menu).toContainText("8 films");
+
+    // The cabin controls act, rather than pointing at the rail. The switch
+    // lives in SeatPrivate, so the rail's own placard has to agree.
+    const light = menu.getByRole("button", { name: "Reading light" });
+    await expect(light).toHaveAttribute("data-on", "false");
+    await light.click();
+    await expect(light).toHaveAttribute("data-on", "true");
+    await expect(rail(page, "Reading light")).toHaveAttribute(
+      "data-on",
+      "true",
+    );
+
+    // And it navigates: the map is one press away from the index.
+    await menu.getByRole("button", { name: "Flight map" }).click();
+    await expect(page.locator(".ife-menu-screen")).toHaveCount(0);
   });
 
   test("changing the seat updates the idle screen", async ({ page }) => {

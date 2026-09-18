@@ -176,15 +176,18 @@
   border: 1.5px solid var(--faint);
 }
 
+/* The time you land, not a headline. At 62px it was larger than either city
+   name beside it, which made the strip read as a clock with a route attached
+   to it rather than a route with a clock at the end. */
 .ife-strip-arrival {
-  margin-left: 20px;
+  margin-left: 22px;
   display: flex;
   align-items: baseline;
   gap: 12px;
 }
 
 .ife-strip-arrival-time {
-  font-size: 62px;
+  font-size: 42px;
   font-weight: 400;
   letter-spacing: -0.01em;
 }
@@ -224,34 +227,25 @@
   letter-spacing: -0.01em;
 }
 
+/* No hover, no frame. This is a touch screen: nothing ever hovers, and a
+   button that is only a symbol does not need a box drawn round it to be a
+   button — the symbol is the target and the whole 86px square is the hit
+   area. What is left to show is which screen you are on, and that is a change
+   of colour rather than a chip. */
 .ife-tool {
   appearance: none;
   background: transparent;
   border: 0;
   color: var(--dim);
   font: inherit;
-  font-size: 24px;
-  height: 78px;
-  min-width: 78px;
-  padding: 0 16px;
-  border-radius: 12px;
+  height: 86px;
+  min-width: 86px;
+  padding: 0 14px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  transition:
-    color 130ms ease,
-    background-color 130ms ease;
-}
-
-.ife-tool-value {
-  font-size: 24px;
-}
-
-.ife-tool:hover {
-  color: var(--fg);
-  background: rgba(var(--text-rgb), 0.05);
+  transition: color 130ms ease;
 }
 
 .ife-tool[data-on="true"] {
@@ -264,7 +258,6 @@
 
 .ife-tool[data-current="true"] {
   color: var(--fg);
-  background: rgba(var(--text-rgb), 0.07);
 }
 
 .ife-tool svg {
@@ -345,25 +338,22 @@
   cursor: default;
 }
 
-/* Louder is up. A horizontal bar for a vertical quantity asks the hand to
-   translate one into the other. */
-.ife-volwrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 6px 0 2px;
-}
-
+/* Louder is up, and the bar is the readout: its height is the value, so a
+   number beside it would say the same thing twice. */
 .ife-vol {
-  position: relative;
-  width: 82px;
-  height: 360px;
-  border-radius: 32px;
-  background: rgba(var(--text-rgb), 0.12);
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  margin-left: -13px;
+  z-index: 30;
+  width: 26px;
+  height: 300px;
+  border-radius: 13px;
+  background: rgba(var(--text-rgb), 0.14);
   overflow: hidden;
   cursor: pointer;
   touch-action: none;
+  animation: ife-pop-in 160ms ease both;
 }
 
 .ife-vol-fill {
@@ -372,11 +362,6 @@
   right: 0;
   bottom: 0;
   background: var(--accent);
-}
-
-.ife-vol-read {
-  font-size: 32px;
-  color: var(--dim);
 }
 
 /* ── Screen body ─────────────────────────────────────────────────────── */
@@ -519,31 +504,11 @@
   margin-top: 14px;
 }
 
+/* The clock is the only thing down here now, and it stays where it was. */
 .ife-idle-bottom {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
-  gap: 60px;
-}
-
-.ife-idle-welcome {
-  color: var(--dim);
-  max-width: 820px;
-}
-
-.ife-idle-hint {
-  margin-top: 26px;
-  animation: ife-breathe 4.5s ease-in-out infinite;
-}
-
-@keyframes ife-breathe {
-  0%,
-  100% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 0.9;
-  }
+  justify-content: flex-end;
 }
 
 .ife-idle-clock {
@@ -610,48 +575,51 @@
   margin-top: 16px;
 }
 
-.ife-home-eta {
-  margin-top: 52px;
+.ife-home-count {
+  margin-top: 46px;
 }
 
-.ife-home-eta-value {
-  font-size: 86px;
+.ife-home-count-value {
+  font-size: 92px;
   font-weight: 300;
   letter-spacing: -0.035em;
   line-height: 1;
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
-.ife-home-eta-label {
-  color: var(--dim);
-  font-size: 24px;
-  margin-top: 14px;
-  letter-spacing: 0.04em;
-}
-
-.ife-home-wx {
+/* Arrival, local time, weather. These were three separately styled blocks
+   drifting down the column, one of them with its own 44px number, and the
+   countdown above them showed "——" on the ground, which read as a dash
+   somebody forgot to fill in. A label column and a value column, both aligned,
+   is what a cabin placard does, and it says on the ground that you have
+   arrived rather than punctuating at you. */
+.ife-home-facts {
+  margin: 44px 0 0;
   display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 540px;
+}
+
+.ife-home-fact {
+  display: grid;
+  grid-template-columns: 210px 1fr;
   align-items: baseline;
-  gap: 24px;
-  margin-top: 52px;
-  color: var(--dim);
-  font-size: 23px;
+  gap: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  padding-top: 17px;
 }
 
-.ife-home-wx-temp {
-  font-size: 44px;
-  font-weight: 300;
+.ife-home-fact:first-child {
+  box-shadow: none;
+  padding-top: 0;
+}
+
+.ife-home-fact dd {
+  margin: 0;
+  font-size: 30px;
   color: var(--fg);
-  letter-spacing: -0.02em;
-}
-
-.ife-home-wx-cond {
-  color: var(--accent-bright);
-  font-size: 26px;
-}
-
-.ife-home-wx-apt {
-  color: var(--faint);
+  letter-spacing: -0.01em;
 }
 
 /* Two rows, pushed sideways with a thumb. They start well left of centre so
@@ -712,9 +680,9 @@
 .ife-card {
   appearance: none;
   scroll-snap-align: start;
-  background: rgba(9, 11, 16, 0.88);
-  -webkit-backdrop-filter: blur(10px) saturate(1.2);
-  backdrop-filter: blur(10px) saturate(1.2);
+  background: rgba(16, 19, 26, 0.8);
+  -webkit-backdrop-filter: blur(12px) saturate(1.35);
+  backdrop-filter: blur(12px) saturate(1.35);
   border: 0;
   border-radius: 10px;
   box-shadow: var(--pane);
@@ -724,7 +692,13 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 40px 38px 34px;
+  /* A card is a <button>, and a button centres its text. Every figure and
+     every line on this rail was sitting centred under a left-aligned title
+     because one rule said `text-align: left` and the element it said it to
+     was not the one holding the numbers. */
+  text-align: left;
+  padding: 32px 30px 30px;
+  gap: 10px;
 }
 
 /* No hover state. This is a touch screen: a pointer never rests on a card, so
@@ -738,9 +712,102 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), var(--lift-sm);
 }
 
+/* The icon floats between the top of the card and its text rather than being
+   pinned to the top edge with a hole under it: two auto margins in the column
+   split the slack, which puts the mark in the upper third and closes the gap
+   that made these cards look unfinished. */
 .ife-card-icon {
   color: var(--accent-bright);
   display: block;
+  margin-top: auto;
+}
+
+/* Two tints, each carrying a meaning the work already uses: brass is the
+   flight itself, and cool is the world outside the window — the same pair,
+   with the same jobs, as the sky view upstairs. A third hue would be
+   decoration, so there is no third. The tint replaces the card's own top
+   specular rather than adding an outline to it. */
+.ife-card[data-tint="brass"] {
+  box-shadow: inset 0 1px 0 rgba(219, 182, 108, 0.3), var(--lift);
+}
+
+.ife-card[data-tint="cool"] {
+  box-shadow: inset 0 1px 0 rgba(106, 173, 204, 0.32), var(--lift);
+}
+
+.ife-card[data-tint="cool"] .ife-card-icon,
+.ife-card[data-tint="cool"] .ife-card-cap {
+  color: var(--cool);
+}
+
+/* What kind of thing this card is, above its title, so the title can be the
+   thing itself: "Now showing" over a film's name rather than "Movies" over a
+   count of them. */
+.ife-card-cap {
+  display: block;
+}
+
+.ife-card--media .ife-card-cap {
+  color: var(--accent-bright);
+}
+
+/* The two-row cards used to be an icon, a label and a hole. A card with room
+   for a table gets the table: label left, value right, aligned down the
+   column, which is how every figure in this cabin is already set. */
+.ife-card-stats {
+  margin-top: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Label over value, not label beside it. Side by side, "GROUND SPEED" and
+   "480 kt" together are wider than a 300px column, and both wrapped — a
+   two-line label next to a two-line number is unreadable at arm's length,
+   while a stacked pair always fits and is how the figure is set everywhere
+   else in this cabin. */
+.ife-card-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  padding-top: 15px;
+  min-width: 0;
+}
+
+.ife-card-stat:first-child {
+  box-shadow: none;
+  padding-top: 0;
+}
+
+.ife-card-stat > span {
+  white-space: nowrap;
+}
+
+.ife-card-stat > span:last-child {
+  font-size: 32px;
+  letter-spacing: -0.01em;
+}
+
+/* A card two columns wide has its table across rather than down: three
+   stacked pairs in a 622px box left the right two thirds of it empty. */
+.ife-card[data-wide="true"] .ife-card-stats {
+  flex-direction: row;
+  gap: 34px;
+}
+
+.ife-card[data-wide="true"] .ife-card-stat {
+  flex: 1;
+  box-shadow: none;
+  padding-top: 0;
+}
+
+/* A card with a table puts its name directly under its cap: the table already
+   has the auto margin that pins it to the floor of the card, and two auto
+   margins in one column split the slack and leave the title floating. */
+.ife-card:has(.ife-card-stats) .ife-card-name {
+  margin-top: 4px;
 }
 
 /* A card that is a piece of media shows the media. */
@@ -757,28 +824,48 @@
   z-index: 0;
 }
 
+/* The colour on this screen comes from the photograph and the film still,
+   which is the only place it can come from honestly. The still was dimmed to
+   0.62 and desaturated, which turned every media card the same grey as the
+   ones that are not media. */
 .ife-card-still {
   background-size: cover;
   background-position: center;
-  filter: saturate(0.8) brightness(0.62);
+  filter: saturate(1.05) brightness(0.8);
 }
 
+.ife-card--media .ife-card-still::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(7, 8, 11, 0.94) 0%,
+    rgba(7, 8, 11, 0.5) 42%,
+    rgba(7, 8, 11, 0.06) 100%
+  );
+}
+
+/* The station's own colour, turned down. At 0.9 over a saturated magenta the
+   card was the brightest thing on the glass and read as a gradient somebody
+   reached for, not as a station's colour. */
 .ife-card-swatch {
   background:
-    linear-gradient(to top, rgba(7, 8, 11, 0.86) 0%, transparent 62%),
+    linear-gradient(to top, rgba(7, 8, 11, 0.93) 0%, rgba(7, 8, 11, 0.36) 74%),
     var(--stationColor);
-  opacity: 0.9;
+  opacity: 0.55;
 }
 
 .ife-card--media {
   position: relative;
 }
 
+.ife-card--media .ife-card-cap,
 .ife-card--media .ife-card-name,
 .ife-card--media .ife-card-lines {
   position: relative;
   z-index: 1;
-  padding: 0 32px;
+  padding: 0 30px;
 }
 
 .ife-card--media .ife-card-name {
@@ -786,7 +873,7 @@
 }
 
 .ife-card--media .ife-card-lines {
-  padding-bottom: 32px;
+  padding-bottom: 30px;
 }
 
 .ife-card[data-soon="true"] .ife-card-icon {
@@ -796,21 +883,20 @@
 .ife-card-name {
   margin-top: auto;
   font-family: var(--font-display);
-  font-size: 36px;
+  font-size: 38px;
   font-weight: 500;
   letter-spacing: -0.015em;
-  text-align: left;
   line-height: 1.1;
 }
 
 /* A card says several things, one per line, rather than one thing with the
    others cut off by an ellipsis. */
 .ife-card-lines {
-  margin-top: 12px;
+  margin-top: 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 22px;
+  gap: 6px;
+  font-size: 23px;
   color: var(--faint);
   max-width: 100%;
 }
@@ -2245,4 +2331,105 @@
 .ife-film-detail-nodesc {
   color: var(--faint);
   font-style: italic;
+}
+
+/* ── Menu ────────────────────────────────────────────────────────────────
+   Every seat-back system has this page behind a hamburger, and it is not a
+   duplicate of home: home is a shelf that shows you things, this is an index
+   that tells you what is on board. The difference matters here because the
+   shelf scrolls sideways — a passenger who has pushed it three columns along
+   has no way to know what is off the end of it.
+
+   Three columns rather than one long list, because the list is short enough to
+   fit on the glass at once, and a page you have to scroll to see all of is not
+   an index. */
+.ife-menu-screen {
+  position: absolute;
+  inset: 0;
+  padding: 16px var(--gutter) var(--gutter);
+  display: flex;
+  flex-direction: column;
+}
+
+/* The rows stretch to the floor of the glass rather than stacking at their
+   natural height and leaving the bottom half of the page empty. Three groups
+   three deep is what makes that work, and it is why the cabin group carries
+   language as well as the two switches. */
+.ife-menu-cols {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
+  padding-top: 14px;
+}
+
+.ife-menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+}
+
+.ife-menu-row {
+  flex: 1;
+  min-height: 0;
+}
+
+.ife-menu-group-name {
+  color: var(--accent-bright);
+  padding-bottom: 6px;
+  box-shadow: inset 0 -1px 0 rgba(219, 182, 108, 0.26);
+}
+
+.ife-menu-row {
+  appearance: none;
+  background: rgba(16, 19, 26, 0.72);
+  border: 0;
+  border-radius: 10px;
+  box-shadow: var(--pane);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 26px 34px;
+}
+
+/* On is brass, as everywhere in this cabin. */
+.ife-menu-row[data-on="true"] {
+  background: rgba(201, 164, 92, 0.16);
+  box-shadow: inset 0 1px 0 rgba(219, 182, 108, 0.34), var(--lift-sm);
+}
+
+.ife-menu-row-icon {
+  color: var(--accent-bright);
+  display: flex;
+  justify-content: center;
+  flex: 0 0 56px;
+}
+
+.ife-menu-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ife-menu-row-label {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.ife-menu-row-note {
+  font-size: 23px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

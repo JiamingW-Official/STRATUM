@@ -6,6 +6,7 @@ import { currentTrack, usePlayer } from "../player";
 import {
   IconCall,
   IconHome,
+  IconMenu,
   IconLang,
   IconLight,
   IconPlan,
@@ -69,15 +70,22 @@ export function BottomRail({
         <span className="ife-seat-chip-no">{seat}</span>
       </div>
 
+      {/* The index of everything, which a shelf that scrolls cannot be. */}
+      <RailButton
+        label={t("menu")}
+        icon={<IconMenu size={46} />}
+        current={screen === "menu"}
+        onClick={go("menu")}
+      />
       <RailButton
         label={t("home")}
-        icon={<IconHome size={38} />}
+        icon={<IconHome size={46} />}
         current={screen === "home"}
         onClick={go("home")}
       />
       <RailButton
         label={t("flightMap")}
-        icon={<IconPlan size={38} />}
+        icon={<IconPlan size={46} />}
         current={screen === "map"}
         onClick={go("map")}
       />
@@ -110,7 +118,7 @@ export function BottomRail({
         open={pop === "lang"}
         onToggle={() => setPop(pop === "lang" ? null : "lang")}
         label={t("language")}
-        icon={<IconLang size={38} />}
+        icon={<IconLang size={46} />}
       >
         <div className="ife-pop-title ife-cap">{t("language")}</div>
         {(
@@ -134,20 +142,28 @@ export function BottomRail({
         ))}
       </Popover>
 
-      <Popover
-        open={pop === "volume"}
-        onToggle={() => setPop(pop === "volume" ? null : "volume")}
-        label={t("volume")}
-        icon={<IconVolume size={38} />}
-        value={Math.round(volume * 100)}
-      >
-        <div className="ife-pop-title ife-cap">{t("volume")}</div>
-        <VolumeColumn value={volume} onChange={setVolume} />
-      </Popover>
+      {/* Volume is a bar, and nothing else: no panel, no label, no number.
+          It stands directly above its own button so the thing you press and
+          the thing that answers are in one column — which is how a volume
+          rocker on an armrest works, and it needs no explaining. */}
+      <div className="ife-pop-anchor">
+        <button
+          className="ife-tool"
+          onClick={() => setPop(pop === "volume" ? null : "volume")}
+          aria-label={t("volume")}
+          title={t("volume")}
+          aria-expanded={pop === "volume"}
+        >
+          <IconVolume size={46} />
+        </button>
+        {pop === "volume" && (
+          <VolumeColumn value={volume} onChange={setVolume} />
+        )}
+      </div>
 
       <RailButton
         label={t("readingLight")}
-        icon={<IconLight size={38} />}
+        icon={<IconLight size={46} />}
         on={light}
         pressed={light}
         onClick={() => bridge.setReadingLight(!light)}
@@ -156,7 +172,7 @@ export function BottomRail({
           light it turned on is above your head and everyone can see it. */}
       <RailButton
         label={calling ? t("cancelCall") : t("callAttendant")}
-        icon={<IconCall size={38} />}
+        icon={<IconCall size={46} />}
         alert={calling}
         pressed={calling}
         onClick={() => bridge.callAttendant(!calling)}
@@ -211,14 +227,12 @@ function Popover({
   onToggle,
   label,
   icon,
-  value,
   children,
 }: {
   open: boolean;
   onToggle: () => void;
   label: string;
   icon: React.ReactNode;
-  value?: number;
   children: React.ReactNode;
 }) {
   return (
@@ -232,9 +246,6 @@ function Popover({
         data-current={open}
       >
         {icon}
-        {value !== undefined && (
-          <span className="ife-tool-value ife-mono">{value}</span>
-        )}
       </button>
       {open && <div className="ife-pop">{children}</div>}
     </div>
@@ -242,13 +253,16 @@ function Popover({
 }
 
 /**
- * A vertical column, because that is the shape of the thing it sets: louder is
- * up, and a horizontal bar asks you to translate left and right into it.
+ * A bare vertical bar, directly above its button.
+ *
+ * It had been a panel with a title and a readout, which is three pieces of
+ * furniture around one quantity. The bar is the readout: its height is the
+ * value, so a number beside it says the same thing twice.
  *
  * It reads the pointer's offset inside its own track, never a bounding rect —
- * the same rule the film's scrub bar follows and for the same reason: under
- * the CSS 3D transform that puts this screen on a seat back, a bounding rect
- * is the projected quad and arithmetic against it comes out wrong.
+ * the rule the film's scrub bar follows and for the same reason: under the CSS
+ * 3D transform that puts this screen on a seat back, a bounding rect is the
+ * projected quad and arithmetic against it comes out wrong.
  */
 function VolumeColumn({
   value,
@@ -268,31 +282,28 @@ function VolumeColumn({
     onChange(Math.round(frac * 20) / 20);
   };
   return (
-    <div className="ife-volwrap">
-      <div
-        className="ife-vol"
-        role="slider"
-        aria-orientation="vertical"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(value * 100)}
-        onPointerDown={(e) => {
-          dragging.current = true;
-          set(e);
-        }}
-        onPointerMove={(e) => {
-          if (dragging.current && e.buttons === 1) set(e);
-        }}
-        onPointerUp={() => {
-          dragging.current = false;
-        }}
-        onPointerLeave={() => {
-          dragging.current = false;
-        }}
-      >
-        <span className="ife-vol-fill" style={{ height: `${value * 100}%` }} />
-      </div>
-      <span className="ife-vol-read ife-mono">{Math.round(value * 100)}</span>
+    <div
+      className="ife-vol"
+      role="slider"
+      aria-orientation="vertical"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(value * 100)}
+      onPointerDown={(e) => {
+        dragging.current = true;
+        set(e);
+      }}
+      onPointerMove={(e) => {
+        if (dragging.current && e.buttons === 1) set(e);
+      }}
+      onPointerUp={() => {
+        dragging.current = false;
+      }}
+      onPointerLeave={() => {
+        dragging.current = false;
+      }}
+    >
+      <span className="ife-vol-fill" style={{ height: `${value * 100}%` }} />
     </div>
   );
 }

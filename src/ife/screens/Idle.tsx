@@ -75,10 +75,13 @@ export function Idle({ seat }: { seat: string }) {
         </div>
 
         <div className="ife-idle-bottom">
-          {/* "Welcome aboard. Your screen is ready whenever you are." is the
-              voice of a brand, not of this work, and it told a passenger
-              nothing the blinking hint below does not. */}
-          <div className="ife-idle-hint ife-cap">{t("touchToBegin")}</div>
+          {/* Nothing is written here. "Welcome aboard, your screen is ready
+              whenever you are" was the voice of a brand rather than of this
+              work, and "Touch anywhere to begin" replaced it with an
+              instruction to do the one thing a person holding a dark
+              touchscreen already does. The label stays on the button for a
+              screen reader, which genuinely cannot see that the whole glass
+              is pressable. */}
           <div className="ife-idle-clock">
             <div className="ife-cap">
               {pick(route.to.city, lang)} · {t("localTime")}
