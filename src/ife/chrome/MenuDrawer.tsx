@@ -3,9 +3,14 @@ import { useCabin, useSelf } from "../../flight-state/store";
 import type { IFEBridge, ScreenName } from "../../flight-state/types";
 import { useT, type Key } from "../i18n";
 import { useNav } from "../nav";
+import { usePlayer } from "../player";
 import {
   IconCall,
   IconChat,
+  IconNext,
+  IconPause,
+  IconPlay,
+  IconPrev,
   IconFilm,
   IconGames,
   IconGauge,
@@ -46,6 +51,10 @@ export function MenuDrawer({
   const { t } = useT();
   const self = useCabin((s) => s.seats[seat]);
   const panel = useRef<HTMLDivElement | null>(null);
+  const playing = usePlayer((s) => s.playing);
+  const toggle = usePlayer((s) => s.toggle);
+  const next = usePlayer((s) => s.next);
+  const prev = usePlayer((s) => s.prev);
 
   // Escape closes it, and so does the hardware key a bench has and a seat
   // does not. Cheap, and it keeps the drawer from being a trap.
@@ -199,7 +208,59 @@ export function MenuDrawer({
             <section key={g.key} className="ife-drawer-group">
               <div className="ife-drawer-group-name ife-cap">{t(g.key)}</div>
               {g.items.map((it) =>
-                it.href ? (
+                /* The music row is not only a door. A menu that can take you
+                   to the music but cannot pause it is asking you to travel to
+                   press a button — so this row carries the transport, and the
+                   label beside it still goes to the page. It is a div with
+                   buttons in it rather than a button with buttons in it,
+                   which is not a thing. */
+                it.key === "music" ? (
+                  <div key={it.key} className="ife-drawer-row" data-row="music">
+                    <button
+                      className="ife-drawer-rowmain"
+                      data-current={screen === "music"}
+                      tabIndex={open ? 0 : -1}
+                      onClick={it.onPress}
+                    >
+                      <Row icon={it.icon} label={it.label} />
+                    </button>
+                    {/* No track title here. It sat between the row's own
+                        label and the keys, clipped to a fragment, and the row
+                        already says Music — the point of this is the keys. */}
+                    <span className="ife-drawer-now">
+                      <span className="ife-drawer-transport">
+                        <button
+                          className="ife-transport"
+                          aria-label={t("previous")}
+                          tabIndex={open ? 0 : -1}
+                          onClick={prev}
+                        >
+                          <IconPrev size={26} />
+                        </button>
+                        <button
+                          className="ife-transport"
+                          aria-label={playing ? t("pause") : t("play")}
+                          tabIndex={open ? 0 : -1}
+                          onClick={toggle}
+                        >
+                          {playing ? (
+                            <IconPause size={28} />
+                          ) : (
+                            <IconPlay size={28} />
+                          )}
+                        </button>
+                        <button
+                          className="ife-transport"
+                          aria-label={t("next")}
+                          tabIndex={open ? 0 : -1}
+                          onClick={next}
+                        >
+                          <IconNext size={26} />
+                        </button>
+                      </span>
+                    </span>
+                  </div>
+                ) : it.href ? (
                   <a
                     key={it.key}
                     className="ife-drawer-row"

@@ -16,6 +16,9 @@ type PlayerState = {
   playing: boolean;
   /** 0–1 through the current track. */
   progress: number;
+  /** Seconds. 0 until the file has enough of itself to say. */
+  elapsed: number;
+  duration: number;
   /** Set while an announcement holds the cabin, so playback can be restored. */
   interrupted: boolean;
 
@@ -23,6 +26,10 @@ type PlayerState = {
   pause: () => void;
   toggle: () => void;
   next: () => void;
+  /** Back to the top of this track, or to the one before if you are at it. */
+  prev: () => void;
+  /** 0–1 through the current track. */
+  seek: (f: number) => void;
   select: (stationIdx: number, trackIdx: number) => void;
   setVolume: (v: number) => void;
   /** Called when a PA override starts and ends. */
@@ -39,6 +46,8 @@ function audio(): HTMLAudioElement {
     const a = el!;
     usePlayer.setState({
       progress: a.duration ? a.currentTime / a.duration : 0,
+      elapsed: a.currentTime || 0,
+      duration: a.duration || 0,
     });
   });
   el.addEventListener("ended", () => usePlayer.getState().next());
@@ -57,6 +66,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   stationIdx: 0,
   trackIdx: 0,
   playing: false,
+  elapsed: 0,
+  duration: 0,
   progress: 0,
   interrupted: false,
 
@@ -75,6 +86,27 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     set({ playing: false });
   },
   toggle: () => (get().playing ? get().pause() : get().play()),
+  /**
+   * The rule every player has settled on, for a reason: three seconds in,
+   * "back" means the start of this one, because that is what a person who
+   * presses it in the middle of a song wants.
+   */
+  prev: () => {
+    const a = audio();
+    if (a.currentTime > 3) {
+      a.currentTime = 0;
+      return;
+    }
+    const { stationIdx, trackIdx, playing } = get();
+    const n = STATIONS[stationIdx].tracks.length;
+    set({ trackIdx: (trackIdx - 1 + n) % n, progress: 0, elapsed: 0 });
+    if (playing) get().play();
+  },
+  seek: (f) => {
+    const a = audio();
+    if (!a.duration) return;
+    a.currentTime = Math.max(0, Math.min(1, f)) * a.duration;
+  },
   next: () => {
     const { stationIdx, trackIdx, playing } = get();
     const n = (trackIdx + 1) % STATIONS[stationIdx].tracks.length;

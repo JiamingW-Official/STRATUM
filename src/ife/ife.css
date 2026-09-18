@@ -240,9 +240,20 @@
    button — the symbol is the target and the whole 86px square is the hit
    area. What is left to show is which screen you are on, and that is a change
    of colour rather than a chip. */
+/* ── The placards, as glass ───────────────────────────────────────────────
+   These were bare marks on the panel, which is what the rail asked for when
+   the complaint was that they looked cheap and bordered. The ask now is the
+   other way — a lens rather than a sticker — and it is the same principle
+   this cabin has used from the start, only turned up: depth from light. Each
+   one is a piece of glass lying on the panel, so it has a lit top lip, a dark
+   bottom edge, a body that carries a little of what is behind it, and a
+   shadow underneath. Nothing is outlined.
+
+   The radius is large and continuous because that is what a moulded key in a
+   cabin looks like — and because a 24px radius on an 86px tile is the shape
+   iOS 26 settled on for the same reason. */
 .ife-tool {
   appearance: none;
-  background: transparent;
   border: 0;
   color: var(--dim);
   font: inherit;
@@ -253,12 +264,69 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: color 130ms ease;
+  border-radius: 26px;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(255, 255, 255, 0.035) 44%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    rgba(255, 255, 255, 0.045);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.55),
+    inset 0 0 26px rgba(255, 255, 255, 0.045),
+    0 10px 22px rgba(0, 0, 0, 0.45);
+  transition:
+    color 130ms ease,
+    background-color 130ms ease;
 }
 
-.ife-tool[data-on="true"] {
-  color: var(--accent-bright);
+/* Pressed, the lens goes down into the panel: the lit lip moves to the bottom
+   and the shadow goes inside. */
+.ife-tool:active {
+  box-shadow:
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.22),
+    inset 0 2px 8px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.3);
 }
+
+/* Lit. The glass itself takes the brass rather than only the mark inside it. */
+.ife-tool[data-current="true"],
+.ife-tool[data-on="true"],
+.ife-tool[aria-expanded="true"] {
+  color: var(--accent-bright);
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(219, 182, 108, 0.26) 0%,
+      rgba(201, 164, 92, 0.1) 46%,
+      rgba(201, 164, 92, 0.04) 100%
+    ),
+    rgba(201, 164, 92, 0.06);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 226, 170, 0.45),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
+    inset 0 0 30px rgba(219, 182, 108, 0.12),
+    0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+.ife-tool[data-alert="true"] {
+  color: var(--alert);
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(176, 80, 72, 0.3) 0%,
+      rgba(176, 80, 72, 0.1) 50%,
+      rgba(176, 80, 72, 0.04) 100%
+    ),
+    rgba(176, 80, 72, 0.06);
+}
+
+
 
 .ife-tool[data-alert="true"] {
   color: var(--alert);
@@ -2911,7 +2979,7 @@
   display: flex;
   align-items: baseline;
   gap: 26px;
-  padding: 12px 16px;
+  padding: 8px 16px;
 }
 
 .ife-drawer-row[data-current="true"] {
@@ -2926,12 +2994,44 @@
   color: var(--accent-bright);
 }
 
+/* The same lens as the rail, at the size a list row can carry. */
 .ife-drawer-row-icon {
   color: var(--accent-bright);
   display: flex;
+  align-items: center;
   justify-content: center;
   align-self: center;
-  flex: 0 0 42px;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.11) 0%,
+      rgba(255, 255, 255, 0.028) 50%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    rgba(255, 255, 255, 0.035);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    0 6px 14px rgba(0, 0, 0, 0.35);
+}
+
+.ife-drawer-row[data-on="true"] .ife-drawer-row-icon {
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(219, 182, 108, 0.32) 0%,
+      rgba(201, 164, 92, 0.1) 50%,
+      rgba(201, 164, 92, 0.03) 100%
+    ),
+    rgba(201, 164, 92, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 226, 170, 0.48),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 6px 14px rgba(0, 0, 0, 0.35);
 }
 
 .ife-drawer-row-label {
@@ -3918,4 +4018,196 @@
   font-size: 23px;
   max-width: 90ch;
   line-height: 1.4;
+}
+
+/* ── Transport ────────────────────────────────────────────────────────────
+   Three shapes, in the middle, where both thumbs reach. The play key is the
+   lit one because it is the one being looked for. */
+.ife-transport {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  cursor: pointer;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ife-transport--play {
+  width: 84px;
+  height: 84px;
+  border-radius: 28px;
+  color: #0a0c11;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 236, 198, 1) 0%,
+      var(--accent) 60%,
+      rgba(178, 142, 74, 1) 100%
+    );
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 248, 232, 0.8),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.35),
+    0 10px 22px rgba(0, 0, 0, 0.5);
+}
+
+.ife-transport:active {
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+/* ── Now playing ──────────────────────────────────────────────────────────
+   The shape every player has converged on, which is worth copying rather
+   than inventing: what is playing on the left, the transport in the middle,
+   the clock at the ends of the bar. */
+.ife-now {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 40px;
+  padding: 20px var(--gutter);
+  box-shadow: inset 0 1px 0 var(--specular);
+  background: rgba(9, 11, 15, 0.7);
+}
+
+.ife-now-what {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  min-width: 0;
+}
+
+.ife-now-art {
+  width: 76px;
+  flex: 0 0 auto;
+}
+
+.ife-now-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ife-now-title {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ife-now-artist {
+  font-size: 23px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ife-now-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 720px;
+}
+
+.ife-now-transport {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.ife-now-seekrow {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+
+.ife-now-clock {
+  font-size: 22px;
+  color: var(--faint);
+  flex: 0 0 auto;
+}
+
+/* Scrubbable, and it reads the tap from its own coordinates — a bounding rect
+   under the CSS 3D transform a seat back will put this layer in is the
+   projected quad, not the bar. */
+.ife-now-seek {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(var(--text-rgb), 0.16);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.ife-now-seek-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--fg);
+  pointer-events: none;
+}
+
+.ife-now-station {
+  justify-self: end;
+  color: var(--faint);
+}
+
+/* ── The menu's own transport ─────────────────────────────────────────── */
+.ife-drawer-row[data-row="music"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  cursor: default;
+  padding-right: 6px;
+}
+
+.ife-drawer-rowmain {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  min-width: 0;
+  padding: 0;
+}
+
+.ife-drawer-now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ife-drawer-transport {
+  display: flex;
+  align-items: center;
+}
+
+.ife-drawer-transport .ife-transport {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  color: var(--dim);
 }

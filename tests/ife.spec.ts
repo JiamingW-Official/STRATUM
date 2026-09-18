@@ -577,6 +577,49 @@ test.describe("IFE bench", () => {
     await expect(mini).toHaveCount(1);
   });
 
+  test("the player has a transport, and the menu can reach it", async ({
+    page,
+  }) => {
+    await openBench(page);
+    await wake(page);
+    await page.locator('.ife-card[data-key="music"]').click();
+
+    // The stations are named after what is on them, not after an aviation
+    // pun with the effort showing.
+    await expect(page.locator(".ife-library-name").first()).toHaveText(
+      "ELECTRONIC",
+    );
+
+    await page.locator(".ife-album").first().click();
+    await page.locator(".ife-track").first().click();
+    const bar = page.locator(".ife-now");
+    await expect(bar).toContainText("SENSATION");
+    // A clock at each end of the bar, which needs the file to have said how
+    // long it is.
+    await expect
+      .poll(async () => (await bar.locator(".ife-now-clock").last().innerText()), {
+        timeout: 15_000,
+      })
+      .not.toBe("--:--");
+
+    // Forward and back are a transport, not a list: next moves on, and back
+    // inside the first three seconds goes to the track before.
+    await bar.getByRole("button", { name: "Next" }).click();
+    await expect(bar.locator(".ife-now-title")).toHaveText("Ataca");
+    await bar.getByRole("button", { name: "Previous" }).click();
+    await expect(bar.locator(".ife-now-title")).toHaveText("SENSATION");
+
+    // The menu can pause without going anywhere: a menu that can take you to
+    // the music but not stop it is asking you to travel to press a button.
+    await page.locator(".ife-strip-menu").click();
+    const row = page.locator('.ife-drawer-row[data-row="music"]');
+    await expect(row.locator(".ife-transport")).toHaveCount(3);
+    await row.getByRole("button", { name: "Pause" }).click();
+    await expect(row.getByRole("button", { name: "Play" })).toHaveCount(1);
+    // And the drawer is still a drawer: pausing did not navigate.
+    expect(await screenName(page)).toBe("music");
+  });
+
   test("an announcement takes the sound too, and gives it back", async ({
     page,
   }) => {

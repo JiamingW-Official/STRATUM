@@ -132,6 +132,34 @@ export const IconPower = ({ size = 24 }: P) => (
   </svg>
 );
 
+/* ── Transport ───────────────────────────────────────────────────────────
+   The four shapes every player has used since a tape deck had buttons on it.
+   Solid: a transport control is something you hit, not something you read. */
+
+export const IconPlay = ({ size = 24 }: P) => (
+  <svg {...fill(size)}>
+    <path d="M7.4 4.6 19.2 12 7.4 19.4z" />
+  </svg>
+);
+
+export const IconPause = ({ size = 24 }: P) => (
+  <svg {...fill(size)}>
+    <path d="M6.8 4.8h3.6v14.4H6.8zM13.6 4.8h3.6v14.4h-3.6z" />
+  </svg>
+);
+
+export const IconPrev = ({ size = 24 }: P) => (
+  <svg {...fill(size)}>
+    <path d="M5.6 5h2.6v14H5.6zM19.4 5v14L9.2 12z" />
+  </svg>
+);
+
+export const IconNext = ({ size = 24 }: P) => (
+  <svg {...fill(size)}>
+    <path d="M15.8 5h2.6v14h-2.6zM4.6 5l10.2 7-10.2 7z" />
+  </svg>
+);
+
 /* ── Map controls ─────────────────────────────────────────────────────────
    Line marks, not solid ones: these sit on top of a raster basemap, where a
    filled glyph loses its shape against a coastline. */

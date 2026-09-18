@@ -1,12 +1,17 @@
 // The four stations, and the tracks actually sitting in public/radio.
 //
+// They are named after what is on them. The first set were called NEON
+// APPROACH, GOLDEN HOUR, FLIGHT LEVEL and VELVET TAXI — four aviation puns
+// with the effort showing, which is the sound of a machine trying to have a
+// voice. A cabin names its channels after the music.
+//
 // Lifted out of ui/radio.js so the cabin and the sky play the same music from
 // one list rather than two that drift. Nothing about the data changed.
 export const STATIONS = [
   {
     id: "electronic",
-    name: "NEON APPROACH",
-    shortName: "NEON",
+    name: "ELECTRONIC",
+    shortName: "ELECTRONIC",
     color: "#c06cf0",
     folder: "Electronic",
     tracks: [
@@ -23,8 +28,8 @@ export const STATIONS = [
   },
   {
     id: "indie",
-    name: "GOLDEN HOUR",
-    shortName: "GOLDEN",
+    name: "INDIE",
+    shortName: "INDIE",
     color: "#e8a44c",
     folder: "Indie",
     tracks: [
@@ -44,8 +49,8 @@ export const STATIONS = [
   },
   {
     id: "relax",
-    name: "FLIGHT LEVEL",
-    shortName: "FL",
+    name: "AMBIENT",
+    shortName: "AMBIENT",
     color: "#5ab8e8",
     folder: "Relax_Ambiance",
     tracks: [
@@ -58,8 +63,8 @@ export const STATIONS = [
   },
   {
     id: "soul",
-    name: "VELVET TAXI",
-    shortName: "VELVET",
+    name: "SOUL",
+    shortName: "SOUL",
     color: "#e85a8a",
     folder: "Soul_R&B",
     tracks: [

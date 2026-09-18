@@ -164,6 +164,7 @@ const DICT = {
   zoomOut: ["Zoom out", "缩小"],
   viewGlobe: ["Globe", "地球"],
   best: ["Best", "最高"],
+  previous: ["Previous", "上一首"],
   chooseLanguage: ["Choose a language", "选择语言"],
   continue: ["Continue", "继续"],
   startTitle: [

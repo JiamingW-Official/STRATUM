@@ -3,6 +3,12 @@ import { useT } from "../i18n";
 import { STATIONS, splitTrack } from "../stations";
 import { Sleeve } from "../chrome/Sleeve";
 import { currentTrack, usePlayer } from "../player";
+import {
+  IconNext,
+  IconPause,
+  IconPlay,
+  IconPrev,
+} from "../chrome/icons";
 
 /**
  * Real music, not a mock-up: these are the four stations and the actual files
@@ -13,12 +19,23 @@ import { currentTrack, usePlayer } from "../player";
  * filling the right. It opens on the shelf rather than on a track list,
  * because the first question is which station, not which song.
  */
+/** m:ss, and a dash while the file has not said how long it is. */
+function clock(sec: number) {
+  if (!sec || !isFinite(sec)) return "--:--";
+  const m = Math.floor(sec / 60);
+  const r = Math.floor(sec % 60);
+  return `${m}:${String(r).padStart(2, "0")}`;
+}
+
 export function Music() {
   const { t, lang } = useT();
-  const { stationIdx, trackIdx, playing, progress } = usePlayer();
+  const { stationIdx, trackIdx, playing, progress, elapsed, duration } =
+    usePlayer();
   const select = usePlayer((s) => s.select);
   const toggle = usePlayer((s) => s.toggle);
   const next = usePlayer((s) => s.next);
+  const prev = usePlayer((s) => s.prev);
+  const seek = usePlayer((s) => s.seek);
   // Which station the right pane is showing. Null is the shelf.
   const [open, setOpen] = useState<number | null>(null);
   const now = currentTrack(stationIdx, trackIdx);
@@ -143,28 +160,76 @@ export function Music() {
       )}
 
       {/* Now playing, always, whichever pane is open — the sound belongs to the
-          seat and not to the page you happen to be on. */}
+          seat and not to the page you happen to be on.
+
+          The shape is the one every player has converged on and it is worth
+          copying rather than inventing: what is playing on the left, the
+          transport in the middle where both thumbs can reach it, and the
+          clock at the ends of the bar. The bar is scrubbable, and it reads
+          the tap from the element's own coordinates like everything else in
+          this cabin that will one day hang on a seat back. */}
       <footer
         className="ife-now"
         style={{ ["--stationColor" as string]: now.station.color }}
       >
-        <span className="ife-now-swatch" />
-        <span className="ife-now-text">
-          <span className="ife-cap">{t("nowPlaying")}</span>
-          <span className="ife-now-title">{now.title}</span>
-          <span className="ife-now-artist">
-            {now.artist || now.station.name}
+        <div className="ife-now-what">
+          <span className="ife-now-art">
+            <Sleeve station={now.station} />
           </span>
-        </span>
-        <button className="ife-btn" onClick={toggle}>
-          {playing ? t("pause") : t("play")}
-        </button>
-        <button className="ife-btn" onClick={next}>
-          {t("next")}
-        </button>
-        <span className="ife-now-progress">
-          <span style={{ width: `${Math.round(progress * 100)}%` }} />
-        </span>
+          <span className="ife-now-text">
+            <span className="ife-now-title">{now.title}</span>
+            <span className="ife-now-artist">
+              {now.artist || now.station.name}
+            </span>
+          </span>
+        </div>
+
+        <div className="ife-now-mid">
+          <div className="ife-now-transport">
+            <button
+              className="ife-transport"
+              onClick={prev}
+              aria-label={t("previous")}
+            >
+              <IconPrev size={34} />
+            </button>
+            <button
+              className="ife-transport ife-transport--play"
+              onClick={toggle}
+              aria-label={playing ? t("pause") : t("play")}
+            >
+              {playing ? <IconPause size={38} /> : <IconPlay size={38} />}
+            </button>
+            <button
+              className="ife-transport"
+              onClick={next}
+              aria-label={t("next")}
+            >
+              <IconNext size={34} />
+            </button>
+          </div>
+
+          <div className="ife-now-seekrow">
+            <span className="ife-now-clock ife-mono">{clock(elapsed)}</span>
+            <button
+              className="ife-now-seek"
+              aria-label={t("seek")}
+              onClick={(e) =>
+                seek(
+                  e.nativeEvent.offsetX / (e.currentTarget as HTMLElement).clientWidth,
+                )
+              }
+            >
+              <span
+                className="ife-now-seek-fill"
+                style={{ width: `${Math.round(progress * 100)}%` }}
+              />
+            </button>
+            <span className="ife-now-clock ife-mono">{clock(duration)}</span>
+          </div>
+        </div>
+
+        <div className="ife-now-station ife-cap">{now.station.name}</div>
       </footer>
     </div>
   );
