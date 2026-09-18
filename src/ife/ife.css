@@ -548,7 +548,9 @@
   position: absolute;
   left: var(--gutter);
   top: 60px;
-  width: 620px;
+  /* 500, not 620: measured against the longest label in either language at
+     38px, plus the icon column. The notes were what made it wide. */
+  width: 500px;
 }
 
 .ife-home-ident {
@@ -2507,7 +2509,9 @@
   left: 0;
   top: var(--strip-h);
   bottom: 0;
-  width: 620px;
+  /* 500, not 620: measured against the longest label in either language at
+     38px, plus the icon column. The notes were what made it wide. */
+  width: 500px;
   display: flex;
   flex-direction: column;
   background: rgba(10, 12, 17, 0.97);
@@ -2528,10 +2532,10 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
-  padding: 22px calc(var(--gutter) - 14px) 14px;
+  padding: 22px 34px 14px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
 .ife-drawer-body::-webkit-scrollbar {
@@ -2546,16 +2550,19 @@
 
 .ife-drawer-group-name {
   color: var(--accent-bright);
-  padding: 0 14px 8px;
+  padding: 0 16px 6px;
 }
 
 /* A row, not a card: a list of eleven boxes each with its own shadow is a
    filing cabinet. The only thing that separates them is the light on their
    top edge, and the only one with a background is the one that is on. */
-/* One line per row, with whatever the row knows pushed to the right edge —
-   the state of a switch, the count of a shelf, the station that is playing.
-   Stacked, eleven rows did not fit on the glass; in a column 620px wide they
-   do, and a settings list is where a value belongs on the right anyway. */
+/* A name and a mark, and nothing else. The rows used to carry a second line
+   of small grey type at the right — a count, a station, the word Off — which
+   is the size of thing you lean in to read, on the one panel that exists so
+   you do not have to. Losing it takes 150px off the width of the whole
+   drawer and puts the labels up to 38px, and the only state a note was
+   carrying that the row could not is whether a switch is on: the row goes
+   brass for that already. */
 .ife-drawer-row {
   appearance: none;
   background: none;
@@ -2568,8 +2575,8 @@
   cursor: pointer;
   display: flex;
   align-items: baseline;
-  gap: 24px;
-  padding: 10px 14px;
+  gap: 26px;
+  padding: 9px 16px;
 }
 
 .ife-drawer-row[data-current="true"] {
@@ -2589,25 +2596,19 @@
   display: flex;
   justify-content: center;
   align-self: center;
-  flex: 0 0 40px;
+  flex: 0 0 42px;
 }
 
 .ife-drawer-row-label {
   font-family: var(--font-display);
-  font-size: 31px;
+  font-size: 38px;
   font-weight: 500;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
+  /* The display face's default leading is for paragraphs. These are labels,
+     one line each, eleven of them, and the slack between them was the reason
+     the list ran off the bottom of the glass. */
+  line-height: 1.1;
   white-space: nowrap;
-}
-
-.ife-drawer-row-note {
-  margin-left: auto;
-  font-size: 22px;
-  color: var(--faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding-left: 10px;
 }
 
 /* The hamburger sits at the very corner, so it keeps the strip's own gutter

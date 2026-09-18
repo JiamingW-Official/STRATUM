@@ -428,8 +428,22 @@ test.describe("IFE bench", () => {
     }));
     expect(fit.scroll).toBeLessThanOrEqual(fit.client);
 
-    // The counts on it are the real manifest, not a label.
-    await expect(menu).toContainText("8 films");
+    // A name and a mark per row, and nothing else: the second line of small
+    // grey type at the right edge was the one thing on this panel you had to
+    // lean in to read, on the panel that exists so you do not have to.
+    await expect(menu.locator(".ife-drawer-row-note")).toHaveCount(0);
+    for (const label of ["Movies", "Music", "Games", "Screen off"]) {
+      await expect(menu.getByRole("button", { name: label })).toHaveCount(1);
+    }
+
+    // Every label reads at full size rather than being cut to fit a narrower
+    // panel — measured on the longest one there is, in either language.
+    const clipped = await menu.evaluate((el) =>
+      [...el.querySelectorAll(".ife-drawer-row")]
+        .filter((r) => r.scrollWidth > r.clientWidth + 1)
+        .map((r) => r.textContent),
+    );
+    expect(clipped).toEqual([]);
 
     // The cabin controls act, rather than pointing at the rail. The switch
     // lives in SeatPrivate, so the rail's own placard has to agree.

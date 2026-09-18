@@ -1,10 +1,7 @@
 import { useEffect, useRef } from "react";
-import { useCabin, useFlight, useSelf } from "../../flight-state/store";
+import { useCabin, useSelf } from "../../flight-state/store";
 import type { IFEBridge, ScreenName } from "../../flight-state/types";
-import { pick, useT, type Key } from "../i18n";
-import { FILMS } from "../films";
-import { STATIONS } from "../stations";
-import { currentTrack, usePlayer } from "../player";
+import { useT, type Key } from "../i18n";
 import { useNav } from "../nav";
 import {
   IconCall,
@@ -48,10 +45,7 @@ export function MenuDrawer({
   const setScreen = useSelf((s) => s.setScreen);
   const setLang = useSelf((s) => s.setLang);
   const { t, lang } = useT();
-  const { route, flightNo } = useFlight();
   const self = useCabin((s) => s.seats[seat]);
-  const { stationIdx, trackIdx, playing } = usePlayer();
-  const now = currentTrack(stationIdx, trackIdx);
   const panel = useRef<HTMLDivElement | null>(null);
 
   // Escape closes it, and so does the hardware key a bench has and a seat
@@ -77,7 +71,6 @@ export function MenuDrawer({
       key: string;
       icon: React.ReactNode;
       label: string;
-      note?: string;
       onPress?: () => void;
       href?: string;
       on?: boolean;
@@ -89,33 +82,29 @@ export function MenuDrawer({
       items: [
         {
           key: "home",
-          icon: <IconHome size={34} />,
+          icon: <IconHome size={38} />,
           label: t("home"),
-          note: pick(route.to.city, lang),
           onPress: go("home"),
           current: screen === "home",
         },
         {
           key: "map",
-          icon: <IconMap size={34} />,
+          icon: <IconMap size={38} />,
           label: t("flightMap"),
-          note: `${route.from.iata} → ${route.to.iata}`,
           onPress: go("map"),
           current: screen === "map",
         },
         {
           key: "info",
-          icon: <IconGauge size={34} />,
+          icon: <IconGauge size={38} />,
           label: t("flightInformation"),
-          note: flightNo,
           onPress: go("flightInfo"),
           current: screen === "flightInfo",
         },
         {
           key: "sky",
-          icon: <IconSky size={34} />,
+          icon: <IconSky size={38} />,
           label: t("theSky"),
-          note: t("liveAdsb"),
           href: "/",
         },
       ],
@@ -125,27 +114,22 @@ export function MenuDrawer({
       items: [
         {
           key: "movies",
-          icon: <IconFilm size={34} />,
+          icon: <IconFilm size={38} />,
           label: t("movies"),
-          note: `${FILMS.length} ${lang === "zh" ? "部 · 公有领域" : "films · public domain"}`,
           onPress: go("movies"),
           current: screen === "movies",
         },
         {
           key: "music",
-          icon: <IconMusic size={34} />,
+          icon: <IconMusic size={38} />,
           label: t("music"),
-          note: playing
-            ? `${now.station.name} · ${now.title}`
-            : `${STATIONS.length} ${lang === "zh" ? "个频道" : "stations"}`,
           onPress: go("music"),
           current: screen === "music",
         },
         {
           key: "games",
-          icon: <IconGames size={34} />,
+          icon: <IconGames size={38} />,
           label: t("games"),
-          note: `${t("sudoku")} · ${t("overhead")}`,
           onPress: go("games"),
           current: screen === "games",
         },
@@ -156,32 +140,29 @@ export function MenuDrawer({
       items: [
         {
           key: "light",
-          icon: <IconLight size={34} />,
+          icon: <IconLight size={38} />,
           label: t("readingLight"),
-          note: light ? t("on") : t("off"),
           on: light,
           onPress: () => bridge.setReadingLight(!light),
         },
         {
           key: "call",
-          icon: <IconCall size={34} />,
+          icon: <IconCall size={38} />,
           label: calling ? t("cancelCall") : t("callAttendant"),
-          note: calling ? t("called") : undefined,
           on: calling,
           onPress: () => bridge.callAttendant(!calling),
         },
         {
           key: "lang",
-          icon: <IconLang size={34} />,
+          icon: <IconLang size={38} />,
           label: t("language"),
-          note: lang === "zh" ? "中文 · English" : "English · 中文",
           onPress: () => setLang(lang === "zh" ? "en" : "zh"),
         },
         {
           // What the corner arrow used to do, done properly: a screen you can
           // put out, and one touch anywhere brings it back.
           key: "off",
-          icon: <IconPower size={34} />,
+          icon: <IconPower size={38} />,
           label: t("screenOff"),
           onPress: go("off"),
         },
@@ -222,7 +203,7 @@ export function MenuDrawer({
                     href={it.href}
                     tabIndex={open ? 0 : -1}
                   >
-                    <Row icon={it.icon} label={it.label} note={it.note} />
+                    <Row icon={it.icon} label={it.label} />
                   </a>
                 ) : (
                   <button
@@ -233,7 +214,7 @@ export function MenuDrawer({
                     tabIndex={open ? 0 : -1}
                     onClick={it.onPress}
                   >
-                    <Row icon={it.icon} label={it.label} note={it.note} />
+                    <Row icon={it.icon} label={it.label} />
                   </button>
                 ),
               )}
@@ -245,20 +226,11 @@ export function MenuDrawer({
   );
 }
 
-function Row({
-  icon,
-  label,
-  note,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  note?: string;
-}) {
+function Row({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <>
       <span className="ife-drawer-row-icon">{icon}</span>
       <span className="ife-drawer-row-label">{label}</span>
-      {note && <span className="ife-drawer-row-note">{note}</span>}
     </>
   );
 }
