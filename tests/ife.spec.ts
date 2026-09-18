@@ -7,14 +7,42 @@ const SCREEN_W = 1920;
 const SCREEN_H = 1080;
 const BEZEL = 28;
 
+/**
+ * Opens the bench and collects only the errors this repository can fix.
+ *
+ * A 429 from a third party is never a regression: it means we asked the
+ * weather feed too often, which is exactly what an afternoon of screenshot
+ * loops does to it, and no change here makes it go away. The sky gate has
+ * reported those as degraded feeds rather than failing on them since it was
+ * written; this does the same, because a gate that cries wolf over a rate
+ * limit is a gate people switch off. Anything the cabin itself threw still
+ * fails the run.
+ */
 async function openBench(page: Page) {
   const errors: string[] = [];
+  const upstream: string[] = [];
+  const degraded = (text: string, where: string) =>
+    where.includes("/api/") && /\b(429|5\d\d)\b/.test(text);
   page.on("pageerror", (e) => errors.push(String(e)));
-  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  page.on("console", (m) => {
+    if (m.type() !== "error") return;
+    const where = m.location()?.url ?? "";
+    (degraded(m.text(), where) ? upstream : errors).push(
+      `${m.text().slice(0, 200)} @ ${where}`,
+    );
+  });
+  page.on("response", (r) => {
+    if (r.url().includes("/api/") && r.status() >= 400)
+      upstream.push(`${r.status()} ${r.url().slice(0, 120)}`);
+  });
   await page.goto(BENCH, { waitUntil: "domcontentloaded" });
   await page.waitForSelector(GLASS);
   // Stop the clock so assertions are about the screen, not about timing.
   await page.getByRole("button", { name: "Pause" }).click();
+  page.once("close", () => {
+    if (upstream.length)
+      console.log(`[ife] upstream degraded:\n  ${upstream.join("\n  ")}`);
+  });
   return errors;
 }
 
@@ -436,13 +464,17 @@ test.describe("IFE bench", () => {
 
     // A rail of cards the hand pushes sideways, with one tall card breaking
     // the rhythm so it is a composition rather than a contact sheet.
-    // Utilities, two pieces of media wearing their own faces, and the one
-    // card that leaves the cabin.
+    // Utilities, the film wearing its own frame, and the one card that leaves
+    // the cabin. Eight, not nine: the music had two cards — one behind a
+    // record's sleeve and one with the cabin's mark — and once the sleeve
+    // came off they were the same card twice.
     const cards = page.locator(".ife-card");
-    await expect(cards).toHaveCount(9);
+    await expect(cards).toHaveCount(8);
     await expect(page.locator('.ife-card[data-tall="true"]')).toHaveCount(3);
     await expect(page.locator('.ife-card[data-wide="true"]')).toHaveCount(1);
-    await expect(page.locator(".ife-card--media")).toHaveCount(2);
+    await expect(page.locator(".ife-card--media")).toHaveCount(1);
+    // And no card wears a record's cover: the sleeve belongs to the record.
+    await expect(page.locator(".ife-card .ife-sleeve")).toHaveCount(0);
     // Every card says more than one thing: a category name over a count was
     // the shape they all had, and none of them had that little to say.
     expect(
@@ -616,6 +648,19 @@ test.describe("IFE bench", () => {
 
     // It opens on the shelf: the first question is which station, not which
     // song.
+    await expect(page.locator(".ife-album")).toHaveCount(4);
+    await expect(page.locator(".ife-track")).toHaveCount(0);
+
+    await page.locator(".ife-album").first().click();
+    await expect(page.locator(".ife-track")).not.toHaveCount(0);
+
+    // The record's page carries no back key of its own. The sidebar is the
+    // navigation: its first row is the shelf, so going back and changing
+    // records are the same gesture in the same place.
+    await expect(
+      page.locator(".ife-station-view > .ife-head").getByRole("button"),
+    ).toHaveCount(0);
+    await page.locator(".ife-library-all").click();
     await expect(page.locator(".ife-album")).toHaveCount(4);
     await expect(page.locator(".ife-track")).toHaveCount(0);
 

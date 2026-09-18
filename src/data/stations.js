@@ -82,7 +82,7 @@ export const STATIONS = [
     shortName: "AFTER HOURS",
     genre: "Soul & R&B",
     color: "#e85a8a",
-    folder: "Soul_R&B",
+    folder: "Soul_RnB",
     tracks: [
       "Aves - Summer Breakup Song",
       "Aves - Sunshine",

@@ -292,7 +292,11 @@
   z-index: 3;
 }
 
+/* Pinned to its track, not placed by document order: the player in the
+   middle is conditional, and without it the right-hand zone used to fall into
+   the middle track and end 673px short of the edge. */
 .ife-rail-left {
+  grid-column: 1;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -300,6 +304,7 @@
 }
 
 .ife-rail-right {
+  grid-column: 3;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -338,7 +343,10 @@
 }
 
 .ife-rail-now-title {
-  font-size: 24px;
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -412,8 +420,15 @@
       rgba(255, 255, 255, 0) 100%
     ),
     rgba(255, 255, 255, 0.045);
-  -webkit-backdrop-filter: blur(14px) saturate(1.5);
-  backdrop-filter: blur(14px) saturate(1.5);
+  /* No backdrop-filter. The rail behind these already blurs the row, so a
+     second blur of an already-blurred backdrop showed nothing — and it put
+     every key on its own composited layer, which inside the glass's
+     fractional transform is rasterised at one size and resampled to
+     another. Measured on the Home key: dropping it took the mean absolute
+     Laplacian from 9.4 to 13.3 and the peak edge contrast from 221 to 429.
+     That is the whole of why the marks looked soft. The lens is the
+     gradient, the lit lip, the dark under-edge and the shadow; none of
+     those needed it. */
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
     inset 0 -1.5px 0 rgba(0, 0, 0, 0.55),
@@ -1042,12 +1057,6 @@
   z-index: 0;
 }
 
-.ife-card-sleeve {
-  position: absolute;
-  inset: 0 0 auto 0;
-  z-index: 0;
-}
-
 /* The colour on this screen comes from the photograph and the film still,
    which is the only place it can come from honestly. The still was dimmed to
    0.62 and desaturated, which turned every media card the same grey as the
@@ -1435,9 +1444,10 @@
   background-color: rgba(255, 255, 255, 0.06);
 }
 
-/* The rail's sleeve is 62px: its own foot line is unreadable at that size and
-   reads as noise. */
-.ife-mini-art .ife-sleeve-foot {
+/* The sleeve in the rail is 62px and the one in the sidebar is 48px: a drawn
+   sleeve's foot line is unreadable at either size and reads as noise. */
+.ife-rail-now-art .ife-sleeve-foot,
+.ife-library-art .ife-sleeve-foot {
   display: none;
 }
 
@@ -1576,24 +1586,32 @@
 }
 
 /* ── Music ───────────────────────────────────────────────────────────────
-   A library down the left, the thing you picked filling the right, and the
-   sound along the bottom under both. Every audio app has settled on this
-   shape and every seat-back system has copied it from them, for the same
-   reason: the first question is which station, not which song. */
+   A library down the left and the thing you picked filling the right. Every
+   audio app has settled on this shape and every seat-back system has copied
+   it from them, for the same reason: the first question is which station,
+   not which song.
+
+   One row, full height. There was a second row of 138px under both columns,
+   left from the footer player, and the player has been in the rail for two
+   commits — so it was a band of nothing on the floor that stopped the
+   sidebar and the tracklist short of it. And 360 rather than 420: the widest
+   record here is "After Hours", the rows are two lines now, and the 60px
+   went to the tracklist. */
 .ife-music {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: 420px 1fr;
-  grid-template-rows: 1fr 138px;
+  grid-template-columns: 360px 1fr;
+  grid-template-rows: 1fr;
 }
 
 .ife-library {
   grid-row: 1 / 2;
   background: rgba(var(--text-rgb), 0.022);
-  padding: 26px 0 20px;
+  padding: 20px 0 20px;
   display: flex;
   flex-direction: column;
+  gap: 2px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -1602,10 +1620,45 @@
   display: none;
 }
 
-.ife-library-head {
-  padding: 0 40px 20px var(--gutter);
+/* The shelf, as the first row of the list — which is what makes the sidebar
+   the navigation and lets the record's page carry no back key at all. It is
+   the one row without a sleeve, because it is not a record, so it takes the
+   cabin's music mark in the sleeve's column and keeps the list's left edge. */
+.ife-library-all {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--dim);
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-align: left;
+  padding: 14px 30px 14px var(--gutter);
+  margin-bottom: 8px;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: center;
+  gap: 18px;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
+.ife-library-all svg {
+  display: block;
+  justify-self: center;
+}
+
+.ife-library-all[data-on="true"] {
+  color: var(--fg);
+  background: rgba(var(--text-rgb), 0.07);
+}
+
+/* Half the height it was. The art was 74px with 18px of padding over three
+   lines of type, which made four records 700px tall on a 940px column and
+   left a hole under them; at 48px over two lines the list is a list. */
 .ife-library-row {
   appearance: none;
   background: transparent;
@@ -1613,12 +1666,12 @@
   color: var(--fg);
   font: inherit;
   text-align: left;
-  padding: 18px 30px 18px var(--gutter);
+  padding: 10px 30px 10px var(--gutter);
   cursor: pointer;
   display: grid;
-  grid-template-columns: 74px 1fr;
+  grid-template-columns: 48px 1fr;
   align-items: center;
-  gap: 22px;
+  gap: 18px;
   transition: background-color 140ms ease;
 }
 
@@ -1643,28 +1696,16 @@
    on the swatch and on the row that is playing, and nowhere else, so it reads
    as "this one" rather than as decoration. */
 .ife-library-art {
-  width: 74px;
+  width: 48px;
   flex: 0 0 auto;
 }
 
 .ife-library-genre {
   display: block;
-  font-size: 21px;
+  font-size: 19px;
   color: var(--accent-bright);
   letter-spacing: 0.04em;
-  margin-top: 4px;
-}
-
-.ife-library-swatch {
-  width: 56px;
-  height: 56px;
-  border-radius: 6px;
-  background: var(--stationColor);
-  box-shadow: var(--lift-sm);
-}
-
-.ife-library-row[data-playing="true"] .ife-library-swatch {
-  box-shadow: 0 0 34px -4px var(--stationColor), var(--lift-sm);
+  margin-top: 2px;
 }
 
 .ife-library-text {
@@ -1674,19 +1715,17 @@
 .ife-library-name {
   display: block;
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: 27px;
   font-weight: 500;
   letter-spacing: -0.01em;
+  line-height: 1.12;
 }
 
-.ife-library-sub {
-  display: block;
-  color: var(--faint);
-  font-size: 22px;
-  margin-top: 6px;
-}
-
-.ife-library-row[data-playing="true"] .ife-library-sub {
+/* Which one is playing, said by the name and by nothing else. It used to be
+   a third line reading "9 tracks · playing", which is a count nobody asked
+   for carrying a state that deserved better. After the selected rule, because
+   a record can be open and playing at once and playing is the live fact. */
+.ife-library-row[data-playing="true"] .ife-library-name {
   color: var(--stationColor);
 }
 
@@ -1772,9 +1811,19 @@
   object-fit: cover;
 }
 
-/* The name on the record. Hidden by default and shown only when the sleeve is
-   wide enough to carry it — the same component is 62px in the rail and 340px
-   beside a tracklist, and a title at 62px is a smear rather than a name. */
+/* The name on the record, bottom left.
+ 
+   It was across the top and centred, which is a caption on a photograph
+   rather than a title on a sleeve, and it fought whatever the artwork put at
+   the top — three of these four have their weight up there. Bottom left is
+   where a printed sleeve carries its title, and it is where this interface
+   carries every title it has: the city on the home screen, the record on the
+   shelf card, the station on its own page. Set in the display face, which is
+   the cabin's face and the one the destination is set in.
+ 
+   Hidden by default and shown only when the sleeve is wide enough to carry
+   it — the same component is 48px in the sidebar and 340px beside a
+   tracklist, and a title at 48px is a smear rather than a name. */
 .ife-sleeve-caption {
   display: none;
 }
@@ -1784,21 +1833,21 @@
     position: absolute;
     left: 0;
     right: 0;
-    top: 0;
+    bottom: 0;
     display: block;
-    padding: 6cqw 7cqw 9cqw;
+    padding: 16cqw 7cqw 6.5cqw;
     font-family: var(--font-display);
-    font-size: 7.4cqw;
+    font-size: 8.2cqw;
     font-weight: 500;
-    letter-spacing: 0.02em;
-    text-align: center;
+    line-height: 1.02;
+    letter-spacing: -0.005em;
     text-transform: uppercase;
-    color: rgba(255, 252, 246, 0.95);
-    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.75);
+    color: rgba(255, 252, 246, 0.96);
+    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.7);
     background: linear-gradient(
-      to bottom,
-      rgba(7, 8, 11, 0.62) 0%,
-      rgba(7, 8, 11, 0.28) 62%,
+      to top,
+      rgba(7, 8, 11, 0.82) 0%,
+      rgba(7, 8, 11, 0.42) 54%,
       rgba(7, 8, 11, 0) 100%
     );
   }
@@ -1859,20 +1908,14 @@
   color: rgba(255, 252, 246, 0.55);
 }
 
-.ife-album-name {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 30px;
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  margin-top: 18px;
-}
-
+/* Who is on the record, under the record. The title used to be here too and
+   is now only on the sleeve, which is where the reference's own covers carry
+   it. */
 .ife-album-artists {
   display: block;
   color: var(--dim);
   font-size: 22px;
-  margin-top: 6px;
+  margin-top: 20px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2017,7 +2060,15 @@
   color: var(--stationColor);
 }
 
+/* A track's name is a name, so it is in the display face like every other
+   name in this cabin — the city, the record, the station, the film. The
+   artist beside it stays in the body face, which is what keeps the title
+   reading as the title. */
 .ife-track-title {
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2100,44 +2151,35 @@
    row rather than in the middle of whatever space the keys left over. */
 /* The centre zone: the keys and the bar, and nothing else. What is playing
    moved to the left zone, where a player bar puts it. */
+/* A rectangle, not a T.
+ 
+   It was 620px wide with a 260px row of keys floating on top of it, so the
+   bar ran out past both ends of the thing it belongs to and the block had no
+   edge of its own. 452 is the width of the seek row at the type size the
+   clocks needed, and the keys are centred in it: two rows, one width, one
+   block. The gap is 2px because the bar is not a separate control from the
+   keys — it is the same player — and 8px of air between them read as two. */
 .ife-mini {
-  width: 620px;
+  grid-column: 2;
+  width: 452px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   color: var(--fg);
   font: inherit;
-}
-
-.ife-mini-art {
-  grid-row: 1 / 3;
-  width: 62px;
-  flex: 0 0 auto;
-}
-
-/* Title and artist on one line each, and out of the way: the transport and
-   the bar are what this block is for. */
-.ife-mini-text {
-  grid-column: 2;
-  grid-row: 1;
-  display: grid;
-  grid-template-columns: minmax(0, auto) auto;
-  align-items: baseline;
-  gap: 14px;
-  min-width: 0;
 }
 
 .ife-mini-keys {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ife-mini-keys .ife-transport {
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   color: var(--dim);
 }
 
@@ -2145,24 +2187,54 @@
   color: var(--accent-bright);
 }
 
+/* No brass disc behind the play key.
+ 
+   It was the brightest object in the cabin — a filled yellow lozenge in a
+   row of marks, on a screen whose one accent is reserved for "inferred" and
+   "on". The key still has to be the one your thumb finds without looking, so
+   it is still the largest mark in the row and it is the only one at full
+   brightness while the other four sit at --dim. That is contrast doing the
+   job a filled shape was doing, which is the way the rest of this interface
+   already works. */
 .ife-mini-keys .ife-transport--play {
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
-  color: #0a0c11;
+  width: 66px;
+  height: 66px;
+  border-radius: 20px;
+  color: var(--fg);
+  background: none;
+  box-shadow: none;
+}
+
+.ife-mini-keys .ife-transport--play:active {
+  color: var(--accent-bright);
+  box-shadow: none;
 }
 
 .ife-mini-seekrow {
   align-self: stretch;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
+/* 25px, not 20. It was the smallest type in the cabin by five points, on the
+   one number a passenger actually reads off this row. Each clock holds its
+   own width so the bar does not jump a pixel sideways when the elapsed time
+   crosses a minute, and they face the bar: elapsed on its left, length on
+   its right. */
 .ife-mini-clock {
-  font-size: 20px;
-  color: var(--faint);
+  font-size: 25px;
+  color: var(--dim);
   flex: 0 0 auto;
+  min-width: 68px;
+}
+
+.ife-mini-clock:first-child {
+  text-align: left;
+}
+
+.ife-mini-clock:last-child {
+  text-align: right;
 }
 
 .ife-mini-seek {
@@ -2170,9 +2242,12 @@
   border: 0;
   padding: 0;
   flex: 1;
-  height: 8px;
+  height: 7px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.45);
+  /* Not black. Black on a near-black rail is a hairline, not a bar — the
+     empty part of a seek bar has to be visible or the full part has nothing
+     to be a fraction of. */
+  background: rgba(var(--text-rgb), 0.17);
   box-shadow: var(--glass-in);
   cursor: pointer;
   position: relative;
@@ -2184,20 +2259,6 @@
   inset: 0 auto 0 0;
   background: var(--stationColor);
   pointer-events: none;
-}
-
-.ife-mini-title {
-  font-size: 24px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ife-mini-station {
-  font-size: 21px;
-  color: var(--faint);
-  letter-spacing: 0.04em;
-  white-space: nowrap;
 }
 
 

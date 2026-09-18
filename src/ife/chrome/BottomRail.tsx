@@ -106,13 +106,13 @@ export function BottomRail({
 
       <RailButton
         label={t("home")}
-        icon={<IconHome size={46} />}
+        icon={<IconHome size={48} />}
         current={screen === "home"}
         onClick={go("home")}
       />
       <RailButton
         label={t("flightMap")}
-        icon={<IconPlan size={46} />}
+        icon={<IconPlan size={48} />}
         current={screen === "map"}
         onClick={go("map")}
       />
@@ -168,28 +168,28 @@ export function BottomRail({
               data-on={shuffle}
               onClick={toggleShuffle}
             >
-              <IconShuffle size={26} />
+              <IconShuffle size={32} />
             </button>
             <button
               className="ife-transport"
               aria-label={t("previous")}
               onClick={prev}
             >
-              <IconPrev size={26} />
+              <IconPrev size={32} />
             </button>
             <button
               className="ife-transport ife-transport--play"
               aria-label={playing ? t("pause") : t("play")}
               onClick={togglePlay}
             >
-              {playing ? <IconPause size={28} /> : <IconPlay size={28} />}
+              {playing ? <IconPause size={36} /> : <IconPlay size={36} />}
             </button>
             <button
               className="ife-transport"
               aria-label={t("next")}
               onClick={next}
             >
-              <IconNext size={26} />
+              <IconNext size={32} />
             </button>
             <button
               className="ife-transport"
@@ -197,7 +197,7 @@ export function BottomRail({
               data-on={repeat !== "off"}
               onClick={cycleRepeat}
             >
-              <IconRepeat size={26} one={repeat === "one"} />
+              <IconRepeat size={32} one={repeat === "one"} />
             </button>
           </span>
 
@@ -234,7 +234,7 @@ export function BottomRail({
           menu in the corner was treating it as a preference. */}
       <RailButton
         label={t("language")}
-        icon={<IconLang size={46} />}
+        icon={<IconLang size={48} />}
         current={screen === "language"}
         onClick={go("language")}
       />
@@ -251,7 +251,7 @@ export function BottomRail({
           title={t("volume")}
           aria-expanded={pop === "volume"}
         >
-          <IconVolume size={46} />
+          <IconVolume size={48} />
         </button>
         {pop === "volume" && (
           <VolumeColumn value={volume} onChange={setVolume} />
@@ -260,7 +260,7 @@ export function BottomRail({
 
       <RailButton
         label={t("readingLight")}
-        icon={<IconLight size={46} />}
+        icon={<IconLight size={48} />}
         on={light}
         pressed={light}
         onClick={() => bridge.setReadingLight(!light)}
@@ -269,7 +269,7 @@ export function BottomRail({
           light it turned on is above your head and everyone can see it. */}
       <RailButton
         label={calling ? t("cancelCall") : t("callAttendant")}
-        icon={<IconCall size={46} />}
+        icon={<IconCall size={48} />}
         alert={calling}
         pressed={calling}
         onClick={() => bridge.callAttendant(!calling)}
@@ -281,7 +281,7 @@ export function BottomRail({
           carry. */}
       <RailButton
         label={t("screenOff")}
-        icon={<IconPower size={46} />}
+        icon={<IconPower size={48} />}
         onClick={() => setScreen("off")}
       />
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useT } from "../i18n";
 import { STATIONS, splitTrack, trackLength } from "../stations";
 import { Sleeve } from "../chrome/Sleeve";
+import { IconMusic } from "../chrome/icons";
 import { usePlayer } from "../player";
 
 /**
@@ -22,8 +23,28 @@ export function Music() {
 
   return (
     <div className="ife-music">
+      {/* The sidebar is the navigation, and that is the whole of it.
+
+          The shelf is the first row and the four records are under it, so an
+          open record needs no back key of its own: going back is pressing
+          "Music", and changing records is pressing another one — which is
+          what you would press anyway. The arrow that used to sit beside the
+          title was a second way to do the thing the list already does, and it
+          sat in the header's baseline like a dropped word.
+
+          Two lines to a row, not three. The count was on every row and it is
+          also the first thing the record's own page says; what is worth
+          knowing at a glance is which of them is playing, and that is the
+          name in the station's colour rather than a fourth line of grey. */}
       <aside className="ife-library">
-        <div className="ife-library-head ife-cap">{t("station")}</div>
+        <button
+          className="ife-library-all"
+          data-on={open === null}
+          onClick={() => setOpen(null)}
+        >
+          <IconMusic size={30} />
+          <span>{t("music")}</span>
+        </button>
         {STATIONS.map((s, i) => (
           <button
             key={s.id}
@@ -41,12 +62,6 @@ export function Music() {
             <span className="ife-library-text">
               <span className="ife-library-name">{s.name}</span>
               <span className="ife-library-genre">{s.genre}</span>
-              <span className="ife-library-sub">
-                {s.tracks.length} {lang === "zh" ? "首" : "tracks"}
-                {playing && stationIdx === i
-                  ? ` · ${lang === "zh" ? "播放中" : "playing"}`
-                  : ""}
-              </span>
             </span>
           </button>
         ))}
@@ -79,14 +94,15 @@ export function Music() {
                   style={{ ["--stationColor" as string]: s.color }}
                   onClick={() => setOpen(i)}
                 >
-                  {/* The name goes under the sleeve as well as on it. That
-                      was a duplication back when every sleeve was drawn and
-                      printed its own title; with real art on some of them and
-                      not others, a shelf that only names half its records is
-                      a shelf you cannot read. A record label says the title
-                      too. */}
+                  {/* The name is on the record and only on the record.
+                      It was under the sleeve as well, from when a sleeve
+                      might arrive with no title on it — every sleeve carries
+                      its own now, art or drawn, in the bottom left corner
+                      where a printed sleeve puts it, so the label underneath
+                      was the same word in the same face twice over. What is
+                      left under the cover is what the cover cannot say:
+                      who is on it. */}
                   <Sleeve station={s} />
-                  <span className="ife-album-name">{s.name}</span>
                   <span className="ife-album-artists">
                     {artists.slice(0, 3).join(" · ")}
                   </span>
@@ -101,12 +117,6 @@ export function Music() {
             className="ife-head"
             style={{ ["--stationColor" as string]: STATIONS[open].color }}
           >
-            <button
-              className="ife-btn ife-btn--quiet"
-              onClick={() => setOpen(null)}
-            >
-              ← {t("music")}
-            </button>
             <h2 className="ife-head-title ife-station-title">
               {STATIONS[open].name}
             </h2>

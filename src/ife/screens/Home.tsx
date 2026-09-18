@@ -9,7 +9,6 @@ import { FILMS, runtime, stillUrl } from "../films";
 import { useNav } from "../nav";
 import { currentTrack, usePlayer } from "../player";
 import { RouteMini } from "../chrome/RouteMini";
-import { Sleeve } from "../chrome/Sleeve";
 import {
   IconFilm,
   IconGames,
@@ -100,7 +99,7 @@ export function Home() {
     stats?: Array<[string, string]>;
     tall?: boolean;
     wide?: boolean;
-    media?: "film" | "station";
+    media?: "film";
     /** Brass for the flight, cool for the world outside it. Nothing else. */
     tint?: "brass" | "cool";
   }> = [
@@ -169,26 +168,37 @@ export function Home() {
         ? [
             [t("feelsLike"), `${Math.round(wx.feelsC)}°`],
             [t("wind"), `${Math.round(wx.windKph)} km/h`],
-            [
-              t("localTime"),
-              localTime(new Date().toISOString(), route.to),
-            ],
+            [t("localTime"), localTime(new Date().toISOString(), route.to)],
           ]
         : undefined,
       wide: true,
       tint: "cool",
     },
     {
-      key: "station",
+      // One card for the music, not two. There were two — this one with the
+      // sleeve behind it and an icon card further along the rail — and once
+      // the sleeve came off they were the same card twice: same word, same
+      // screen, same colour.
+      //
+      // And the sleeve is off. A record's cover is that record's; putting it
+      // behind the word "Music" said "Night Shift" in one breath and "Music"
+      // in the next, and the sleeve's own title sat directly above the card's
+      // title in the same face. The card carries the cabin's own mark until
+      // there is a picture made for this card.
+      key: "music",
       screen: "music",
-      // The sleeve on this card already says which station, so the type says
-      // what the type is for: what is playing, or where the card goes.
       cap: playing ? t("nowPlaying") : lang === "zh" ? "电台" : "Radio",
-      title: playing ? now.title : t("music"),
+      title: t("music"),
+      icon: <IconMusic size={118} />,
+      // What it knows: the track if there is one, the shelf if there is not.
       lines: playing
-        ? [now.artist]
-        : [`${now.station.tracks.length} ${lang === "zh" ? "首" : "tracks"}`],
-      media: "station",
+        ? [now.title, now.artist]
+        : [
+            `${STATIONS.length} ${lang === "zh" ? "个频道" : "stations"}`,
+            `${STATIONS.reduce((n, st) => n + st.tracks.length, 0)} ${
+              lang === "zh" ? "首" : "tracks"
+            }`,
+          ],
     },
     {
       key: "games",
@@ -208,18 +218,6 @@ export function Home() {
       ],
       tall: true,
       tint: "cool",
-    },
-    {
-      key: "music",
-      screen: "music",
-      title: t("music"),
-      icon: <IconMusic size={118} />,
-      lines: [
-        `${STATIONS.length} ${lang === "zh" ? "个频道" : "stations"}`,
-        `${STATIONS.reduce((n, st) => n + st.tracks.length, 0)} ${
-          lang === "zh" ? "首" : "tracks"
-        }`,
-      ],
     },
     {
       key: "info",
@@ -310,15 +308,6 @@ export function Home() {
                   style={{ backgroundImage: `url(${stillUrl(feature)})` }}
                 />
               )}
-              {/* The record's own sleeve, not a coloured rectangle. It sits
-                  at the top of the card and the card's own lines sit under it,
-                  so the sleeve says which station and the type says which
-                  track — two different facts, not the same one twice. */}
-              {c.media === "station" && (
-                <span className="ife-card-sleeve">
-                  <Sleeve station={now.station} />
-                </span>
-              )}
               {c.icon && <span className="ife-card-icon">{c.icon}</span>}
               {/* The map card carries the route itself. Losing it in a
                   refactor left the tallest card on the screen as an icon and
@@ -352,18 +341,17 @@ export function Home() {
             "data-tall": !!c.tall,
             "data-wide": !!c.wide,
             "data-tint": c.tint,
-            style:
-              c.media === "station"
-                ? ({
-                    ["--stationColor" as string]: now.station.color,
-                  } as React.CSSProperties)
-                : undefined,
           };
           const cls = `ife-card${c.media ? " ife-card--media" : ""}`;
           // The one card that leaves the cabin is a link, and says so.
           if (c.key === "sky") {
             return (
-              <a key={c.key} href="/" className={`${cls} ife-card--out`} {...shared}>
+              <a
+                key={c.key}
+                href="/"
+                className={`${cls} ife-card--out`}
+                {...shared}
+              >
                 {body}
               </a>
             );
