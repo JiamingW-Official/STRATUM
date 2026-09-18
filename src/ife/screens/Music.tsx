@@ -1,14 +1,8 @@
 import { useState } from "react";
 import { useT } from "../i18n";
-import { STATIONS, splitTrack } from "../stations";
+import { STATIONS, splitTrack, trackLength } from "../stations";
 import { Sleeve } from "../chrome/Sleeve";
-import { currentTrack, usePlayer } from "../player";
-import {
-  IconNext,
-  IconPause,
-  IconPlay,
-  IconPrev,
-} from "../chrome/icons";
+import { usePlayer } from "../player";
 
 /**
  * Real music, not a mock-up: these are the four stations and the actual files
@@ -19,26 +13,12 @@ import {
  * filling the right. It opens on the shelf rather than on a track list,
  * because the first question is which station, not which song.
  */
-/** m:ss, and a dash while the file has not said how long it is. */
-function clock(sec: number) {
-  if (!sec || !isFinite(sec)) return "--:--";
-  const m = Math.floor(sec / 60);
-  const r = Math.floor(sec % 60);
-  return `${m}:${String(r).padStart(2, "0")}`;
-}
-
 export function Music() {
   const { t, lang } = useT();
-  const { stationIdx, trackIdx, playing, progress, elapsed, duration } =
-    usePlayer();
+  const { stationIdx, trackIdx, playing } = usePlayer();
   const select = usePlayer((s) => s.select);
-  const toggle = usePlayer((s) => s.toggle);
-  const next = usePlayer((s) => s.next);
-  const prev = usePlayer((s) => s.prev);
-  const seek = usePlayer((s) => s.seek);
   // Which station the right pane is showing. Null is the shelf.
   const [open, setOpen] = useState<number | null>(null);
-  const now = currentTrack(stationIdx, trackIdx);
 
   return (
     <div className="ife-music">
@@ -53,9 +33,14 @@ export function Music() {
             style={{ ["--stationColor" as string]: s.color }}
             onClick={() => setOpen(i)}
           >
-            <span className="ife-library-swatch" />
+            {/* The sleeve, not a colour chip. A shelf of records is a shelf
+                of covers, and each of these has one. */}
+            <span className="ife-library-art">
+              <Sleeve station={s} />
+            </span>
             <span className="ife-library-text">
               <span className="ife-library-name">{s.name}</span>
+              <span className="ife-library-genre">{s.genre}</span>
               <span className="ife-library-sub">
                 {s.tracks.length} {lang === "zh" ? "首" : "tracks"}
                 {playing && stationIdx === i
@@ -151,6 +136,9 @@ export function Music() {
                     </span>
                     <span className="ife-track-title">{s.title}</span>
                     <span className="ife-track-artist">{s.artist}</span>
+                    <span className="ife-track-len ife-mono">
+                      {trackLength(STATIONS[open], i)}
+                    </span>
                   </button>
                 </li>
               );
@@ -159,78 +147,10 @@ export function Music() {
         </section>
       )}
 
-      {/* Now playing, always, whichever pane is open — the sound belongs to the
-          seat and not to the page you happen to be on.
-
-          The shape is the one every player has converged on and it is worth
-          copying rather than inventing: what is playing on the left, the
-          transport in the middle where both thumbs can reach it, and the
-          clock at the ends of the bar. The bar is scrubbable, and it reads
-          the tap from the element's own coordinates like everything else in
-          this cabin that will one day hang on a seat back. */}
-      <footer
-        className="ife-now"
-        style={{ ["--stationColor" as string]: now.station.color }}
-      >
-        <div className="ife-now-what">
-          <span className="ife-now-art">
-            <Sleeve station={now.station} />
-          </span>
-          <span className="ife-now-text">
-            <span className="ife-now-title">{now.title}</span>
-            <span className="ife-now-artist">
-              {now.artist || now.station.name}
-            </span>
-          </span>
-        </div>
-
-        <div className="ife-now-mid">
-          <div className="ife-now-transport">
-            <button
-              className="ife-transport"
-              onClick={prev}
-              aria-label={t("previous")}
-            >
-              <IconPrev size={34} />
-            </button>
-            <button
-              className="ife-transport ife-transport--play"
-              onClick={toggle}
-              aria-label={playing ? t("pause") : t("play")}
-            >
-              {playing ? <IconPause size={38} /> : <IconPlay size={38} />}
-            </button>
-            <button
-              className="ife-transport"
-              onClick={next}
-              aria-label={t("next")}
-            >
-              <IconNext size={34} />
-            </button>
-          </div>
-
-          <div className="ife-now-seekrow">
-            <span className="ife-now-clock ife-mono">{clock(elapsed)}</span>
-            <button
-              className="ife-now-seek"
-              aria-label={t("seek")}
-              onClick={(e) =>
-                seek(
-                  e.nativeEvent.offsetX / (e.currentTarget as HTMLElement).clientWidth,
-                )
-              }
-            >
-              <span
-                className="ife-now-seek-fill"
-                style={{ width: `${Math.round(progress * 100)}%` }}
-              />
-            </button>
-            <span className="ife-now-clock ife-mono">{clock(duration)}</span>
-          </div>
-        </div>
-
-        <div className="ife-now-station ife-cap">{now.station.name}</div>
-      </footer>
+      {/* No player here. It had a bar of its own above the rail, which put
+          two rows of controls on top of each other and made the player exist
+          only while you were on this page. It is in the rail now, where a
+          seat-back system keeps it, and it is on every screen. */}
     </div>
   );
 }

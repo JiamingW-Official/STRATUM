@@ -1,17 +1,23 @@
 // The four stations, and the tracks actually sitting in public/radio.
 //
-// They are named after what is on them. The first set were called NEON
-// APPROACH, GOLDEN HOUR, FLIGHT LEVEL and VELVET TAXI — four aviation puns
-// with the effort showing, which is the sound of a machine trying to have a
-// voice. A cabin names its channels after the music.
+// A record has a title and a genre, and they are not the same word. The first
+// set of names were four aviation puns with the effort showing; the second set
+// were the genres themselves, which is honest but is a label on a shelf rather
+// than a name on a sleeve. So each station has both now: a title for the cover
+// and a genre underneath it, which is how a record has always been described.
+//
+// `lengths` is every track's real duration in seconds, measured off the files
+// in public/radio with ffprobe rather than estimated. A player that cannot say
+// how long a track is has not been told, and this one has.
 //
 // Lifted out of ui/radio.js so the cabin and the sky play the same music from
 // one list rather than two that drift. Nothing about the data changed.
 export const STATIONS = [
   {
     id: "electronic",
-    name: "ELECTRONIC",
-    shortName: "ELECTRONIC",
+    name: "Night Shift",
+    shortName: "NIGHT SHIFT",
+    genre: "Electronic",
     color: "#c06cf0",
     folder: "Electronic",
     tracks: [
@@ -25,11 +31,14 @@ export const STATIONS = [
       "ZISO - Gonna Freak",
       "Ziskoe - SIREN - Ziskoe Remix",
     ],
+    /** Seconds, measured from the files with ffprobe. */
+    lengths: [163, 123, 150, 148, 121, 173, 167, 111, 155],
   },
   {
     id: "indie",
-    name: "INDIE",
-    shortName: "INDIE",
+    name: "First Light",
+    shortName: "FIRST LIGHT",
+    genre: "Indie",
     color: "#e8a44c",
     folder: "Indie",
     tracks: [
@@ -46,11 +55,14 @@ export const STATIONS = [
       "Tiko Tiko - Baby Lets Go - Stripped Version",
       "messwave - maybe its over",
     ],
+    /** Seconds, measured from the files with ffprobe. */
+    lengths: [175, 141, 169, 218, 227, 136, 176, 152, 193, 194, 178, 155],
   },
   {
     id: "relax",
-    name: "AMBIENT",
-    shortName: "AMBIENT",
+    name: "Low Cloud",
+    shortName: "LOW CLOUD",
+    genre: "Ambient",
     color: "#5ab8e8",
     folder: "Relax_Ambiance",
     tracks: [
@@ -60,11 +72,14 @@ export const STATIONS = [
       "MAIKY - Above the Clouds",
       "Master Minded - Strings of Soul",
     ],
+    /** Seconds, measured from the files with ffprobe. */
+    lengths: [343, 157, 81, 208, 205],
   },
   {
     id: "soul",
-    name: "SOUL",
-    shortName: "SOUL",
+    name: "After Hours",
+    shortName: "AFTER HOURS",
+    genre: "Soul & R&B",
     color: "#e85a8a",
     folder: "Soul_R&B",
     tracks: [
@@ -78,5 +93,7 @@ export const STATIONS = [
       "Skipp Whitman - Vegas - Instrumental version",
       "Ziv Moran - Dance",
     ],
+    /** Seconds, measured from the files with ffprobe. */
+    lengths: [189, 157, 154, 183, 220, 135, 202, 85, 171],
   },
 ];

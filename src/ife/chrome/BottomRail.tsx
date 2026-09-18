@@ -3,8 +3,13 @@ import { useCabin, useSelf } from "../../flight-state/store";
 import type { IFEBridge, ScreenName } from "../../flight-state/types";
 import { useT } from "../i18n";
 import { currentTrack, usePlayer } from "../player";
+import { Sleeve } from "./Sleeve";
 import {
   IconCall,
+  IconNext,
+  IconPause,
+  IconPlay,
+  IconPrev,
   IconHome,
   IconLang,
   IconLight,
@@ -42,8 +47,17 @@ export function BottomRail({
   const self = useCabin((s) => s.seats[seat]);
   const { t } = useT();
 
-  const { stationIdx, trackIdx, playing } = usePlayer();
+  const { stationIdx, trackIdx, playing, progress } = usePlayer();
   const togglePlay = usePlayer((s) => s.toggle);
+  const next = usePlayer((s) => s.next);
+  const prev = usePlayer((s) => s.prev);
+  // A track that has been chosen but paused still has a player: the handle
+  // does not vanish because the music stopped. It does vanish while an
+  // announcement holds the cabin — leaving a play key there would be offering
+  // a way to listen past the announcement, and an announcement you can listen
+  // past is not an announcement.
+  const interrupted = usePlayer((s) => s.interrupted);
+  const media = usePlayer((s) => s.progress > 0 || s.playing);
   const setPlayerVolume = usePlayer((s) => s.setVolume);
   const now = currentTrack(stationIdx, trackIdx);
 
@@ -83,26 +97,61 @@ export function BottomRail({
 
       <div className="ife-rail-spacer" />
 
-      {/* Mini player, the way every seat-back system carries one: the music
-          does not belong to the music page, so its handle never leaves. */}
-      {playing && (
-        <button
+      {/* The player lives here.
+ 
+          It had a bar of its own above the rail on the music page, which meant
+          the cabin had two rows of controls stacked on top of each other and
+          the player only existed while you were looking at the music. A
+          seat-back system puts it in the one row that is always there — so
+          this is the player, with keys, and it is on every screen.
+ 
+          It is a div with buttons in it rather than one button that toggles:
+          pressing the thing to find out what it does is not a control. */}
+      {(playing || media) && !interrupted && (
+        <div
           className="ife-mini"
           style={{ ["--stationColor" as string]: now.station.color }}
-          onClick={togglePlay}
-          aria-label={t("pause")}
         >
-          <span className="ife-mini-swatch" />
+          <span className="ife-mini-art">
+            <Sleeve station={now.station} />
+          </span>
           <span className="ife-mini-text">
             <span className="ife-mini-title">{now.title}</span>
-            <span className="ife-mini-station">{now.station.name}</span>
+            <span className="ife-mini-station">
+              {now.artist || now.station.name}
+            </span>
           </span>
-          <span className="ife-mini-bars" aria-hidden="true">
-            <i />
-            <i />
-            <i />
+          <span className="ife-mini-keys">
+            <button
+              className="ife-transport"
+              aria-label={t("previous")}
+              onClick={prev}
+            >
+              <IconPrev size={26} />
+            </button>
+            <button
+              className="ife-transport ife-transport--play"
+              aria-label={playing ? t("pause") : t("play")}
+              onClick={togglePlay}
+            >
+              {playing ? <IconPause size={28} /> : <IconPlay size={28} />}
+            </button>
+            <button
+              className="ife-transport"
+              aria-label={t("next")}
+              onClick={next}
+            >
+              <IconNext size={26} />
+            </button>
           </span>
-        </button>
+          {/* How far through, as a line under the whole block rather than a
+              control: the bar you can drag is on the music page, where there
+              is room to hit it. */}
+          <span
+            className="ife-mini-progress"
+            style={{ width: `${Math.round(progress * 100)}%` }}
+          />
+        </div>
       )}
 
       {/* The language is a screen, not a popover hanging off a placard. It

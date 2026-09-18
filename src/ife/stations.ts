@@ -6,11 +6,16 @@ import { STATIONS as RAW } from "../data/stations.js";
 
 export type Station = {
   id: string;
+  /** The record's title. */
   name: string;
   shortName: string;
+  /** What is on it, which is not the same thing as what it is called. */
+  genre: string;
   color: string;
   folder: string;
   tracks: string[];
+  /** Seconds per track, measured off the files rather than estimated. */
+  lengths: number[];
 };
 
 export const STATIONS = RAW as Station[];
@@ -25,4 +30,11 @@ export function splitTrack(track: string): { artist: string; title: string } {
 
 export function trackSrc(station: Station, track: string) {
   return `/radio/${encodeURIComponent(station.folder)}/${encodeURIComponent(track)}.m4a`;
+}
+
+/** m:ss. Every track's length is known, because it was measured. */
+export function trackLength(station: Station, i: number): string {
+  const sec = station.lengths?.[i] ?? 0;
+  if (!sec) return "--:--";
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
