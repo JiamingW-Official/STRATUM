@@ -1257,6 +1257,12 @@
    They carry a background, unlike the placards on the rail. The rail sits on
    a panel; these sit on a photograph of the earth, and a borderless glyph
    over a coastline is a glyph you cannot find. */
+/* ── The view menu ────────────────────────────────────────────────────────
+   Six stacked icon keys was already one too many, and left and right have no
+   icon anybody would recognise: a left-pointing arrow on a map means "pan
+   left". So the views are written out, which is what a cabin's view menu has
+   always been, and the two zoom keys sit under it where a pair of keys
+   belongs. */
 .ife-mapctl {
   position: absolute;
   right: 34px;
@@ -1266,6 +1272,54 @@
   flex-direction: column;
   gap: 14px;
   z-index: 2;
+  width: 250px;
+}
+
+.ife-mapviews {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: var(--r-key);
+  background-image: var(--glass-tint);
+  background-color: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass);
+}
+
+.ife-mapview {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--r-panel);
+  color: var(--dim);
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-align: left;
+  padding: 14px 18px;
+  cursor: pointer;
+}
+
+.ife-mapview[data-on="true"] {
+  color: var(--accent-bright);
+  background-image: var(--glass-on-tint);
+  background-color: var(--glass-on-fill);
+  box-shadow: var(--glass-on-edge, inset 0 1.5px 0 rgba(255, 226, 170, 0.45));
+}
+
+.ife-mapzoom {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.ife-mapzoom .ife-mapbtn {
+  flex: 1;
+  width: auto;
+  height: 76px;
 }
 
 .ife-mapbtn {
@@ -1296,6 +1350,50 @@
 
 .ife-mapbtn:active {
   box-shadow: var(--glass-down);
+}
+
+/* ── The flight data strip ────────────────────────────────────────────────
+   Everything the flight knows about itself, along the bottom, pushed sideways
+   with a thumb. A seat-back map has always carried this strip; the four
+   figures that were here before were the short version of it. Each fact says
+   whether it rests on something a receiver heard. */
+.ife-map-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 26px;
+  z-index: 2;
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  padding: 0 var(--gutter);
+}
+
+.ife-map-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.ife-fact {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 40px;
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.09);
+}
+
+.ife-fact:first-child {
+  padding-left: 0;
+  box-shadow: none;
+}
+
+.ife-fact-value {
+  font-size: 40px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 /* ── Airports on the map ──────────────────────────────────────────────────
@@ -1365,7 +1463,11 @@
 
 /* The aircraft has to be findable over a coastline, a city's worth of labels
    or the middle of an ocean, so it carries its own shadow. */
-.ife-map[data-view="forward"] .ife-plane-marker {
+/* In any of the three window views the camera is standing at the aircraft, so
+   drawing the aircraft is drawing the thing you are looking out of. */
+.ife-map[data-view="forward"] .ife-plane-marker,
+.ife-map[data-view="left"] .ife-plane-marker,
+.ife-map[data-view="right"] .ife-plane-marker {
   display: none;
 }
 

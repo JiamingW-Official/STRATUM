@@ -47,7 +47,7 @@ export function Instruments({
       aria-hidden="true"
     >
       <Tape
-        x={330}
+        x={300}
         side="left"
         unit={t("knots")}
         value={position.gsKt}
@@ -61,7 +61,9 @@ export function Instruments({
         ]}
       />
       <Tape
-        x={1590}
+        // Inboard of the view menu, which lives on the right edge: the tape
+        // and its box were sitting underneath it.
+        x={1390}
         side="right"
         unit={t("feet")}
         value={position.altFt}

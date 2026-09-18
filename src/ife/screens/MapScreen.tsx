@@ -3,7 +3,7 @@ import { LngLatBounds, Map as MLMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useFlight } from "../../flight-state/store";
 import { arc, bearing, greatCircleKm } from "../../flight-state/geo";
-import { fmtInt } from "../format";
+import { duration, fmtInt, localTime } from "../format";
 import { pick, useT } from "../i18n";
 import { nightRing, terminatorLine } from "../sun";
 import { Instruments } from "../chrome/Instruments";
@@ -59,7 +59,17 @@ const TERMINATOR = "terminator";
  * them: the whole planet, the whole flight, overhead, and looking forward
  * from the aircraft at the country ahead.
  */
-type View = "globe" | "route" | "aircraft" | "forward" | "free";
+type View =
+  | "globe"
+  | "route"
+  | "aircraft"
+  | "forward"
+  | "left"
+  | "right"
+  | "free";
+
+/** The three that stand at the aircraft and look out of it. */
+const WINDOW: View[] = ["forward", "left", "right"];
 
 export function MapScreen() {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -71,7 +81,9 @@ export function MapScreen() {
   // the data effect runs, so readiness is state rather than a listener.
   const [ready, setReady] = useState(false);
   const [view, setView] = useState<View>("route");
-  const { route, position, track } = useFlight();
+  const { route, position, track, etaUtc, etaInferred, departureUtc } =
+    useFlight();
+  const remaining = Date.parse(etaUtc) - Date.now();
   const { t, lang } = useT();
 
   // Create once. Everything after this is a data update, never a rebuild:
@@ -128,7 +140,10 @@ export function MapScreen() {
               type: "raster-dem",
               tiles: [DEM],
               tileSize: 256,
-              maxzoom: 13,
+              // 11, not 13. Eleven kilometres up you cannot see a metre of
+              // relief, and the deeper zooms were four times the tiles from a
+              // courtesy service that answers 429 when it has had enough.
+              maxzoom: 11,
               encoding: "terrarium",
             },
           },
@@ -155,9 +170,12 @@ export function MapScreen() {
         // that need them are the point; the bearing is still always the
         // system's in the three level views, which are north-up.
         interactive: true,
-        maxPitch: 80,
         minZoom: 0.6,
-        maxZoom: 12,
+        maxZoom: 14,
+        // 85 is the flattest MapLibre allows, and the window views need it:
+        // from eleven kilometres up, a camera any more upright than that is
+        // looking at the ground rather than at the horizon.
+        maxPitch: 85,
       });
     } catch {
       setFailed(true);
@@ -343,7 +361,7 @@ export function MapScreen() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    if (view === "forward") {
+    if (WINDOW.includes(view)) {
       if (!map.getTerrain())
         map.setTerrain({ source: "dem", exaggeration: 1.3 });
     } else if (map.getTerrain()) {
@@ -384,18 +402,30 @@ export function MapScreen() {
         duration: 700,
       });
     }
-    if (view === "forward") {
-      // Standing at the aircraft, looking where it is pointed. The pitch is
-      // what makes this the view it is: the horizon has to be in the frame,
-      // and the country between here and it has to be readable.
-      map.easeTo({
-        center: [position.lon, position.lat],
-        zoom: 6.4,
-        pitch: 74,
-        bearing: position.headingDeg,
-        offset: [0, 210],
-        duration: 900,
-      });
+    if (WINDOW.includes(view)) {
+      /**
+       * Standing at the aircraft, at the height the aircraft is actually at.
+       *
+       * The first version of this picked a zoom that looked about right, which
+       * is a drawing of a view rather than the view. MapLibre can put the
+       * camera at a real altitude instead, so it does: 37,000 ft is 11,278 m,
+       * and from 11,278 m the horizon is 379 km away — which is why this looks
+       * like the window and the guessed zoom did not.
+       *
+       * Left and right are the same camera turned a quarter turn, because that
+       * is what they are: the window on that side.
+       */
+      const altM = Math.max(250, position.altFt * 0.3048);
+      const turn = view === "left" ? -90 : view === "right" ? 90 : 0;
+      const opts = map.calculateCameraOptionsFromCameraLngLatAltRotation(
+        [position.lon, position.lat],
+        altM,
+        (position.headingDeg + turn + 360) % 360,
+        // Forward looks at the horizon; a side window looks down at what you
+        // are passing over, which is what anybody in a window seat is doing.
+        view === "forward" ? 85 : 76,
+      );
+      map.easeTo({ ...opts, duration: 900 });
     }
   }, [view, ready, fitRoute, position.lat, position.lon, position.headingDeg]);
 
@@ -501,7 +531,7 @@ export function MapScreen() {
       duration: 320,
     });
 
-  const forward = view === "forward";
+  const window_ = WINDOW.includes(view);
   const toDest = bearing(position, route.to);
 
   return (
@@ -514,88 +544,113 @@ export function MapScreen() {
         </div>
       )}
 
-      {/* The forward view is an instrument panel, as it is in the cabin this
-          is drawn from. It replaces the figures rather than joining them. */}
-      {forward && <Instruments position={position} bearingToDest={toDest} />}
+      {/* A window view is an instrument panel, as it is in the cabin this is
+          drawn from. It replaces the figures rather than joining them. */}
+      {window_ && <Instruments position={position} bearingToDest={toDest} />}
 
-      {/* On-glass controls rather than MapLibre's own: theirs ship a compass
-          nobody can use, at a size made for a mouse. */}
+      {/* The view menu.
+ 
+          Six stacked icon keys was already one too many, and left and right
+          have no icon anybody would recognise — a left-pointing arrow on a map
+          means "pan left". So the views are written out. A cabin's view menu
+          has always been a list of words, and the two zoom keys sit under it
+          where a pair of keys belongs. */}
       <div className="ife-mapctl">
-        <button
-          className="ife-mapbtn"
-          aria-label={t("zoomIn")}
-          onClick={zoom(1)}
-        >
-          <IconPlus size={36} />
-        </button>
-        <button
-          className="ife-mapbtn"
-          aria-label={t("zoomOut")}
-          onClick={zoom(-1)}
-        >
-          <IconMinus size={36} />
-        </button>
-        <button
-          className="ife-mapbtn"
-          aria-label={t("viewGlobe")}
-          data-on={view === "globe"}
-          onClick={() => setView("globe")}
-        >
-          <IconPlanet size={36} />
-        </button>
-        <button
-          className="ife-mapbtn"
-          aria-label={t("wholeRoute")}
-          data-on={view === "route"}
-          onClick={() => setView("route")}
-        >
-          <IconRoute size={36} />
-        </button>
-        <button
-          className="ife-mapbtn"
-          aria-label={t("followAircraft")}
-          data-on={view === "aircraft"}
-          onClick={() => setView("aircraft")}
-        >
-          <IconTarget size={36} />
-        </button>
-        <button
-          className="ife-mapbtn"
-          aria-label={t("viewForward")}
-          data-on={forward}
-          onClick={() => setView("forward")}
-        >
-          <IconForward size={36} />
-        </button>
+        <div className="ife-mapviews">
+          {(
+            [
+              ["globe", "viewGlobe"],
+              ["route", "wholeRoute"],
+              ["aircraft", "followAircraft"],
+              ["forward", "viewForward"],
+              ["left", "viewLeft"],
+              ["right", "viewRight"],
+            ] as const
+          ).map(([v, key]) => (
+            <button
+              key={v}
+              className="ife-mapview"
+              data-on={view === v}
+              onClick={() => setView(v)}
+            >
+              {t(key)}
+            </button>
+          ))}
+        </div>
+        <div className="ife-mapzoom">
+          <button
+            className="ife-mapbtn"
+            aria-label={t("zoomOut")}
+            onClick={zoom(-1)}
+          >
+            <IconMinus size={34} />
+          </button>
+          <button
+            className="ife-mapbtn"
+            aria-label={t("zoomIn")}
+            onClick={zoom(1)}
+          >
+            <IconPlus size={34} />
+          </button>
+        </div>
       </div>
 
-      {!forward && (
-        <div className="ife-map-readout">
-          <Readout
-            label={t("altitude")}
-            value={fmtInt(position.altFt)}
-            unit="ft"
-            inferred={!position.heard}
-          />
-          <Readout
-            label={t("groundSpeed")}
-            value={fmtInt(position.gsKt)}
-            unit="kt"
-            inferred={!position.heard}
-          />
-          <Readout
+      {/* Everything the flight knows about itself, along the bottom, pushed
+          sideways with a thumb. A seat-back map has always carried this strip;
+          four figures was the short version of it. Each one says whether it
+          rests on something a receiver heard. */}
+      {!window_ && (
+        <div className="ife-map-strip">
+          <Fact label={t("altitude")} value={`${fmtInt(position.altFt)} ft`} inferred={!position.heard} />
+          <Fact label={t("groundSpeed")} value={`${fmtInt(position.gsKt)} kt`} inferred={!position.heard} />
+          <Fact
             label={t("heading")}
             value={`${Math.round(position.headingDeg).toString().padStart(3, "0")}°`}
             inferred={!position.heard}
           />
-          <Readout
+          <Fact
             label={t("distanceToGo")}
-            value={fmtInt(greatCircleKm(position, route.to))}
-            unit="km"
+            value={`${fmtInt(greatCircleKm(position, route.to))} km`}
             inferred={!position.heard}
           />
+          <Fact
+            label={t("distanceFlown")}
+            value={`${fmtInt(greatCircleKm(route.from, position))} km`}
+            inferred={!position.heard}
+          />
+          <Fact label={t("timeRemaining")} value={duration(remaining, lang)} inferred={etaInferred} />
+          <Fact label={t("elapsedSoFar")} value={duration(Date.now() - Date.parse(departureUtc), lang)} />
+          <Fact
+            label={`${t("localTime")} ${route.to.iata}`}
+            value={localTime(new Date().toISOString(), route.to)}
+          />
+          <Fact
+            label={`${t("localTime")} ${route.from.iata}`}
+            value={localTime(new Date().toISOString(), route.from)}
+          />
+          <Fact label={t("arrival")} value={`${localTime(etaUtc, route.to)} ${route.to.iata}`} inferred={etaInferred} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** One figure on the strip, and whether it rests on something heard. */
+function Fact({
+  label,
+  value,
+  inferred,
+}: {
+  label: string;
+  value: string;
+  inferred?: boolean;
+}) {
+  return (
+    <div className="ife-fact">
+      <span className="ife-cap">{label}</span>
+      <span className={`ife-fact-value ife-mono${inferred ? " ife-inferred" : ""}`}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -624,8 +679,38 @@ function Readout({
   );
 }
 
-// Filled when a receiver has the aircraft, hollow and broken when the position
-// is our belief rather than its report.
-const PLANE_SVG = `<svg width="38" height="38" viewBox="0 0 24 24" style="display:block">
-  <path d="M12 2.5 13.6 10 22 13.4v1.9l-8.4-2.3-.5 4.9 3 2.2v1.4L12 20.3l-4.1 1.2v-1.4l3-2.2-.5-4.9L2 15.3v-1.9L10.4 10z"/>
+/**
+ * The aircraft, lit.
+ *
+ * It was the same flat silhouette the journey strip uses, which is right at
+ * strip size and thin at map size. This one is an airliner from above with the
+ * shape an airliner has — swept wings, two engines under them, a tailplane —
+ * and it is shaded: a highlight down the spine of the fuselage, the wings
+ * darker than the body, and a shadow under the whole thing.
+ *
+ * The shadow is on the marker's container rather than inside the drawing, so
+ * it stays where it is while the aircraft turns. A shadow that rotates with
+ * the aeroplane is a sticker; a shadow that stays put is a light.
+ *
+ * Filled when a receiver has it, hollow and broken when the position is our
+ * belief rather than its report — the same rule as everywhere else.
+ */
+const PLANE_SVG = `<svg width="54" height="54" viewBox="0 0 64 64" style="display:block">
+  <defs>
+    <linearGradient id="fuse" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#b9b6ae"/>
+      <stop offset="0.42" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#8e8b84"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d8d5cd"/>
+      <stop offset="1" stop-color="#7e7b75"/>
+    </linearGradient>
+  </defs>
+  <g class="plane-body">
+    <path class="plane-wing" d="M32 26c1.1 0 1.8.7 2 1.9l.6 5.1 22 12.6v3.4l-22-5.6v1.2l-2 .6-2-.6v-1.2l-22 5.6v-3.4l22-12.6.6-5.1c.2-1.2.9-1.9 2-1.9z"/>
+    <path class="plane-tail" d="M32 48.5c.8 0 1.3.5 1.5 1.4l.5 3.6 8 4.6v2.4l-8-2v1.3l-2 .8-2-.8v-1.3l-8 2v-2.4l8-4.6.5-3.6c.2-.9.7-1.4 1.5-1.4z"/>
+    <path class="plane-fuse" d="M32 3.5c2.4 0 4 2.6 4.3 6.3l1.4 18.6c.3 4.2.5 9.6.5 14.4 0 6.6-.4 12.4-1 15.6-.5 2.6-1.4 4.1-2.6 4.6l-2.6 1-2.6-1c-1.2-.5-2.1-2-2.6-4.6-.6-3.2-1-9-1-15.6 0-4.8.2-10.2.5-14.4l1.4-18.6C28 6.1 29.6 3.5 32 3.5z"/>
+    <path class="plane-nacelle" d="M18.5 33.5h4.6l-1 9h-2.6zM45.5 33.5h-4.6l1 9h2.6z"/>
+  </g>
 </svg>`;

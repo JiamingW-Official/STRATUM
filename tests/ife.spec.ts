@@ -165,10 +165,20 @@ test.describe("IFE bench", () => {
     ).toHaveAttribute("data-on", "false");
 
     // Zoom is a control a thumb can hit, not a 29px square with a compass.
-    const zbox = (await page
+    // In the panel's own pixels, not the bench's. The glass is scaled to fit
+    // the window, so a rendered box says how big this looks on a laptop
+    // rather than how big the target is on a seat back.
+    const key = await page
       .getByRole("button", { name: "Zoom in" })
-      .boundingBox())!;
-    expect(Math.min(zbox.width, zbox.height)).toBeGreaterThan(40);
+      .evaluate((el) => {
+        const scale =
+          el.closest(".ife-root")!.getBoundingClientRect().width / 1920;
+        const r = el.getBoundingClientRect();
+        return Math.min(r.width, r.height) / scale;
+      });
+    expect(key, "a thumb needs a target, not a mouse pointer").toBeGreaterThan(
+      60,
+    );
     await page.getByRole("button", { name: "Zoom in" }).click();
     await expect
       .poll(async () => (await cam()).zoom, { timeout: 4000 })
@@ -217,9 +227,9 @@ test.describe("IFE bench", () => {
 
     // The forward view stands at the aircraft and looks where it is pointed,
     // and it is an instrument panel rather than a row of figures.
-    await page.getByRole("button", { name: "Forward view" }).click();
+    await page.getByRole("button", { name: "Forward", exact: true }).click();
     await expect(page.locator(".ife-inst")).toHaveCount(1);
-    await expect(page.locator(".ife-map-readout")).toHaveCount(0);
+    await expect(page.locator(".ife-map-strip")).toHaveCount(0);
     await expect
       .poll(
         async () => page.evaluate(() => (window as any).__ifeMap.getPitch()),
@@ -253,6 +263,35 @@ test.describe("IFE bench", () => {
         { timeout: 5000 },
       )
       .toBeLessThan(2);
+
+    // The window views stand at the aircraft's real height. 37,000 ft is
+    // 11,278 m, and a camera put there sees a horizon 379 km away — which is
+    // the difference between this view and a zoom level that looked about
+    // right. Left is the same camera turned a quarter turn.
+    await page.getByRole("button", { name: "Left window" }).click();
+    const left = await page.evaluate(async () => {
+      const m = (window as any).__ifeMap;
+      await new Promise((r) => m.once("idle", r));
+      return { bearing: m.getBearing(), pitch: m.getPitch(), zoom: m.getZoom() };
+    });
+    await page.getByRole("button", { name: "Right window" }).click();
+    const right = await page.evaluate(async () => {
+      const m = (window as any).__ifeMap;
+      await new Promise((r) => m.once("idle", r));
+      return { bearing: m.getBearing() };
+    });
+    const turn = ((right.bearing - left.bearing + 540) % 360) - 180;
+    expect(Math.abs(turn), "left and right are half a turn apart").toBeGreaterThan(
+      170,
+    );
+    expect(left.pitch).toBeGreaterThan(70);
+    // A camera eleven kilometres up is a long way out, not zoomed in close.
+    expect(left.zoom).toBeLessThan(12);
+
+    // Both window views are instrument panels, and neither draws the aircraft
+    // you are standing in.
+    await expect(page.locator(".ife-inst")).toHaveCount(1);
+    await expect(page.locator(".ife-plane-marker")).toBeHidden();
 
     // Night is computed from the clock and it is in the right place. Point
     // the camera at the spot the sun is directly over and nothing should be
