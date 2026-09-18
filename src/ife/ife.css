@@ -121,10 +121,12 @@
      too low for a panel at arm's length in a dark cabin. */
   --t-cap: 24px;
 
-  --strip-h: 124px;
-  /* 96, not 116. The row held an 86px key inside a lens that needed air
-     round it; the keys are marks now and the 20px goes back to the screen. */
-  --rail-h: 96px;
+  /* The two rows that frame every screen, and they are the same height.
+     The strip was 124 and the rail 96 — two different frames round one
+     picture. 104 each: enough for a 76px key with air round it, and 40px
+     less chrome than the pair started with. */
+  --strip-h: 104px;
+  --rail-h: 104px;
   --gutter: 72px;
 
   position: relative;
@@ -185,7 +187,7 @@
   height: var(--strip-h);
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 26px;
   padding: 0 var(--gutter);
   background: rgba(7, 9, 13, 0.72);
   -webkit-backdrop-filter: blur(22px) saturate(1.3);
@@ -198,9 +200,14 @@
   z-index: 3;
 }
 
+/* 32, not 38. Three things on this strip were within four points of each
+   other — the two cities and the arrival — so the squint test came back with
+   three protagonists on a row that is not the subject of any screen. The
+   strip is where you are between two places; the screen under it is what you
+   came for. */
 .ife-strip-city {
   font-family: var(--font-display);
-  font-size: 38px;
+  font-size: 32px;
   font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -209,12 +216,18 @@
 .ife-strip-city-zh {
   font-family: var(--font-sans);
   color: var(--faint);
-  font-size: 23px;
+  font-size: 22px;
   letter-spacing: 0.04em;
-  margin-left: 12px;
+  margin-left: 10px;
 }
 
 /* The line is a button now: pressing the journey opens the journey. */
+/* The block is symmetric about the route line, so the line lands on the row's
+   centre — which is the centre the city names either side of it are on.
+   Before this the line hung 12px below them: the block was 56px tall with the
+   line pinned 4px off its bottom and the label poking out of its top, so
+   three things on one row sat at three heights. Nothing else changed; the
+   line just got put where the eye already expected it. */
 .ife-strip-line {
   appearance: none;
   background: none;
@@ -225,23 +238,24 @@
   cursor: pointer;
   flex: 1;
   position: relative;
-  height: 56px;
+  height: 62px;
   min-width: 300px;
 }
 
 .ife-strip-remaining {
   position: absolute;
-  top: -4px;
+  bottom: calc(50% + 10px);
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
   color: var(--dim);
-  font-size: 26px;
+  font-size: 25px;
 }
 
 .ife-strip-end {
   position: absolute;
-  bottom: 13px;
+  top: 50%;
+  margin-top: -3.5px;
   width: 7px;
   height: 7px;
   margin-left: -3.5px;
@@ -258,14 +272,14 @@
    name beside it, which made the strip read as a clock with a route attached
    to it rather than a route with a clock at the end. */
 .ife-strip-arrival {
-  margin-left: 22px;
+  margin-left: 16px;
   display: flex;
   align-items: baseline;
   gap: 12px;
 }
 
 .ife-strip-arrival-time {
-  font-size: 42px;
+  font-size: 36px;
   font-weight: 400;
   letter-spacing: -0.01em;
 }
@@ -308,8 +322,8 @@
    something to say. It costs no height, which is the whole reason the keys
    below it can be 86px like every other key in the cabin.
  
-   The strip you can press is 10px and the mark inside it is 5px: the rail is
-   96px tall and the keys are 76, so there are 10px of nothing above them and
+   The strip you can press is 14px and the mark inside it is 5px: the rail is
+   104px tall and the keys are 76, so there are 14px of nothing above them and
    the target comes out of that rather than out of anything else. */
 .ife-rail-seek {
   appearance: none;
@@ -319,7 +333,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 10px;
+  height: 14px;
   background: none;
   cursor: pointer;
   z-index: 4;
@@ -365,12 +379,16 @@
 
 /* What is playing, and a door. Pressing the art opens the record it belongs
    to, which is what pressing the art does in every music app there is. */
+/* Pushed to the far end of its zone, so the record and the five keys that
+   drive it are one object in the middle of the row instead of the record
+   being the third thing after the navigation. */
 .ife-rail-now {
   appearance: none;
   background: none;
   border: 0;
   padding: 0 0 0 10px;
-  margin-left: 4px;
+  margin-left: auto;
+  margin-right: 12px;
   color: var(--fg);
   font: inherit;
   text-align: left;
@@ -1216,8 +1234,23 @@
   /* Required attribution, and it has to be readable to count as attribution.
      MapLibre ships this at 12px for a browser window. */
   font-size: 20px;
-  background: rgba(7, 8, 11, 0.72);
+  background: none;
   color: var(--faint);
+}
+
+/* Its own line, at the very bottom, in the band the fact strip already keeps
+   clear below the figures. It had been landing straight across "065°" and
+   "3,767 km" — the map got 8px shorter when the two rails were squared up and
+   the credit came up with it, into the row of numbers. */
+.ife-map .maplibregl-ctrl-bottom-right {
+  bottom: 0;
+  right: 0;
+  z-index: 3;
+  transition: right 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.ife-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+  margin: 0 var(--gutter) 2px 0;
 }
 
 .ife-map .maplibregl-ctrl-attrib a {
@@ -1389,29 +1422,34 @@
   transform: translateX(0);
 }
 
+/* Narrower, and without the backdrop-filter — the blur put it on its own
+   composited layer inside the glass's fractional transform, which is the
+   thing this cabin measured its way out of on the rail. It keeps a surface
+   because it is the edge of a panel rather than a key: it is literally what
+   is left of the drawer when the drawer is pushed off the screen. */
 .ife-mapside-handle {
   position: absolute;
-  left: -78px;
+  left: -56px;
   top: 50%;
-  margin-top: -54px;
-  width: 78px;
-  height: 108px;
+  margin-top: -48px;
+  width: 56px;
+  height: 96px;
   border: 0;
-  border-radius: var(--r-key) 0 0 var(--r-key);
-  color: var(--fg);
+  border-radius: var(--r-panel) 0 0 var(--r-panel);
+  color: var(--dim);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-image: var(--glass-tint);
-  background-color: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass);
+  background: rgba(8, 10, 14, 0.82);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.12),
+    -14px 0 32px rgba(0, 0, 0, 0.45);
+  transition: color 140ms ease;
 }
 
 .ife-mapside-handle:active {
-  box-shadow: var(--glass-down);
+  color: var(--fg);
 }
 
 .ife-mapside-panel {
@@ -1438,22 +1476,27 @@
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--r-panel);
+  border-radius: 20px;
   color: var(--dim);
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: 29px;
   font-weight: 500;
   letter-spacing: -0.015em;
   text-align: left;
-  padding: 15px 18px;
+  padding: 13px 18px;
   cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
 }
 
+/* The same highlight the music library uses for the record you have open: a
+   neutral rounded block and the name at full strength. It was a filled brass
+   pill, and brass on this glass means "on" or "inferred" — a view you are
+   looking at is neither. Two sidebars in one cabin should be one component. */
 .ife-mapview[data-on="true"] {
-  color: var(--accent-bright);
-  background-image: var(--glass-on-tint);
-  background-color: var(--glass-on-fill);
-  box-shadow: inset 0 1.5px 0 rgba(255, 226, 170, 0.45);
+  color: var(--fg);
+  background: rgba(var(--text-rgb), 0.08);
 }
 
 .ife-mapzoom {
@@ -1462,17 +1505,24 @@
   padding: 4px 18px 0;
 }
 
-/* No backdrop filter on a key that is already sitting on a filtered panel: a
-   blur of an already-blurred backdrop comes back as flat grey, which is what
-   these two came out as. On the sidebar they are a lighter face on a dark
-   panel, and the light on the edge does the rest. */
+/* No backdrop filter on a key already sitting on a filtered panel: a blur of
+   an already-blurred backdrop comes back as flat grey, which is what these
+   two came out as. And the same rounded neutral block the selected view takes
+   — they were sharp-cornered flat rectangles, which read as a form's buttons
+   on a panel where nothing else has a corner or an outline. */
 .ife-mapzoom .ife-mapbtn {
   flex: 1;
   width: auto;
-  height: 78px;
+  height: 72px;
+  border-radius: 20px;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: rgba(var(--text-rgb), 0.08);
+  box-shadow: none;
+}
+
+.ife-mapzoom .ife-mapbtn:active {
+  background-color: rgba(var(--text-rgb), 0.14);
 }
 
 /* The sleeve in the rail is 62px and the one in the sidebar is 48px: a drawn
@@ -1491,19 +1541,44 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 26px;
+  bottom: 0;
   z-index: 2;
+  /* Something to sit on. These are numbers laid straight over a photograph
+     of the earth, and the earth is bright wherever there is desert under
+     the aircraft — "1,773 km" over the Sahara was grey on tan. */
+  background: linear-gradient(
+    to top,
+    rgba(7, 8, 11, 0.9) 0%,
+    rgba(7, 8, 11, 0.62) 58%,
+    rgba(7, 8, 11, 0) 100%
+  );
   display: flex;
   gap: 0;
   overflow-x: auto;
+  transition: right 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
   scrollbar-width: none;
   scroll-snap-type: x proximity;
-  padding: 0 var(--gutter);
+  /* The bottom 34px is the tile credit's line. The credit is required and it
+     has to be legible to count, and it was landing straight across "065°"
+     and "3,767 km" because both it and the figures wanted the floor of the
+     map. */
+  padding: 0 var(--gutter) 34px;
   /* Snapping aligns a fact to the scrollport's start edge, and that edge
      ignores padding unless it is told not to — so the first fact snapped to
      scrollLeft 72 and the first 72px of "ALTITUDE 37,000 ft" sat behind the
      gutter. Measured: scrollLeft came to rest at exactly the padding. */
   scroll-padding-inline: var(--gutter);
+}
+
+/* The open sidebar is 330px of opaque panel from the top of the map to the
+   bottom of it, and the strip ran underneath: the last two facts and the tile
+   credit were cut off behind it. The strip stops where the panel starts. */
+.ife-map[data-side="true"] .ife-map-strip {
+  right: 330px;
+}
+
+.ife-map[data-side="true"] .maplibregl-ctrl-bottom-right {
+  right: 330px;
 }
 
 .ife-map-strip::-webkit-scrollbar {

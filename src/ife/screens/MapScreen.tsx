@@ -546,7 +546,7 @@ export function MapScreen() {
   const toDest = bearing(position, route.to);
 
   return (
-    <div className="ife-map" data-view={view}>
+    <div className="ife-map" data-view={view} data-side={menu}>
       <div ref={ref} style={{ position: "absolute", inset: 0 }} />
       {failed && (
         <div className="ife-map-fail">

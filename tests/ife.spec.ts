@@ -84,6 +84,25 @@ test.describe("IFE bench", () => {
     expect(await screenName(page)).toBe("map");
     await expect(page.locator(".ife-map .maplibregl-canvas")).toHaveCount(1);
 
+    // The two rows that frame every screen are the same height, and the
+    // fact strip stops where the sidebar starts — it used to run under it,
+    // and the last two facts and the tile credit were cut off behind 330px
+    // of opaque panel.
+    const chrome = await page.evaluate(() => ({
+      strip: (document.querySelector(".ife-strip") as HTMLElement).offsetHeight,
+      rail: (document.querySelector(".ife-rail") as HTMLElement).offsetHeight,
+    }));
+    expect(chrome.strip).toBe(chrome.rail);
+    const factStrip = page.locator(".ife-map-strip");
+    const full = await factStrip.evaluate((e) => (e as HTMLElement).offsetWidth);
+    expect(full).toBe(1920);
+    await page.locator(".ife-mapside-handle").click();
+    await expect(page.locator('.ife-mapside[data-open="true"]')).toHaveCount(1);
+    await expect
+      .poll(() => factStrip.evaluate((e) => (e as HTMLElement).offsetWidth))
+      .toBe(1920 - 330);
+    await page.locator(".ife-mapside-handle").click();
+
     // Home is on the rail, and the corner is the menu's now: back was doing
     // two different jobs depending on which screen you were on.
     await rail(page, "Home").click();
