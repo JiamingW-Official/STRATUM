@@ -26,3 +26,12 @@ playwright-report/
 # Cloud-drive sync-conflict copy with no extension; the rule above only
 # catches "NAME 2.ext".
 public/_headers 2
+
+# Generated and raw artwork. The brief's rule: large files do not enter git,
+# and anything that has to be online goes to R2. /assets/raw/ is where a
+# Midjourney download lands before it is cut, cropped and exported; only the
+# small, optimised export belongs in the repo, and only when something in the
+# app actually references it.
+/assets/raw/
+*.blend
+*.blend1
