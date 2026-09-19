@@ -1,50 +1,43 @@
 import { useEffect, useRef } from "react";
-import { useCabin, useSelf } from "../../flight-state/store";
-import type { IFEBridge, ScreenName } from "../../flight-state/types";
+import { useSelf } from "../../flight-state/store";
+import type { ScreenName } from "../../flight-state/types";
 import { useT, type Key } from "../i18n";
 import { useNav } from "../nav";
+import { Mark, markFor } from "./Mark";
 import {
-  IconCall,
   IconChat,
   IconFilm,
   IconGames,
   IconGauge,
-  IconHome,
-  IconLight,
   IconMap,
   IconMusic,
-  IconPower,
   IconSky,
 } from "./icons";
 
 /**
  * Everything on board, in a panel that comes in from the left edge.
  *
- * It is not a screen. A seat-back menu never takes the glass — it slides over
- * whatever you were doing and goes away again, because half the things on it
- * are switches rather than destinations and throwing away the film you were
- * watching to reach the reading light would be absurd. The hamburger that
- * opens it lives in the top-left corner of the strip, where every system from
- * United's to Panasonic's puts it.
+ * It is a list of doors, and only doors. It used to carry the reading light,
+ * the attendant call and the screen switch as well, and all three are
+ * placards on the rail two inches below — lit, pressed and answered there,
+ * on every screen, without opening anything. A panel that mixes doors with
+ * switches makes you read each row to find out which kind it is.
+ *
+ * It is not a screen either. It slides over whatever you were doing and goes
+ * away again, and the hamburger that opens it lives in the top-left corner
+ * of the strip, where every system from United's to Panasonic's puts it.
  *
  * It also earns its place against the home rail, which scrolls sideways: a
  * passenger who has pushed that rail three columns along has no way of
  * knowing what is off the end of it. Home is a shelf that shows you things.
  * This is the index that tells you what exists.
  */
-export function MenuDrawer({
-  seat,
-  bridge,
-}: {
-  seat: string;
-  bridge: IFEBridge;
-}) {
+export function MenuDrawer() {
   const open = useNav((s) => s.menuOpen);
   const setOpen = useNav((s) => s.setMenuOpen);
   const screen = useSelf((s) => s.screen);
   const setScreen = useSelf((s) => s.setScreen);
   const { t } = useT();
-  const self = useCabin((s) => s.seats[seat]);
   const panel = useRef<HTMLDivElement | null>(null);
 
   // Escape closes it, and so does the hardware key a bench has and a seat
@@ -55,9 +48,6 @@ export function MenuDrawer({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
-
-  const light = !!self?.readingLight;
-  const calling = !!self?.callAttendant;
 
   const go = (s: ScreenName) => () => {
     setScreen(s);
@@ -72,7 +62,6 @@ export function MenuDrawer({
       label: string;
       onPress?: () => void;
       href?: string;
-      on?: boolean;
       current?: boolean;
     }>;
   }> = [
@@ -142,33 +131,12 @@ export function MenuDrawer({
           onPress: go("chat"),
           current: screen === "chat",
         },
-        {
-          key: "light",
-          icon: <IconLight size={38} />,
-          label: t("readingLight"),
-          on: light,
-          onPress: () => bridge.setReadingLight(!light),
-        },
-        {
-          key: "call",
-          icon: <IconCall size={38} />,
-          label: calling ? t("cancelCall") : t("callAttendant"),
-          on: calling,
-          onPress: () => bridge.callAttendant(!calling),
-        },
-        // No language row either, and for the same reason Home went: the rail
-        // carries a globe placard whose popover lists both languages by name,
-        // which is more than a row here could say. Eleven rows no longer fit
-        // the glass at the size the type was asked to be, and a row that is
-        // already two inches below is the one to lose.
-        {
-          // What the corner arrow used to do, done properly: a screen you can
-          // put out, and one touch anywhere brings it back.
-          key: "off",
-          icon: <IconPower size={38} />,
-          label: t("screenOff"),
-          onPress: go("off"),
-        },
+        // And that is the end of it. The reading light, the attendant call
+        // and the screen switch were the last three rows here, and all three
+        // are placards on the rail two inches below — lit, pressed and
+        // answered there, on every screen, without opening anything. A
+        // drawer that mixes seven doors with three switches makes you read
+        // each row to find out which kind it is. This one is doors.
       ],
     },
   ];
@@ -210,18 +178,17 @@ export function MenuDrawer({
                     href={it.href}
                     tabIndex={open ? 0 : -1}
                   >
-                    <Row icon={it.icon} label={it.label} />
+                    <Row id={it.key} icon={it.icon} label={it.label} />
                   </a>
                 ) : (
                   <button
                     key={it.key}
                     className="ife-drawer-row"
-                    data-on={!!it.on}
                     data-current={!!it.current}
                     tabIndex={open ? 0 : -1}
                     onClick={it.onPress}
                   >
-                    <Row icon={it.icon} label={it.label} />
+                    <Row id={it.key} icon={it.icon} label={it.label} />
                   </button>
                 ),
               )}
@@ -233,10 +200,23 @@ export function MenuDrawer({
   );
 }
 
-function Row({ icon, label }: { icon: React.ReactNode; label: string }) {
+function Row({
+  id,
+  icon,
+  label,
+}: {
+  id: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  // A made mark brings its own body, so the lens under it comes off: a tile
+  // sitting inside a second tile is two icons deep.
+  const art = !!markFor(id);
   return (
     <>
-      <span className="ife-drawer-row-icon">{icon}</span>
+      <span className="ife-drawer-row-icon" data-art={art}>
+        <Mark id={id} drawn={icon} />
+      </span>
       <span className="ife-drawer-row-label">{label}</span>
     </>
   );

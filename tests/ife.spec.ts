@@ -108,10 +108,9 @@ test.describe("IFE bench", () => {
     await rail(page, "Home").click();
     expect(await screenName(page)).toBe("home");
 
-    // And the screen can be put out from the drawer, which is the only thing
-    // the corner arrow did that nothing else could — one touch wakes it.
-    await page.locator(".ife-strip-menu").click();
-    await page.locator(".ife-drawer").getByRole("button", { name: "Screen off" }).click();
+    // And the screen can be put out, from the rail, which is where every
+    // switch in this cabin lives — one touch anywhere wakes it.
+    await rail(page, "Screen off").click();
     expect(await screenName(page)).toBe("off");
     await page.locator(".ife-off").click();
     expect(await screenName(page)).toBe("idle");
@@ -625,8 +624,18 @@ test.describe("IFE bench", () => {
     // grey type at the right edge was the one thing on this panel you had to
     // lean in to read, on the panel that exists so you do not have to.
     await expect(menu.locator(".ife-drawer-row-note")).toHaveCount(0);
-    for (const label of ["Movies", "Music", "Games", "Screen off"]) {
+    for (const label of ["Movies", "Music", "Games", "Seat messages"]) {
       await expect(menu.getByRole("button", { name: label })).toHaveCount(1);
+    }
+
+    // Seven rows, and every one of them a door. The reading light, the
+    // attendant call and the screen switch were here too, and all three are
+    // placards on the rail below — a panel that mixes doors with switches
+    // makes you read each row to find out which kind it is.
+    await expect(menu.locator(".ife-drawer-row")).toHaveCount(7);
+    for (const label of ["Reading light", "Call attendant", "Screen off"]) {
+      await expect(menu.getByRole("button", { name: label })).toHaveCount(0);
+      await expect(rail(page, label)).toHaveCount(1);
     }
 
     // Every label reads at full size rather than being cut to fit a narrower
@@ -638,16 +647,6 @@ test.describe("IFE bench", () => {
     );
     expect(clipped).toEqual([]);
 
-    // The cabin controls act, rather than pointing at the rail. The switch
-    // lives in SeatPrivate, so the rail's own placard has to agree.
-    const light = menu.getByRole("button", { name: "Reading light" });
-    await expect(light).toHaveAttribute("data-on", "false");
-    await light.click();
-    await expect(light).toHaveAttribute("data-on", "true");
-    await expect(rail(page, "Reading light")).toHaveAttribute(
-      "data-on",
-      "true",
-    );
 
     // It does not take the screen: the drawer is chrome, and whatever was
     // behind it is still there when it closes.

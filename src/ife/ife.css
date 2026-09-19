@@ -3661,17 +3661,18 @@
   color: var(--accent-bright);
 }
 
-/* The same lens as the rail, at the size a list row can carry. */
+/* The lens a drawn mark sits in, at the size a list row can carry. Three
+   rows went, so there is room for it to be the size an icon wants to be. */
 .ife-drawer-row-icon {
   color: var(--accent-bright);
   display: flex;
   align-items: center;
   justify-content: center;
   align-self: center;
-  flex: 0 0 48px;
-  width: 48px;
-  height: 48px;
-  border-radius: 15px;
+  flex: 0 0 60px;
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
   background:
     linear-gradient(
       to bottom,
@@ -3684,6 +3685,26 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.26),
     inset 0 -1px 0 rgba(0, 0, 0, 0.5),
     0 6px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* A made mark brings its own body, so the lens under it comes off: a tile
+   inside a second tile is two icons deep. The radius is the panel's, applied
+   here rather than drawn into the artwork, so the corners cannot disagree —
+   the art goes edge to edge and this decides the shape.
+   18/60 is 0.3, which is the ratio iOS settled its squircle on. */
+.ife-drawer-row-icon[data-art="true"] {
+  background: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    0 8px 18px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.ife-mark {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .ife-drawer-row[data-on="true"] .ife-drawer-row-icon {

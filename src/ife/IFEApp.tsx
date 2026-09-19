@@ -197,7 +197,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
         {screen === "connections" && <Connections />}
       </div>
       <BottomRail seat={seat} bridge={bridge} />
-      <MenuDrawer seat={seat} bridge={bridge} />
+      <MenuDrawer />
       <PAOverlay />
     </div>
   );
