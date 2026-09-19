@@ -103,8 +103,13 @@ export function Instruments({
         ]}
       />
       <Tape
-        // Inboard of the view sidebar, which lives on the right edge.
-        x={Math.round(W * 0.724)}
+        // Mirrored with the knots tape, not tucked in from the right.
+        // It used to sit at 0.724 to stay inboard of a control column that
+        // lives on the right edge — and that column has been a drawer that
+        // is shut by default for a while, so the panel was carrying a hole
+        // 340px wide on one side and 110px on the other. 0.844 puts the box
+        // the same distance from its edge as the knots box is from its own.
+        x={Math.round(W * 0.844)}
         cy={Math.round(H * 0.44)}
         h={Math.round(H * 0.5)}
         side="right"

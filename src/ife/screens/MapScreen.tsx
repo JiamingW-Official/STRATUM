@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LngLatBounds, Map as MLMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useFlight } from "../../flight-state/store";
-import { arc, bearing, greatCircleKm } from "../../flight-state/geo";
+import type { FlightPosition } from "../../flight-state/types";
+import { alongBearing, arc, bearing, greatCircleKm } from "../../flight-state/geo";
 import { duration, fmtInt, localTime } from "../format";
 import { pick, useT } from "../i18n";
 import { nightRing, terminatorLine } from "../sun";
@@ -76,6 +77,10 @@ export function MapScreen() {
   const markerRef = useRef<Marker | null>(null);
   const apRef = useRef<Marker[]>([]);
   const cityRef = useRef<Marker[]>([]);
+  // The position the marker's aim reads, and the aim itself: both live
+  // outside React because they are wanted inside MapLibre's move handler.
+  const posRef = useRef<FlightPosition | null>(null);
+  const aimRef = useRef<(() => void) | null>(null);
   // Where the earth stops, in pixels down the map, measured off the camera
   // rather than worked out from a formula.
   const [horizonY, setHorizonY] = useState<number | null>(null);
@@ -93,6 +98,7 @@ export function MapScreen() {
   const [menu, setMenu] = useState(false);
   const { route, position, track, etaUtc, etaInferred, departureUtc } =
     useFlight();
+  posRef.current = position;
   const remaining = Date.parse(etaUtc) - Date.now();
   const { t, lang } = useT();
 
@@ -313,20 +319,28 @@ export function MapScreen() {
       el.dataset.model = "true";
     });
     /**
-     * On the globe, not on the glass.
+     * Pointed where it is going, on a sphere.
      *
-     * The rotation used to be a CSS transform on the element, which is a
-     * rotation in the plane of the screen: the aircraft pointed the same way
-     * whatever the camera was doing, and lay flat against the viewport while
-     * the earth curved away underneath it. Both alignments are MapLibre's to
-     * do — `rotationAlignment: "map"` turns it with the map's bearing and
-     * `pitchAlignment: "map"` lays it down on the ground plane, which on a
-     * globe projection is the sphere's tangent plane at that point. So it
-     * banks with the limb as it goes round, because it is on the limb.
+     * `rotationAlignment: "map"` is not enough here, and this is the second
+     * time it has looked like it was doing nothing. MapLibre's marker
+     * rotation is flat-map arithmetic: it draws `rotation - bearing` in
+     * screen space. On a globe that is only right at the point the camera is
+     * looking at — everywhere else the sphere has turned the local north
+     * away from the top of the screen, by more the further round the limb
+     * you are. Over Newfoundland, a 65° heading drawn as 65° from screen-up
+     * points somewhere else entirely.
+     *
+     * So the heading is converted to a screen angle before it is handed
+     * over: project the aircraft, project a point 40km along its heading,
+     * and the angle between the two pixels is the direction of travel *as
+     * drawn*, with the projection's own distortion already in it. That makes
+     * the alignment `viewport`, because by then the number is a screen
+     * angle; pitch alignment stays on the map so the aeroplane still lies
+     * down on the ground when the camera tilts.
      */
     markerRef.current = new Marker({
       element: el,
-      rotationAlignment: "map",
+      rotationAlignment: "viewport",
       pitchAlignment: "map",
     })
       .setRotation(0)
@@ -347,6 +361,24 @@ export function MapScreen() {
     };
     scaleToZoom();
     map.on("zoom", scaleToZoom);
+
+    // The screen angle changes when the camera turns, not only when the
+    // aircraft does, so it is recomputed on move rather than on position.
+    const aim = () => {
+      const m = markerRef.current;
+      const p = posRef.current;
+      if (!m || !p) return;
+      const here = map.project([p.lon, p.lat]);
+      const ahead = alongBearing(p, p.headingDeg, 40);
+      const there = map.project([ahead.lon, ahead.lat]);
+      const dx = there.x - here.x;
+      const dy = there.y - here.y;
+      if (dx * dx + dy * dy < 1) return;
+      m.setRotation((Math.atan2(dx, -dy) * 180) / Math.PI);
+    };
+    aimRef.current = aim;
+    map.on("move", aim);
+    map.on("zoom", aim);
 
     // The two ends of the flight, named. The dot is the airport and the label
     // hangs off it, so the marker is anchored by its left edge and the dot is
@@ -740,12 +772,8 @@ export function MapScreen() {
 
     const el = markerRef.current?.getElement();
     if (el) el.dataset.heard = String(position.heard);
-    // The heading is the marker's, so MapLibre composes it with the map's
-    // bearing and the sphere's tangent plane. It used to be a CSS rotate on
-    // the child, which is a rotation of the picture rather than of the
-    // aircraft.
-    markerRef.current?.setRotation(position.headingDeg);
     markerRef.current?.setLngLat([position.lon, position.lat]);
+    aimRef.current?.();
   }, [ready, track, position, route.to.iata]);
 
   const window_ = WINDOW.includes(view);
@@ -798,9 +826,14 @@ export function MapScreen() {
         </div>
       )}
 
-      {/* A window view is an instrument panel, as it is in the cabin this is
-          drawn from. It replaces the figures rather than joining them. */}
-      {window_ && (
+      {/* The instrument panel belongs to the forward view and to nothing
+          else. Forward is the cockpit's view and the tapes are what a
+          cockpit has; a left or right window is a window — you look out of
+          it at what you are passing over, and a speed tape across it is an
+          instrument standing between you and the ground. The side windows
+          keep the figure strip instead, which is what every other view on
+          this map has along the bottom. */}
+      {view === "forward" && (
         <Instruments
           position={position}
           bearingToDest={toDest}
@@ -866,7 +899,7 @@ export function MapScreen() {
           A CSS animation, not a scroll position stepped in JavaScript: this
           runs on the compositor, so it does not stutter when the map is busy
           with tiles and it does not cost a frame of the main thread. */}
-      {!window_ && (
+      {view !== "forward" && (
         <div className="ife-map-strip">
           <div className="ife-map-ticker">
             {[0, 1].map((copy) => (

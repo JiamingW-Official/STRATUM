@@ -1275,19 +1275,24 @@
   color: var(--faint);
 }
 
-/* Its own line, at the very bottom, in the band the fact strip already keeps
-   clear below the figures. It had been landing straight across "065°" and
-   "3,767 km" — the map got 8px shorter when the two rails were squared up and
-   the credit came up with it, into the row of numbers. */
+/* Up to the top right, out of the figures' way.
+ 
+   Both it and the figure strip wanted the floor of the map, and there is
+   only one floor: sharing it meant either the credit lying across "065°" or
+   the strip held 34px up to keep clear of it. Attribution has to be
+   displayed and legible, which it is — it does not have to be at the bottom.
+   The top right of a map is empty under the journey strip, and the figures
+   get the floor they were asking for. */
 .ife-map .maplibregl-ctrl-bottom-right {
-  bottom: 0;
+  top: 0;
+  bottom: auto;
   right: 0;
   z-index: 3;
   transition: right 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .ife-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
-  margin: 0 var(--gutter) 2px 0;
+  margin: 14px var(--gutter) 0 0;
 }
 
 .ife-map .maplibregl-ctrl-attrib a {
@@ -1643,27 +1648,26 @@
   );
   overflow: hidden;
   /* The ends fade rather than cut, so a fact arriving reads as arriving
-     rather than as text with its first letters missing. */
+     rather than as text with its first letters missing. 130px, not the
+     gutter: at 72 the fade was over before the eye had registered it. */
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0,
-    #000 var(--gutter),
-    #000 calc(100% - var(--gutter)),
+    #000 130px,
+    #000 calc(100% - 130px),
     transparent 100%
   );
   mask-image: linear-gradient(
     to right,
     transparent 0,
-    #000 var(--gutter),
-    #000 calc(100% - var(--gutter)),
+    #000 130px,
+    #000 calc(100% - 130px),
     transparent 100%
   );
   transition: right 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
-  /* The bottom 34px is the tile credit's line. The credit is required and it
-     has to be legible to count, and it was landing straight across "065°"
-     and "3,767 km" because both it and the figures wanted the floor of the
-     map. */
-  padding: 0 0 34px;
+  /* The credit no longer wants the floor of the map, so the figures can
+     have it: 12px off the bottom instead of 34. */
+  padding: 0 0 12px;
 }
 
 /* The track: the ten facts twice over, sliding exactly half its own width,

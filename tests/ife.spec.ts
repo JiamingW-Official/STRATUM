@@ -360,10 +360,18 @@ test.describe("IFE bench", () => {
     // A camera eleven kilometres up is a long way out, not zoomed in close.
     expect(left.zoom).toBeLessThan(12);
 
-    // Both window views are instrument panels, and neither draws the aircraft
-    // you are standing in.
+    // A side window is a window: no panel across it, and the figure strip
+    // along the bottom like every other view. The instruments belong to
+    // forward, which is the cockpit's view, and a speed tape over a side
+    // window is an instrument standing between you and the ground.
+    await expect(page.locator(".ife-inst")).toHaveCount(0);
+    await expect(page.locator(".ife-map-strip")).toHaveCount(1);
+    await page.getByRole("button", { name: "Forward", exact: true }).click();
     await expect(page.locator(".ife-inst")).toHaveCount(1);
+    await expect(page.locator(".ife-map-strip")).toHaveCount(0);
+    // And neither draws the aircraft you are standing in.
     await expect(page.locator(".ife-plane-marker")).toBeHidden();
+    await page.getByRole("button", { name: "Left window" }).click();
 
     // Night is computed from the clock and it is in the right place. Point
     // the camera at the spot the sun is directly over and nothing should be

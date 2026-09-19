@@ -51,6 +51,31 @@ export function bearing(a: LatLon, b: LatLon): number {
 }
 
 /** How far along the route a point lies, 0 at origin and 1 at destination. */
+/**
+ * The point `km` along a great circle from `a`, on the given bearing.
+ *
+ * Used to ask the map which way the aircraft is pointing *on the screen*:
+ * project here and project one of these, and the angle between the two is
+ * the direction of travel as drawn, whatever the projection has done to it.
+ */
+export function alongBearing(a: LatLon, bearingDeg: number, km: number): LatLon {
+  const R = 6371;
+  const d = km / R;
+  const br = rad(bearingDeg);
+  const la = rad(a.lat);
+  const lo = rad(a.lon);
+  const lat = Math.asin(
+    Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(br),
+  );
+  const lon =
+    lo +
+    Math.atan2(
+      Math.sin(br) * Math.sin(d) * Math.cos(la),
+      Math.cos(d) - Math.sin(la) * Math.sin(lat),
+    );
+  return { lat: deg(lat), lon: ((deg(lon) + 540) % 360) - 180 };
+}
+
 export function progressAlong(from: LatLon, to: LatLon, p: LatLon): number {
   const total = greatCircleKm(from, to);
   if (total === 0) return 0;
