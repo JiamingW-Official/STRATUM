@@ -6,9 +6,11 @@ import { arc, bearing, greatCircleKm } from "../../flight-state/geo";
 import { duration, fmtInt, localTime } from "../format";
 import { pick, useT } from "../i18n";
 import { nightRing, terminatorLine } from "../sun";
+// @ts-expect-error — shared Vanilla JS data, read by the sky view too.
+import { CITIES } from "../../data/cities.js";
 import { Instruments } from "../chrome/Instruments";
 import { planeSprite } from "../chrome/planeSprite";
-import { IconChevron, IconMinus, IconPlus } from "../chrome/icons";
+import { IconChevron } from "../chrome/icons";
 
 /**
  * The moving map, on a real globe.
@@ -65,16 +67,26 @@ type View =
 /** The three that stand at the aircraft and look out of it. */
 const WINDOW: View[] = ["forward", "left", "right"];
 
+/** How often a new position arrives. The follow move is exactly this long. */
+const TICK_MS = 500;
+
 export function MapScreen() {
   const ref = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MLMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const apRef = useRef<Marker[]>([]);
+  const cityRef = useRef<Marker[]>([]);
+  // Where the earth stops, in pixels down the map, measured off the camera
+  // rather than worked out from a formula.
+  const [horizonY, setHorizonY] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   // The style's load event fires once and may already have fired by the time
   // the data effect runs, so readiness is state rather than a listener.
   const [ready, setReady] = useState(false);
   const [view, setView] = useState<View>("route");
+  // Which view the last camera move was for, so following can be told apart
+  // from arriving.
+  const lastView = useRef<View>("route");
   // The view menu is a sidebar, and a sidebar is shut until it is asked for:
   // six view names permanently parked over the right third of a map is six
   // words in front of the thing you came to look at.
@@ -164,6 +176,14 @@ export function MapScreen() {
         center: [route.from.lon, route.from.lat],
         zoom: 2,
         attributionControl: { compact: true },
+        // No cross-fade. MapLibre's default 300ms fade is what reads as
+        // "the map is buffering" — a tile that has arrived is a tile, and
+        // dissolving it in makes a loaded map look like a loading one.
+        fadeDuration: 0,
+        // Room to hold the whole flight. The default is a few screens' worth,
+        // so switching from the globe to the route and back re-fetched tiles
+        // that had been on the glass ten seconds earlier.
+        maxTileCacheSize: 800,
         // The passenger's map. Rotation and pitch are on, because the views
         // that need them are the point; the bearing is still always the
         // system's in the three level views, which are north-up.
@@ -291,13 +311,42 @@ export function MapScreen() {
       sprite.className = "ife-plane-model";
       el.replaceChildren(sprite);
       el.dataset.model = "true";
-      // The rotation lives on whatever is inside, so hand the new child the
-      // heading the old one had.
-      sprite.style.transform = el.dataset.rotate ?? "";
     });
-    markerRef.current = new Marker({ element: el, rotationAlignment: "map" })
+    /**
+     * On the globe, not on the glass.
+     *
+     * The rotation used to be a CSS transform on the element, which is a
+     * rotation in the plane of the screen: the aircraft pointed the same way
+     * whatever the camera was doing, and lay flat against the viewport while
+     * the earth curved away underneath it. Both alignments are MapLibre's to
+     * do — `rotationAlignment: "map"` turns it with the map's bearing and
+     * `pitchAlignment: "map"` lays it down on the ground plane, which on a
+     * globe projection is the sphere's tangent plane at that point. So it
+     * banks with the limb as it goes round, because it is on the limb.
+     */
+    markerRef.current = new Marker({
+      element: el,
+      rotationAlignment: "map",
+      pitchAlignment: "map",
+    })
+      .setRotation(0)
       .setLngLat([route.from.lon, route.from.lat])
       .addTo(map);
+
+    /**
+     * And it is the size it should be for how far away you are.
+     *
+     * One size for every zoom meant an aircraft the size of Ireland on the
+     * globe. It is small when the whole planet is in frame and grows as you
+     * come down to it — the same thing distance does.
+     */
+    const scaleToZoom = () => {
+      const z = map.getZoom();
+      const k = z <= 3 ? 0.42 : z >= 8 ? 1 : 0.42 + ((z - 3) / 5) * 0.58;
+      el.style.setProperty("--planeScale", k.toFixed(3));
+    };
+    scaleToZoom();
+    map.on("zoom", scaleToZoom);
 
     // The two ends of the flight, named. The dot is the airport and the label
     // hangs off it, so the marker is anchored by its left edge and the dot is
@@ -324,6 +373,8 @@ export function MapScreen() {
     return () => {
       for (const m of apRef.current) m.remove();
       apRef.current = [];
+      for (const m of cityRef.current) m.remove();
+      cityRef.current = [];
       markerRef.current?.remove();
       markerRef.current = null;
       map.remove();
@@ -340,6 +391,123 @@ export function MapScreen() {
     }
   }, [lang, route.from.iata, route.to.iata]);
 
+  /**
+   * The names of the places you are looking at, standing up.
+   *
+   * The ground labels come from Esri's Boundaries and Places, which is a
+   * raster: the names are painted into the tile, so they lie flat on the
+   * earth. Looking down that is what you want and looking *along* it they are
+   * a smear of foreshortened type on the horizon — a name lying on its face
+   * 300km away is not a name. So the window views get their own, as DOM
+   * markers, which stand upright facing the camera the way the label on a
+   * real moving map does. The airports at either end have always worked this
+   * way; these are the 633 places the sky view names, now in src/data where
+   * both views can reach them.
+   *
+   * Only what you could actually see: inside the true horizon for the
+   * altitude, and inside the arc the window looks along. MapLibre hides a
+   * marker the planet has come between, so a city over the edge of the world
+   * goes away by itself.
+   */
+  const near = Math.round(position.lat * 2) / 2;
+  const nearLon = Math.round(position.lon * 2) / 2;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    for (const m of cityRef.current) m.remove();
+    cityRef.current = [];
+    if (!WINDOW.includes(view)) return;
+
+    // The geometric horizon: sqrt(2Rh), in kilometres, for the altitude we
+    // are given. At 37,000 ft that is 379 km, which is why the forward view
+    // looks like the window and a guessed zoom did not.
+    const altM = Math.max(1, position.altFt * 0.3048);
+    const horizonKm = Math.sqrt(2 * 6371 * (altM / 1000));
+    const look =
+      (position.headingDeg + (view === "left" ? -90 : view === "right" ? 90 : 0) + 360) % 360;
+
+    const shown = (CITIES as Array<{ name: string; code: string; lat: number; lon: number }>)
+      .map((c) => ({
+        c,
+        d: greatCircleKm(position, { lat: c.lat, lon: c.lon }),
+        b: bearing(position, { lat: c.lat, lon: c.lon }),
+      }))
+      .filter((x) => x.d < horizonKm && Math.abs(((x.b - look + 540) % 360) - 180) < 68)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 10);
+
+    cityRef.current = shown.map(({ c }) => {
+      const node = document.createElement("div");
+      node.className = "ife-city-marker";
+      node.innerHTML =
+        `<span class="ife-city-name"></span><span class="ife-city-stalk"></span>`;
+      node.querySelector(".ife-city-name")!.textContent = c.name;
+      return new Marker({ element: node, anchor: "bottom" })
+        .setLngLat([c.lon, c.lat])
+        .addTo(map);
+    });
+  }, [view, ready, near, nearLon, position.headingDeg, position.altFt]);
+
+  /**
+   * Where the earth stops.
+   *
+   * Not computed from a formula — asked, with public API only. Unproject a
+   * point on the glass and project the result back: below the horizon it
+   * lands where it started, and above it the ray never meets the planet, so
+   * it does not. Twenty steps of bisection between the top of the map and its
+   * bottom find the line to within a pixel. A formula would have to know
+   * MapLibre's field of view, how pitch warps it and what terrain does to it;
+   * this knows none of those and is right anyway — measured at 338.6 of 872
+   * on a 85° pitch at 19,800 ft, which is where the picture's own horizon is.
+   *
+   * It fires on render, and render is every frame, so it only tells React
+   * when the answer has actually moved a pixel. A setState per frame is the
+   * other way to make a map judder.
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !WINDOW.includes(view)) {
+      setHorizonY(null);
+      return;
+    }
+    let last = -1;
+    const onSurface = (y: number) => {
+      try {
+        const back = map.project(map.unproject([map.getCanvas().clientWidth / 2, y]));
+        return Math.abs(back.y - y) < 1.5;
+      } catch {
+        return false;
+      }
+    };
+    const find = () => {
+      const h = map.getCanvas().clientHeight;
+      // The whole picture is sky: nothing to draw a line on.
+      if (!onSurface(h - 1)) {
+        if (last !== -2) {
+          last = -2;
+          setHorizonY(null);
+        }
+        return;
+      }
+      let lo = 0;
+      let hi = h - 1;
+      for (let i = 0; i < 20; i++) {
+        const mid = (lo + hi) / 2;
+        if (onSurface(mid)) hi = mid;
+        else lo = mid;
+      }
+      const y = Math.round(hi);
+      if (y === last || y < 3 || y > h - 3) return;
+      last = y;
+      setHorizonY(y);
+    };
+    find();
+    map.on("render", find);
+    return () => {
+      map.off("render", find);
+    };
+  }, [view, ready]);
+
   const fitRoute = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -354,8 +522,12 @@ export function MapScreen() {
     // Room for the readout along the bottom and for the control column on the
     // right — the padding has to hold the destination's dot *and* the name
     // hanging off it, or the label slides under the buttons.
+    // The room the chrome actually takes now. It used to reserve 400px on the
+    // right for a control column that has been a drawer for a while, and
+    // 230 at the bottom for a two-line figure strip that is one line — so
+    // the flight was squeezed into the left two thirds of the glass.
     map.fitBounds(bounds, {
-      padding: { top: 150, bottom: 230, left: 170, right: 400 },
+      padding: { top: 120, bottom: 150, left: 150, right: 190 },
       bearing: 0,
       pitch: 0,
       duration: 900,
@@ -378,11 +550,50 @@ export function MapScreen() {
     }
   }, [view, ready]);
 
-  // Whichever view is in force, applied when it changes and when the thing it
-  // follows moves. "free" is the passenger's, and nothing touches it.
+  /**
+   * A window does not pan.
+   *
+   * Forward, left and right are not a map you are looking at, they are a
+   * window you are looking out of — the camera is at the aircraft, at the
+   * aircraft's height, pointed where the aircraft is pointed. Dragging it
+   * puts you somewhere the seat is not, and worse, a drag sets the view to
+   * "free", so one accidental swipe and the window was gone.
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const locked = WINDOW.includes(view);
+    for (const h of [
+      map.dragPan,
+      map.dragRotate,
+      map.scrollZoom,
+      map.touchZoomRotate,
+      map.doubleClickZoom,
+      map.keyboard,
+    ])
+      locked ? h.disable() : h.enable();
+  }, [view]);
+
+  /**
+   * Whichever view is in force, applied when it changes and when the thing it
+   * follows moves. "free" is the passenger's, and nothing touches it.
+   *
+   * Two different moves, and that is the whole of why this used to judder.
+   * Changing view is a journey and gets an eased one. Following is not: the
+   * position arrives every 500ms, and a 900ms eased move restarted every
+   * 500ms never reaches its target and never stops accelerating out of its
+   * own easing curve — the camera lurched twice a second. A linear move
+   * exactly as long as the gap between fixes ends as the next one begins, so
+   * the motion is continuous and has no curve to lurch out of.
+   */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
+    const moved = lastView.current === view;
+    lastView.current = view;
+    const chase = moved
+      ? { duration: TICK_MS, easing: (t: number) => t }
+      : undefined;
     if (view === "route") fitRoute();
     if (view === "globe") {
       // Not a flat disc of a planet in the middle of the frame: the camera
@@ -397,6 +608,7 @@ export function MapScreen() {
         bearing: 0,
         offset: [0, 90],
         duration: 1200,
+        ...chase,
       });
     }
     if (view === "aircraft") {
@@ -409,6 +621,7 @@ export function MapScreen() {
         // from this view is what is coming.
         offset: [0, 150],
         duration: 700,
+        ...chase,
       });
     }
     if (WINDOW.includes(view)) {
@@ -434,7 +647,7 @@ export function MapScreen() {
         // are passing over, which is what anybody in a window seat is doing.
         view === "forward" ? 85 : 76,
       );
-      map.easeTo({ ...opts, duration: 900 });
+      map.easeTo({ ...opts, duration: 900, ...chase });
     }
   }, [view, ready, fitRoute, position.lat, position.lon, position.headingDeg]);
 
@@ -526,24 +739,54 @@ export function MapScreen() {
     apply();
 
     const el = markerRef.current?.getElement();
-    if (el) {
-      el.dataset.heard = String(position.heard);
-      const spin = `rotate(${position.headingDeg}deg)`;
-      el.dataset.rotate = spin;
-      const inner = el.firstElementChild as HTMLElement | null;
-      if (inner) inner.style.transform = spin;
-    }
+    if (el) el.dataset.heard = String(position.heard);
+    // The heading is the marker's, so MapLibre composes it with the map's
+    // bearing and the sphere's tangent plane. It used to be a CSS rotate on
+    // the child, which is a rotation of the picture rather than of the
+    // aircraft.
+    markerRef.current?.setRotation(position.headingDeg);
     markerRef.current?.setLngLat([position.lon, position.lat]);
   }, [ready, track, position, route.to.iata]);
 
-  const zoom = (by: number) => () =>
-    mapRef.current?.easeTo({
-      zoom: (mapRef.current?.getZoom() ?? 3) + by,
-      duration: 320,
-    });
-
   const window_ = WINDOW.includes(view);
   const toDest = bearing(position, route.to);
+
+  // The strip's contents, as a list rather than as markup, because the
+  // ticker prints them twice.
+  const facts: Array<{ label: string; value: string; inferred?: boolean }> = [
+    { label: t("altitude"), value: `${fmtInt(position.altFt)} ft`, inferred: !position.heard },
+    { label: t("groundSpeed"), value: `${fmtInt(position.gsKt)} kt`, inferred: !position.heard },
+    {
+      label: t("heading"),
+      value: `${Math.round(position.headingDeg).toString().padStart(3, "0")}°`,
+      inferred: !position.heard,
+    },
+    {
+      label: t("distanceToGo"),
+      value: `${fmtInt(greatCircleKm(position, route.to))} km`,
+      inferred: !position.heard,
+    },
+    {
+      label: t("distanceFlown"),
+      value: `${fmtInt(greatCircleKm(route.from, position))} km`,
+      inferred: !position.heard,
+    },
+    { label: t("timeRemaining"), value: duration(remaining, lang), inferred: etaInferred },
+    { label: t("elapsedSoFar"), value: duration(Date.now() - Date.parse(departureUtc), lang) },
+    {
+      label: `${t("localTime")} ${route.to.iata}`,
+      value: localTime(new Date().toISOString(), route.to),
+    },
+    {
+      label: `${t("localTime")} ${route.from.iata}`,
+      value: localTime(new Date().toISOString(), route.from),
+    },
+    {
+      label: t("arrival"),
+      value: `${localTime(etaUtc, route.to)} ${route.to.iata}`,
+      inferred: etaInferred,
+    },
+  ];
 
   return (
     <div className="ife-map" data-view={view} data-side={menu}>
@@ -557,7 +800,13 @@ export function MapScreen() {
 
       {/* A window view is an instrument panel, as it is in the cabin this is
           drawn from. It replaces the figures rather than joining them. */}
-      {window_ && <Instruments position={position} bearingToDest={toDest} />}
+      {window_ && (
+        <Instruments
+          position={position}
+          bearingToDest={toDest}
+          horizonY={horizonY}
+        />
+      )}
 
       {/* The view menu, as a sidebar that comes in from the right.
  
@@ -601,60 +850,37 @@ export function MapScreen() {
             </button>
           ))}
 
-          <div className="ife-mapside-head ife-cap">{t("zoom")}</div>
-          <div className="ife-mapzoom">
-            <button
-              className="ife-mapbtn"
-              aria-label={t("zoomOut")}
-              onClick={zoom(-1)}
-            >
-              <IconMinus size={34} />
-            </button>
-            <button
-              className="ife-mapbtn"
-              aria-label={t("zoomIn")}
-              onClick={zoom(1)}
-            >
-              <IconPlus size={34} />
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* Everything the flight knows about itself, along the bottom, pushed
-          sideways with a thumb. A seat-back map has always carried this strip;
-          four figures was the short version of it. Each one says whether it
-          rests on something a receiver heard. */}
+      {/* Everything the flight knows about itself, running along the bottom.
+ 
+          It was a row you pushed sideways with a thumb, two lines to a fact,
+          and it held six of ten before the edge cut it — so four of the
+          things the flight knows were behind a gesture nobody was told
+          about. Now it reads itself out: one line to a fact, label and
+          figure side by side, going past at 60 pixels a second. The list is
+          rendered twice and the track slides exactly half its width, which
+          is how a loop is made to have no seam.
+ 
+          A CSS animation, not a scroll position stepped in JavaScript: this
+          runs on the compositor, so it does not stutter when the map is busy
+          with tiles and it does not cost a frame of the main thread. */}
       {!window_ && (
         <div className="ife-map-strip">
-          <Fact label={t("altitude")} value={`${fmtInt(position.altFt)} ft`} inferred={!position.heard} />
-          <Fact label={t("groundSpeed")} value={`${fmtInt(position.gsKt)} kt`} inferred={!position.heard} />
-          <Fact
-            label={t("heading")}
-            value={`${Math.round(position.headingDeg).toString().padStart(3, "0")}°`}
-            inferred={!position.heard}
-          />
-          <Fact
-            label={t("distanceToGo")}
-            value={`${fmtInt(greatCircleKm(position, route.to))} km`}
-            inferred={!position.heard}
-          />
-          <Fact
-            label={t("distanceFlown")}
-            value={`${fmtInt(greatCircleKm(route.from, position))} km`}
-            inferred={!position.heard}
-          />
-          <Fact label={t("timeRemaining")} value={duration(remaining, lang)} inferred={etaInferred} />
-          <Fact label={t("elapsedSoFar")} value={duration(Date.now() - Date.parse(departureUtc), lang)} />
-          <Fact
-            label={`${t("localTime")} ${route.to.iata}`}
-            value={localTime(new Date().toISOString(), route.to)}
-          />
-          <Fact
-            label={`${t("localTime")} ${route.from.iata}`}
-            value={localTime(new Date().toISOString(), route.from)}
-          />
-          <Fact label={t("arrival")} value={`${localTime(etaUtc, route.to)} ${route.to.iata}`} inferred={etaInferred} />
+          <div className="ife-map-ticker">
+            {[0, 1].map((copy) => (
+              <div
+                className="ife-map-ticker-run"
+                key={copy}
+                aria-hidden={copy === 1}
+              >
+                {facts.map((f) => (
+                  <Fact key={f.label} {...f} />
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

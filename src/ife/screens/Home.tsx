@@ -64,12 +64,6 @@ export function Home() {
     connections.length > 0 &&
     !landed &&
     (phase === "descent" || remaining < 60 * 60_000);
-  // The shelf's own span, which is a fact about it rather than a label on it.
-  const years = [
-    FILMS.reduce((a, f) => (f.year < a ? f.year : a), FILMS[0].year),
-    FILMS.reduce((a, f) => (f.year > a ? f.year : a), FILMS[0].year),
-  ];
-
   /**
    * The rail fills the glass rather than floating a row of equal squares in
    * it, and the sizes are mixed on purpose: a grid of identical tiles is a
@@ -111,8 +105,7 @@ export function Home() {
             cap: `${route.to.iata} · ${t("colDeparture")}`,
             title: t("connections"),
             lines: [
-              `${connections.length} ${lang === "zh" ? "班" : "flights"}`,
-              `${connections.filter((c) => c.confirmed).length} ${t("confirmed")}`,
+              `${connections.filter((c) => c.confirmed).length}/${connections.length} ${t("confirmed")}`,
             ],
             tint: "brass" as const,
           },
@@ -126,7 +119,9 @@ export function Home() {
       },
       cap: lang === "zh" ? "正在放映" : "Now showing",
       title: pick(feature.title, lang),
-      lines: [feature.year, feature.creator, runtime(feature, lang)],
+      // A year and a runtime. The director was the third line on a card that
+      // is already a picture of the film.
+      lines: [`${feature.year} · ${runtime(feature, lang)}`],
       tall: true,
       media: "film",
     },
@@ -151,11 +146,9 @@ export function Home() {
       screen: "movies",
       title: t("movies"),
       icon: <IconFilm size={118} />,
-      lines: [
-        `${FILMS.length} ${lang === "zh" ? "部" : "films"}`,
-        lang === "zh" ? "公有领域" : "public domain",
-        `${years[0]}–${years[1]}`,
-      ],
+      // One line. Three was a card reciting its own catalogue entry —
+      // "18 films / public domain / 1940s–1965" is a paragraph on a door.
+      lines: [`${FILMS.length} ${lang === "zh" ? "部" : "films"}`],
     },
     {
       key: "weather",
@@ -190,32 +183,28 @@ export function Home() {
       cap: playing ? t("nowPlaying") : lang === "zh" ? "电台" : "Radio",
       title: t("music"),
       icon: <IconMusic size={118} />,
-      // What it knows: the track if there is one, the shelf if there is not.
-      lines: playing
-        ? [now.title, now.artist]
-        : [
-            `${STATIONS.length} ${lang === "zh" ? "个频道" : "stations"}`,
-            `${STATIONS.reduce((n, st) => n + st.tracks.length, 0)} ${
+      // What it knows, in one line: the track if there is one, the size of
+      // the shelf if there is not.
+      lines: [
+        playing
+          ? now.title
+          : `${STATIONS.reduce((n, st) => n + st.tracks.length, 0)} ${
               lang === "zh" ? "首" : "tracks"
             }`,
-          ],
+      ],
     },
     {
       key: "games",
       screen: "games",
       title: t("games"),
       icon: <IconGames size={118} />,
-      lines: [t("sudoku"), t("overhead")],
     },
     {
       key: "sky",
       cap: lang === "zh" ? "机外" : "Outside",
       title: t("theSky"),
       icon: <IconSky size={118} />,
-      lines: [
-        t("liveAdsb"),
-        lang === "zh" ? "谁被听见，谁没有" : "who is heard, and who is not",
-      ],
+      lines: [t("liveAdsb")],
       tall: true,
       tint: "cool",
     },
@@ -224,11 +213,12 @@ export function Home() {
       screen: "flightInfo",
       cap: flightNo,
       title: t("flightInformation"),
+      // How long you have been up. What is left is the largest number on
+      // this screen already, and the strip says it again at the top.
       lines: [
-        `${duration(Date.now() - Date.parse(departureUtc), lang)} ${t("elapsed")}`,
         landed
           ? t("arrived")
-          : `${duration(remaining, lang)} ${lang === "zh" ? "剩余" : "to go"}`,
+          : `${duration(Date.now() - Date.parse(departureUtc), lang)} ${t("elapsed")}`,
       ],
       tint: "brass",
     },

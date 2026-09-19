@@ -211,25 +211,11 @@ test.describe("IFE bench", () => {
       page.getByRole("button", { name: "Whole route" }),
     ).toHaveAttribute("data-on", "false");
 
-    // Zoom is a control a thumb can hit, not a 29px square with a compass.
-    // In the panel's own pixels, not the bench's. The glass is scaled to fit
-    // the window, so a rendered box says how big this looks on a laptop
-    // rather than how big the target is on a seat back.
-    const key = await page
-      .getByRole("button", { name: "Zoom in" })
-      .evaluate((el) => {
-        const scale =
-          el.closest(".ife-root")!.getBoundingClientRect().width / 1920;
-        const r = el.getBoundingClientRect();
-        return Math.min(r.width, r.height) / scale;
-      });
-    expect(key, "a thumb needs a target, not a mouse pointer").toBeGreaterThan(
-      60,
-    );
-    await page.getByRole("button", { name: "Zoom in" }).click();
-    await expect
-      .poll(async () => (await cam()).zoom, { timeout: 4000 })
-      .toBeGreaterThan(dragged.zoom + 0.5);
+    // No zoom keys. A map you can pinch and drag does not need two buttons
+    // that do the same thing more slowly, and they were the last pair of
+    // boxes on a panel where nothing else is boxed.
+    await expect(page.getByRole("button", { name: "Zoom in" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Zoom out" })).toHaveCount(0);
 
     // And the two buttons take it back.
     await page.getByRole("button", { name: "Follow aircraft" }).click();
@@ -257,6 +243,29 @@ test.describe("IFE bench", () => {
     await expect
       .poll(async () => (await cam()).zoom, { timeout: 4000 })
       .toBeLessThan(4.5);
+
+    // A window is a window: you cannot drag the view out of one. The three
+    // that stand at the aircraft turn the handlers off, because a drag also
+    // sets the view to "free" — one accidental swipe and the window was gone.
+    await page.locator(".ife-mapside-handle").click();
+    await page.getByRole("button", { name: "Forward", exact: true }).click();
+    await page.locator(".ife-mapside-handle").click();
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => (window as any).__ifeMap.dragPan.isEnabled()),
+        { timeout: 4000 },
+      )
+      .toBe(false);
+    const locked = await cam();
+    await page.mouse.move(mid.x, mid.y);
+    await page.mouse.down();
+    await page.mouse.move(mid.x - 300, mid.y, { steps: 10 });
+    await page.mouse.up();
+    expect(Math.abs((await cam()).lng - locked.lng)).toBeLessThan(0.05);
+    await expect(
+      page.getByRole("button", { name: "Forward", exact: true }),
+    ).toHaveAttribute("data-on", "true");
 
     // The aircraft is the sky view's own model, rendered once from directly
     // above and handed to the marker. It arrives after the GLB does, and the
@@ -494,11 +503,14 @@ test.describe("IFE bench", () => {
     await expect(page.locator(".ife-card--media")).toHaveCount(1);
     // And no card wears a record's cover: the sleeve belongs to the record.
     await expect(page.locator(".ife-card .ife-sleeve")).toHaveCount(0);
-    // Every card says more than one thing: a category name over a count was
-    // the shape they all had, and none of them had that little to say.
-    expect(
-      await page.locator(".ife-card-lines").first().locator("span").count(),
-    ).toBeGreaterThan(1);
+    // And no card says more than one thing under its name. They used to
+    // recite a catalogue entry — "18 films / public domain / 1940s–1965" is
+    // a paragraph on a door — and a rail of doors is read at a glance or it
+    // is not read.
+    for (const count of await page
+      .locator(".ife-card-lines")
+      .evaluateAll((els) => els.map((e) => e.querySelectorAll("span").length)))
+      expect(count).toBeLessThanOrEqual(1);
 
     // Named for what it is: the rail of cards, not the rail at the bottom.
     const cardRail = page.locator(".ife-rail-cards");

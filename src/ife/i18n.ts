@@ -277,6 +277,7 @@ const DICT = {
   knots: ["knots", "节"],
   feet: ["feet", "英尺"],
   verticalSpeed: ["V/S ft/min · derived", "垂直速度 ft/min · 推算"],
+  horizon: ["HORIZON", "地平线"],
   groupFlight: ["Flight", "航班"],
   groupEntertainment: ["Entertainment", "娱乐"],
   groupCabin: ["Cabin", "客舱"],

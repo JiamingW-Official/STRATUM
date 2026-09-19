@@ -175,7 +175,19 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
       />
       <div className="ife-stage">
         {screen === "home" && <Home />}
-        {screen === "map" && <MapScreen />}
+        {/* The map is built once, on boot, and never taken down.
+ 
+            It used to mount when you pressed Flight map and unmount when you
+            left, which meant every visit destroyed the WebGL context and
+            re-fetched every tile — the few seconds of grey before the earth
+            appeared were not the network being slow, they were the map being
+            built again from nothing. Kept alive it loads once, while you are
+            still reading the home screen, and every visit after that is
+            instant. Hidden it costs one idle context: MapLibre does not draw
+            when nothing has changed. */}
+        <div className="ife-stage-map" data-show={screen === "map"}>
+          <MapScreen />
+        </div>
         {screen === "flightInfo" && <FlightInfo />}
         {screen === "music" && <Music />}
         {screen === "movies" && <Movies />}
