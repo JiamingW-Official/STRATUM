@@ -109,7 +109,13 @@ html, body {
 .vignette {
   position: fixed; inset: 0;
   pointer-events: none; z-index: 1;
-  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.62) 100%);
+  /* Black, and further in. The corners were showing the sky's own zenith blue
+     through a 62% wash, which reads as a blue frame round the picture rather
+     than as the edge of one. */
+  background: radial-gradient(ellipse at center,
+    transparent 36%,
+    rgba(0, 0, 0, 0.45) 72%,
+    rgba(0, 0, 0, 0.9) 100%);
 }
 
 /* ── Speed lines ── */

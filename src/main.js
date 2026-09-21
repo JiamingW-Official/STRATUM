@@ -292,7 +292,10 @@ controls.minDistance = 0.05;
 // a volume rather than a diagram. The opening descent starts inside 40 on
 // purpose -- OrbitControls.update() clamps distance even while disabled, so a
 // start beyond this would be yanked in on the first frame.
-controls.maxDistance = 40;
+// Pulled in from 40. Past about thirty the map is a lozenge in the middle of
+// the frame with haze all round it and nothing gained — and it is the range
+// where the ground's own edge starts arriving inside the fog.
+controls.maxDistance = 30;
 controls.minPolarAngle = (24 * Math.PI) / 180;
 controls.maxPolarAngle = Math.PI / 2 - (20 * Math.PI) / 180;
 controls.autoRotate = false;
@@ -2220,7 +2223,7 @@ function _introDescent() {
   // whichever of the two happens first.
   const end = new THREE.Vector3(8, 9, 12);
   const start = end.clone().multiplyScalar(2.2);
-  start.y = end.y * 2.6;   // |start| ~= 39.4, inside controls.maxDistance
+  start.y = end.y * 2.0;   // |start| ~= 29.5, inside controls.maxDistance
   controls.target.set(0, 1, 0);
   camera.position.copy(start);
   controls.enabled = false;

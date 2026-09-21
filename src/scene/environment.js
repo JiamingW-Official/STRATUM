@@ -177,13 +177,13 @@ export function createEnvironment(scene) {
   _skyBaseColors = new Float32Array(skyColors); // snapshot night baseline
   scene.add(skyDome);
 
-  // Subtle ground grid for depth
-  const gridHelper = new THREE.GridHelper(GROUND_SIZE, 160, 0x0a1e3a, 0x0a1e3a);
-  gridHelper.material.transparent = true;
-  gridHelper.material.opacity = 0.08;
-  gridHelper.material.depthWrite = false;
-  gridHelper.position.y = 0.005;
-  scene.add(gridHelper);
+  // The ground grid is gone. A hundred and sixty dark navy lines at y=0, 8%
+  // each, were invisible against a map that was nearly as dark as they were.
+  // Against a daylit map they are not: at a grazing angle the far half of that
+  // grid compresses into a solid navy plate with a hard straight top edge
+  // sitting between the ground and the sky, which is the border in the
+  // picture. It was added for depth, and the basemap, the runways, the trails
+  // and the haze all give depth now, so it goes rather than gets tuned.
 
   // There used to be a "you are here" marker at the origin: a white disc, a
   // crosshair and a pulsing ring, from when the map was centred on the viewer.
@@ -2143,9 +2143,13 @@ const SKY_KEYS = [
   [-0.16, [0.056, 0.048, 0.058], [0.014, 0.020, 0.038], [0.005, 0.009, 0.022]],
   [-0.07, [0.175, 0.105, 0.125], [0.058, 0.048, 0.098], [0.013, 0.022, 0.056]],
   [0.01, [0.420, 0.215, 0.115], [0.155, 0.110, 0.140], [0.028, 0.055, 0.118]],
-  [0.13, [0.310, 0.290, 0.300], [0.150, 0.180, 0.255], [0.045, 0.100, 0.215]],
-  [0.45, [0.300, 0.330, 0.370], [0.145, 0.200, 0.305], [0.052, 0.118, 0.255]],
-  [1.0, [0.300, 0.330, 0.370], [0.145, 0.200, 0.305], [0.052, 0.118, 0.255]],
+  // Daylight horizons are warm. A clear one is dust and water vapour lit from
+  // the side, which is a pale gold, not the neutral grey a pure Rayleigh model
+  // gives you — and neutral grey against a blue zenith is exactly the cold
+  // white-and-blue this read as.
+  [0.13, [0.370, 0.320, 0.280], [0.170, 0.185, 0.245], [0.048, 0.100, 0.210]],
+  [0.45, [0.385, 0.345, 0.295], [0.175, 0.205, 0.285], [0.055, 0.120, 0.250]],
+  [1.0, [0.385, 0.345, 0.295], [0.175, 0.205, 0.285], [0.055, 0.120, 0.250]],
 ];
 // Vertex height and horizontal bearing, computed once: the dome never moves.
 let _skyGeoCache = null;
