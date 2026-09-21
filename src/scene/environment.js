@@ -8,7 +8,18 @@ import {
 import { fetchFIRData, filterNearbyFIRs } from "../data/firBoundaries.js";
 import { fetchNavaidData, filterNearbyNavaids } from "../data/navaids.js";
 
-const GROUND_SIZE = 160;
+// 160 was four degrees of latitude — about 445km across — and with the fog now
+// reaching 95% opacity at a hundred units, the plane's own half-diagonal of 103
+// meant the map ran out at almost exactly the distance the haze swallowed it.
+// From a camera parked off-centre the far edge sat inside that, and you could
+// see the world end.
+//
+// 220 is five and a half degrees, a little over 600km, and it costs nothing to
+// load: the basemap is not a tile pyramid here but one rasterised image, and
+// the server charges for pixels, not for ground. The same 2048px export simply
+// covers more kilometres. The high-resolution rings stay where they are, over
+// the middle, which is the part anyone looks at.
+const GROUND_SIZE = 220;
 const GEO_SCALE = 40;
 
 // Waypoint tiles are build-time data. Switching airspaces back and forth re-ran
