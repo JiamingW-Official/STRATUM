@@ -286,7 +286,16 @@ async function handleAirports(url, env, cacheOnly = false) {
 
   try {
     const upstream = await askOverpass();
-    const responseBody = pruneOverpass(await upstream.text());
+    // Slimmed here, once, before anything caches it -- so KV, the PoP cache,
+    // /api/boot, the batch endpoint and a direct call all carry the same small
+    // body and none of them has to do this work again.
+    const pruned = pruneOverpass(await upstream.text());
+    let responseBody = pruned;
+    try {
+      responseBody = JSON.stringify(slimOverpass(JSON.parse(pruned)));
+    } catch {
+      /* not JSON we understand — cache what prune gave us */
+    }
 
     // Write to both PoP cache (24h) and KV (30 days) — airport geometry almost never changes
     const toCache = new Response(responseBody, {
@@ -443,7 +452,21 @@ function slimOverpass(data) {
         : keepGeometry.map((n) => ({ lat: n.lat, lon: n.lon }));
     elements.push(out);
   }
-  return { elements };
+  // Tagged, because this is not idempotent: a second pass re-runs
+  // Douglas-Peucker on an already-simplified line and moves it again. Measured
+  // across the 26-airport set, seven of them shrink further on a second pass
+  // and the parse output changes with them. ensureSlim below is the only way
+  // callers should reach it.
+  return { elements, _s: 1 };
+}
+
+// Cached payloads written before slimming existed are still in KV for up to
+// thirty days. Rather than throw that warm cache away, the tag says which is
+// which: an untagged body gets its one pass on the way out, a tagged one is
+// already done and is passed straight through.
+function ensureSlim(data) {
+  if (!data || data._s === 1) return data;
+  return slimOverpass(data);
 }
 
 // ── /api/airports/batch — Parallel multi-location airport lookup ──
@@ -495,7 +518,7 @@ async function handleAirportsBatch(url, env) {
     const key = `${lat.toFixed(1)},${lon.toFixed(1)}`;
     if (settled[i].status === "fulfilled") {
       try {
-        out[key] = slimOverpass(JSON.parse(settled[i].value));
+        out[key] = ensureSlim(JSON.parse(settled[i].value));
       } catch {
         out[key] = null;
       }
@@ -510,6 +533,100 @@ async function handleAirportsBatch(url, env) {
       "Access-Control-Allow-Origin": "*",
     },
   });
+}
+
+// ── /api/navaids — 1.5MB of CSV for six columns ──
+// ourairports publishes twenty columns and eleven thousand rows; the client
+// reads ident, name, type, frequency and a position, and throws the rest away
+// on arrival. Its type filter looks like it narrows things but every type in
+// the file is on its keep-list, so it discards nothing -- all eleven thousand
+// rows are kept, and all of them cross the wire with fourteen unread columns.
+//
+// The column POSITIONS are load-bearing: the client parser reads cols[2]
+// through cols[7] by index and drops any row with fewer than eight fields. So
+// the unused leading two are emptied rather than removed, which costs two bytes
+// a row and means no client needs to change to read this.
+//
+// Four decimals is 11m at the equator, measured worst case 7.21m across the
+// file, for symbols drawn hundreds of metres to the pixel.
+const NAVAIDS_UPSTREAM = "https://davidmegginson.github.io/ourairports-data/navaids.csv";
+
+function _csvRow(vals) {
+  return vals
+    .map((v) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    })
+    .join(",");
+}
+
+function _splitCsvLine(line) {
+  const cols = [];
+  let cur = "", inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQuote = !inQuote;
+      continue;
+    }
+    if (ch === "," && !inQuote) { cols.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  cols.push(cur);
+  return cols;
+}
+
+function slimNavaidsCsv(text) {
+  const lines = text.split("\n");
+  const out = ["id,filename,ident,name,type,frequency_khz,latitude_deg,longitude_deg"];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line || line.length < 10) continue;
+    const c = _splitCsvLine(line);
+    if (c.length < 8) continue;
+    const lat = parseFloat(c[6]), lon = parseFloat(c[7]);
+    if (isNaN(lat) || isNaN(lon)) continue;
+    out.push(_csvRow(["", "", c[2], c[3], c[4], c[5],
+      Math.round(lat * 1e4) / 1e4, Math.round(lon * 1e4) / 1e4]));
+  }
+  return out.join("\n") + "\n";
+}
+
+async function handleNavaids(url) {
+  const cacheKey = new Request("https://cache.internal/navaids/v1");
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    const res = corsResponse(cached);
+    res.headers.set("X-Cache", "HIT");
+    return res;
+  }
+  let text;
+  try {
+    const upstream = await fetch(NAVAIDS_UPSTREAM, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; STRATUM/1.0)" },
+      cf: { cacheTtl: 604800, cacheEverything: true },
+    });
+    if (!upstream.ok) throw new Error("HTTP " + upstream.status);
+    text = await upstream.text();
+  } catch (err) {
+    return new Response("navaids upstream failed: " + (err?.message || "unknown"), {
+      status: 502,
+      headers: corsHeaders(),
+    });
+  }
+  let body;
+  try {
+    body = slimNavaidsCsv(text);
+  } catch {
+    body = text; // never withhold the data over a formatting problem
+  }
+  const headers = {
+    "Content-Type": "text/csv; charset=utf-8",
+    "Access-Control-Allow-Origin": "*",
+  };
+  await cachePut(cacheKey, new Response(body, { headers }), 604800, 86400);
+  return addPerfHeaders(new Response(body, { headers: { ...headers, "X-Cache": "MISS" } }));
 }
 
 // ── Generic proxy with edge caching ──
@@ -1572,7 +1689,7 @@ async function handleBoot(url, env) {
     wxRes.json().catch(() => null),
   ]);
 
-  const body = JSON.stringify({ positions, airports, weather });
+  const body = JSON.stringify({ positions, airports: ensureSlim(airports), weather });
   cachePut(
     cacheKey,
     new Response(body, {
@@ -1996,6 +2113,9 @@ export default {
     }
 
     // Proxy routes
+    // Before the generic proxy: this one is projected, not passed through.
+    if (url.pathname.startsWith("/api/navaids/")) return handleNavaids(url);
+
     for (const [prefix, target] of Object.entries(PROXY_ROUTES)) {
       if (url.pathname.startsWith(prefix)) {
         return handleProxy(request, prefix, target, url);
