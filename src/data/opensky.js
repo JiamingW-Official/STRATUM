@@ -398,6 +398,25 @@ async function fetchTraceAsync(icao24, deep = false) {
     const now = Date.now() / 1000;
     const cutoff = now - TRACE_HISTORY_SEC;
 
+    _applyTrace(icao24, data);
+  } catch {
+    // Timeouts land here rather than in the !ok branch, and they are the failure
+    // mode that actually matters: a stalling trace host is what crowds out the
+    // position polls, so it has to count toward the breaker too.
+    _noteTraceFailure("timeout");
+  } finally {
+    trackFetchQueue.delete(icao24);
+  }
+}
+
+// The trace-to-waypoints step, shared by the single fetch and the batch. It was
+// inline in fetchTraceAsync and the batch needed exactly it.
+function _applyTrace(icao24, data) {
+  if (!data || !Array.isArray(data.trace)) return;
+  const baseTime = data.timestamp || 0;
+  const now = Date.now() / 1000;
+  const cutoff = now - TRACE_HISTORY_SEC;
+  {
     const waypoints = [];
     for (const pt of data.trace) {
       // trace format: [offset_seconds, lat, lon, alt_baro, alt_geom, ...]
@@ -435,13 +454,6 @@ async function fetchTraceAsync(icao24, deep = false) {
       // see from live polling if the aircraft entered our range at cruise.
       inferFeedTrace(icao24, waypoints, null);
     }
-  } catch {
-    // Timeouts land here rather than in the !ok branch, and they are the failure
-    // mode that actually matters: a stalling trace host is what crowds out the
-    // position polls, so it has to count toward the breaker too.
-    _noteTraceFailure("timeout");
-  } finally {
-    trackFetchQueue.delete(icao24);
   }
 }
 
@@ -484,15 +496,64 @@ export function setTraceGate(open) {
   else _traceGateTimer = setTimeout(() => setTraceGate(true), 12000);
 }
 
+// How many hexes travel together. The Worker caps at 24; twelve keeps each
+// answer small enough to parse without a visible hitch and still turns a
+// hundred round trips into nine.
+const TRACE_BATCH = 12;
+
 function _drainTraceQueue() {
   if (!_traceGateOpen) return;
   while (_traceInFlight < TRACE_MAX_INFLIGHT && traceQueueBatch.length > 0) {
-    const hex = traceQueueBatch.shift();
+    const group = [];
+    while (group.length < TRACE_BATCH && traceQueueBatch.length > 0) {
+      const hex = traceQueueBatch.shift();
+      if (trackCache.has(hex) || trackFetchQueue.has(hex)) continue;
+      trackFetchQueue.add(hex);
+      group.push(hex);
+    }
+    if (!group.length) continue;
     _traceInFlight++;
-    fetchTraceAsync(hex).finally(() => {
+    _fetchTraceBatch(group).finally(() => {
       _traceInFlight--;
       _drainTraceQueue();
     });
+  }
+}
+
+// One request for a dozen aircraft. The upstream work is identical — this only
+// moves the queueing from six browser sockets to the edge, where the fetches
+// run at once.
+async function _fetchTraceBatch(hexes) {
+  if (Date.now() < _tracePausedUntil) {
+    for (const h of hexes) trackFetchQueue.delete(h);
+    return;
+  }
+  try {
+    const res = await fetch(
+      `/api/trail/batch?hex=${hexes.join(",")}&m=${TRAIL_WINDOW_MIN}`,
+      { signal: AbortSignal.timeout(20000) },
+    );
+    if (!res.ok) {
+      _noteTraceFailure(`HTTP ${res.status}`);
+      return;
+    }
+    _traceFailStreak = 0;
+    _traceOkCount++;
+    const map = await res.json();
+    for (const hex of hexes) {
+      const data = map[hex];
+      if (!data || !Array.isArray(data.trace) || data.trace.length === 0) {
+        // Remember the absence, or the poll loop asks again in two seconds and
+        // keeps asking forever.
+        trackCache.set(hex, { path: [], fetchedAt: Date.now(), empty: true });
+        continue;
+      }
+      _applyTrace(hex, data);
+    }
+  } catch {
+    _noteTraceFailure("timeout");
+  } finally {
+    for (const h of hexes) trackFetchQueue.delete(h);
   }
 }
 

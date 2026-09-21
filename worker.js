@@ -734,18 +734,15 @@ function jsonOut(obj, status = 200) {
 // 45-minute trail is in motion, and the client extends the tip from live
 // positions anyway. Every hit here is a 110kB fetch this worker does not make
 // against a volunteer-run service.
-async function handleTrail(url) {
-  const hex = (url.searchParams.get("hex") || "").toLowerCase();
-  if (!/^[0-9a-f]{6}$/.test(hex)) return new Response("Bad hex", { status: 400 });
-  const mins = Math.min(180, Math.max(5, parseInt(url.searchParams.get("m"), 10) || 45));
-
+// ── One trail, as a JSON string ────────────────────────────────────────────
+// Split out of handleTrail so the batch route can ask for twenty of these at
+// the edge and return them in one body. Returns the serialised object rather
+// than the object, because the batch concatenates and the single route wraps —
+// neither needs it parsed.
+async function _trailJson(hex, mins) {
   const cacheKey = new Request(`https://cache.internal/trail/${hex}/${mins}`);
   const cached = await cacheGet(cacheKey);
-  if (cached) {
-    const r = corsResponse(cached);
-    r.headers.set("X-Cache", "HIT");
-    return r;
-  }
+  if (cached) return await cached.text();
 
   const last2 = hex.slice(-2);
   let data = null;
@@ -757,23 +754,13 @@ async function handleTrail(url) {
         signal: AbortSignal.timeout(9000),
       },
     );
-    if (!res.ok) {
-      // 404 means this aircraft simply has no trace; say so without caching.
-      return corsResponse(
-        new Response(JSON.stringify({ timestamp: 0, trace: [] }), {
-          status: res.status === 404 ? 200 : 502,
-          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-        }),
-      );
-    }
+    // An aircraft with no filed trace, and an upstream that would not answer,
+    // are the same thing to a caller drawing a line: nothing to draw. The
+    // difference is only whether it is worth remembering, and neither is.
+    if (!res.ok) return null;
     data = await res.json();
   } catch {
-    return corsResponse(
-      new Response(JSON.stringify({ timestamp: 0, trace: [] }), {
-        status: 504,
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-      }),
-    );
+    return null;
   }
 
   const base = data?.timestamp || 0;
@@ -795,11 +782,67 @@ async function handleTrail(url) {
   }
 
   const body = JSON.stringify({ timestamp: base, trace });
-  const out = new Response(body, {
-    headers: { "Content-Type": "application/json" },
-  });
-  await cachePut(cacheKey, out.clone(), 600, 600);
-  return corsResponse(out);
+  await cachePut(
+    cacheKey,
+    new Response(body, { headers: { "Content-Type": "application/json" } }),
+    600,
+    600,
+  );
+  return body;
+}
+
+const EMPTY_TRAIL = '{"timestamp":0,"trace":[]}';
+
+async function handleTrail(url) {
+  const hex = (url.searchParams.get("hex") || "").toLowerCase();
+  if (!/^[0-9a-f]{6}$/.test(hex)) return new Response("Bad hex", { status: 400 });
+  const mins = Math.min(180, Math.max(5, parseInt(url.searchParams.get("m"), 10) || 45));
+  const body = await _trailJson(hex, mins);
+  return corsResponse(
+    new Response(body || EMPTY_TRAIL, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(body ? {} : { "Cache-Control": "no-store" }),
+      },
+    }),
+  );
+}
+
+// ── Many trails, one round trip ────────────────────────────────────────────
+// A cold load asked for one of these per aircraft: on a busy airspace that is
+// a hundred requests, six at a time, sixty-five seconds of cumulative request
+// time and the last answer arriving half a minute in. The upstream work is the
+// same either way — this only moves the queueing from the client's six sockets
+// to the edge, where the fetches run at once and the round trips collapse into
+// one.
+async function handleTrailBatch(url) {
+  const mins = Math.min(180, Math.max(5, parseInt(url.searchParams.get("m"), 10) || 45));
+  const hexes = [
+    ...new Set(
+      (url.searchParams.get("hex") || "")
+        .toLowerCase()
+        .split(",")
+        .filter((h) => /^[0-9a-f]{6}$/.test(h)),
+    ),
+  ].slice(0, 24);
+  if (!hexes.length) return new Response("Bad hex", { status: 400 });
+
+  const parts = await Promise.all(
+    hexes.map(async (h) => {
+      let body = null;
+      try {
+        body = await _trailJson(h, mins);
+      } catch {
+        body = null;
+      }
+      return `${JSON.stringify(h)}:${body || EMPTY_TRAIL}`;
+    }),
+  );
+  return corsResponse(
+    new Response(`{${parts.join(",")}}`, {
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    }),
+  );
 }
 
 async function handleEnrich(url, env) {
@@ -1753,6 +1796,7 @@ export default {
       return handleAirportsBatch(url, env);
     if (url.pathname === "/api/routes") return handleRoutes(url, env);
     if (url.pathname === "/api/enrich") return handleEnrich(url, env);
+    if (url.pathname === "/api/trail/batch") return handleTrailBatch(url);
     if (url.pathname === "/api/trail") return handleTrail(url);
     if (url.pathname === "/api/visibility") return handleVisibility(env);
     if (url.pathname === "/api/ghost/index") return handleGhostIndex(env);
