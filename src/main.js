@@ -60,6 +60,7 @@ import {
   restartPolling,
   enrichAircraft,
   getRoute,
+  setTraceGate,
 } from "./data/opensky.js";
 import { prefetchAirportData } from "./data/airports.js";
 import {
@@ -5339,7 +5340,12 @@ async function switchCity(city) {
   }
 
   // 4. Load ground map + airports + FIR in parallel; nav chart after airports
-  const mapP = loadGroundMap(city.lat, city.lon);
+  setTraceGate(false);
+  const mapP = loadGroundMap(city.lat, city.lon).then((r) => {
+    // The ground has a basemap; the hundred trail fetches may have the wire now.
+    setTraceGate(true);
+    return r;
+  });
   const aptP = loadAirports(scene, city.lat, city.lon).then(() => {
     const aptData = getAirportData();
     if (aptData) updateHUDAirports(aptData.airports.length);
@@ -9690,7 +9696,12 @@ async function init() {
   _setBootStep("sts-map", "active");
   _setBootStep("sts-apt", "active");
   _setBootStep("sts-acft", "active");
-  const mapP = loadGroundMap(defaultCity.lat, defaultCity.lon);
+  // Boot takes the same gate: the first load is the one that matters most.
+  setTraceGate(false);
+  const mapP = loadGroundMap(defaultCity.lat, defaultCity.lon).then((r) => {
+    setTraceGate(true);
+    return r;
+  });
   const aptP = loadAirports(scene, defaultCity.lat, defaultCity.lon).then(
     () => {
       const aptData = getAirportData();

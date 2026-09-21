@@ -461,7 +461,31 @@ const TRACE_MAX_INFLIGHT = 6;
 const TRACE_MAX_QUEUED = 160;
 let _traceInFlight = 0;
 
+// ── Trails wait for the map ────────────────────────────────────────────────
+// Measured on a cold load of the deployed build: 101 API requests, 657KB, 65
+// seconds of cumulative request time, the last one landing at 36s — and the
+// great majority are one /api/trail per aircraft, six at a time, starting the
+// moment the first poll answers at about three seconds. The map's own exports
+// run from five to ten seconds. So a hundred requests nobody is waiting for
+// were competing for bandwidth and sockets with the one thing everybody is
+// waiting for.
+//
+// Nothing is cancelled and nothing is fetched less; the queue simply does not
+// start draining until the ground has a basemap on it. The gate opens on its
+// own after twelve seconds whatever happens, because a map that failed to load
+// must not cost the trails too.
+let _traceGateOpen = false;
+let _traceGateTimer = null;
+export function setTraceGate(open) {
+  if (open === _traceGateOpen) return;
+  _traceGateOpen = open;
+  clearTimeout(_traceGateTimer);
+  if (open) _drainTraceQueue();
+  else _traceGateTimer = setTimeout(() => setTraceGate(true), 12000);
+}
+
 function _drainTraceQueue() {
+  if (!_traceGateOpen) return;
   while (_traceInFlight < TRACE_MAX_INFLIGHT && traceQueueBatch.length > 0) {
     const hex = traceQueueBatch.shift();
     _traceInFlight++;
