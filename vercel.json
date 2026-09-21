@@ -47,7 +47,7 @@
     },
     {
       "source": "/api/navaids/:path*",
-      "destination": "https://davidmegginson.github.io/:path*"
+      "destination": "https://stratum.jiamingwofficial.workers.dev/api/navaids/:path*"
     },
     {
       "source": "/api/boot",
