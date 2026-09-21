@@ -2206,13 +2206,21 @@ function _paintSky(sinAlt, sunX, sunZ) {
         b += 0.028 * w;
       }
     }
-    // Below the horizon the dome is floor, not sky, and a bright floor reads
-    // as a bug.
+    // Below the horizon the dome was darkened to 55% on the reasoning that it
+    // is floor rather than sky. That was written while the dome was outside
+    // the far plane and could not be seen. Now that it draws, the map does not
+    // reach the horizon — the ground stops at 103 units and the fade ring at
+    // 192 — and everything past them was showing that darkened underside as a
+    // navy band with a hard edge along the top of the map.
+    //
+    // So there is no underside. Below the horizon the dome holds the horizon's
+    // own colour, which is also the fog's colour and the ring's colour, so the
+    // map's edge, the haze it fogs into, and the sky above it are one value
+    // with nothing to see between them.
     if (ny < 0) {
-      const f = 0.55 + 0.45 * (1 + Math.max(-1, ny));
-      r *= f;
-      g *= f;
-      b *= f;
+      r = _skyA[0];
+      g = _skyA[1];
+      b = _skyA[2];
     }
     arr[i * 3] = r > 1 ? 1 : r;
     arr[i * 3 + 1] = g > 1 ? 1 : g;
