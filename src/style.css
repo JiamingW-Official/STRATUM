@@ -87,6 +87,39 @@
   --relief-inset-sm:
     inset 2px 2px 5px rgba(0, 0, 0, 0.55),
     inset -2px -2px 4px rgba(255, 255, 255, 0.03);
+
+  /* key:    a control, not a panel, and not a choice between glass and relief.
+             The glass pass below was right that an outer shadow on its own
+             reads as a sticker; it went too far in concluding that the edge
+             had to carry the whole object. Both at once is what a real key
+             does: a lit top edge and a dark bottom one, which is the pane
+             catching light, plus a short outer pair, which is the gap between
+             the key and what it rests on. Without the first it is a sticker.
+             Without the second it is printed on. */
+  --relief-key:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.24),
+    5px 5px 14px rgba(0, 0, 0, 0.30),
+    -3px -3px 10px rgba(255, 255, 255, 0.045);
+  --relief-key-sm:
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.24),
+    3px 3px 8px rgba(0, 0, 0, 0.26),
+    -2px -2px 6px rgba(255, 255, 255, 0.04);
+  /* A tile is not a key: it sits on the panel rather than above it, so the
+     outer pair is half the distance and the lip is dimmer. */
+  --relief-tile:
+    inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    2px 2px 7px rgba(0, 0, 0, 0.22),
+    -2px -2px 5px rgba(255, 255, 255, 0.03);
+  /* Pressed: the lip goes to the bottom, which is what a pushed-in edge does
+     to a light that has not moved. */
+  --relief-key-press:
+    inset 0 2px 5px rgba(0, 0, 0, 0.38),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  /* Pushed in: the same two lights, the other way round, and the lip goes --
+     a pressed key has no lit top edge. That is --relief-inset-sm. */
   --relief-face: linear-gradient(145deg, rgba(20, 24, 32, 0.78), rgba(8, 10, 15, 0.82));
 }
 
@@ -4505,7 +4538,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   backdrop-filter: blur(var(--blur)) saturate(1.3);
   border: none;
   border-radius: var(--r);
-  box-shadow: var(--relief-raised-sm);
+  box-shadow: var(--relief-key-sm);
   color: var(--text-2);
   font-family: var(--font-mono); font-size: var(--fs-body);
   cursor: pointer;
@@ -4513,7 +4546,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 .fab-btn:hover {
   color: var(--accent);
-  box-shadow: var(--relief-raised-sm), 0 0 14px rgba(var(--accent-rgb), 0.1);
+  box-shadow: var(--relief-key-sm), 0 0 14px rgba(var(--accent-rgb), 0.1);
 }
 .fab-btn .fab-label {
   position: absolute; right: 46px;
@@ -4848,14 +4881,14 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   -webkit-appearance: none; appearance: none;
   width: 11px; height: 11px; border-radius: 50%;
   background: linear-gradient(145deg, #2a3140, #151a23);
-  box-shadow: var(--relief-raised-sm);
+  box-shadow: var(--relief-key-sm);
   cursor: pointer;
 }
 
 /* The radio's own buttons get the same grammar as the toolbar's. */
 .radio-power-btn, .radio-vol-btn, .radio-close-btn {
   border: none;
-  box-shadow: var(--relief-raised-sm);
+  box-shadow: var(--relief-key-sm);
   background: var(--relief-face);
   border-radius: 7px;
 }
@@ -4929,7 +4962,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .no-coverage-btn-secondary,
 .no-coverage-btn-primary {
   border: none;
-  box-shadow: var(--relief-raised-sm);
+  box-shadow: var(--relief-key-sm);
   background: var(--relief-face);
 }
 .hud-atc-btn:active,
@@ -5215,7 +5248,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* Pressable tiles obey the relief contract the buttons already set: they lift
    under the cursor and go in when pressed. A reading never moves. */
-.hud-mod--act:hover { box-shadow: var(--relief-raised); }
+.hud-mod--act:hover { box-shadow: var(--relief-key); }
 .hud-mod--act:active { box-shadow: var(--relief-inset-sm); }
 #hud-atc.hud-mod:hover { box-shadow: var(--relief-raised); }
 .hud-meta.hud-mod:hover { box-shadow: var(--relief-raised); }
@@ -5257,7 +5290,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .school-opts { margin-top: 6px; }
 .school-opts button {
   border: none;
-  box-shadow: var(--relief-raised-sm);
+  box-shadow: var(--relief-key-sm);
   background: var(--relief-face);
 }
 .school-opts button:active { box-shadow: var(--relief-inset-sm); }
@@ -5324,7 +5357,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   display: flex; align-items: center; justify-content: center;
   border: none; cursor: pointer; padding: 0;
   background: var(--relief-face);
-  box-shadow: var(--relief-raised-sm);
+  box-shadow: var(--relief-key-sm);
   transition: box-shadow 0.15s var(--ease), background 0.15s var(--ease);
 }
 .hud-atc-power:hover { box-shadow: var(--relief-raised); }
@@ -5474,23 +5507,17 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: rgba(255, 255, 255, 0.055);
   -webkit-backdrop-filter: blur(14px) saturate(1.7) brightness(1.06);
   backdrop-filter: blur(14px) saturate(1.7) brightness(1.06);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.11),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+  box-shadow: var(--relief-tile);
 }
 .hud-mod--act:hover,
 #hud-atc.hud-mod:hover,
 .hud-meta.hud-mod:hover {
   background: rgba(255, 255, 255, 0.085);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+  box-shadow: var(--relief-key);
 }
 .hud-mod--act:active {
   background: rgba(0, 0, 0, 0.16);
-  box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.35),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: var(--relief-key-press);
 }
 
 /* The panes themselves stop casting a slab shadow and get the same edge. */
@@ -5515,23 +5542,23 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: rgba(255, 255, 255, 0.06);
   -webkit-backdrop-filter: blur(12px) saturate(1.5);
   backdrop-filter: blur(12px) saturate(1.5);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.13),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.24);
+  box-shadow: var(--relief-key-sm);
 }
 .fab-btn:hover,
-.hud-atc-power:hover { background: rgba(255, 255, 255, 0.1); }
+.hud-atc-power:hover {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: var(--relief-key);
+}
 .fab-btn:active, .fab-btn.is-active,
 .radio-power-btn:active, .radio-vol-btn:active, .radio-close-btn:active,
 .school-opts button:active {
   background: rgba(0, 0, 0, 0.18);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--relief-key-press);
 }
+/* Held down because it is held down -- the tower is live. */
 .hud-atc-power:has(.is-live), .hud-atc-power:has(.is-busy) {
   background: rgba(var(--accent-rgb), 0.16);
-  box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.3),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: var(--relief-key-press);
 }
 
 /* Wells stay dark, because a hole is darker than the face around it. */
@@ -5690,11 +5717,13 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   border: none; cursor: pointer; padding: 0;
   color: var(--text-2);
   background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.22);
-  transition: color 0.15s var(--ease), background 0.15s var(--ease);
+  box-shadow: var(--relief-key-sm);
+  transition: color 0.15s var(--ease), background 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
 }
-.radio-tp:hover { color: var(--text); background: rgba(255, 255, 255, 0.1); }
-.radio-tp:active { background: rgba(0, 0, 0, 0.2); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
+/* The roundest, most obviously pressable things here. They were the flattest. */
+.radio-tp:hover { color: var(--text); background: rgba(255, 255, 255, 0.1); box-shadow: var(--relief-key); }
+.radio-tp:active { background: rgba(0, 0, 0, 0.2); box-shadow: var(--relief-key-press); }
 .radio-tp--main { width: 40px; height: 40px; color: var(--text); }
 .radio-tp--main .radio-tp-stop { display: none; }
 .radio-tp--main.on .radio-tp-play { display: none; }
@@ -5772,7 +5801,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   transition: color 0.15s var(--ease), background 0.15s var(--ease);
 }
 .hud-act:hover { color: var(--text); background: rgba(255, 255, 255, 0.12); }
-.hud-act:active { background: rgba(0, 0, 0, 0.2); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
+.hud-act:active { background: rgba(0, 0, 0, 0.2); box-shadow: var(--relief-inset-sm); }
 #hud-atc .radio-tp { width: 22px; height: 22px; }
 #hud-atc .radio-tp--main { width: 30px; height: 30px; }
 .hud-atc-transport { gap: 7px; align-items: center; }
@@ -6288,10 +6317,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   -webkit-backdrop-filter: blur(var(--blur)) saturate(1.3);
   backdrop-filter: blur(var(--blur)) saturate(1.3);
   border: none;
-  box-shadow: var(--relief-raised-sm);
+  box-shadow: var(--relief-key-sm);
   transition: color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
-.radio-toggle-btn:hover { transform: none; box-shadow: var(--relief-raised-sm), 0 0 14px rgba(var(--accent-rgb), 0.1); }
+.radio-toggle-btn:hover { transform: none; box-shadow: var(--relief-key-sm), 0 0 14px rgba(var(--accent-rgb), 0.1); }
 /* The pulse was standing in for "something is happening". The meter does that
    now, and does it truthfully. */
 .radio-toggle-btn.active { animation: none; }
@@ -6695,7 +6724,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   transition: box-shadow 0.15s var(--ease);
 }
 .detail-rotor:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
-.detail-rotor:active { box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
+.detail-rotor:active { box-shadow: var(--relief-inset-sm); }
 .detail-rotor.is-empty { display: none; }
 /* The groups keep their identity for the code that writes into them; they stop
    having a shape of their own. */
@@ -6878,4 +6907,13 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    list you scan with a mouse. */
 .city-list-item {
   padding: 12px 12px 12px 14px;
+}
+
+/* A key that lifts has to give. These took the raise and had no press, so the
+   finger got an object that looked pressable and never moved. The clock is not
+   in this list: it is deliberately flat inside its tile, and a well that
+   appears from nothing on press is not an affordance, it is a flicker. */
+.radio-toggle-btn:active,
+.hud-atc-power:active {
+  box-shadow: var(--relief-key-press);
 }
