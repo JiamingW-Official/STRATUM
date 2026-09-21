@@ -2143,13 +2143,15 @@ const SKY_KEYS = [
   [-0.16, [0.056, 0.048, 0.058], [0.014, 0.020, 0.038], [0.005, 0.009, 0.022]],
   [-0.07, [0.175, 0.105, 0.125], [0.058, 0.048, 0.098], [0.013, 0.022, 0.056]],
   [0.01, [0.420, 0.215, 0.115], [0.155, 0.110, 0.140], [0.028, 0.055, 0.118]],
-  // Daylight horizons are warm. A clear one is dust and water vapour lit from
-  // the side, which is a pale gold, not the neutral grey a pure Rayleigh model
-  // gives you — and neutral grey against a blue zenith is exactly the cold
-  // white-and-blue this read as.
-  [0.13, [0.370, 0.320, 0.280], [0.170, 0.185, 0.245], [0.048, 0.100, 0.210]],
-  [0.45, [0.385, 0.345, 0.295], [0.175, 0.205, 0.285], [0.055, 0.120, 0.250]],
-  [1.0, [0.385, 0.345, 0.295], [0.175, 0.205, 0.285], [0.055, 0.120, 0.250]],
+  // Warming the whole daylight horizon was the wrong move: this colour is also
+  // the fog's, and a warm grey haze laid over a cool blue-grey basemap mixes
+  // to olive — the map went the colour of smog. The warmth belongs to the
+  // sun's own quarter of the sky, which is where the directional terms below
+  // put it. The base is bright and very slightly cool, the way a hazy daylight
+  // horizon actually is once you look away from the sun.
+  [0.13, [0.390, 0.400, 0.415], [0.180, 0.205, 0.270], [0.048, 0.100, 0.210]],
+  [0.45, [0.405, 0.420, 0.440], [0.185, 0.215, 0.290], [0.055, 0.120, 0.250]],
+  [1.0, [0.405, 0.420, 0.440], [0.185, 0.215, 0.290], [0.055, 0.120, 0.250]],
 ];
 // Vertex height and horizontal bearing, computed once: the dome never moves.
 let _skyGeoCache = null;
@@ -2243,9 +2245,9 @@ function _paintSky(sinAlt, sunE, sunU, sunNz, hLen) {
         const d3 = dot * dot * dot;
         const core = d3 * d3 * d3 * dot * dot; // ~dot^11: a few degrees wide
         const wash = d3;
-        r += (0.95 * core + 0.200 * wash) * dayPower;
-        g += (0.66 * core + 0.115 * wash) * dayPower;
-        b += (0.30 * core + 0.045 * wash) * dayPower;
+        r += (0.95 * core + 0.290 * wash) * dayPower;
+        g += (0.66 * core + 0.160 * wash) * dayPower;
+        b += (0.30 * core + 0.055 * wash) * dayPower;
       } else {
         const v = dot * dot;
         r += 0.030 * v * dayPower;
@@ -2299,8 +2301,8 @@ const GROUND_KEYS = [
   [-0.12, [0.66, 0.74, 1.0]],
   [-0.04, [0.92, 0.80, 0.86]],
   [0.03, [1.12, 0.94, 0.76]],
-  [0.2, [1.14, 1.05, 0.92]],
-  [1.0, [1.16, 1.08, 0.95]],
+  [0.2, [1.10, 1.06, 1.00]],
+  [1.0, [1.12, 1.09, 1.03]],
 ];
 function _tintGround(sinAlt) {
   if (!groundMaterial) return;
