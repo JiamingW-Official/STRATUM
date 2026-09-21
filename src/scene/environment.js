@@ -2028,21 +2028,156 @@ export function updateDayNight(scene, userLat, userLon, utcHours) {
     _ambientLightRef.intensity = 0.7 + 0.3 * dayFactor;
   }
 
-  // ---------- Sky dome vertex colors ----------
-  if (_skyDomeRef && _skyBaseColors) {
-    const colAttr = _skyDomeRef.geometry.attributes.color;
-    const arr = colAttr.array;
-    // Day brightness boost: multiply each channel by (1 + dayFactor * boost).
-    // Keeps night colors unchanged (dayFactor=0 → multiplier=1) and
-    // makes daytime sky moderately brighter.
-    const boost = 1.2; // up to 2.2× brighter at full day
-    const multiplier = 1 + dayFactor * boost;
+  // ---------- Sky ----------
+  // The sun's horizontal direction, derived rather than converted: with the
+  // equinox declination this module already assumes, the sun's unit vector in
+  // the local east-north-up frame is (-sin H, -sin φ cos H, cos φ cos H), and
+  // the third component is the sinAlt computed above — which is the check that
+  // the first two are in the same frame. Scene axes are +x east and -z north,
+  // so east and north drop straight in.
+  const eastC = -Math.sin(hourAngle);
+  const northC = -Math.sin(latRad) * Math.cos(hourAngle);
+  const hLen = Math.hypot(eastC, northC) || 1;
+  _paintSky(sinAlt, eastC / hLen, -northC / hLen);
+  _tintGround(sinAlt);
+}
 
-    for (let i = 0, len = _skyBaseColors.length; i < len; i++) {
-      arr[i] = Math.min(_skyBaseColors[i] * multiplier, 1.0);
-    }
-    colAttr.needsUpdate = true;
+// ── The sky is a time of day, not a blue ───────────────────────────────────
+// It had one gradient — a single blue, darker at the horizon than overhead —
+// and the day/night cycle multiplied every channel by up to 2.2. So noon was
+// the same blue as midnight with the lamp turned up, and dawn and dusk, the
+// two times a sky is worth looking at, did not exist.
+//
+// Three colours now — horizon, mid, zenith — interpolated along the sun's
+// elevation through five keyframes. The order of the stops carries the physics
+// it was missing: by day the zenith is the deep one and the horizon washes out,
+// because that is what a long path through the atmosphere does to blue; at
+// night it inverts, the zenith going nearly black while the horizon keeps a
+// little of the ground's light.
+const SKY_KEYS = [
+  // sinAlt, horizon,                 mid,                     zenith
+  [-1.0, [0.020, 0.034, 0.060], [0.008, 0.018, 0.038], [0.004, 0.009, 0.022]],
+  [-0.14, [0.024, 0.036, 0.064], [0.009, 0.019, 0.040], [0.004, 0.010, 0.024]],
+  [-0.06, [0.090, 0.062, 0.088], [0.030, 0.032, 0.072], [0.010, 0.020, 0.048]],
+  [0.02, [0.240, 0.140, 0.082], [0.085, 0.078, 0.120], [0.022, 0.048, 0.106]],
+  [0.14, [0.170, 0.200, 0.270], [0.100, 0.150, 0.250], [0.040, 0.095, 0.210]],
+  [0.45, [0.200, 0.255, 0.330], [0.110, 0.170, 0.290], [0.048, 0.110, 0.240]],
+  [1.0, [0.200, 0.255, 0.330], [0.110, 0.170, 0.290], [0.048, 0.110, 0.240]],
+];
+// Vertex height and horizontal bearing, computed once: the dome never moves.
+let _skyGeoCache = null;
+const _skyA = [0, 0, 0];
+const _skyB = [0, 0, 0];
+const _skyC = [0, 0, 0];
+
+function _skySample(sinAlt) {
+  let i = 0;
+  while (i < SKY_KEYS.length - 2 && sinAlt > SKY_KEYS[i + 1][0]) i++;
+  const [a0, ah, am, az] = SKY_KEYS[i];
+  const [a1, bh, bm, bz] = SKY_KEYS[i + 1];
+  const k = Math.max(0, Math.min(1, (sinAlt - a0) / (a1 - a0 || 1)));
+  for (let c = 0; c < 3; c++) {
+    _skyA[c] = ah[c] + (bh[c] - ah[c]) * k;
+    _skyB[c] = am[c] + (bm[c] - am[c]) * k;
+    _skyC[c] = az[c] + (bz[c] - az[c]) * k;
   }
+}
+
+function _paintSky(sinAlt, sunX, sunZ) {
+  if (!_skyDomeRef) return;
+  const colAttr = _skyDomeRef.geometry.attributes.color;
+  const posAttr = _skyDomeRef.geometry.attributes.position;
+  if (!colAttr || !posAttr) return;
+  const n = posAttr.count;
+  if (!_skyGeoCache || _skyGeoCache.length !== n * 3) {
+    _skyGeoCache = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const x = posAttr.getX(i);
+      const y = posAttr.getY(i);
+      const z = posAttr.getZ(i);
+      const r = Math.hypot(x, y, z) || 1;
+      const hl = Math.hypot(x, z) || 1;
+      _skyGeoCache[i * 3] = y / r; // -1 under the horizon, 1 overhead
+      _skyGeoCache[i * 3 + 1] = x / hl;
+      _skyGeoCache[i * 3 + 2] = z / hl;
+    }
+  }
+  _skySample(sinAlt);
+  // The warm band that makes a sky read as a sky rather than as a gradient:
+  // the quarter of the horizon the sun is in is brighter and warmer than the
+  // quarter behind you. It peaks with the sun on the horizon and is gone by
+  // the time it is a quarter of the way up.
+  const glow = Math.max(0, 1 - Math.abs(sinAlt) / 0.26);
+  const glowAmt = glow * glow;
+  const arr = colAttr.array;
+  for (let i = 0; i < n; i++) {
+    const ny = _skyGeoCache[i * 3];
+    const t = Math.max(0, Math.min(1, ny));
+    let r, g, b;
+    if (t < 0.34) {
+      const k = t / 0.34;
+      r = _skyA[0] + (_skyB[0] - _skyA[0]) * k;
+      g = _skyA[1] + (_skyB[1] - _skyA[1]) * k;
+      b = _skyA[2] + (_skyB[2] - _skyA[2]) * k;
+    } else {
+      const k = (t - 0.34) / 0.66;
+      r = _skyB[0] + (_skyC[0] - _skyB[0]) * k;
+      g = _skyB[1] + (_skyC[1] - _skyB[1]) * k;
+      b = _skyB[2] + (_skyC[2] - _skyB[2]) * k;
+    }
+    if (glowAmt > 0.001) {
+      const toward = _skyGeoCache[i * 3 + 1] * sunX + _skyGeoCache[i * 3 + 2] * sunZ;
+      if (toward > 0) {
+        // Hugs the horizon: nothing above a third of the way up.
+        const band = Math.max(0, 1 - t / 0.33);
+        const w = glowAmt * toward * toward * band * band;
+        r += 0.150 * w;
+        g += 0.062 * w;
+        b += 0.016 * w;
+      }
+    }
+    // Below the horizon the dome is floor, not sky, and a bright floor reads
+    // as a bug.
+    if (ny < 0) {
+      const f = 0.55 + 0.45 * (1 + Math.max(-1, ny));
+      r *= f;
+      g *= f;
+      b *= f;
+    }
+    arr[i * 3] = r > 1 ? 1 : r;
+    arr[i * 3 + 1] = g > 1 ? 1 : g;
+    arr[i * 3 + 2] = b > 1 ? 1 : b;
+  }
+  colAttr.needsUpdate = true;
+}
+
+// ── And the ground under it ────────────────────────────────────────────────
+// The basemap is drawn with a MeshBasicMaterial, which takes no light at all,
+// so the map read exactly the same at midnight as at noon while the sky above
+// it changed. The material's colour multiplies the texture, which is the one
+// lever available: a cool cast at night, the sun's warmth at dawn and dusk,
+// and something close to neutral in the middle of the day. Kept narrow —
+// the map is the subject and a tinted map is a costume.
+const GROUND_KEYS = [
+  [-1.0, [0.78, 0.86, 1.0]],
+  [-0.12, [0.80, 0.86, 1.0]],
+  [-0.04, [0.88, 0.83, 0.92]],
+  [0.03, [1.0, 0.88, 0.76]],
+  [0.2, [1.0, 0.97, 0.93]],
+  [1.0, [1.0, 1.0, 0.99]],
+];
+function _tintGround(sinAlt) {
+  if (!groundMaterial) return;
+  let i = 0;
+  while (i < GROUND_KEYS.length - 2 && sinAlt > GROUND_KEYS[i + 1][0]) i++;
+  const [a0, ca] = GROUND_KEYS[i];
+  const [a1, cb] = GROUND_KEYS[i + 1];
+  const k = Math.max(0, Math.min(1, (sinAlt - a0) / (a1 - a0 || 1)));
+  groundMaterial.color.setRGB(
+    ca[0] + (cb[0] - ca[0]) * k,
+    ca[1] + (cb[1] - ca[1]) * k,
+    ca[2] + (cb[2] - ca[2]) * k,
+  );
 }
 
 /**
