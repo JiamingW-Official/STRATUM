@@ -179,10 +179,22 @@ function classifyAircraftType(typeCode) {
 
 const MODEL_SCALE = 0.25;
 let _gltfLoaderInstance = null;
+// The models are meshopt-compressed: 4.0MB of GLB across seven aircraft became
+// 1.35MB, and the B777 alone went from 1070KB to 229KB. They were already
+// quantized and carry no textures, so this is the geometry itself -- a B777 with
+// 47,479 vertices for 21,958 triangles is mostly duplicated verts, which is
+// exactly what the codec is good at.
+//
+// The decoder is the price and it is small: it ships inside three, loads beside
+// the loader rather than after it, and without it every model fails to parse.
 async function _getGLTFLoader() {
   if (!_gltfLoaderInstance) {
-    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
+      import('three/addons/loaders/GLTFLoader.js'),
+      import('three/addons/libs/meshopt_decoder.module.js'),
+    ]);
     _gltfLoaderInstance = new GLTFLoader();
+    _gltfLoaderInstance.setMeshoptDecoder(MeshoptDecoder);
   }
   return _gltfLoaderInstance;
 }

@@ -12,7 +12,11 @@
     "verify:sky": "npm run build && npm run test:sky",
     "typecheck": "tsc --noEmit",
     "test:ife": "playwright test tests/ife.spec.ts",
-    "verify:ife": "npm run typecheck && npm run build && npm run test:ife"
+    "verify:ife": "npm run typecheck && npm run build && npm run test:ife && npm run test:ambience",
+    "test:book": "playwright test tests/booking.spec.ts",
+    "verify:book": "npm run typecheck && npm run build && npm run test:book",
+    "test:ambience": "playwright test tests/ambience.spec.ts",
+    "models:compress": "for f in public/airplane_model/*.glb; do npx gltf-transform meshopt \"$f\" \"$f\"; done"
   },
   "dependencies": {
     "maplibre-gl": "^6.10.0",
@@ -23,6 +27,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "^4.5.0",
     "@playwright/test": "^1.63.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
