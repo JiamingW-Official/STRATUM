@@ -2040,6 +2040,39 @@ export function updateDayNight(scene, userLat, userLon, utcHours) {
   const hLen = Math.hypot(eastC, northC) || 1;
   _paintSky(sinAlt, eastC / hLen, -northC / hLen);
   _tintGround(sinAlt);
+  _tintAir(scene, sinAlt);
+}
+
+// ── The air between you and the far side of the map ────────────────────────
+// This is the part that actually colours the picture. The sky dome is barely
+// on screen in a view that looks down at a map — repainting it changed the
+// strip along the top and nothing else — while the fog is what every distant
+// mile of ground fades into, and it had been one fixed dark blue since it was
+// written. A sky that goes amber over a horizon that stays navy is not a
+// sunset, it is a sticker.
+//
+// So the fog takes the sky's own horizon colour, lifted: haze is brighter than
+// the sky it hangs under, because it is lit from every direction at once.
+function _tintAir(scene, sinAlt) {
+  const fog = scene && scene.fog;
+  if (!fog) return;
+  // Hue from the sky, value from what already worked. Lifting the horizon
+  // colour directly was measured at (0.513, 0.349, 0.276) at golden hour and
+  // it turned the whole map to milk: exponential fog at this density does not
+  // tint the distance, it replaces it. So the horizon colour is renormalised
+  // to a brightness that belongs to a dark map — a little more at midday when
+  // real haze is pale, a little less at night — and only its ratios survive.
+  // That is what makes the air amber at dusk and grey-blue at noon without
+  // ever becoming the subject.
+  const peak =
+    sinAlt < -0.06
+      ? 0.045
+      : sinAlt < 0.06
+        ? 0.045 + ((sinAlt + 0.06) / 0.12) * 0.055
+        : Math.min(0.125, 0.1 + sinAlt * 0.06);
+  const mx = Math.max(_skyA[0], _skyA[1], _skyA[2]) || 1;
+  const k = peak / mx;
+  fog.color.setRGB(_skyA[0] * k, _skyA[1] * k, _skyA[2] * k);
 }
 
 // ── The sky is a time of day, not a blue ───────────────────────────────────
@@ -2056,13 +2089,15 @@ export function updateDayNight(scene, userLat, userLon, utcHours) {
 // little of the ground's light.
 const SKY_KEYS = [
   // sinAlt, horizon,                 mid,                     zenith
-  [-1.0, [0.020, 0.034, 0.060], [0.008, 0.018, 0.038], [0.004, 0.009, 0.022]],
-  [-0.14, [0.024, 0.036, 0.064], [0.009, 0.019, 0.040], [0.004, 0.010, 0.024]],
-  [-0.06, [0.090, 0.062, 0.088], [0.030, 0.032, 0.072], [0.010, 0.020, 0.048]],
-  [0.02, [0.240, 0.140, 0.082], [0.085, 0.078, 0.120], [0.022, 0.048, 0.106]],
-  [0.14, [0.170, 0.200, 0.270], [0.100, 0.150, 0.250], [0.040, 0.095, 0.210]],
-  [0.45, [0.200, 0.255, 0.330], [0.110, 0.170, 0.290], [0.048, 0.110, 0.240]],
-  [1.0, [0.200, 0.255, 0.330], [0.110, 0.170, 0.290], [0.048, 0.110, 0.240]],
+  // Night keeps a little sodium in the horizon — a city under an overcast is
+  // never blue at the bottom, it is the colour of its own streetlights.
+  [-1.0, [0.042, 0.040, 0.052], [0.012, 0.018, 0.034], [0.004, 0.008, 0.020]],
+  [-0.16, [0.056, 0.048, 0.058], [0.014, 0.020, 0.038], [0.005, 0.009, 0.022]],
+  [-0.07, [0.175, 0.105, 0.125], [0.058, 0.048, 0.098], [0.013, 0.022, 0.056]],
+  [0.01, [0.420, 0.215, 0.115], [0.155, 0.110, 0.140], [0.028, 0.055, 0.118]],
+  [0.13, [0.310, 0.290, 0.300], [0.150, 0.180, 0.255], [0.045, 0.100, 0.215]],
+  [0.45, [0.300, 0.330, 0.370], [0.145, 0.200, 0.305], [0.052, 0.118, 0.255]],
+  [1.0, [0.300, 0.330, 0.370], [0.145, 0.200, 0.305], [0.052, 0.118, 0.255]],
 ];
 // Vertex height and horizontal bearing, computed once: the dome never moves.
 let _skyGeoCache = null;
@@ -2107,7 +2142,7 @@ function _paintSky(sinAlt, sunX, sunZ) {
   // the quarter of the horizon the sun is in is brighter and warmer than the
   // quarter behind you. It peaks with the sun on the horizon and is gone by
   // the time it is a quarter of the way up.
-  const glow = Math.max(0, 1 - Math.abs(sinAlt) / 0.26);
+  const glow = Math.max(0, 1 - Math.abs(sinAlt) / 0.32);
   const glowAmt = glow * glow;
   const arr = colAttr.array;
   for (let i = 0; i < n; i++) {
@@ -2131,9 +2166,9 @@ function _paintSky(sinAlt, sunX, sunZ) {
         // Hugs the horizon: nothing above a third of the way up.
         const band = Math.max(0, 1 - t / 0.33);
         const w = glowAmt * toward * toward * band * band;
-        r += 0.150 * w;
-        g += 0.062 * w;
-        b += 0.016 * w;
+        r += 0.280 * w;
+        g += 0.110 * w;
+        b += 0.028 * w;
       }
     }
     // Below the horizon the dome is floor, not sky, and a bright floor reads
@@ -2159,12 +2194,12 @@ function _paintSky(sinAlt, sunX, sunZ) {
 // and something close to neutral in the middle of the day. Kept narrow —
 // the map is the subject and a tinted map is a costume.
 const GROUND_KEYS = [
-  [-1.0, [0.78, 0.86, 1.0]],
-  [-0.12, [0.80, 0.86, 1.0]],
-  [-0.04, [0.88, 0.83, 0.92]],
-  [0.03, [1.0, 0.88, 0.76]],
-  [0.2, [1.0, 0.97, 0.93]],
-  [1.0, [1.0, 1.0, 0.99]],
+  [-1.0, [0.62, 0.72, 1.0]],
+  [-0.12, [0.66, 0.74, 1.0]],
+  [-0.04, [0.92, 0.80, 0.86]],
+  [0.03, [1.12, 0.94, 0.76]],
+  [0.2, [1.08, 1.02, 0.96]],
+  [1.0, [1.05, 1.04, 1.0]],
 ];
 function _tintGround(sinAlt) {
   if (!groundMaterial) return;

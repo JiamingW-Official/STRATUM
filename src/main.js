@@ -5630,13 +5630,21 @@ class GlobeView {
     const { cx, cy, R } = this;
     ctx.clearRect(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
 
-    // Atmospheric glow (outer ring)
-    const glow = ctx.createRadialGradient(cx, cy, R * 0.92, cx, cy, R * 1.15);
-    glow.addColorStop(0, "rgba(40,100,180,0)");
-    glow.addColorStop(0.5, "rgba(40,100,180,0.04)");
-    glow.addColorStop(1, "rgba(40,100,180,0)");
+    // ── Atmosphere ──
+    // One flat blue ring at 4% was a halo, not air. Air has a thickness and a
+    // colour that changes through it: the outermost reach is the cold violet
+    // of the edge of the atmosphere, the band hard against the limb is the
+    // pale warm one you see from orbit, and between them it is the sky's own
+    // blue. Three stops instead of one, and reaching further out, so the globe
+    // sits in something rather than being cut out of the panel.
+    const glow = ctx.createRadialGradient(cx, cy, R * 0.86, cx, cy, R * 1.3);
+    glow.addColorStop(0, "rgba(120,150,190,0)");
+    glow.addColorStop(0.28, "rgba(186,196,208,0.10)");
+    glow.addColorStop(0.5, "rgba(96,136,190,0.075)");
+    glow.addColorStop(0.78, "rgba(70,92,150,0.03)");
+    glow.addColorStop(1, "rgba(60,76,130,0)");
     ctx.beginPath();
-    ctx.arc(cx, cy, R * 1.15, 0, Math.PI * 2);
+    ctx.arc(cx, cy, R * 1.3, 0, Math.PI * 2);
     ctx.fillStyle = glow;
     ctx.fill();
 
@@ -5649,10 +5657,16 @@ class GlobeView {
       cy,
       R,
     );
-    fill.addColorStop(0, "#0a1a35");
-    fill.addColorStop(0.4, "#071428");
-    fill.addColorStop(0.8, "#040d1a");
-    fill.addColorStop(1, "#020810");
+    // The ocean was four blues, each darker than the last, which is a ball of
+    // one colour with a shadow on it. Deep water seen through air is not blue
+    // all the way down: it is a cool slate where the light lands, it loses its
+    // blue as it turns away, and at the limb it goes to the near-black of a
+    // planet's edge with a little of the atmosphere's warmth caught in it.
+    fill.addColorStop(0, "#16293f");
+    fill.addColorStop(0.35, "#101f31");
+    fill.addColorStop(0.68, "#0a1420");
+    fill.addColorStop(0.9, "#080e15");
+    fill.addColorStop(1, "#0a0c0f");
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.fillStyle = fill;
@@ -5684,8 +5698,9 @@ class GlobeView {
       cy - R * 0.35,
       R * 0.5,
     );
-    spec.addColorStop(0, "rgba(150,200,255,0.04)");
-    spec.addColorStop(1, "rgba(150,200,255,0)");
+    spec.addColorStop(0, "rgba(214,226,238,0.055)");
+    spec.addColorStop(0.55, "rgba(150,180,215,0.02)");
+    spec.addColorStop(1, "rgba(150,180,215,0)");
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.fillStyle = spec;
@@ -6443,9 +6458,14 @@ class GlobeView {
               const alpha = isCoast
                 ? ((0.55 * d + 0.2) * 255 + 0.5) | 0
                 : ((0.5 * d + 0.16) * 255 + 0.5) | 0;
-              const rr = isCoast ? 74 : 38;
-              const gg = isCoast ? 116 : 62;
-              const bb = isCoast ? 164 : 96;
+              // Land was blue — a lighter blue on a blue ocean, which is why
+              // the whole globe read as one colour. Ground is not blue: the
+              // coast catches the light as a pale warm grey and the interior
+              // settles into a muted olive-slate, so land and water separate
+              // by hue instead of by brightness alone.
+              const rr = isCoast ? 142 : 74;
+              const gg = isCoast ? 140 : 78;
+              const bb = isCoast ? 130 : 76;
               const px0 = (x - sz / 2 + 0.5) | 0;
               const py0 = (y - sz / 2 + 0.5) | 0;
               for (let dy = 0; dy < sz; dy++) {
