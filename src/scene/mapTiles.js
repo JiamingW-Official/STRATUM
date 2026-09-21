@@ -43,7 +43,14 @@ const PROVIDERS = {
       lift: 9,
       gamma: 2.1,
       gain: 0.57,
-      tint: [0.88, 0.95, 1.16],
+      // The map was graded blue on purpose — red down to 0.88, blue up to 1.16
+      // — to match CARTO's dark_all, and that tint is baked into every pixel
+      // of ground in every city at every hour. It is most of why the world
+      // reads blue whatever the sky is doing. The grade now leaves the hue
+      // alone and the time of day supplies it: the ground's own tint is cool
+      // at night and warm by day, and the haze it fogs into is the colour of
+      // the sky above it. A basemap that insists on a colour cannot take one.
+      tint: [1.0, 0.995, 0.985],
     },
   },
 };
