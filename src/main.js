@@ -38,6 +38,7 @@ import {
   updateCoverageShadow,
   setCoverageShadowVisible,
   updateChartDetail,
+  setFogDensityLocked,
 } from "./scene/environment.js";
 import {
   AircraftManager,
@@ -3057,7 +3058,10 @@ document.addEventListener("keydown", (e) => {
     if (bloomPass)
       bloomPass.strength = _cinematicMode ? 1.1 : BLOOM_PRESETS[bloomLevel];
     renderer.toneMappingExposure = _cinematicMode ? 1.8 : 1.4;
-    scene.fog.density = _cinematicMode ? 0.01 : 0.025;
+    // The day/night pass owns the density otherwise; say so while this mode
+    // holds it, or the next tick two seconds later takes it back.
+    setFogDensityLocked(_cinematicMode);
+    scene.fog.density = _cinematicMode ? 0.01 : 0.017;
     const lbl =
       document.getElementById("bloom-label") || document.createElement("div");
     if (!lbl.id) {

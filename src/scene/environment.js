@@ -56,12 +56,13 @@ function _ensureGroundMesh() {
 
 // T3-12: Day/Night cycle cached references
 let _skyDomeRef = null;
+let _fadeRingRef = null;
 let _skyBaseColors = null; // Float32Array — night baseline vertex colors
 let _ambientLightRef = null;
 
 export function createEnvironment(scene) {
   // Horizon fog — heavy exponential fog buries map edges
-  scene.fog = new THREE.FogExp2(new THREE.Color(0.008, 0.032, 0.068), 0.025);
+  scene.fog = new THREE.FogExp2(new THREE.Color(0.02, 0.03, 0.05), 0.017);
 
   const ambient = new THREE.AmbientLight(0x3a5577, 0.5);
   ambient.name = "ambientLight";
@@ -98,9 +99,11 @@ export function createEnvironment(scene) {
     );
     // Safety net: hides ground tile edges in world space (screen-space shader does main work)
     const a = Math.min(1, t * t * 25);
-    fadeCols[i * 4] = 0.008;
-    fadeCols[i * 4 + 1] = 0.032;
-    fadeCols[i * 4 + 2] = 0.068;
+    // Placeholder only: _tintAir overwrites these on the first day/night tick
+    // with whatever the sky's horizon currently is.
+    fadeCols[i * 4] = 0.02;
+    fadeCols[i * 4 + 1] = 0.03;
+    fadeCols[i * 4 + 2] = 0.05;
     fadeCols[i * 4 + 3] = a;
   }
   fadeGeo.setAttribute("color", new THREE.Float32BufferAttribute(fadeCols, 4));
@@ -112,6 +115,7 @@ export function createEnvironment(scene) {
     fog: false,
   });
   const fadeRing = new THREE.Mesh(fadeGeo, fadeMat);
+  _fadeRingRef = fadeRing;
   fadeRing.rotation.x = -Math.PI / 2;
   fadeRing.position.y = 0.001; // just above ground to overlay
   fadeRing.renderOrder = -50;
@@ -2043,36 +2047,50 @@ export function updateDayNight(scene, userLat, userLon, utcHours) {
   _tintAir(scene, sinAlt);
 }
 
-// ── The air between you and the far side of the map ────────────────────────
-// This is the part that actually colours the picture. The sky dome is barely
-// on screen in a view that looks down at a map — repainting it changed the
-// strip along the top and nothing else — while the fog is what every distant
-// mile of ground fades into, and it had been one fixed dark blue since it was
-// written. A sky that goes amber over a horizon that stays navy is not a
-// sunset, it is a sticker.
+// ── One colour at the horizon, or there is a horizon ──────────────────────
+// The world stayed blue in every city at every hour because of a third
+// surface nobody had looked at. Beyond the map's square there is a fade ring,
+// 192 units across, whose job is to bury the tile edge — and its vertex
+// colours were hard-coded to (0.008, 0.032, 0.068), the same constant the fog
+// used to be, with fog:false so nothing could ever reach it. That ring is most
+// of what you see past the map. It was the blue.
 //
-// So the fog takes the sky's own horizon colour, lifted: haze is brighter than
-// the sky it hangs under, because it is lit from every direction at once.
+// It could not be seen as a fault while everything was that one blue. The
+// moment the fog started changing, the ring stayed where it was and became a
+// seam: a square of pale day-lit ground sitting on a navy plate under a navy
+// sky, which is the flat edge in the picture.
+//
+// So all three take one colour now — the fog, the ring, and the sky's own
+// horizon. Distant ground fogs to exactly the colour of the sky it meets, and
+// the edge of the world stops existing.
 function _tintAir(scene, sinAlt) {
   const fog = scene && scene.fog;
-  if (!fog) return;
-  // Hue from the sky, value from what already worked. Lifting the horizon
-  // colour directly was measured at (0.513, 0.349, 0.276) at golden hour and
-  // it turned the whole map to milk: exponential fog at this density does not
-  // tint the distance, it replaces it. So the horizon colour is renormalised
-  // to a brightness that belongs to a dark map — a little more at midday when
-  // real haze is pale, a little less at night — and only its ratios survive.
-  // That is what makes the air amber at dusk and grey-blue at noon without
-  // ever becoming the subject.
-  const peak =
-    sinAlt < -0.06
-      ? 0.045
-      : sinAlt < 0.06
-        ? 0.045 + ((sinAlt + 0.06) / 0.12) * 0.055
-        : Math.min(0.125, 0.1 + sinAlt * 0.06);
-  const mx = Math.max(_skyA[0], _skyA[1], _skyA[2]) || 1;
-  const k = peak / mx;
-  fog.color.setRGB(_skyA[0] * k, _skyA[1] * k, _skyA[2] * k);
+  if (fog) {
+    fog.color.setRGB(_skyA[0], _skyA[1], _skyA[2]);
+    // Density had to come down for that to be survivable. At 0.025 the haze is
+    // 43% at thirty units — fine for a colour as dark as the old one, milk for
+    // one as bright as a daytime horizon. 0.017 is 25% at thirty units and 95%
+    // by a hundred: the map readable where you are looking, and gone by the
+    // time it runs out.
+    if (!_fogDensityLocked) fog.density = 0.017;
+  }
+  const ring = _fadeRingRef;
+  if (ring) {
+    const col = ring.geometry.attributes.color;
+    const arr = col.array;
+    for (let i = 0, n = arr.length; i < n; i += 4) {
+      arr[i] = _skyA[0];
+      arr[i + 1] = _skyA[1];
+      arr[i + 2] = _skyA[2];
+    }
+    col.needsUpdate = true;
+  }
+}
+
+// Screenshot and cinematic modes set their own density; they say so here.
+let _fogDensityLocked = false;
+export function setFogDensityLocked(on) {
+  _fogDensityLocked = !!on;
 }
 
 // ── The sky is a time of day, not a blue ───────────────────────────────────
