@@ -325,6 +325,68 @@ async function handleAirports(url, env, cacheOnly = false) {
   }
 }
 
+// The batch endpoint was shipping raw Overpass JSON -- 3.4MB for 25 cities,
+// seven seconds of the boot, competing with the map tiles and the feed for the
+// wire. The client parses it the instant it lands and keeps almost none of it:
+// nine tag keys, a coordinate, a bounds box, a geometry array. Overpass sends
+// every tag OSM has on every element, plus every element in the bbox whether it
+// is aeroway or not.
+//
+// So send what the parser reads. The shape is unchanged -- same {elements:[]},
+// same field names -- so parseOverpassData on the other side needs no edit and
+// cannot drift out of step with this: if it ever reads a tenth key, it reads
+// undefined, which is what it already does for a city Overpass has no data for.
+//
+// Runways are the one place this goes further than dropping tags. The parser
+// takes geom[0] and geom[geom.length - 1] and nothing between, so a runway
+// centreline of eighty points crosses the wire as two.
+const OVERPASS_TAGS = ["aeroway", "iata", "icao", "icao:code", "name", "ref", "surface", "width", "building"];
+
+function _slimTags(tags) {
+  if (!tags) return undefined;
+  let out;
+  for (const k of OVERPASS_TAGS) {
+    if (tags[k] !== undefined) (out ||= {})[k] = tags[k];
+  }
+  return out;
+}
+
+function slimOverpass(data) {
+  if (!data || !Array.isArray(data.elements)) return data;
+  const elements = [];
+  for (const el of data.elements) {
+    const aeroway = el.tags?.aeroway;
+    const geomLen = el.geometry?.length || 0;
+    const isWay = el.type === "way";
+
+    let keepGeometry = null;
+    if (aeroway === "aerodrome") {
+      // Nodes carry lat/lon; ways and relations are averaged from bounds, or
+      // from geometry when there is no bounds box.
+      if (el.type !== "node" && !el.bounds && geomLen > 0) keepGeometry = el.geometry;
+      if (!(el.tags?.iata || el.tags?.icao || el.tags?.["icao:code"])) continue;
+    } else if (isWay && aeroway === "runway" && geomLen >= 2) {
+      keepGeometry = [el.geometry[0], el.geometry[geomLen - 1]];
+    } else if (isWay && aeroway === "taxiway" && geomLen >= 2) {
+      keepGeometry = el.geometry;
+    } else if (isWay && geomLen >= 3 && (aeroway === "terminal" || (el.tags?.building && aeroway))) {
+      keepGeometry = el.geometry;
+    } else {
+      continue;
+    }
+
+    const out = { type: el.type };
+    const tags = _slimTags(el.tags);
+    if (tags) out.tags = tags;
+    if (el.lat !== undefined) out.lat = el.lat;
+    if (el.lon !== undefined) out.lon = el.lon;
+    if (el.bounds) out.bounds = el.bounds;
+    if (keepGeometry) out.geometry = keepGeometry.map((n) => ({ lat: n.lat, lon: n.lon }));
+    elements.push(out);
+  }
+  return { elements };
+}
+
 // ── /api/airports/batch — Parallel multi-location airport lookup ──
 // Client sends ?locs=lat1,lon1|lat2,lon2|... (up to 25 locations)
 // Worker runs all lookups in parallel, each benefits from its own edge cache.
@@ -374,7 +436,7 @@ async function handleAirportsBatch(url, env) {
     const key = `${lat.toFixed(1)},${lon.toFixed(1)}`;
     if (settled[i].status === "fulfilled") {
       try {
-        out[key] = JSON.parse(settled[i].value);
+        out[key] = slimOverpass(JSON.parse(settled[i].value));
       } catch {
         out[key] = null;
       }
