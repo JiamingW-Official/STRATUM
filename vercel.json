@@ -43,7 +43,7 @@
     },
     {
       "source": "/api/fir/:path*",
-      "destination": "https://raw.githubusercontent.com/maiuswong/simaware-express/main/public/livedata/:path*"
+      "destination": "https://stratum.jiamingwofficial.workers.dev/api/fir/:path*"
     },
     {
       "source": "/api/navaids/:path*",

@@ -535,6 +535,91 @@ async function handleAirportsBatch(url, env) {
   });
 }
 
+// ── /api/fir — FIR boundaries, 862KB of GeoJSON ──
+// 533 regions, every one a MultiPolygon, and the client reads four properties
+// and the outer ring of each polygon. Two things this is NOT doing, both
+// because they were measured first: inner rings are not dropped, because the
+// file has none -- every polygon is outer-ring only -- and the boundaries are
+// not simplified, because they are defined by discrete waypoints rather than
+// sampled from a curve, and Douglas-Peucker at five hundred metres removed
+// eight percent of the points for three percent of the bytes. It was the wrong
+// tool and would have traded real error for almost nothing.
+//
+// What is left is precision. These coordinates arrive at up to six decimals --
+// eleven centimetres -- for regions that span oceans and are drawn as a single
+// hairline. Four decimals is eleven metres.
+const FIR_UPSTREAM = "https://raw.githubusercontent.com/maiuswong/simaware-express/main/public/livedata/firboundaries.json";
+
+const _r4 = (v) => Math.round(v * 1e4) / 1e4;
+
+function slimFir(json) {
+  const data = JSON.parse(json);
+  if (!Array.isArray(data?.features)) return json;
+  const features = [];
+  for (const f of data.features) {
+    const g = f.geometry;
+    if (!g) continue;
+    const rings =
+      g.type === "MultiPolygon" ? g.coordinates
+      : g.type === "Polygon" ? [g.coordinates]
+      : null;
+    if (!rings) continue;
+    // Only the outer ring of each polygon survives the client parser, and a
+    // ring of fewer than three points is dropped there, so it is dropped here.
+    const out = [];
+    for (const poly of rings) {
+      const ring = poly?.[0];
+      if (!ring || ring.length < 3) continue;
+      out.push([ring.map(([lon, lat]) => [_r4(lon), _r4(lat)])]);
+    }
+    if (!out.length) continue;
+    const pr = f.properties || {};
+    features.push({
+      type: "Feature",
+      properties: { id: pr.id, oceanic: pr.oceanic, label_lon: pr.label_lon, label_lat: pr.label_lat },
+      geometry: { type: "MultiPolygon", coordinates: out },
+    });
+  }
+  // `crs` and `name` at the top level are never read.
+  return JSON.stringify({ type: "FeatureCollection", features });
+}
+
+async function handleFir(url) {
+  const cacheKey = new Request("https://cache.internal/fir/v1");
+  const cached = await cacheGet(cacheKey);
+  if (cached) {
+    const res = corsResponse(cached);
+    res.headers.set("X-Cache", "HIT");
+    return res;
+  }
+  let text;
+  try {
+    const upstream = await fetch(FIR_UPSTREAM, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; STRATUM/1.0)" },
+      cf: { cacheTtl: 86400, cacheEverything: true },
+    });
+    if (!upstream.ok) throw new Error("HTTP " + upstream.status);
+    text = await upstream.text();
+  } catch (err) {
+    return new Response("fir upstream failed: " + (err?.message || "unknown"), {
+      status: 502,
+      headers: corsHeaders(),
+    });
+  }
+  let body;
+  try {
+    body = slimFir(text);
+  } catch {
+    body = text; // never withhold the boundaries over a formatting problem
+  }
+  const headers = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  };
+  await cachePut(cacheKey, new Response(body, { headers }), 86400, 3600);
+  return addPerfHeaders(new Response(body, { headers: { ...headers, "X-Cache": "MISS" } }));
+}
+
 // ── /api/navaids — 1.5MB of CSV for six columns ──
 // ourairports publishes twenty columns and eleven thousand rows; the client
 // reads ident, name, type, frequency and a position, and throws the rest away
@@ -1459,12 +1544,20 @@ const KEEP_FIELDS = [
   "mach",
   "emergency",
   "seen_pos",
-  "seen",
   "dbFlags",
   "type",
   "nic",
-  "mlat",
-  "tisb",
+  // "seen", "mlat" and "tisb" are deliberately absent. The client's
+  // parseAircraft reads none of them: it takes seen_pos, and it reads the
+  // `type` string for how a position reached us rather than the mlat/tisb
+  // arrays, which arrive empty in every sample checked. `seen` is still read
+  // during the merge above as a fallback for seen_pos, which is why this list
+  // is applied afterwards rather than to the upstream rows.
+  //
+  // Worth stating what this is and is not: about nine percent of the raw body,
+  // nearer five once gzip has had it. Positions is already lean -- 140 aircraft
+  // over Heathrow is 10.4KB on the wire, because gzip collapses the repeated
+  // key names that make the raw JSON look five times worse than it is.
 ];
 function pruneAc(ac) {
   const o = {};
@@ -2115,6 +2208,7 @@ export default {
     // Proxy routes
     // Before the generic proxy: this one is projected, not passed through.
     if (url.pathname.startsWith("/api/navaids/")) return handleNavaids(url);
+    if (url.pathname.startsWith("/api/fir/")) return handleFir(url);
 
     for (const [prefix, target] of Object.entries(PROXY_ROUTES)) {
       if (url.pathname.startsWith(prefix)) {
