@@ -9814,7 +9814,13 @@ async function init() {
   aptP.then(() => reloadNavChart(scene, defaultCity.lat, defaultCity.lon));
   // Prefetch only nearest 30 cities — Worker cron pre-warms top 65 globally already.
   // Prefetching 600+ cities floods the network with 30+ batch requests on startup.
-  aptP.then(() => {
+  // ...and it waits for the screen to go quiet first. This is speculative data
+  // for cities nobody has asked for yet, and it was landing between three and
+  // ten seconds in -- megabytes of it, straight through the window where the
+  // basemap, the aircraft models and the first position fix are all competing
+  // for the same wire. Nothing here is needed until someone changes airspace,
+  // so it goes after the scene is up, and the browser picks the moment.
+  Promise.all([aptP, mapP]).then(() => {
     const nearest = [...CITIES]
       .map((c) => ({
         ...c,
@@ -9822,7 +9828,15 @@ async function init() {
       }))
       .sort((a, b) => a._d - b._d)
       .slice(0, 30);
-    prefetchAirportData(nearest);
+    // Idle alone was not a gate: the browser found a quiet moment at 3.9s,
+    // while the models and the first fixes were still arriving, and started
+    // three megabytes anyway. The basemap landing is the real signal, and even
+    // then it waits for the frame after next.
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 4000));
+    setTimeout(
+      () => idle(() => prefetchAirportData(nearest), { timeout: 20000 }),
+      4000,
+    );
   });
 
   // ── 10. Check low-coverage zone after 12s ──
