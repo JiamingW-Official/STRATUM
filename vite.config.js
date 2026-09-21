@@ -164,6 +164,7 @@ export default defineConfig({
         sky: r("index.html"),
         dev: r("dev/index.html"),
         ifeBench: r("dev/ife/index.html"),
+        bookBench: r("dev/book/index.html"),
       },
       output: {
         // Split heavy chunks so critical path is smaller:
@@ -181,6 +182,13 @@ export default defineConfig({
   },
   server: {
     port: 4000,
+    proxy: apiProxy,
+  },
+  // The built bundle is the one that ships, and it was the one that could not
+  // be run: preview had no proxy, so every /api route 404'd and the app sat at
+  // "Connecting...". Same upstreams as dev, different port so both can be up.
+  preview: {
+    port: 4100,
     proxy: apiProxy,
   },
 });
