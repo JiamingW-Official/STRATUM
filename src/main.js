@@ -39,6 +39,7 @@ import {
   setCoverageShadowVisible,
   updateChartDetail,
   setFogDensityLocked,
+  updateSkyFollow,
 } from "./scene/environment.js";
 import {
   AircraftManager,
@@ -5151,6 +5152,7 @@ function animate() {
 
   updateAirportLightFalloff(camera);
   updateChartDetail(camera);
+  updateSkyFollow(camera);
   updateAmbience(camera, _elapsed);
   _animateTicker(delta * 1000);
   updatePulse(scene, _elapsed);

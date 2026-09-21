@@ -144,7 +144,24 @@ export function createEnvironment(scene) {
   });
   const skyDome = new THREE.Mesh(skyGeo, skyMat);
   skyDome.name = "skyDome";
-  skyDome.renderOrder = -100;
+  // ── Why none of the sky work was visible ──
+  // The dome is a sphere of radius 500 at the world origin, and the camera's
+  // far plane is 200. With the camera forty units out, the nearest point of
+  // the dome is four hundred and fifty-nine units away — the whole thing has
+  // been outside the frustum since the day it was written, and every colour
+  // painted onto its vertices was painted on something nobody could see. What
+  // everyone has been calling the sky is the renderer's clear colour, 0x09090c,
+  // which never changed for any city or any hour. That was the blue.
+  //
+  // It becomes a backdrop instead of a body: scaled to a radius of 100 so it
+  // sits well inside the far plane, moved onto the camera every frame so it
+  // can never be reached, and drawn first with no depth test at all, so
+  // everything else in the scene paints over it. A sky is not an object you
+  // can fly into; it is what is left when nothing nearer is in the way.
+  skyDome.scale.setScalar(0.2);
+  skyDome.frustumCulled = false;
+  skyDome.renderOrder = -1000;
+  skyMat.depthTest = false;
   _skyDomeRef = skyDome;
   _skyBaseColors = new Float32Array(skyColors); // snapshot night baseline
   scene.add(skyDome);
@@ -4010,6 +4027,11 @@ let _navLabelGroup = null;
 let _navLabelOwner = null;
 let _navLabelsOn = null;
 let _navSeenCount = -1;
+
+/** The backdrop rides with the camera, every frame, or it is reachable. */
+export function updateSkyFollow(camera) {
+  if (_skyDomeRef && camera) _skyDomeRef.position.copy(camera.position);
+}
 
 /** Called every frame from the render loop; does nothing until something changes. */
 export function updateChartDetail(camera) {
