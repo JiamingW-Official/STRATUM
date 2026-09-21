@@ -20,7 +20,14 @@
        airport codes, callsigns), Instrument Sans for prose, JetBrains Mono for
        data values only. Inter was the ambient face before — the most recognisable
        tell of generated UI — and mono was doing prose duty it is not built for. -->
-  <link href="/fonts/css/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <!-- The font sheet was render-blocking: measured at 291ms sitting between the
+       HTML arriving and anything being drawn, for faces the page already has a
+       fallback stack for and that arrive with display=swap anyway. Loaded as a
+       non-blocking sheet it costs the same and blocks nothing; the noscript
+       copy keeps it working without JS. -->
+  <link href="/fonts/css/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all';this.onload=null" />
+  <noscript><link href="/fonts/css/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" /></noscript>
   <link rel="stylesheet" href="/src/style.css" fetchpriority="high" />
   <!-- Speculative boot fetch — one Worker request returns positions+airports+weather
        before JS bundle even parses (~300-500ms head start, 1 HTTP request instead of 2) -->
