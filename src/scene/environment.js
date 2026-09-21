@@ -2069,8 +2069,10 @@ export function updateDayNight(scene, userLat, userLon, utcHours) {
   // so east and north drop straight in.
   const eastC = -Math.sin(hourAngle);
   const northC = -Math.sin(latRad) * Math.cos(hourAngle);
-  const hLen = Math.hypot(eastC, northC) || 1;
-  _paintSky(sinAlt, eastC / hLen, -northC / hLen);
+  // The full unit vector, not just its shadow on the ground: east, up, and
+  // north-into--z. E² + N² + U² = 1 falls out of the equinox assumption, which
+  // is the check that these three came from the same place.
+  _paintSky(sinAlt, eastC, sinAlt, -northC, Math.hypot(eastC, northC) || 1);
   _tintGround(sinAlt);
   _tintAir(scene, sinAlt);
 }
@@ -2147,6 +2149,7 @@ const SKY_KEYS = [
 ];
 // Vertex height and horizontal bearing, computed once: the dome never moves.
 let _skyGeoCache = null;
+let _skyDirCache = null;
 const _skyA = [0, 0, 0];
 const _skyB = [0, 0, 0];
 const _skyC = [0, 0, 0];
@@ -2164,7 +2167,9 @@ function _skySample(sinAlt) {
   }
 }
 
-function _paintSky(sinAlt, sunX, sunZ) {
+function _paintSky(sinAlt, sunE, sunU, sunNz, hLen) {
+  const sunX = sunE / hLen;
+  const sunZ = sunNz / hLen;
   if (!_skyDomeRef) return;
   const colAttr = _skyDomeRef.geometry.attributes.color;
   const posAttr = _skyDomeRef.geometry.attributes.position;
@@ -2172,6 +2177,7 @@ function _paintSky(sinAlt, sunX, sunZ) {
   const n = posAttr.count;
   if (!_skyGeoCache || _skyGeoCache.length !== n * 3) {
     _skyGeoCache = new Float32Array(n * 3);
+    _skyDirCache = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
       const x = posAttr.getX(i);
       const y = posAttr.getY(i);
@@ -2181,6 +2187,9 @@ function _paintSky(sinAlt, sunX, sunZ) {
       _skyGeoCache[i * 3] = y / r; // -1 under the horizon, 1 overhead
       _skyGeoCache[i * 3 + 1] = x / hl;
       _skyGeoCache[i * 3 + 2] = z / hl;
+      _skyDirCache[i * 3] = x / r;
+      _skyDirCache[i * 3 + 1] = y / r;
+      _skyDirCache[i * 3 + 2] = z / r;
     }
   }
   _skySample(sinAlt);
@@ -2190,6 +2199,12 @@ function _paintSky(sinAlt, sunX, sunZ) {
   // the time it is a quarter of the way up.
   const glow = Math.max(0, 1 - Math.abs(sinAlt) / 0.32);
   const glowAmt = glow * glow;
+  // Above the horizon and climbing: nothing of this below it, full by fifteen
+  // degrees up.
+  const dayPower = Math.max(0, Math.min(1, (sinAlt + 0.02) / 0.26));
+  const sunDirX = sunE;
+  const sunDirY = sunU;
+  const sunDirZ = sunNz;
   const arr = colAttr.array;
   for (let i = 0; i < n; i++) {
     const ny = _skyGeoCache[i * 3];
@@ -2205,6 +2220,34 @@ function _paintSky(sinAlt, sunX, sunZ) {
       r = _skyB[0] + (_skyC[0] - _skyB[0]) * k;
       g = _skyB[1] + (_skyC[1] - _skyB[1]) * k;
       b = _skyB[2] + (_skyC[2] - _skyB[2]) * k;
+    }
+    // ── The sun is in the sky ──
+    // Every colour so far came from elevation alone, so at midday the whole
+    // dome was one blue gradient with no sun anywhere in it — which is why a
+    // clear noon read as blue-and-white and slightly dead. Real daylight is
+    // three things at once: a small fierce gold core where the sun is, a broad
+    // warm wash over that whole half of the sky from forward scattering, and a
+    // deeper violet-blue on the half behind you, where only the short
+    // wavelengths make the turn. All three are strongest with the sun high,
+    // which is exactly when the old model had nothing to say.
+    if (dayPower > 0.001) {
+      const dot =
+        _skyDirCache[i * 3] * sunDirX +
+        _skyDirCache[i * 3 + 1] * sunDirY +
+        _skyDirCache[i * 3 + 2] * sunDirZ;
+      if (dot > 0) {
+        const d3 = dot * dot * dot;
+        const core = d3 * d3 * d3 * dot * dot; // ~dot^11: a few degrees wide
+        const wash = d3;
+        r += (0.95 * core + 0.200 * wash) * dayPower;
+        g += (0.66 * core + 0.115 * wash) * dayPower;
+        b += (0.30 * core + 0.045 * wash) * dayPower;
+      } else {
+        const v = dot * dot;
+        r += 0.030 * v * dayPower;
+        g += 0.012 * v * dayPower;
+        b += 0.062 * v * dayPower;
+      }
     }
     if (glowAmt > 0.001) {
       const toward = _skyGeoCache[i * 3 + 1] * sunX + _skyGeoCache[i * 3 + 2] * sunZ;
@@ -2252,8 +2295,8 @@ const GROUND_KEYS = [
   [-0.12, [0.66, 0.74, 1.0]],
   [-0.04, [0.92, 0.80, 0.86]],
   [0.03, [1.12, 0.94, 0.76]],
-  [0.2, [1.08, 1.02, 0.96]],
-  [1.0, [1.05, 1.04, 1.0]],
+  [0.2, [1.14, 1.05, 0.92]],
+  [1.0, [1.16, 1.08, 0.95]],
 ];
 function _tintGround(sinAlt) {
   if (!groundMaterial) return;

@@ -35,6 +35,9 @@ function animateCount() {
 }
 
 export function updateHUD(aircraftCount, lat, lon) {
+  // What the stale-data check needs to know: whether there is anything on
+  // screen worth keeping visible.
+  _lastAircraftCount = aircraftCount;
   // T1-14: Flash count on change
   if (aircraftCount !== targetCount && hudCount) {
     hudCount.classList.remove('hud-count-up', 'hud-count-down');
@@ -88,6 +91,7 @@ export function setLocalTimezone(offsetSeconds, abbr) {
 }
 
 let _overlayShown = false;
+let _lastAircraftCount = 0;
 export function updateHUDTimer() {
   const last = getLastFetchTime();
   if (!last) {
@@ -109,9 +113,26 @@ export function updateHUDTimer() {
       // The overlay is decided here, from the same number, on the same tick, so
       // the age line and the overlay can never disagree about how long it has
       // been. Nothing else opens it; a successful poll closes it.
+      // The overlay used to open on twenty seconds of silence alone, and it
+      // opened over a screen with two hundred aircraft on it, every one of them
+      // being extrapolated from a fix that was twenty seconds old. That is not
+      // "no position fix" — it is a quiet feed, which these three free sources
+      // are several times an hour, and blocking a working map to say so was the
+      // wrong trade.
+      //
+      // It opens now only when there is genuinely nothing to look at: no
+      // aircraft on screen at all, or a silence long enough that extrapolated
+      // positions have stopped meaning anything. The age is still on the HUD
+      // from eight seconds, amber, then red — nothing is hidden, it just no
+      // longer takes the screen away.
       const sub = document.getElementById('signal-lost-sub');
-      if (ago >= 20) {
-        if (sub) sub.textContent = `No position fix for ${ago}s. The tracker is up; the data path is not answering.`;
+      const nothingOnScreen = _lastAircraftCount === 0;
+      const reallyGone = ago >= 75 || (nothingOnScreen && ago >= 20);
+      if (reallyGone) {
+        if (sub)
+          sub.textContent = nothingOnScreen
+            ? `No position fix for ${ago}s. The tracker is up; the data path is not answering.`
+            : `No new fix for ${ago}s. The aircraft shown are where they were last heard.`;
         if (!_overlayShown) { _overlayShown = true; showSignalLost(true); }
       } else if (_overlayShown) {
         _overlayShown = false; showSignalLost(false);
