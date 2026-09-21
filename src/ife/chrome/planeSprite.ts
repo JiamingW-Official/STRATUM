@@ -19,7 +19,7 @@
  * mercator cube every recipe on the internet assumes. A DOM marker is placed
  * by MapLibre itself and is right on both.
  */
-const MODEL = "/airplane_model/Airplane_Model_B777.glb";
+import MODEL from "../../models/Airplane_Model_B777.glb?url";
 const SIZE = 256;
 
 let pending: Promise<HTMLCanvasElement | null> | null = null;
@@ -31,9 +31,17 @@ export function planeSprite(): Promise<HTMLCanvasElement | null> {
 
 async function render(): Promise<HTMLCanvasElement | null> {
   const THREE = await import("three");
-  const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
+  // The decoder is not optional: these GLBs are meshopt-compressed and carry
+  // EXT_meshopt_compression in extensionsRequired, so a bare loader has nothing
+  // to fall back on and this marker would come back empty.
+  const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
+    import("three/addons/loaders/GLTFLoader.js"),
+    import("three/addons/libs/meshopt_decoder.module.js"),
+  ]);
 
-  const gltf = await new GLTFLoader().loadAsync(MODEL);
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  const gltf = await loader.loadAsync(MODEL);
   const model = gltf.scene;
 
   // White, and only white: the sky view's models carry liveries, and a livery

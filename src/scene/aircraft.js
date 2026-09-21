@@ -9,6 +9,21 @@ import { getAircraftMeta, queueHexLookup } from '../data/hexdb.js';
 import { triggerInference, getInferredRoute, detectHoldingPattern } from '../data/routeInfer.js';
 import { nameFor } from '../ui/commons.js';
 
+// The model files are imported rather than written as paths so the bundler
+// fingerprints them. They used to live in public/ and be referenced by a fixed
+// URL, which meant a browser that had cached Airplane_Model_B777.glb kept
+// serving its copy: when these were recompressed, a returning visitor went on
+// using the old four-megabyte set until their cache turned over. That was
+// harmless this time -- the decoder reads both encodings -- but it would not be
+// if the geometry itself ever changed.
+import MODEL_URL_A320 from "../models/Airplane_Model_A320.glb?url";
+import MODEL_URL_A330 from "../models/Airplane_Model_A330.glb?url";
+import MODEL_URL_A340 from "../models/Airplane_Model_A340.glb?url";
+import MODEL_URL_A350 from "../models/Airplane_Model_A350.glb?url";
+import MODEL_URL_B737 from "../models/Airplane_Model_B737.glb?url";
+import MODEL_URL_B777 from "../models/Airplane_Model_B777.glb?url";
+import MODEL_URL_REGIONAL_CRJ from "../models/Airplane_Model_Regional_CRJ.glb?url";
+
 const METERS_TO_FEET = 3.28084;
 const MS_TO_KMH = 3.6;
 const DEG_TO_RAD = Math.PI / 180;
@@ -201,44 +216,44 @@ async function _getGLTFLoader() {
 
 // Map aircraft categories to GLB file paths
 const MODEL_FILES = {
-  [TYPE_NARROW]:    '/airplane_model/Airplane_Model_B737.glb',    // B737 for narrowbody
-  [TYPE_WIDE_TWIN]: '/airplane_model/Airplane_Model_B777.glb',    // B777 for wide twin
-  [TYPE_WIDE_QUAD]: '/airplane_model/Airplane_Model_A340.glb',    // A340 for quad engine
-  [TYPE_REGIONAL]:  '/airplane_model/Airplane_Model_Regional_CRJ.glb',
-  [TYPE_BIZJET]:    '/airplane_model/Airplane_Model_Regional_CRJ.glb', // CRJ as stand-in
-  [TYPE_PROP]:      '/airplane_model/Airplane_Model_Regional_CRJ.glb',
+  [TYPE_NARROW]:    MODEL_URL_B737,    // B737 for narrowbody
+  [TYPE_WIDE_TWIN]: MODEL_URL_B777,    // B777 for wide twin
+  [TYPE_WIDE_QUAD]: MODEL_URL_A340,    // A340 for quad engine
+  [TYPE_REGIONAL]:  MODEL_URL_REGIONAL_CRJ,
+  [TYPE_BIZJET]:    MODEL_URL_REGIONAL_CRJ, // CRJ as stand-in
+  [TYPE_PROP]:      MODEL_URL_REGIONAL_CRJ,
 };
 
 // Specific type code overrides — more accurate model selection
 const TYPE_CODE_MODEL_OVERRIDE = {
-  'A318': '/airplane_model/Airplane_Model_A320.glb',
-  'A319': '/airplane_model/Airplane_Model_A320.glb',
-  'A320': '/airplane_model/Airplane_Model_A320.glb',
-  'A20N': '/airplane_model/Airplane_Model_A320.glb',
-  'A321': '/airplane_model/Airplane_Model_A320.glb',
-  'A21N': '/airplane_model/Airplane_Model_A320.glb',
-  'BCS1': '/airplane_model/Airplane_Model_A320.glb',
-  'BCS3': '/airplane_model/Airplane_Model_A320.glb',
-  'A332': '/airplane_model/Airplane_Model_A330.glb',
-  'A333': '/airplane_model/Airplane_Model_A330.glb',
-  'A338': '/airplane_model/Airplane_Model_A330.glb',
-  'A339': '/airplane_model/Airplane_Model_A330.glb',
-  'A359': '/airplane_model/Airplane_Model_A350.glb',
-  'A35K': '/airplane_model/Airplane_Model_A350.glb',
-  'A380': '/airplane_model/Airplane_Model_A340.glb',
-  'A388': '/airplane_model/Airplane_Model_A340.glb',
-  'B741': '/airplane_model/Airplane_Model_A340.glb',
-  'B742': '/airplane_model/Airplane_Model_A340.glb',
-  'B743': '/airplane_model/Airplane_Model_A340.glb',
-  'B744': '/airplane_model/Airplane_Model_A340.glb',
-  'B748': '/airplane_model/Airplane_Model_A340.glb',
-  'B772': '/airplane_model/Airplane_Model_B777.glb',
-  'B773': '/airplane_model/Airplane_Model_B777.glb',
-  'B77L': '/airplane_model/Airplane_Model_B777.glb',
-  'B77W': '/airplane_model/Airplane_Model_B777.glb',
-  'B788': '/airplane_model/Airplane_Model_A350.glb',
-  'B789': '/airplane_model/Airplane_Model_A350.glb',
-  'B78X': '/airplane_model/Airplane_Model_A350.glb',
+  'A318': MODEL_URL_A320,
+  'A319': MODEL_URL_A320,
+  'A320': MODEL_URL_A320,
+  'A20N': MODEL_URL_A320,
+  'A321': MODEL_URL_A320,
+  'A21N': MODEL_URL_A320,
+  'BCS1': MODEL_URL_A320,
+  'BCS3': MODEL_URL_A320,
+  'A332': MODEL_URL_A330,
+  'A333': MODEL_URL_A330,
+  'A338': MODEL_URL_A330,
+  'A339': MODEL_URL_A330,
+  'A359': MODEL_URL_A350,
+  'A35K': MODEL_URL_A350,
+  'A380': MODEL_URL_A340,
+  'A388': MODEL_URL_A340,
+  'B741': MODEL_URL_A340,
+  'B742': MODEL_URL_A340,
+  'B743': MODEL_URL_A340,
+  'B744': MODEL_URL_A340,
+  'B748': MODEL_URL_A340,
+  'B772': MODEL_URL_B777,
+  'B773': MODEL_URL_B777,
+  'B77L': MODEL_URL_B777,
+  'B77W': MODEL_URL_B777,
+  'B788': MODEL_URL_A350,
+  'B789': MODEL_URL_A350,
+  'B78X': MODEL_URL_A350,
 };
 
 // Cache loaded scenes per file path
