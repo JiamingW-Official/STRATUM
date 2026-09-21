@@ -351,6 +351,53 @@ function _slimTags(tags) {
   return out;
 }
 
+// Taxiway and terminal outlines are 83% of what is left, and OSM draws them at
+// centimetre precision in long collinear runs: 286,000 points across 26 major
+// airports, for lines that are rendered 23 metres wide. Douglas-Peucker at one
+// metre removes half of them and moves nothing by more than 1.05m -- about four
+// percent of the width of the thing it is drawing. Six decimals is 11cm, which
+// is below the tolerance and so free.
+//
+// Two things must not be simplified. Runways are already exact: the parser
+// reads only the two endpoints, and those are kept verbatim. Aerodromes without
+// a bounds box have their centre averaged from every geometry point, so
+// dropping points would move the airport.
+const SIMPLIFY_M = 1.0;
+const M_PER_DEG = 111320;
+
+function _perpM(p, a, b) {
+  const cl = Math.cos((a.lat * Math.PI) / 180);
+  const ax = a.lon * cl, ay = a.lat, bx = b.lon * cl, by = b.lat;
+  const px = p.lon * cl, py = p.lat;
+  const dx = bx - ax, dy = by - ay;
+  const L = dx * dx + dy * dy;
+  let t = L ? ((px - ax) * dx + (py - ay) * dy) / L : 0;
+  if (t < 0) t = 0; else if (t > 1) t = 1;
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy)) * M_PER_DEG;
+}
+
+function _dp(pts, tol) {
+  if (pts.length < 3) return pts;
+  let idx = -1, max = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const d = _perpM(pts[i], pts[0], pts[pts.length - 1]);
+    if (d > max) { max = d; idx = i; }
+  }
+  if (max <= tol) return [pts[0], pts[pts.length - 1]];
+  return _dp(pts.slice(0, idx + 1), tol).slice(0, -1).concat(_dp(pts.slice(idx), tol));
+}
+
+// `min` is a floor the parser depends on: it drops any terminal with fewer than
+// three points, and a three-point footprint whose middle point is collinear
+// would otherwise simplify to two and vanish from the map.
+function _simplify(geom, min) {
+  let out = _dp(geom, SIMPLIFY_M);
+  if (out.length < min) out = geom.slice(0, min);
+  return out;
+}
+
+const _r6 = (v) => Math.round(v * 1e6) / 1e6;
+
 function slimOverpass(data) {
   if (!data || !Array.isArray(data.elements)) return data;
   const elements = [];
@@ -360,6 +407,7 @@ function slimOverpass(data) {
     const isWay = el.type === "way";
 
     let keepGeometry = null;
+    let simplified = false;
     if (aeroway === "aerodrome") {
       // Nodes carry lat/lon; ways and relations are averaged from bounds, or
       // from geometry when there is no bounds box.
@@ -368,9 +416,11 @@ function slimOverpass(data) {
     } else if (isWay && aeroway === "runway" && geomLen >= 2) {
       keepGeometry = [el.geometry[0], el.geometry[geomLen - 1]];
     } else if (isWay && aeroway === "taxiway" && geomLen >= 2) {
-      keepGeometry = el.geometry;
+      keepGeometry = _simplify(el.geometry, 2);
+      simplified = true;
     } else if (isWay && geomLen >= 3 && (aeroway === "terminal" || (el.tags?.building && aeroway))) {
-      keepGeometry = el.geometry;
+      keepGeometry = _simplify(el.geometry, 3);
+      simplified = true;
     } else {
       continue;
     }
@@ -381,7 +431,16 @@ function slimOverpass(data) {
     if (el.lat !== undefined) out.lat = el.lat;
     if (el.lon !== undefined) out.lon = el.lon;
     if (el.bounds) out.bounds = el.bounds;
-    if (keepGeometry) out.geometry = keepGeometry.map((n) => ({ lat: n.lat, lon: n.lon }));
+    // Rounding rides along with simplification and goes no further. A runway's
+    // two endpoints decide its heading, its length and the number painted on
+    // it -- refFromHeading turns a borderline bearing into a different runway --
+    // and an aerodrome without a bounds box has its centre averaged from these
+    // points. Eleven centimetres is free on a line that just moved a metre, and
+    // is not free on either of those.
+    if (keepGeometry)
+      out.geometry = simplified
+        ? keepGeometry.map((n) => ({ lat: _r6(n.lat), lon: _r6(n.lon) }))
+        : keepGeometry.map((n) => ({ lat: n.lat, lon: n.lon }));
     elements.push(out);
   }
   return { elements };
