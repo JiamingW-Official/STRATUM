@@ -2132,7 +2132,7 @@ export default {
     if (url.pathname === "/api/visibility") return handleVisibility(env);
     if (url.pathname === "/api/ghost/index") return handleGhostIndex(env);
     if (url.pathname === "/api/ghost") return handleGhost(request, url, env);
-    if (url.pathname.startsWith("/map/export/")) return handleMapExport(url, env);
+    if (url.pathname.startsWith("/map/export")) return handleMapExport(url, env);
     if (url.pathname === "/api/weather") return handleWeather(url);
     if (url.pathname === "/api/atlas") return handleAtlas();
 

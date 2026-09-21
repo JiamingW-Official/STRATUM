@@ -236,10 +236,24 @@ export async function loadGroundMap(lat, lon) {
             ((bounds.lonMin + bounds.lonMax) / 2 - lon) * GEO_SCALE * _cosLat;
           const cz = -((bounds.latMin + bounds.latMax) / 2 - lat) * GEO_SCALE;
 
-          // A wide sharp layer arrives after the detail rings and must sit
-          // below them, or the airport's 3m imagery would be covered by 49m.
-          // under: 1 is the wide disc, 2 the mosaic above it; the rings start at 0.003.
-          const yLevel = bounds.under === 1 ? 0.0015 : bounds.under === 2 ? 0.0022 : bounds.under === 3 ? 0.0026 + (hiResOverlays.length % 7) * 0.00005 : 0.003 + hiResOverlays.length * 0.002;
+          // Draw order is height. The rings land first, at 0.003, 0.005 and
+          // 0.007 -- 49m, 12m and 3m a pixel. The wide disc (under: 1) is 49m
+          // a pixel too, so it goes beneath all of them.
+          //
+          // The mosaic (under: 2) is 12m a pixel and used to go beneath them
+          // as well, on the reasoning that the airport's 3m imagery must stay
+          // on top. True of ring 3, and of ring 2, which is the same 12m. Not
+          // true of ring 1: 49m a pixel, 0.9 degrees wide, opacity 0.95 -- and
+          // the whole 0.7-degree mosaic lay inside it. Nine requests and
+          // twenty-nine megapixels a city, four times sharper than the layer
+          // painted over them, and 95% hidden. The view tiles (under: 3),
+          // sharper still, had the same ceiling. Both now sit above ring 1 and
+          // below the two rings that genuinely are as sharp or sharper.
+          const yLevel =
+            bounds.under === 1 ? 0.0015
+            : bounds.under === 2 ? 0.0035
+            : bounds.under === 3 ? 0.006 + (hiResOverlays.length % 7) * 0.00005
+            : 0.003 + hiResOverlays.length * 0.002;
           const geo = new THREE.PlaneGeometry(sizeX, sizeZ);
           const targetOpacity = bounds.under ? 1 : 0.95;
           const mat = new THREE.MeshBasicMaterial({
@@ -252,9 +266,40 @@ export async function loadGroundMap(lat, lon) {
           const overlay = new THREE.Mesh(geo, mat);
           overlay.rotation.x = -Math.PI / 2;
           overlay.position.set(cx, yLevel, cz);
+          // Metres per pixel and footprint travel with the mesh, so a later
+          // layer can tell what it has made redundant.
+          const imgW = upgradedTexture?.image?.width || 2048;
+          overlay.userData = {
+            under: bounds.under || 0,
+            mpp: ((bounds.lonMax - bounds.lonMin) * 111000 * _cosLat) / imgW,
+            b: bounds,
+          };
           scene.add(overlay);
           hiResOverlays.push(overlay);
           _fadeInOverlay(mat, targetOpacity);
+
+          // The disc is 49m a pixel over 1.8 degrees; ring 1 is 49m a pixel
+          // over the central 0.9 of them. Once the disc is here, ring 1 is the
+          // same picture drawn again on top of it, holding a 1555x2048 texture
+          // on the GPU for nothing. Any ring the disc matches or beats, and
+          // fully contains, goes. Rings 2 and 3 are sharper and stay.
+          if (bounds.under === 1) {
+            for (let i = hiResOverlays.length - 1; i >= 0; i--) {
+              const o = hiResOverlays[i];
+              const u = o.userData;
+              if (!u || u.under !== 0 || o === overlay) continue;
+              const inside =
+                u.b.lonMin >= bounds.lonMin && u.b.lonMax <= bounds.lonMax &&
+                u.b.latMin >= bounds.latMin && u.b.latMax <= bounds.latMax;
+              if (inside && u.mpp >= overlay.userData.mpp * 0.98) {
+                scene.remove(o);
+                o.material.map?.dispose?.();
+                o.material.dispose();
+                o.geometry.dispose();
+                hiResOverlays.splice(i, 1);
+              }
+            }
+          }
         } else if (groundMaterial) {
           // Full-area upgrade (zoom 12)
           upgraded = true;

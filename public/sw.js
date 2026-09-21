@@ -130,7 +130,7 @@ self.addEventListener("fetch", (e) => {
   if (
     url.hostname.endsWith("basemaps.cartocdn.com") ||
     url.hostname === "server.arcgisonline.com" ||
-    url.pathname.startsWith("/map/export/")
+    url.pathname.startsWith("/map/export")
   ) {
     e.respondWith(
       caches.open(TILE_CACHE).then((cache) =>

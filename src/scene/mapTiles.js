@@ -29,8 +29,12 @@ const PROVIDERS = {
     // kv=1 marks the images a city cannot be drawn without, so the Worker keeps
     // them in its global store rather than only in the datacentre it was asked
     // through. The sharpening layers leave it off.
+    // No trailing slash: vercel.json sets trailingSlash: false, so the slashed
+    // form was answered with a 308 to this one and every image paid an extra
+    // round trip on its first load -- fifteen a city. Both forms rewrite to the
+    // same Worker path, and the Worker keys its cache on the query alone.
     exportUrl: (mercBbox, w, h, essential) =>
-      `/map/export/?bbox=${mercBbox.map((v) => Math.round(v)).join(",")}&bboxSR=102100&imageSR=102100&size=${w},${h}` +
+      `/map/export?bbox=${mercBbox.map((v) => Math.round(v)).join(",")}&bboxSR=102100&imageSR=102100&size=${w},${h}` +
       `&format=png&transparent=false&f=image${essential ? "&kv=1" : ""}`,
     // Measured against CARTO dark_all: Esri's land fill sits at luma 71 and its
     // brightest roads at ~104, so the curve maps 71 -> 9 and 100+ -> ~150.
