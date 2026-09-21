@@ -84,7 +84,7 @@ import {
   offerNaming,
   setCommonsPlace,
   onNamed,
-} from "./ui/detail.js";
+} from "./ui/detailLazy.js";
 import { ghostRecord, ghostContact, refreshIndex, nameFor, myNames, myNameCount, indexSize, sinceWords } from "./ui/commons.js";
 import { toggleAmbience, updateAmbience, initAmbience } from "./ui/ambience.js";
 // Cockpit HUD — lazy-loaded, only needed when user presses V in follow mode
