@@ -69,6 +69,14 @@
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-out: cubic-bezier(0, 0, 0.35, 1);
+  /* Three speeds. Thirty-five different durations were in use, and the
+     difference between a 0.15 and a 0.18 press is not a decision anyone
+     made; it is drift. Fast is a press or a hover, base is a state change on
+     a panel, slow is a panel opening or closing. Anything longer is an
+     ambient rhythm -- a pulse, a spin, a blink -- and keeps its own time. */
+  --dur-fast: 0.15s;
+  --dur-base: 0.3s;
+  --dur-slow: 0.4s;
 
   /* ── Relief ──
      Neumorphism on a near-black ground is not the pastel version: at this
@@ -166,7 +174,7 @@ html, body {
 .speed-lines {
   position: fixed; inset: 0;
   pointer-events: none; z-index: 1;
-  opacity: 0; transition: opacity 0.4s ease;
+  opacity: 0; transition: opacity var(--dur-slow) var(--ease);
   background: repeating-conic-gradient(from 0deg at 50% 50%,
     transparent 0deg, transparent 8deg,
     rgba(var(--accent-rgb), 0.01) 8.5deg, transparent 9deg);
@@ -304,7 +312,7 @@ html, body {
   color: var(--accent); font-variant-numeric: tabular-nums;
   line-height: 1; letter-spacing: var(--track-tight);
   text-shadow: 0 2px 24px rgba(0, 0, 0, 0.9);
-  transition: color 0.3s;
+  transition: color var(--dur-base);
 }
 .hud-hero-label {
   font-family: var(--font-sans); font-size: var(--fs-label);
@@ -332,7 +340,7 @@ html, body {
 .hud-city-btn {
   display: flex; align-items: center; gap: 8px; background: none; border: none; padding: 10px 2px;
   cursor: pointer; text-align: left; border-radius: 0;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
   line-height: 1; width: 100%;
   pointer-events: auto; /* HUD has pointer-events:none; opt back in for this button */
   border-top: 1px solid var(--hairline);
@@ -343,14 +351,14 @@ html, body {
 .hud-city-btn-text { display: flex; flex-direction: column; gap: 3px; flex: 1; }
 
 .hud-city-sub { font-size: var(--fs-label); color: var(--text-3); opacity: 1; letter-spacing: var(--track-label);
-  transition: opacity 0.15s;
+  transition: opacity var(--dur-fast);
   font-family: var(--font-sans);
   text-transform: uppercase;
 }
 .hud-city-btn:hover .hud-city-sub { opacity: 1; }
 
 .hud-city-chevron { font-size: var(--fs-body); color: var(--accent); opacity: 0.6;
-  line-height: 1; transition: opacity 0.15s, transform 0.15s;
+  line-height: 1; transition: opacity var(--dur-fast), transform var(--dur-fast);
   flex-shrink: 0;
 }
 .hud-city-btn:hover .hud-city-chevron { opacity: 1; transform: translateX(2px); }
@@ -386,7 +394,7 @@ html, body {
   top: var(--edge); right: var(--edge);
   width: 320px;
   z-index: 20; pointer-events: auto;
-  transition: transform 0.4s var(--ease), opacity 0.4s ease; border-top: 1px solid var(--hairline); border-radius: var(--r);
+  transition: transform var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease); border-top: 1px solid var(--hairline); border-radius: var(--r);
   border-left: 1px solid rgba(255, 255, 255, 0.06);
   border-right: 1px solid rgba(255, 255, 255, 0.06); border-bottom: 1px solid var(--hairline); background: var(--surface); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
   overflow-y: auto; overflow-x: hidden;
@@ -557,7 +565,7 @@ html, body {
   color: rgba(255,255,255,0.38); padding: 10px 8px;
   min-width: 44px; min-height: 44px;
   display: flex; align-items: center; justify-content: center;
-  margin: -8px 0; transition: color 0.2s;
+  margin: -8px 0; transition: color var(--dur-fast);
 }
 .detail-journal-btn:hover, .journal-btn--saved { color: var(--accent); }
 .journal-panel {
@@ -571,7 +579,7 @@ html, body {
 .journal-title { font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label); color: var(--accent); }
 .journal-close { background: none; border: none; color: rgba(255,255,255,0.55); cursor: pointer; font-size: var(--fs-body); padding: 8px; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
 .journal-stars { display: flex; gap: 6px; margin-bottom: 8px; }
-.journal-star { font-size: var(--fs-value); cursor: pointer; color: rgba(255,255,255,0.35); transition: color 0.15s; }
+.journal-star { font-size: var(--fs-value); cursor: pointer; color: rgba(255,255,255,0.35); transition: color var(--dur-fast); }
 .journal-star.active { color: var(--accent); }
 .journal-note {
   width: 100%; box-sizing: border-box;
@@ -622,7 +630,7 @@ html, body {
 .mach-strip-bar-bg {
   position: relative; height: 3px; background: rgba(255,255,255,0.06); border-radius: var(--r-sm); margin-bottom: 4px;
 }
-.mach-strip-bar { height: 100%; border-radius: var(--r-sm); transition: width 0.4s; }
+.mach-strip-bar { height: 100%; border-radius: var(--r-sm); transition: width var(--dur-slow); }
 .mach-strip-mmo {
   position: absolute; right: 0; top: -3px; width: 1px; height: 9px;
   background: rgba(255,255,255,0.25);
@@ -695,7 +703,7 @@ html, body {
 
 .detail-callsign { font-family: var(--font-display); font-size: var(--fs-hero); font-weight: 600; letter-spacing: 0; color: var(--text);
   line-height: 1;
-  transition: text-shadow 0.3s ease;
+  transition: text-shadow var(--dur-base) var(--ease);
   text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.1);
   position: relative;
 }
@@ -712,7 +720,7 @@ html, body {
   border: 1px solid rgba(255,255,255,0.05);
   border-radius: var(--r-sm); padding: 5px 8px;
   white-space: nowrap; pointer-events: none;
-  opacity: 0; transition: opacity 0.18s ease;
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease);
   z-index: 40;
   box-shadow: 0 6px 20px rgba(0,0,0,0.6);
 }
@@ -734,7 +742,7 @@ html, body {
 /* Collapsible sections */
 .detail-section-header { font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 500; letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-3); padding: 12px 16px 6px; border-top: 1px solid var(--hairline);
   position: relative;
-  transition: color 0.2s ease, background 0.2s ease;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
@@ -761,7 +769,7 @@ html, body {
   border-right: 1.5px solid rgba(var(--accent-rgb), 0.35);
   border-bottom: 1.5px solid rgba(var(--accent-rgb), 0.35);
   transform: rotate(45deg);
-  transition: transform 0.25s ease, border-color 0.2s ease;
+  transition: transform var(--dur-base) var(--ease), border-color var(--dur-fast) var(--ease);
   flex-shrink: 0;
   margin-right: 2px;
 }
@@ -774,7 +782,7 @@ html, body {
 .detail-section-body {
   overflow: hidden;
   max-height: 600px;
-  transition: max-height 0.35s var(--ease), opacity 0.25s ease;
+  transition: max-height var(--dur-base) var(--ease), opacity var(--dur-base) var(--ease);
   opacity: 1;
 }
 .detail-section-body.collapsed {
@@ -788,7 +796,7 @@ html, body {
   margin: 2px 8px; border-radius: 0;
   position: relative;
   cursor: pointer;
-  transition: background 0.2s ease, box-shadow 0.2s ease; background: none; border: none;
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); background: none; border: none;
 }
 .detail-airline-row:hover {
   background: rgba(var(--accent-rgb), 0.06);
@@ -837,7 +845,7 @@ html, body {
   line-height: 1.6; background: var(--surface); border-radius: var(--r); border: 1px solid var(--hairline); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
   z-index: 500;
   opacity: 0;
-  transition: opacity 0.35s ease, transform 0.35s var(--ease);
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
   pointer-events: none;
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--accent-rgb), 0.12) transparent;
@@ -855,7 +863,7 @@ html, body {
   background: rgba(0,0,0,0.6);
   z-index: 499;
   opacity: 0;
-  transition: opacity 0.35s ease;
+  transition: opacity var(--dur-base) var(--ease);
   pointer-events: none;
   -webkit-backdrop-filter: blur(var(--blur-scrim));
   backdrop-filter: blur(var(--blur-scrim));
@@ -896,7 +904,7 @@ html, body {
   color: rgba(255,255,255,0.35); font-size: var(--fs-body);
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.06);
-  transition: all 0.2s ease;
+  transition: all var(--dur-fast) var(--ease);
 }
 .adp-close:hover {
   background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.9);
@@ -919,7 +927,7 @@ html, body {
   padding: 4px 10px; border-radius: var(--r-sm); font-size: var(--fs-label); font-weight: 600;
   background: rgba(var(--accent-rgb), 0.08); border: 1px solid rgba(var(--accent-rgb), 0.18);
   color: rgba(var(--accent-rgb), 0.9); letter-spacing: var(--track-label);
-  transition: all 0.15s ease; cursor: default;
+  transition: all var(--dur-fast) var(--ease); cursor: default;
 }
 .adp-hub:hover {
   background: rgba(var(--accent-rgb), 0.15); border-color: rgba(var(--accent-rgb), 0.3);
@@ -932,7 +940,7 @@ html, body {
 }
 .adp-stat {
   background: rgba(0,0,0,0.2); padding: 14px 8px; text-align: center;
-  transition: background 0.15s ease; cursor: default;
+  transition: background var(--dur-fast) var(--ease); cursor: default;
 }
 .adp-stat:hover { background: rgba(var(--accent-rgb), 0.04); }
 .adp-stat-val {
@@ -954,7 +962,7 @@ html, body {
   background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06);
   color: var(--text); font-family: var(--font-mono); font-size: var(--fs-label);
   outline: none; margin-bottom: 10px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
 .adp-search:focus {
   border-color: rgba(var(--accent-rgb), 0.35);
@@ -968,7 +976,7 @@ html, body {
 .adp-route-item {
   display: flex; justify-content: space-between; align-items: center;
   padding: 6px 10px; border-radius: var(--r-sm);
-  transition: all 0.15s ease; cursor: default;
+  transition: all var(--dur-fast) var(--ease); cursor: default;
 }
 .adp-route-item:hover {
   background: rgba(var(--accent-rgb), 0.06);
@@ -1068,7 +1076,7 @@ html, body {
 }
 .adp-website a {
   color: rgba(var(--accent-rgb), 0.55); font-size: var(--fs-label); text-decoration: none;
-  letter-spacing: 0; transition: all 0.2s ease;
+  letter-spacing: 0; transition: all var(--dur-fast) var(--ease);
   padding: 5px 14px; border-radius: var(--r-sm);
   border: 1px solid rgba(var(--accent-rgb), 0.1);
   background: rgba(var(--accent-rgb), 0.03);
@@ -1104,7 +1112,7 @@ html, body {
      the panel. */
   min-width: 44px; min-height: 44px;
   display: flex; align-items: center; justify-content: center;
-  transition: color 0.15s, background 0.15s, transform 0.15s var(--ease);
+  transition: color var(--dur-fast), background var(--dur-fast), transform var(--dur-fast) var(--ease);
   line-height: 1; font-family: var(--font-sans);
   border-radius: var(--r-sm); margin: -4px 0 -4px 6px;
 }
@@ -1121,7 +1129,7 @@ html, body {
 .detail-cell {
   display: flex; flex-direction: column; gap: 3px; padding: 8px 16px 10px;
   cursor: pointer; background: none;
-  transition: background 0.22s ease, box-shadow 0.22s ease;
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
   position: relative;
 }
 .detail-cell:hover {
@@ -1145,7 +1153,7 @@ html, body {
   padding: 4px 9px; border-radius: var(--r-sm);
   white-space: normal; max-width: 280px; line-height: 1.5;
   pointer-events: none;
-  opacity: 0; transition: opacity 0.18s ease, transform 0.18s var(--ease);
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
   z-index: 10;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   letter-spacing: 0;
@@ -1160,7 +1168,7 @@ html, body {
 .detail-value { font-family: var(--font-mono); font-size: var(--fs-value); font-weight: 500; color: var(--text);
   font-variant-numeric: tabular-nums; line-height: 1.1;
   text-shadow: 0 0 16px rgba(var(--accent-rgb), 0.1);
-  transition: color 0.3s ease; letter-spacing: var(--track-tight);
+  transition: color var(--dur-base) var(--ease); letter-spacing: var(--track-tight);
 }
 
 /* V/S color coding */
@@ -1208,7 +1216,7 @@ html, body {
   display: flex; justify-content: space-between; align-items: center; padding: 6px 0;
   margin: 0 -6px; border-radius: 0;
   cursor: default;
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
   position: relative;
   border-bottom: 1px solid var(--hairline);
 }
@@ -1228,7 +1236,7 @@ html, body {
   border: 0;
   padding: 7px 10px; border-radius: var(--r-sm);
   white-space: normal; pointer-events: none;
-  opacity: 0; transition: opacity 0.18s ease, transform 0.18s var(--ease);
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
   transform: translateY(3px);
   z-index: 60;
   box-shadow: 0 6px 24px rgba(0,0,0,0.65);
@@ -1320,7 +1328,7 @@ html, body {
   display: flex; align-items: center; gap: 9px;
   white-space: nowrap;
   opacity: 1;
-  transition: opacity 0.15s ease, transform 0.15s var(--ease);
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
   transform: translateY(0); box-shadow: var(--shadow-sm);
 }
 .aircraft-tooltip.hidden { opacity: 0; pointer-events: none; transform: translateY(4px); }
@@ -1354,7 +1362,7 @@ html, body {
   opacity: 0; pointer-events: none;
   border-radius: var(--r);
   padding: 0;
-  transition: opacity 0.25s ease, transform 0.25s ease, border-color 0.3s ease, box-shadow 0.35s ease, width 0.4s var(--ease);
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease), width var(--dur-slow) var(--ease);
 }
 .search-bar.visible {
   opacity: 1; pointer-events: all;
@@ -1370,7 +1378,7 @@ html, body {
   color: var(--text-3);
   pointer-events: none;
   z-index: 1;
-  transition: color 0.25s;
+  transition: color var(--dur-base);
   line-height: 1;
 }
 .search-bar:focus-within .search-icon {
@@ -1401,7 +1409,7 @@ html, body {
   width: 100%; height: 1px;
   background: linear-gradient(90deg, transparent 5%, rgba(var(--accent-rgb), 0.55) 50%, transparent 95%);
   transform: scaleX(0); opacity: 0;
-  transition: transform 0.55s var(--ease), opacity 0.3s;
+  transition: transform var(--dur-slow) var(--ease), opacity var(--dur-base);
   transform-origin: left;
 }
 .search-bar:focus-within::after {
@@ -1419,7 +1427,7 @@ html, body {
   font-family: var(--font-mono);
   font-size: var(--fs-label); color: var(--text-3);
   pointer-events: none;
-  transition: opacity 0.2s;
+  transition: opacity var(--dur-fast);
   background: rgba(255,255,255,0.04);
   padding: 2px 8px; border-radius: var(--r-sm);
   border: 1px solid var(--border);
@@ -1431,7 +1439,7 @@ html, body {
 
 .search-results {
   max-height: 0; overflow: hidden;
-  transition: max-height 0.35s var(--ease);
+  transition: max-height var(--dur-base) var(--ease);
   border-top: 1px solid rgba(255,255,255,0.04);
 }
 .search-results.open {
@@ -1471,7 +1479,7 @@ html, body {
 .search-result {
   padding: 9px 16px 9px 14px; cursor: pointer;
   display: flex; flex-direction: column; gap: 3px;
-  transition: background 0.18s ease, border-color 0.18s ease, transform 0.1s var(--ease);
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
   border-left: 2px solid transparent;
 }
 .search-result:hover {
@@ -1585,7 +1593,7 @@ html, body {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
   z-index: 100; background: rgba(9, 9, 12, 0.94);
-  transition: opacity 0.5s ease;
+  transition: opacity var(--dur-slow) var(--ease);
 }
 .signal-lost.hidden { opacity: 0; pointer-events: none; }
 
@@ -1627,7 +1635,7 @@ html, body {
   box-shadow: var(--relief-key-sm);
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
   color: rgba(var(--accent-rgb), 0.9); cursor: pointer;
-  text-transform: uppercase; transition: background 0.15s, box-shadow 0.15s;
+  text-transform: uppercase; transition: background var(--dur-fast), box-shadow var(--dur-fast);
 }
 .signal-lost-btn:hover { background: rgba(var(--accent-rgb), 0.2); }
 .signal-lost-btn:active { box-shadow: var(--relief-key-press); }
@@ -1646,7 +1654,7 @@ html, body {
   min-width: 148px;
   pointer-events: none;
   animation: fadein 0.9s var(--ease) 0.3s both;
-  transition: opacity 0.4s ease, transform 0.4s var(--ease);
+  transition: opacity var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease);
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r);
@@ -1710,7 +1718,7 @@ html, body {
 .spotter-xp-fill {
   height: 100%; width: 0%;
   background: var(--accent);
-  transition: width 0.5s var(--ease);
+  transition: width var(--dur-slow) var(--ease);
 }
 
 .spotter-stats { display: flex; gap: 16px; }
@@ -1819,7 +1827,7 @@ html, body {
   pointer-events: none;
   display: flex; align-items: baseline; gap: 8px;
   padding: 5px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm);
-  transition: opacity 1.5s ease;
+  transition: opacity 1.5s var(--ease);
   box-shadow: var(--shadow-sm);
 }
 .fir-hover-widget .fir-code {
@@ -1843,7 +1851,7 @@ html, body {
   z-index: 200;
   display: flex; align-items: center; gap: 12px;
   padding: 11px 18px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
-  opacity: 0; transition: all 0.4s var(--ease);
+  opacity: 0; transition: all var(--dur-slow) var(--ease);
   pointer-events: none; white-space: nowrap;
   -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
   backdrop-filter: blur(var(--blur-float))) saturate(1.4);
@@ -1882,7 +1890,7 @@ html, body {
   z-index: 15;
   display: flex; align-items: center; gap: 10px;
   padding: 9px 18px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
-  transition: all 0.4s var(--ease-spring); pointer-events: auto;
+  transition: all var(--dur-slow) var(--ease-spring); pointer-events: auto;
   cursor: default;
   -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
   backdrop-filter: blur(var(--blur-float))) saturate(1.4);
@@ -1932,7 +1940,7 @@ html, body {
   max-height: calc(100vh - 40px);
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--accent-rgb), 0.08) transparent;
-  transition: transform 0.4s var(--ease), opacity 0.4s ease;
+  transition: transform var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease);
   border: 1px solid var(--hairline);
   -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
   backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
@@ -1989,7 +1997,7 @@ html, body {
   padding: 4px 4px;
   margin: 0 -4px;
   border-radius: var(--r-sm);
-  transition: background 0.2s ease;
+  transition: background var(--dur-fast) var(--ease);
 }
 .help-row:hover { background: rgba(255,255,255,0.035); }
 
@@ -2047,7 +2055,7 @@ html, body {
   display: flex; flex-direction: column;
   align-items: center; gap: 10px;
   opacity: 0;
-  transition: opacity 0.25s ease 0.15s;
+  transition: opacity var(--dur-base) var(--ease) 0.15s;
 }
 .scene-transition.loading .scene-trans-body { opacity: 1; }
 
@@ -2085,7 +2093,7 @@ html, body {
   display: flex; align-items: center; gap: 4px;
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
   text-transform: uppercase; color: rgba(255,255,255,0.15);
-  transition: color 0.3s;
+  transition: color var(--dur-base);
 }
 .sts-icon { font-size: var(--fs-label); line-height: 1; }
 .sts-label { line-height: 1; }
@@ -2160,7 +2168,7 @@ html, body {
   border: 1px solid rgba(var(--accent-rgb), 0.25); border-radius: var(--r-sm);
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
   color: rgba(var(--accent-rgb), 0.55); cursor: pointer;
-  min-height: 44px; transition: all 0.15s;
+  min-height: 44px; transition: all var(--dur-fast);
 }
 .no-coverage-btn-secondary:hover { background: rgba(var(--accent-rgb), 0.07); border-color: rgba(var(--accent-rgb), 0.45); color: rgba(var(--accent-rgb), 0.8); }
 .no-coverage-btn-primary {
@@ -2169,7 +2177,7 @@ html, body {
   border: 1px solid rgba(var(--accent-rgb), 0.4); border-radius: var(--r-sm);
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
   color: rgba(var(--accent-rgb), 0.9); cursor: pointer;
-  min-height: 44px; transition: all 0.15s;
+  min-height: 44px; transition: all var(--dur-fast);
 }
 .no-coverage-btn-primary:hover { background: rgba(var(--accent-rgb), 0.2); border-color: rgba(var(--accent-rgb), 0.6); }
 
@@ -2248,7 +2256,7 @@ html, body {
   background: none; border: 0; padding: 0; cursor: pointer;
   font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: var(--track-label);
   text-transform: uppercase; color: var(--text-3);
-  transition: color 0.15s var(--ease);
+  transition: color var(--dur-fast) var(--ease);
 }
 .cdp-back-btn:hover { color: var(--text); }
 .cdp-hero { padding: 8px 18px 0; }
@@ -2285,7 +2293,7 @@ html, body {
   display: flex; align-items: center; gap: 10px;
   padding: 5px 0; cursor: pointer;
   font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
-  transition: color 0.15s var(--ease);
+  transition: color var(--dur-fast) var(--ease);
 }
 .cdp-nearby-item:hover { color: var(--text); }
 .cdp-nearby-code { min-width: 40px; font-weight: 500; }
@@ -2313,7 +2321,7 @@ html, body {
   box-shadow: var(--relief-key);
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
   color: var(--accent-bright); text-transform: uppercase;
-  transition: background 0.15s, box-shadow 0.15s, color 0.15s, transform 0.1s;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
 }
 .cdp-select-btn:hover {
   background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.36), rgba(var(--accent-rgb), 0.22));
@@ -2333,7 +2341,7 @@ html, body {
   text-align: center;
   pointer-events: none; box-shadow: var(--shadow-sm);
   opacity: 1;
-  transition: opacity 0.18s ease, transform 0.18s var(--ease);
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
   z-index: 10;
 }
 .airport-info-card.hidden { opacity: 0; pointer-events: none; }
@@ -2399,7 +2407,7 @@ html, body {
   border-radius: var(--r-sm); color: var(--text);
   font-family: var(--font-mono); font-size: var(--fs-label);
   padding: 9px 14px; outline: none;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
 }
 .city-search-input::placeholder { color: rgba(var(--text-rgb), 0.2); letter-spacing: 0; }
 .city-search-input:focus {
@@ -2430,7 +2438,7 @@ html, body {
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0;
   color: rgba(var(--text-rgb), 0.35); background: rgba(255,255,255,0.025);
   border: 1px solid rgba(255,255,255,0.06);
-  cursor: pointer; transition: all 0.15s var(--ease); text-transform: uppercase;
+  cursor: pointer; transition: all var(--dur-fast) var(--ease); text-transform: uppercase;
   white-space: nowrap;
 }
 .tier-chip:hover, .region-chip:hover {
@@ -2464,7 +2472,7 @@ html, body {
   border-radius: var(--r-sm); color: var(--text-2);
   font-family: var(--font-mono); font-size: var(--fs-label);
   padding: 4px 8px; outline: none; cursor: pointer;
-  transition: border-color 0.12s;
+  transition: border-color var(--dur-fast);
   -webkit-appearance: none; appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0l4 5 4-5z' fill='rgba(var(--accent-rgb), 0.4)'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -2495,7 +2503,7 @@ html, body {
   padding: 9px 16px 9px 12px;
   border-left: 2px solid transparent;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s var(--ease);
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .city-list-item:hover {
   background: rgba(var(--accent-rgb), 0.05);
@@ -2543,7 +2551,7 @@ html, body {
 .cli-chevron {
   font-size: var(--fs-value); color: var(--text-3); opacity: 0;
   transform: translateX(-4px);
-  transition: opacity 0.12s, transform 0.12s;
+  transition: opacity var(--dur-fast), transform var(--dur-fast);
 }
 .city-list-item:hover .cli-chevron { opacity: 0.45; transform: translateX(0); }
 
@@ -2606,7 +2614,7 @@ html, body {
   color: var(--text-3); font-size: var(--fs-label); cursor: pointer; padding: 8px 10px;
   min-width: 44px; min-height: 44px;
   display: flex; align-items: center; justify-content: center;
-  margin: -6px 0; transition: color 0.15s, border-color 0.15s; line-height: 1;
+  margin: -6px 0; transition: color var(--dur-fast), border-color var(--dur-fast); line-height: 1;
 }
 .detail-copy-btn:hover { color: var(--accent); background: rgba(255, 255, 255, 0.10); }
 .detail-copy-btn:active { transform: scale(0.96); box-shadow: var(--relief-key-press); }
@@ -2688,7 +2696,7 @@ html, body {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
   background: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.07);
-  transition: all 0.35s ease;
+  transition: all var(--dur-base) var(--ease);
 }
 .phase-node.past .phase-dot {
   background: rgba(var(--accent-rgb), 0.3);
@@ -2768,7 +2776,7 @@ html, body {
 .detail-fav-btn {
   background: none; border: none; cursor: pointer;
   font-size: var(--fs-body); line-height: 1; padding: 2px;
-  color: var(--text-3); transition: color 0.15s, transform 0.15s;
+  color: var(--text-3); transition: color var(--dur-fast), transform var(--dur-fast);
 }
 .detail-fav-btn:hover { color: var(--accent); transform: scale(1.15); }
 .detail-fav-btn:active { transform: scale(0.9); opacity: 0.7; }
@@ -2820,7 +2828,7 @@ html, body {
 .vert-profile-close {
   cursor: pointer; font-size: var(--fs-body); line-height: 1;
   color: rgba(255,255,255,0.25); padding: 2px 4px;
-  border-radius: var(--r-sm); transition: color 0.15s, background 0.15s;
+  border-radius: var(--r-sm); transition: color var(--dur-fast), background var(--dur-fast);
   background: none; border: none;
 }
 .vert-profile-close:hover { color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.07); }
@@ -2944,7 +2952,7 @@ html, body {
 .stats-cell {
   display: flex; flex-direction: column; gap: 3px;
   padding: 11px 12px; text-align: center;
-  transition: background 0.2s ease;
+  transition: background var(--dur-fast) var(--ease);
 }
 .stats-cell:hover { background: rgba(var(--accent-rgb), 0.025); }
 .stats-cell:nth-child(3n+1),
@@ -2984,7 +2992,7 @@ html, body {
 .emergency-dismiss {
   background: none; border: none; color: rgba(255,255,255,0.55);
   font-size: var(--fs-value); cursor: pointer; padding: 0 4px; line-height: 1;
-  transition: color 0.15s;
+  transition: color var(--dur-fast);
 }
 .emergency-dismiss:hover { color: rgba(255,255,255,0.9); }
 @keyframes emergency-flash {
@@ -3022,7 +3030,7 @@ html, body {
   right: auto; bottom: auto;
   max-height: 280px; overflow: hidden; pointer-events: none;
   opacity: 0;
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
 /* Compare widget — bottom center */
@@ -3055,7 +3063,7 @@ html, body {
   font-family: var(--font-mono);
   font-size: var(--fs-label); padding: 8px 10px;
   resize: none; outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--dur-fast);
 }
 .notes-textarea:focus { border-color: rgba(var(--accent-rgb), 0.3); }
 .notes-actions {
@@ -3069,7 +3077,7 @@ html, body {
   letter-spacing: var(--track-label);
   border-radius: var(--r);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
   text-transform: uppercase;
 }
 .notes-btn-primary {
@@ -3108,7 +3116,7 @@ html, body {
   border: 1px solid var(--hairline); border-radius: var(--r);
   box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
   opacity: 0; transform: translateY(8px);
-  transition: opacity .3s ease, transform .3s var(--ease);
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(2) brightness(1.15);
   backdrop-filter: blur(var(--blur)) saturate(2) brightness(1.15);
 }
@@ -3142,7 +3150,7 @@ html, body {
   letter-spacing: 0; color: var(--text-3);
   background: none; border: none; border-radius: 10px;
   padding: 4px 10px; cursor: pointer;
-  transition: color .15s var(--ease), background .15s var(--ease);
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
   -webkit-user-select: none; user-select: none; white-space: nowrap;
 }
 .filter-seg-btn:hover { color: var(--text-2); }
@@ -3209,7 +3217,7 @@ html, body {
 }
 .fleet-bar-fill {
   height: 100%; border-radius: var(--r-sm);
-  transition: width 0.4s var(--ease);
+  transition: width var(--dur-slow) var(--ease);
 }
 .fleet-bar-label {
   width: 50px;
@@ -3230,7 +3238,7 @@ html, body {
   flex: 1; min-width: 8px;
   border-radius: var(--r-sm) var(--r-sm) 0 0;
   opacity: 0.7;
-  transition: height 0.3s var(--ease);
+  transition: height var(--dur-base) var(--ease);
 }
 .fleet-alt-labels {
   display: flex; justify-content: space-between;
@@ -3260,7 +3268,7 @@ html, body {
   font-size: var(--fs-label); color: rgba(255,255,255,0.65);
   padding: 3px 6px;
   border-radius: var(--r-sm);
-  transition: background 0.15s;
+  transition: background var(--dur-fast);
 }
 .spotter-airline-item:hover {
   background: rgba(255,255,255,0.03);
@@ -3279,7 +3287,7 @@ html, body {
   display: flex; flex-direction: column; align-items: center;
   padding: 10px 6px; border-radius: var(--r-sm);
   background: rgba(255,255,255,0.02); border: 1px solid var(--border);
-  transition: border-color 0.2s;
+  transition: border-color var(--dur-fast);
 }
 .spotter-card.spotted { border-color: rgba(var(--accent-rgb), 0.3); }
 .spotter-card.unspotted { opacity: 0.3; filter: grayscale(1); }
@@ -3308,7 +3316,7 @@ html, body {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 16px; border-bottom: 1px solid var(--border);
   font-family: var(--font-mono); font-size: var(--fs-label);
-  cursor: pointer; transition: background 0.15s;
+  cursor: pointer; transition: background var(--dur-fast);
 }
 .history-item:hover { background: rgba(var(--accent-rgb), 0.06); }
 .history-time { color: var(--text-3); font-size: var(--fs-label); min-width: 40px; }
@@ -3654,7 +3662,7 @@ html, body {
   pointer-events: none; background: var(--surface-float); border: 0; border-radius: var(--r-sm);
   padding: 10px 14px;
   min-width: 180px; box-shadow: var(--shadow-sm);
-  transition: opacity 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 .rwy-tooltip.hidden { display: none; }
 .rwy-tooltip-desig {
@@ -3718,7 +3726,7 @@ html, body {
   min-width: 180px;
   max-width: 280px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10), 0 10px 28px rgba(0, 0, 0, 0.4);
-  transition: opacity 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 .nav-tooltip.hidden { display: none; }
 .nav-tooltip-head { display: flex; align-items: baseline; gap: 8px; }
@@ -3777,7 +3785,7 @@ html, body {
   border-radius: var(--r);
   box-shadow: inset 0 1px 0 var(--specular), var(--relief-raised);
   overflow: hidden;
-  transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
   -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
   backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
 }
@@ -3796,7 +3804,7 @@ html, body {
 .radio-accent {
   height: 1px;
   opacity: 0.5;
-  transition: background 0.4s ease;
+  transition: background var(--dur-slow) var(--ease);
 }
 
 /* Header */
@@ -3872,7 +3880,7 @@ html, body {
   position: absolute; top: 11px; bottom: 8px; width: 1px;
   background: rgba(var(--text-rgb), 0.55);
   transform: translateX(-0.5px);
-  transition: background 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
   pointer-events: none;
 }
 .radio-needle::before {
@@ -3880,7 +3888,7 @@ html, body {
   transform: translateX(-50%);
   border-left: 3px solid transparent; border-right: 3px solid transparent;
   border-top: 4px solid currentColor; color: rgba(var(--text-rgb), 0.55);
-  transition: color 0.18s var(--ease);
+  transition: color var(--dur-fast) var(--ease);
 }
 .radio-needle.is-locked { background: var(--accent-bright); box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.5); }
 .radio-needle.is-locked::before { color: var(--accent-bright); }
@@ -3903,7 +3911,7 @@ html, body {
   letter-spacing: var(--track-label);
   text-transform: uppercase;
   margin-bottom: 10px;
-  transition: color 0.4s ease;
+  transition: color var(--dur-slow) var(--ease);
 }
 .radio-now-playing {
   margin-bottom: 6px;
@@ -3950,7 +3958,7 @@ html, body {
   height: 100%;
   width: 0%;
   border-radius: var(--r-sm);
-  transition: background 0.4s ease;
+  transition: background var(--dur-slow) var(--ease);
 }
 .radio-time {
   font-family: var(--font-mono);
@@ -3980,7 +3988,7 @@ html, body {
   background: var(--text-3);
   border-radius: var(--r-sm);
   opacity: 0.4;
-  transition: height 0.1s ease, background 0.4s ease, opacity 0.3s ease;
+  transition: height var(--dur-fast) var(--ease), background var(--dur-slow) var(--ease), opacity var(--dur-base) var(--ease);
 }
 .radio-eq.active span {
   opacity: 1;
@@ -4020,7 +4028,7 @@ html, body {
   border-radius: 50%;
   color: var(--text-3);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--dur-fast) var(--ease);
   flex-shrink: 0;
 }
 .radio-power-btn:hover,
@@ -4053,7 +4061,7 @@ html, body {
   border-radius: 50%;
   border: none;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--dur-fast) var(--ease);
   box-shadow: 0 0 4px rgba(0,0,0,0.4);
 }
 .radio-volume::-webkit-slider-thumb:hover {
@@ -4075,7 +4083,7 @@ html, body {
   color: rgba(var(--text-rgb), 0.12);
   font-size: var(--fs-value);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: color var(--dur-fast) var(--ease);
   flex-shrink: 0;
 }
 .radio-close-btn:hover {
@@ -4096,7 +4104,7 @@ html, body {
   color: var(--text-3);
   cursor: pointer;
   box-shadow: 0 6px 24px rgba(0,0,0,0.35);
-  transition: all 0.25s var(--ease);
+  transition: all var(--dur-base) var(--ease);
   -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.2);
   backdrop-filter: blur(var(--blur-float)) saturate(1.2);
 }
@@ -4129,7 +4137,7 @@ html, body {
   font-family: var(--font-mono); font-size: var(--fs-body);
   color: #fff; background: var(--accent);
   border-radius: var(--r); text-decoration: none;
-  transition: top 0.2s ease;
+  transition: top var(--dur-fast) var(--ease);
 }
 .skip-link:focus {
   top: 12px;
@@ -4182,7 +4190,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   color: var(--text-2);
   font-family: var(--font-mono); font-size: var(--fs-body);
   cursor: pointer;
-  transition: color 0.2s, box-shadow 0.2s;
+  transition: color var(--dur-fast), box-shadow var(--dur-fast);
   -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.3);
   backdrop-filter: blur(var(--blur-float))) saturate(1.3);
 }
@@ -4201,7 +4209,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   padding: 4px 8px;
   pointer-events: none;
   opacity: 0; transform: translateX(4px);
-  transition: opacity 0.15s, transform 0.15s;
+  transition: opacity var(--dur-fast), transform var(--dur-fast);
 }
 .fab-btn:hover .fab-label {
   opacity: 1; transform: translateX(0);
@@ -4238,7 +4246,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   border-radius: var(--r-sm);
   box-shadow: var(--shadow-sm);
   pointer-events: none; opacity: 0; transform: translateY(4px);
-  transition: opacity 0.16s ease, transform 0.16s ease;
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 #phase-tip.is-visible { opacity: 1; transform: translateY(0); }
 .phase-tip-title {
@@ -4270,7 +4278,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* The HUD panel is pointer-events:none so the map stays draggable through it;
    interactive children must opt back in. */
 .hud-atc { pointer-events: auto; }
-.hud-atc-btn { display: inline-flex; align-items: center; gap: 7px; background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 9px; cursor: pointer; color: var(--text-2); font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: 0; transition: color 0.15s, border-color 0.15s; }
+.hud-atc-btn { display: inline-flex; align-items: center; gap: 7px; background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 9px; cursor: pointer; color: var(--text-2); font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: 0; transition: color var(--dur-fast), border-color var(--dur-fast); }
 .hud-atc-btn:hover { color: var(--text); border-color: var(--hairline-strong); }
 .hud-atc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); flex-shrink: 0; }
 .hud-atc-btn.is-live { color: var(--text); border-color: rgba(var(--accent-rgb), 0.35); }
@@ -4286,7 +4294,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   display: flex; flex-direction: column; gap: 3px;
   background: var(--surface-float);
   border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
-  opacity: 0; pointer-events: none; transition: opacity 0.35s ease, transform 0.35s ease;
+  opacity: 0; pointer-events: none; transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
   -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
   backdrop-filter: blur(var(--blur-float))) saturate(1.4);
 }
@@ -4342,7 +4350,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .sky-legend-lines circle { fill: none; stroke: rgba(var(--text-rgb), 0.85); stroke-width: 1.2; }
 .school-line { z-index: 65; }
 .sky-cap { position: fixed; width: 260px; padding: 6px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
-  font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.4; color: var(--text-2); transition: opacity 0.2s;
+  font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.4; color: var(--text-2); transition: opacity var(--dur-fast);
   -webkit-backdrop-filter: blur(var(--blur-float)));
   backdrop-filter: blur(var(--blur-float)));
 }
@@ -4432,7 +4440,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   padding: 5px 10px; cursor: pointer;
   font-family: var(--font-display); font-size: var(--fs-body);
   color: var(--text-2); letter-spacing: 0; text-transform: lowercase;
-  transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 .commons-word:hover:not(:disabled) { color: var(--accent-bright); border-color: var(--border-accent); }
 /* Pressed: the others do not grey out and slink away, they simply stop being
@@ -4523,7 +4531,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .radio-sig { display: inline-flex; align-items: flex-end; gap: 2px; height: 9px; margin-right: 7px; }
 .radio-sig i {
   width: 2px; background: rgba(var(--text-rgb), 0.16);
-  border-radius: 1px; transition: background 0.12s var(--ease), height 0.12s var(--ease);
+  border-radius: 1px; transition: background var(--dur-fast) var(--ease), height var(--dur-fast) var(--ease);
 }
 .radio-sig i:nth-child(1) { height: 3px; }
 .radio-sig i:nth-child(2) { height: 5px; }
@@ -4848,7 +4856,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   color: var(--text-3);
   border: 1px solid rgba(var(--text-rgb), 0.14);
   border-radius: 3px; padding: 1px 4px; line-height: 1.4;
-  transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 .hud-mod--act:hover .hud-mod-cue { color: var(--text-2); border-color: rgba(var(--text-rgb), 0.3); }
 .ghost-mode .hud-mod--hero .hud-mod-cue {
@@ -4971,7 +4979,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   border: none; cursor: pointer; padding: 0;
   background: var(--relief-face);
   box-shadow: var(--relief-key-sm);
-  transition: box-shadow 0.15s var(--ease), background 0.15s var(--ease);
+  transition: box-shadow var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .hud-atc-power:hover { box-shadow: var(--relief-raised); }
 .hud-atc-power:has(.is-live), .hud-atc-power:has(.is-busy) {
@@ -4987,14 +4995,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod { padding: 9px 10px; }
 
 /* ── Opening and closing the weather ──
-   display:none to display:block is a cut, not a transition: the panel jumped
-   to full height in one frame and snapped back the same way.
-
-   The 0fr-to-1fr grid trick was the first attempt and it does not work here.
-   It sizes the first row only, and this block has six siblings in it, so the
-   other five landed in implicit auto-height rows and the tile stayed 500px
-   tall while closed. max-height is the blunter tool but it is the one that
-   holds for a block of unknown, multi-child content; 1000px clears the tallest
+   display:none to display:block is a cut, not a transition: the panel jumped to full height in one frame and snapped back the same way. The 0fr-to-1fr grid trick was the first attempt and it does not work here. It sizes the first row only var(--ease), and this block has six siblings in it var(--ease), so the other five landed in implicit auto-height rows and the tile stayed 500px tall while closed. max-height is the blunter tool but it is the one that holds for a block of unknown var(--ease), multi-child content var(--ease); 1000px clears the tallest
    this has measured (529px) with room for a longer forecast. */
 .hud-wx-detail {
   display: block;
@@ -5005,11 +5006,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   margin-top: 0;
   border-top: 1px solid rgba(var(--accent-rgb), 0);
   transition:
-    max-height 0.45s var(--ease),
-    opacity 0.25s var(--ease),
-    padding-top 0.45s var(--ease),
-    margin-top 0.45s var(--ease),
-    border-color 0.45s var(--ease);
+    max-height var(--dur-slow) var(--ease), opacity var(--dur-base) var(--ease), padding-top var(--dur-slow) var(--ease), margin-top var(--dur-slow) var(--ease), border-color var(--dur-slow) var(--ease);
 }
 .hud-wx-detail.open {
   max-height: 1000px;
@@ -5338,8 +5335,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   color: var(--text-2);
   background: rgba(255, 255, 255, 0.06);
   box-shadow: var(--relief-key-sm);
-  transition: color 0.15s var(--ease), background 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 /* The roundest, most obviously pressable things here. They were the flattest. */
 .radio-tp:hover { color: var(--text); background: rgba(255, 255, 255, 0.1); box-shadow: var(--relief-key); }
@@ -5418,7 +5414,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   color: var(--text-3);
   background: rgba(255, 255, 255, 0.07);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
-  transition: color 0.15s var(--ease), background 0.15s var(--ease);
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .hud-act:hover { color: var(--text); background: rgba(255, 255, 255, 0.12); }
 .hud-act:active { background: rgba(0, 0, 0, 0.2); box-shadow: var(--relief-inset-sm); }
@@ -5438,7 +5434,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod-cue::after {
   content: ''; width: 7px; height: 7px; border-radius: 50%;
   background: rgba(var(--text-rgb), 0.3);
-  transition: background 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .ghost-mode .hud-mod--hero .hud-mod-cue::after {
   background: var(--accent-bright);
@@ -5499,7 +5495,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-wx-rot {
   display: block; min-height: 15px;
   color: var(--text-3); font-variant-numeric: tabular-nums;
-  opacity: 1; transition: opacity 0.26s var(--ease);
+  opacity: 1; transition: opacity var(--dur-base) var(--ease);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 #hud-weather .hud-wx-wind { display: none; }
@@ -5562,7 +5558,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: transparent;
   box-shadow: none;
   border-radius: 999px;
-  transition: background 0.15s var(--ease), box-shadow 0.15s var(--ease), color 0.15s var(--ease);
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .tier-chip:hover, .city-filter-row button:hover {
   background: rgba(255, 255, 255, 0.06);
@@ -5643,12 +5639,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   display: inline-flex; align-items: center; justify-content: center;
   background: rgba(255, 255, 255, 0.07);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
-  transition: background 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .hud-mine-face::after {
   content: ''; width: 7px; height: 7px; border-radius: 50%;
   background: rgba(var(--accent-rgb), 0.55);
-  transition: background 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .hud-mine-text {
   font-family: var(--font-sans); font-size: var(--fs-label);
@@ -5758,7 +5754,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod-cue { color: var(--text-3); }
 .hud-mod-cue::after { content: none; }
 .hud-mod-cue svg { display: block; }
-.hud-mod-cue .cue-slash { opacity: 1; transition: opacity 0.18s var(--ease); }
+.hud-mod-cue .cue-slash { opacity: 1; transition: opacity var(--dur-fast) var(--ease); }
 .hud-mod-cue.is-shown { color: var(--accent-bright); }
 .hud-mod-cue.is-shown .cue-slash { opacity: 0; }
 .hud-mod--act:hover .hud-mod-cue { color: var(--text); }
@@ -5914,7 +5910,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   display: block; cursor: pointer; border-radius: 9px;
   margin: 1px -5px 0; padding: 2px 5px;
   white-space: normal; overflow: visible; text-overflow: clip;
-  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .hud-sky-cmp.is-door:hover { background: rgba(255, 255, 255, 0.07); color: var(--text-2); }
 .hud-sky-cmp.is-door:focus-visible { outline: 1px solid rgba(var(--accent-rgb), 0.5); outline-offset: 1px; }
@@ -5946,7 +5942,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: var(--relief-face), var(--surface);
   border: none;
   box-shadow: var(--relief-key-sm);
-  transition: color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  transition: color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
   -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.3);
   backdrop-filter: blur(var(--blur-float))) saturate(1.3);
 }
@@ -6297,7 +6293,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   position: absolute; top: 0; bottom: 0;
   border-radius: 3px;
   background: linear-gradient(90deg, #4f9bd8, var(--accent-bright));
-  transition: left 0.6s var(--ease), width 0.6s var(--ease);
+  transition: left var(--dur-slow) var(--ease), width var(--dur-slow) var(--ease);
 }
 /* Now. A needle, not a bead: this page already has one on the radio dial and
    one on every instrument it draws, and a white circle stuck on a coloured bar
@@ -6309,7 +6305,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: rgba(var(--text-rgb), 0.95);
   transform: translateX(-50%);
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.55);
-  transition: left 0.6s var(--ease);
+  transition: left var(--dur-slow) var(--ease);
 }
 .hud-wx-hi { color: var(--text-2); }
 
@@ -6351,7 +6347,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   cursor: pointer;
   min-height: 34px;
   display: flex; align-items: center;
-  transition: box-shadow 0.15s var(--ease);
+  transition: box-shadow var(--dur-fast) var(--ease);
 }
 .detail-rotor:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
 .detail-rotor:active { box-shadow: var(--relief-inset-sm); }
@@ -6416,8 +6412,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   border-left: 0;
   border-radius: 12px;
   transition:
-    background-color 0.16s ease,
-    color 0.16s ease;
+    background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .city-list-item:hover {
@@ -6476,7 +6471,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   border-radius: 999px;
   padding: 6px 22px 6px 12px;
   box-shadow: var(--relief-key-sm);
-  transition: background-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .city-sort-select:hover,
@@ -6584,7 +6579,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: #fff;
   transform: translate(-50%, -50%);
   box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.55);
-  transition: left 0.6s var(--ease);
+  transition: left var(--dur-slow) var(--ease);
 }
 
 /* The expander. Height is animated through max-height, as before, so the
@@ -6592,8 +6587,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .wx-detail {
   display: block; overflow: hidden; max-height: 0; opacity: 0;
   margin-top: 0; padding-top: 0;
-  transition: max-height 0.45s var(--ease), opacity 0.25s var(--ease),
-              margin-top 0.45s var(--ease), padding-top 0.45s var(--ease);
+  transition: max-height var(--dur-slow) var(--ease), opacity var(--dur-base) var(--ease), margin-top var(--dur-slow) var(--ease), padding-top var(--dur-slow) var(--ease);
 }
 .wx-detail.open { max-height: 1200px; opacity: 1; margin-top: 10px; padding-top: 0; overflow: visible; }
 
@@ -6702,7 +6696,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: none; border: 0; padding: 2px 6px; margin: -4px -6px 0 0;
   color: var(--text-3); font-size: var(--fs-value); line-height: 1; cursor: pointer;
   border-radius: var(--r-sm);
-  transition: color 0.15s var(--ease);
+  transition: color var(--dur-fast) var(--ease);
 }
 .aw-close:hover { color: var(--text); }
 .aw-name {
@@ -6748,7 +6742,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
   padding: 5px 0; cursor: pointer;
   font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
-  transition: color 0.15s var(--ease);
+  transition: color var(--dur-fast) var(--ease);
 }
 .aw-flight-item:hover { color: var(--text); }
 .aw-flight-meta { color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
