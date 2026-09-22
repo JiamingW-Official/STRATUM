@@ -9,12 +9,17 @@ const ENTRIES: Array<{
   status: Status;
   note: string;
 }> = [
+  /* In the order the work is used, not the order it was built: you book a
+     seat, you sit down in front of the screen, and the sky is what is
+     outside the window the whole time. Sky led this list because it existed
+     first, which is a fact about the repository rather than about anybody
+     arriving at the page. */
   {
-    href: "/",
-    name: "Sky",
-    zh: "天空视图",
+    href: "/dev/book/",
+    name: "Booking",
+    zh: "订票",
     status: "ready",
-    note: "The live ADS-B sky. Still at the site root; it moves to /sky when the rest of the work needs the root.",
+    note: "STRATUM on a handset: fare, seat, check-in, and a boarding pass whose code opens the seat-back screen it was issued for.",
   },
   {
     href: "/dev/ife/",
@@ -24,11 +29,11 @@ const ENTRIES: Array<{
     note: "One seat-back screen at 1920×1080 in a moulded surround, with the flight simulated beside it.",
   },
   {
-    href: "/dev/book/",
-    name: "Booking",
-    zh: "订票",
+    href: "/",
+    name: "Sky",
+    zh: "天空视图",
     status: "ready",
-    note: "STRATUM on a handset: fare, seat, check-in, and a boarding pass whose code opens the seat-back screen it was issued for.",
+    note: "The live ADS-B sky. Still at the site root; it moves to /sky when the rest of the work needs the root.",
   },
   {
     href: "",
