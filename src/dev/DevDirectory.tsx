@@ -92,10 +92,6 @@ export function DevDirectory() {
           from disconnection. It holds while the system's sorting stays out
           of sight, and breaks the moment that sorting becomes visible.
         </p>
-        <p className="dev-thesis-meta">
-          Belong Nowhere · Thesis 1 · Jiaming Wang — prototype 0.1, the
-          journey in four pieces: booking, cabin, screen, sky
-        </p>
       </section>
       <ul className="dev-list">
         {ENTRIES.map((e) => (
