@@ -347,6 +347,7 @@ test.describe("IFE bench", () => {
     const both = await page.evaluate(() => ({
       bearing: (window as any).__ifeMap.getBearing(),
       inst: document.querySelector(".ife-inst")?.textContent ?? "",
+      heading: document.querySelector(".ife-inst-heading")?.textContent ?? "",
     }));
     expect(both.inst).toContain("37,000");
     expect(both.inst).toContain("480");
@@ -355,7 +356,7 @@ test.describe("IFE bench", () => {
     // the aircraft by several degrees. That lag is the easing working. What
     // this panel has to show is a heading, and the two figures either side
     // of it are checked exactly.
-    const boxed = Number(both.inst.match(/HORIZON [\d,]+ km(\d{3})/)![1]);
+    const boxed = Number(both.heading);
     expect(boxed).toBeGreaterThanOrEqual(0);
     expect(boxed).toBeLessThan(360);
     const inst = both.inst;

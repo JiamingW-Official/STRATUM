@@ -322,6 +322,7 @@ const DICT = {
   catTravel: ["Going somewhere", "在路上"],
   catCity: ["Cities", "城市"],
   catShort: ["Under 15 min", "15 分钟内"],
+  ahead: ["AHEAD", "前方"],
   views: ["Views", "视角"],
   zoom: ["Zoom", "缩放"],
   viewForward: ["Forward", "前方"],
@@ -331,7 +332,6 @@ const DICT = {
   knots: ["knots", "节"],
   feet: ["feet", "英尺"],
   verticalSpeed: ["V/S ft/min · derived", "垂直速度 ft/min · 推算"],
-  horizon: ["HORIZON", "地平线"],
   dining: ["Dining", "餐食"],
   dutyFree: ["Duty free", "免税购物"],
   shopNote: [

@@ -62,12 +62,9 @@ const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 export function Instruments({
   position,
   bearingToDest,
-  horizonY,
 }: {
   position: FlightPosition;
   bearingToDest: number;
-  /** Where the earth stops, in the panel's own pixels, or null off-screen. */
-  horizonY?: number | null;
 }) {
   const { t } = useT();
   const vs = useVerticalSpeed(position.altFt);
@@ -75,11 +72,6 @@ export function Instruments({
   const { w: W, h: H } = useSize(svg);
   const inferred = !position.heard;
   const cls = (base: string) => `${base}${inferred ? " ife-inst--inferred" : ""}`;
-  // sqrt(2Rh): how far you can see from here, which is what the line is the
-  // edge of.
-  const horizonKm = Math.round(
-    Math.sqrt(2 * 6371 * Math.max(1, position.altFt * 0.3048) / 1000),
-  );
 
   return (
     <svg
@@ -129,56 +121,6 @@ export function Instruments({
         under={[`${fmt(position.altFt * 0.3048)} m`]}
         extra={{ label: t("verticalSpeed"), value: vs }}
       />
-      {/* The horizon, where the horizon is.
- 
-          A HUD's one horizontal line, and the only one here: the rest of a
-          HUD's ladder is pitch and roll, and ADS-B carries neither — drawing
-          a ladder would mean inventing the attitude on a panel whose subject
-          is the difference between what was heard and what was assumed. This
-          line is not attitude. It is the edge of the earth, found by asking
-          the camera where the planet stops, and how far away it is is
-          arithmetic on an altitude somebody reported.
- 
-          Broken in the middle, like every HUD, because the thing you are
-          looking at is in the middle. */}
-      {horizonY != null && horizonY > 0 && horizonY < H && (
-        <g className={cls("ife-inst-horizon")}>
-          <line
-            x1={Math.round(W * 0.055)}
-            y1={horizonY}
-            x2={Math.round(W * 0.4)}
-            y2={horizonY}
-          />
-          <line
-            x1={Math.round(W * 0.6)}
-            y1={horizonY}
-            x2={Math.round(W * 0.945)}
-            y2={horizonY}
-          />
-          {/* The end caps turn down, so the line reads as the top of the
-              ground rather than as a rule across the picture. */}
-          <line
-            x1={Math.round(W * 0.055)}
-            y1={horizonY}
-            x2={Math.round(W * 0.055)}
-            y2={horizonY + 16}
-          />
-          <line
-            x1={Math.round(W * 0.945)}
-            y1={horizonY}
-            x2={Math.round(W * 0.945)}
-            y2={horizonY + 16}
-          />
-          <text
-            className="ife-inst-horizon-label"
-            x={Math.round(W * 0.6)}
-            y={horizonY - 14}
-          >
-            {t("horizon")} {horizonKm.toLocaleString("en-US")} km
-          </text>
-        </g>
-      )}
-
       <Rose
         cx={Math.round(W / 2)}
         cy={Math.round(H * 0.76)}
@@ -403,7 +345,17 @@ function Rose({
       {/* Boxed heading, above the rose, as the reference has it. */}
       <g transform={`translate(${cx} ${cy - r - 44})`}>
         <path className="ife-inst-box" d="M-62 -32 H62 V32 H-62 Z" />
-        <text className="ife-inst-value" x={0} y={12} textAnchor="middle">
+        {/* Named, because it is the one figure on this panel a test has to
+            find and there are three elements carrying ife-inst-value. It
+            used to be located by scraping the panel's concatenated text and
+            anchoring on the label beside it — so deleting that label broke
+            an assertion about the heading. */}
+        <text
+          className="ife-inst-value ife-inst-heading"
+          x={0}
+          y={12}
+          textAnchor="middle"
+        >
           {Math.round(((heading % 360) + 360) % 360)
             .toString()
             .padStart(3, "0")}

@@ -104,9 +104,6 @@ export function MapScreen({
   // outside React because they are wanted inside MapLibre's move handler.
   const posRef = useRef<FlightPosition | null>(null);
   const aimRef = useRef<(() => void) | null>(null);
-  // Where the earth stops, in pixels down the map, measured off the camera
-  // rather than worked out from a formula.
-  const [horizonY, setHorizonY] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   // The style's load event fires once and may already have fired by the time
   // the data effect runs, so readiness is state rather than a listener.
@@ -495,12 +492,30 @@ export function MapScreen({
       .sort((a, b) => a.d - b.d)
       .slice(0, 10);
 
-    cityRef.current = shown.map(({ c }) => {
+    cityRef.current = shown.map(({ c, d }) => {
       const node = document.createElement("div");
       node.className = "ife-city-marker";
+      // The distance was already being computed to sort this list by, and
+      // then thrown away. Out of a window at eleven kilometres every city is
+      // the same smudge, so the name alone does not answer the question a
+      // passenger has about it — how far is that.
+      //
+      // Except looking forward, where the readout at the top of the picture
+      // is already answering it for the four nearest. Printing the figure
+      // again on the ground says the same thing twice, and it said it into
+      // the knots tape: a marker near the left edge put "273 km" straight
+      // through the 380 mark.
+      const withDist = view !== "forward";
       node.innerHTML =
-        `<span class="ife-city-name"></span><span class="ife-city-stalk"></span>`;
+        `<span class="ife-city-stalk"></span>` +
+        `<span class="ife-city-text">` +
+        `<span class="ife-city-name"></span>` +
+        (withDist ? `<span class="ife-city-dist ife-mono"></span>` : "") +
+        `</span>`;
       node.querySelector(".ife-city-name")!.textContent = c.name;
+      if (withDist) {
+        node.querySelector(".ife-city-dist")!.textContent = `${fmtInt(d)} km`;
+      }
       // Anchored at its dot, which is on the left of the name — the same
       // anchoring the airport markers use, and what the reference does.
       return new Marker({ element: node, anchor: "left" })
@@ -508,86 +523,6 @@ export function MapScreen({
         .addTo(map);
     });
   }, [view, ready, near, nearLon, nearHeading, nearAlt]);
-
-  /**
-   * Where the earth stops.
-   *
-   * Not computed from a formula — asked, with public API only. Unproject a
-   * point on the glass and project the result back: below the horizon it
-   * lands where it started, and above it the ray never meets the planet, so
-   * it does not. Twenty steps of bisection between the top of the map and its
-   * bottom find the line to within a pixel. A formula would have to know
-   * MapLibre's field of view, how pitch warps it and what terrain does to it;
-   * this knows none of those and is right anyway — measured at 338.6 of 872
-   * on a 85° pitch at 19,800 ft, which is where the picture's own horizon is.
-   *
-   * It fires on render, and render is every frame, so it only tells React
-   * when the answer has actually moved a pixel. A setState per frame is the
-   * other way to make a map judder.
-   */
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready || !WINDOW.includes(view)) {
-      setHorizonY(null);
-      return;
-    }
-    let last = -1;
-    const onSurface = (y: number) => {
-      try {
-        const back = map.project(map.unproject([map.getCanvas().clientWidth / 2, y]));
-        return Math.abs(back.y - y) < 1.5;
-      } catch {
-        return false;
-      }
-    };
-    const find = () => {
-      const h = map.getCanvas().clientHeight;
-      // The whole picture is sky: nothing to draw a line on.
-      if (!onSurface(h - 1)) {
-        if (last !== -2) {
-          last = -2;
-          setHorizonY(null);
-        }
-        return;
-      }
-      let lo = 0;
-      let hi = h - 1;
-      for (let i = 0; i < 20; i++) {
-        const mid = (lo + hi) / 2;
-        if (onSurface(mid)) hi = mid;
-        else lo = mid;
-      }
-      const y = Math.round(hi);
-      if (y === last || y < 3 || y > h - 3) return;
-      last = y;
-      setHorizonY(y);
-    };
-    /**
-     * Once a frame at most, and only when the camera has actually moved.
-     *
-     * This used to run on every render event, and every run is twenty
-     * unproject/project round trips: measured, the forward view was drawing
-     * a frame every 161ms with 44 long tasks in eight seconds. The line it
-     * finds cannot move unless the camera does, and when the camera does
-     * move one answer per frame is all a line can use.
-     */
-    let queued = false;
-    const schedule = () => {
-      if (queued) return;
-      queued = true;
-      requestAnimationFrame(() => {
-        queued = false;
-        find();
-      });
-    };
-    find();
-    map.on("move", schedule);
-    map.on("moveend", schedule);
-    return () => {
-      map.off("move", schedule);
-      map.off("moveend", schedule);
-    };
-  }, [view, ready]);
 
   const fitRoute = useCallback(() => {
     const map = mapRef.current;
@@ -816,6 +751,38 @@ export function MapScreen({
   const window_ = WINDOW.includes(view);
   const toDest = bearing(position, route.to);
 
+  /**
+   * What is out in front, and how far.
+   *
+   * The forward view used to answer that with the geometric horizon — a
+   * line across the picture labelled with sqrt(2Rh) in kilometres. That is
+   * a real number and it is a cockpit's number: it tells you how far you
+   * can see, which is a fact about the atmosphere and your altitude rather
+   * than about anywhere you are going. Nobody in a seat wants it.
+   *
+   * What they want is the thing the window is pointed at. So: the places
+   * inside a 40° cone off the nose, nearest first. No horizon limit, and
+   * that is the point of it — the four cities ahead are mostly *beyond*
+   * what you can see, which is exactly why their distance has to be
+   * printed rather than looked at. The markers on the ground handle the
+   * ones close enough to be there.
+   */
+  const ahead = (
+    CITIES as Array<{ name: string; lat: number; lon: number }>
+  )
+    .map((c) => ({
+      name: c.name,
+      d: greatCircleKm(position, { lat: c.lat, lon: c.lon }),
+      b: bearing(position, { lat: c.lat, lon: c.lon }),
+    }))
+    .filter(
+      (x) =>
+        x.d > 20 &&
+        Math.abs(((x.b - position.headingDeg + 540) % 360) - 180) < 40,
+    )
+    .sort((x, y) => x.d - y.d)
+    .slice(0, 4);
+
   // The strip's contents, as a list rather than as markup, because the
   // ticker prints them twice.
   const facts: Array<{ label: string; value: string; inferred?: boolean }> = [
@@ -871,11 +838,22 @@ export function MapScreen({
           keep the figure strip instead, which is what every other view on
           this map has along the bottom. */}
       {view === "forward" && (
-        <Instruments
-          position={position}
-          bearingToDest={toDest}
-          horizonY={horizonY}
-        />
+        <>
+          <Instruments position={position} bearingToDest={toDest} />
+          {ahead.length > 0 && (
+            <div className="ife-map-ahead">
+              <span className="ife-map-ahead-label ife-cap">{t("ahead")}</span>
+              {ahead.map((c) => (
+                <span className="ife-map-ahead-city" key={c.name}>
+                  <span className="ife-map-ahead-name">{c.name}</span>
+                  <span className="ife-map-ahead-dist ife-mono">
+                    {fmtInt(c.d)} km
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* The view menu, as a sidebar that comes in from the right.
