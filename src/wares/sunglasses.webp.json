@@ -1,0 +1,17 @@
+{
+  "source": "openverse",
+  "title": "Free sunglasses isolated white background",
+  "page": "https://www.rawpixel.com/image/5914424/photo-image-white-background-public-domain-free",
+  "author": "unknown",
+  "licence": "CC0 1.0",
+  "licence_class": "public",
+  "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source_width": 4080,
+  "source_height": 2720,
+  "fetched": "2026-09-22",
+  "cut_with": "subjectlift",
+  "normalised": {
+    "size": 512,
+    "fit": "box"
+  }
+}

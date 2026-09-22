@@ -1,0 +1,17 @@
+{
+  "source": "commons",
+  "title": "Cards -Deck Playing.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Cards_-Deck_Playing.jpg",
+  "author": "tookapic on Pixabay",
+  "licence": "CC0",
+  "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "licence_class": "public",
+  "source_width": 6016,
+  "source_height": 4000,
+  "fetched": "2026-09-22",
+  "cut_with": "subjectlift",
+  "normalised": {
+    "size": 512,
+    "fit": "box"
+  }
+}

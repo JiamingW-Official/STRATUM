@@ -1,0 +1,17 @@
+{
+  "source": "commons",
+  "title": "Singleton of Dufftown Tailfire Single Malt Whisky.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Singleton_of_Dufftown_Tailfire_Single_Malt_Whisky.jpg",
+  "author": "Iwoelbern",
+  "licence": "CC0",
+  "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "licence_class": "public",
+  "source_width": 2592,
+  "source_height": 4608,
+  "fetched": "2026-09-22",
+  "cut_with": "subjectlift",
+  "normalised": {
+    "size": 512,
+    "fit": "box"
+  }
+}

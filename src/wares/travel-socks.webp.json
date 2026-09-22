@@ -1,0 +1,17 @@
+{
+  "source": "commons",
+  "title": "Kompressionstruempfe.JPG",
+  "page": "https://commons.wikimedia.org/wiki/File:Kompressionstruempfe.JPG",
+  "author": "Enter",
+  "licence": "CC BY-SA 4.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+  "licence_class": "by-sa",
+  "source_width": 4537,
+  "source_height": 3242,
+  "fetched": "2026-09-22",
+  "cut_with": "subjectlift",
+  "normalised": {
+    "size": 512,
+    "fit": "box"
+  }
+}

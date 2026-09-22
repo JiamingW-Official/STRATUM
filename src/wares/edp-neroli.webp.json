@@ -1,0 +1,17 @@
+{
+  "source": "commons",
+  "title": "Miss Dior Chérie bottle.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Miss_Dior_Ch%C3%A9rie_bottle.jpg",
+  "author": "Natasha d.H",
+  "licence": "CC BY 2.0",
+  "licence_url": "https://creativecommons.org/licenses/by/2.0",
+  "licence_class": "by",
+  "source_width": 2098,
+  "source_height": 2660,
+  "fetched": "2026-09-22",
+  "cut_with": "subjectlift",
+  "normalised": {
+    "size": 512,
+    "fit": "box"
+  }
+}

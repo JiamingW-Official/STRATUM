@@ -1,0 +1,17 @@
+{
+  "source": "commons",
+  "title": "Carolina Herrera 212 encased in a box.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Carolina_Herrera_212_encased_in_a_box.jpg",
+  "author": "Keith Williamson",
+  "licence": "CC BY 2.0",
+  "licence_url": "https://creativecommons.org/licenses/by/2.0",
+  "licence_class": "by",
+  "source_width": 3430,
+  "source_height": 5480,
+  "fetched": "2026-09-22",
+  "cut_with": "subjectlift",
+  "normalised": {
+    "size": 512,
+    "fit": "box"
+  }
+}

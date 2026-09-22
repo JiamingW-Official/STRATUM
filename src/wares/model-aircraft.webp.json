@@ -1,0 +1,17 @@
+{
+  "source": "commons",
+  "title": "Model, Static, Douglas DC-7 Mainliner, United Air Lines - DPLA - c0fe21fec0d1869bb0b76c05b4b56236 (page 2).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Model,_Static,_Douglas_DC-7_Mainliner,_United_Air_Lines_-_DPLA_-_c0fe21fec0d1869bb0b76c05b4b56236_(page_2).jpg",
+  "author": "unknown",
+  "licence": "CC0",
+  "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "licence_class": "public",
+  "source_width": 2000,
+  "source_height": 1499,
+  "fetched": "2026-09-22",
+  "cut_with": "subjectlift",
+  "normalised": {
+    "size": 512,
+    "fit": "box"
+  }
+}

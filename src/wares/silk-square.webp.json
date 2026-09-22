@@ -1,0 +1,17 @@
+{
+  "source": "commons",
+  "title": "Scarf MET CP228 CP4.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Scarf_MET_CP228_CP4.jpg",
+  "author": "Creator:Echo Scarfs",
+  "licence": "CC0",
+  "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "licence_class": "public",
+  "source_width": 4000,
+  "source_height": 3993,
+  "fetched": "2026-09-22",
+  "cut_with": "subjectlift",
+  "normalised": {
+    "size": 512,
+    "fit": "box"
+  }
+}

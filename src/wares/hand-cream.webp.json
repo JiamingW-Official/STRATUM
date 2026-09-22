@@ -1,0 +1,17 @@
+{
+  "source": "commons",
+  "title": "Eucerin hand cream.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Eucerin_hand_cream.jpg",
+  "author": "Misaochan",
+  "licence": "CC BY-SA 3.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/3.0",
+  "licence_class": "by-sa",
+  "source_width": 3024,
+  "source_height": 4032,
+  "fetched": "2026-09-22",
+  "cut_with": "subjectlift",
+  "normalised": {
+    "size": 512,
+    "fit": "box"
+  }
+}

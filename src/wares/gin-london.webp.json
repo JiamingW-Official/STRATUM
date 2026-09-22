@@ -1,0 +1,17 @@
+{
+  "source": "commons",
+  "title": "VictoriaGin bottle 750ml.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:VictoriaGin_bottle_750ml.jpg",
+  "author": "Juniperjane",
+  "licence": "CC0",
+  "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "licence_class": "public",
+  "source_width": 1272,
+  "source_height": 1996,
+  "fetched": "2026-09-22",
+  "cut_with": "subjectlift",
+  "normalised": {
+    "size": 512,
+    "fit": "box"
+  }
+}
