@@ -10,14 +10,47 @@
    product someone licensed. */
 
 .ife-root {
-  --bg: #07080b;
+  /* Two surfaces, one blue.
+     
+     Three attempts at this, and the first two were the same mistake in
+     different clothes. 19/24/34 was a grey leaning blue, which is what
+     "dirty" means; 13/28/46 was a real blue but held at 12% lightness and —
+     the actual fault — given to everything at once. The strip, the rail and
+     every card carried one fill, so a screen with eight panels on it was
+     one flat field a third of a megapixel across, and a panel with nothing
+     to lift off is not a panel, it is a wall. Flatness at that scale reads
+     as cheap however good the colour is.
+     
+     So: a ground and a surface. The ground is nearly black and holds the
+     frame — the strip along the top, the rail along the foot, and whatever
+     is behind a screen that has no photograph. The panels sit a measured
+     step above it. Same hue in both, 213°, which is the blue the hour
+     these photographs are taken in goes; the ground is dark enough to
+     disappear and the panels are light enough to be objects on it.
+     
+     Chroma stays high rather than being washed toward grey. A dark blue
+     that has been desaturated to be safe is exactly the mud this was twice
+     already. And brass at 201/164/92 sits nearly opposite 213° on the
+     wheel, which is why the accent is richer here than it was on black.
+     
+     Opaque, both. The panels were letting 3% to 18% of whatever was behind
+     them through, which on the home screen is a photograph of a city:
+     enough to muddy the colour, not enough to be an effect. A panel is a
+     surface or it is a filter.
+     
+     The scrims over the photographs stay near-black on purpose — those are
+     not surfaces, they are the picture being turned down, and a tinted
+     scrim tints the city underneath it. */
+  --ground-rgb: 7, 15, 26;
+  --panel-rgb: 10, 21, 36;
+  --bg: rgb(var(--ground-rgb));
   --text-rgb: 240, 236, 226;
   --fg: rgba(var(--text-rgb), 0.94);
   --dim: rgba(var(--text-rgb), 0.62);
   --faint: rgba(var(--text-rgb), 0.4);
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.14);
-  --panel: rgba(9, 11, 15, 0.92);
+  --panel: rgb(var(--panel-rgb));
 
   /* Brass, the sky view's accent. It already means "inferred" and "asked not
      to be seen" up there; here it keeps that job and takes on "this control
@@ -40,66 +73,95 @@
   --lift-sm: 0 14px 34px rgba(0, 0, 0, 0.45);
   --pane: inset 0 1px 0 var(--specular), var(--lift);
 
-  /* ── Glass ──────────────────────────────────────────────────────────────
+  /* ── Panels ─────────────────────────────────────────────────────────────
      One material for every surface in the cabin, written once and worn by
-     everything a finger can touch.
+     everything a finger can touch. It used to be glass. It is not any more.
 
-     A piece of glass lying on a panel has four things and this is all four:
-     a tint that is lighter where it faces the light, a lit top lip with a
-     dark bottom edge, a body that carries a little of what is behind it, and
-     a shadow underneath. Nothing is outlined — an outline is a drawing of an
-     edge, and this cabin has always preferred to find the edge with light.
+     The glass was five things at once: a gradient tint, a lit top lip over
+     a dark bottom edge, an inner glow, a drop shadow, and a backdrop blur.
+     One panel wearing all five is a nice piece of glass. The home screen
+     wears eight at a time, and eight is not a material, it is noise — the
+     cards stopped being distinguishable from each other and the photograph
+     underneath them had no chance. What is left is a fill and a single
+     hairline along the top. One edge each, and the only thing on the screen
+     with texture is the picture.
 
-     The fill is dark, not white. A white wash is right on a panel and wrong
-     on a photograph: made white, the cards on the home screen turned into
-     frosted grey slabs and took the contrast out from under their own type.
-     This cabin is dark, so its glass is smoked — the picture comes through
-     it and the light is only on the edge.
+     The fill went up a long way as the blur came off. At 0.74 the skyline
+     read straight through the cards — sharp, because nothing was softening
+     it any more — and the rail was busier without the glass than it had
+     been with it. The blur was never decoration on these panels; it was
+     what held type off whatever was behind it, and with it gone the fill
+     has to do that job alone. So the panels are close to opaque, and the
+     photograph is a photograph in the third of the screen where it is one
+     rather than a texture smeared under everything.
 
-     `backdrop-filter` is on all of these. On the bench it is free; on a real
-     seat-back panel it is the one thing in this file that would have to be
-     measured before it shipped. */
-  --glass-tint: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0.025) 46%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  --glass-fill: rgba(10, 12, 17, 0.6);
-  --glass-edge: inset 0 1.5px 0 rgba(255, 255, 255, 0.26),
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.55);
-  --glass-body: inset 0 0 26px rgba(255, 255, 255, 0.04);
-  --glass-shadow: 0 10px 22px rgba(0, 0, 0, 0.45);
-  --glass-blur: blur(14px) saturate(1.4);
-  --glass: var(--glass-edge), var(--glass-body), var(--glass-shadow);
+     The tokens keep their names. Everything downstream still asks for the
+     same material; it is simply a plainer one. */
+  --glass-tint: none;
+  --glass-fill: rgb(var(--panel-rgb));
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  /* Kept as transparent shadows rather than removed: they are composed into
+     box-shadow lists downstream, and `none` is not a legal list item. */
+  --glass-body: 0 0 0 rgba(0, 0, 0, 0);
+  --glass-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  --glass-blur: none;
+  --glass: var(--glass-edge);
 
-  /* The same thing, lit. */
-  --glass-on-tint: linear-gradient(
-    to bottom,
-    rgba(219, 182, 108, 0.3) 0%,
-    rgba(201, 164, 92, 0.13) 46%,
-    rgba(201, 164, 92, 0.05) 100%
-  );
-  --glass-on-fill: rgba(32, 25, 12, 0.66);
-  --glass-on: inset 0 1.5px 0 rgba(255, 226, 170, 0.45),
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
-    inset 0 0 30px rgba(219, 182, 108, 0.12), var(--glass-shadow);
+  /* The same thing, lit — brass in the fill, not a second gradient. */
+  --glass-on-tint: none;
+  --glass-on-fill: rgba(38, 30, 14, 0.82);
+  --glass-on: inset 0 1px 0 rgba(255, 226, 170, 0.3);
 
-  /* Pressed: the lip moves to the bottom and the shadow goes inside, which is
-     what happens to a key when it goes down. */
-  --glass-down: inset 0 -1.5px 0 rgba(255, 255, 255, 0.2),
-    inset 0 2px 8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.3);
+  /* Pressed. A key going down darkens; it no longer also moves its
+     highlight, cuts a shadow into itself and drops one underneath. */
+  --glass-down: inset 0 0 0 999px rgba(0, 0, 0, 0.28);
 
   /* Recessed: a channel cut into the glass rather than a lens on it. Seek
      bars, volume tracks, the board a game is played on. */
   --glass-in: inset 0 2px 5px rgba(0, 0, 0, 0.55),
     inset 0 -1px 0 rgba(255, 255, 255, 0.1);
 
+  /* ── Space ──────────────────────────────────────────────────────────────
+     Thirteen steps, and they were forty.
+     
+     Measured across every gap, margin and padding in this file: 14, 15, 16,
+     17, 18, 19 and 20 all in use, and 22, 24, 26, 28, 30 as well. Nothing in
+     that list is a decision — 14 and 16 cannot be told apart on a panel at
+     arm's length, so a file carrying both is a file where somebody reached
+     for "a bit of space" twice and got two different numbers. What it costs
+     is that nothing lines up with anything it is not touching.
+     
+       2  4  8  12  16  20  24  30  38  48  60  72  90  104
+     
+     Rising about a quarter each time: far enough apart that two steps are
+     distinguishable, close enough that nothing had to move more than 4px to
+     land on one. 2 is a seam rather than a space — the grout between cells
+     on a game board. 72 is --gutter, so a screen's own margin is a step like
+     any other. The nine negative values are left alone: those are optical
+     corrections pulling against a particular glyph, not space.
+     
+     They are written as numbers rather than tokens because most of them live
+     in shorthands — `padding: 16px var(--gutter) 24px` stays readable and
+     `padding: var(--s4) var(--gutter) var(--s6)` does not. The scale is the
+     list above; a value not on it is a mistake. */
+
   /* One corner for one material. A moulded key in a cabin has a big radius,
-     and so does everything iOS put this language on. */
+     and so does everything iOS put this language on.
+     
+     Five, and they were three with twelve raw numbers scattered behind them:
+     3, 4, 6, 8, 10, 12, 13, 14, 18, 20, 28. A corner is a material property —
+     the same tool cut it — so a screen carrying six different ones is six
+     different tools, which is a thing the eye notices without being able to
+     say why. Everything is snapped to the nearest of these. */
   --r-key: 26px;
   --r-tile: 20px;
   --r-panel: 16px;
+  /* A row, a cell, a small control. */
+  --r-chip: 10px;
+  /* A groove or a bar: barely turned, just not cut square. */
+  --r-hair: 4px;
+  /* A pill. */
+  --r-round: 999px;
 
   /* Three faces, each with one job, as upstairs: display carries identity,
      sans carries prose, mono carries numbers and nothing else. */
@@ -107,19 +169,54 @@
   --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Four sizes. Anything wanting a fifth is asking for a layout instead. */
-  /* Four sizes, all a step up from the first pass. The reference is arm's
-     length on a ~15-inch panel in a dark cabin, not a monitor at desk
-     distance — at that range the old 25px body was the size of a caption. */
-  --t-hero: 190px;
-  --t-xl: 72px;
-  --t-md: 32px;
-  /* The floor, and it is a floor: the smallest thing on the glass. Rules that
-     undercut it were the reason whole lines of this interface could not be
-     read from a seat. */
-  /* Every caption on every screen. 22 was the floor and the floor was
-     too low for a panel at arm's length in a dark cabin. */
-  --t-cap: 26px;
+  /* The scale, and this time it is one.
+     
+     Four tokens were declared here and then ignored: measured across every
+     screen the interface was running twenty-two distinct sizes, ten of them
+     inside the eight pixels between 22 and 30. Ten steps in eight pixels is
+     not a scale, it is a list of numbers somebody typed, and it is most of
+     what "unfinished" looks like — nothing lines up because nothing was
+     meant to.
+     
+     Eight steps now, each with one job, and every rule in this file asks for
+     one of them by name. The reference is arm's length on a ~15-inch panel
+     in a dark cabin, not a monitor at desk distance.
+     
+       hero    the idle screen's city, which is the whole screen
+       city    the home screen's destination
+       figure  the one big number a screen is allowed
+       major   a screen full of figures, each one of them
+       title   what this screen is called
+       name    a card's name, a menu row, a section
+       lead    a value, a dish, a heading inside a panel
+       cap     labels, captions, annotations — the workhorse
+       fine    attribution and the digits on a mini board, nothing else
+     
+     Where two steps sat two pixels apart they are now one step: a title and
+     its annotation are told apart by colour and face, which they always
+     were, not by a difference nobody at arm's length can see. */
+  --t-idle: 190px;
+  --t-city: 104px;
+  --t-figure: 92px;
+  --t-major: 72px;
+  --t-title: 52px;
+  --t-name: 38px;
+  --t-lead: 34px;
+  /* 30, up from 26, up from 22.
+     
+     This is the step almost everything small is set at — labels, captions,
+     annotations, the second line of a list row — and it has now been raised
+     twice for the same reason: the reference is a passenger's arm at a
+     15-inch panel in a dark cabin, and what reads on a desk monitor at 26
+     does not read there. It is 4px under `lead` rather than the 8 it was,
+     which is close, but the two are not told apart by size: `cap` is the
+     sans face, dim, and usually tracked out in caps, and `lead` is the value
+     or the name it belongs to. */
+  --t-cap: 30px;
+  /* The floor. Attribution — the map's credits, a creator's name printed on
+     a film's own frame — and the digits on a mini board. Nothing that is
+     read rather than checked may come down here. */
+  --t-fine: 24px;
 
   /* The two rows that frame every screen, and they are the same height.
      The strip was 124 and the rail 96 — two different frames round one
@@ -138,7 +235,7 @@
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: var(--t-md);
+  font-size: var(--t-lead);
   line-height: 1.35;
   user-select: none;
   -webkit-font-smoothing: antialiased;
@@ -187,11 +284,9 @@
   height: var(--strip-h);
   display: flex;
   align-items: center;
-  gap: 26px;
+  gap: 24px;
   padding: 0 var(--gutter);
-  background: rgba(7, 9, 13, 0.72);
-  -webkit-backdrop-filter: blur(22px) saturate(1.3);
-  backdrop-filter: blur(22px) saturate(1.3);
+  background: rgb(var(--ground-rgb));
   box-shadow:
     inset 0 -1.5px 0 rgba(0, 0, 0, 0.6),
     inset 0 1px 0 rgba(255, 255, 255, 0.07),
@@ -207,7 +302,7 @@
    came for. */
 .ife-strip-city {
   font-family: var(--font-display);
-  font-size: 32px;
+  font-size: var(--t-lead);
   font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -216,9 +311,9 @@
 .ife-strip-city-zh {
   font-family: var(--font-sans);
   color: var(--faint);
-  font-size: 25px;
+  font-size: var(--t-cap);
   letter-spacing: 0.04em;
-  margin-left: 10px;
+  margin-left: 8px;
 }
 
 /* The line is a button now: pressing the journey opens the journey. */
@@ -249,7 +344,7 @@
   transform: translateX(-50%);
   white-space: nowrap;
   color: var(--dim);
-  font-size: 25px;
+  font-size: var(--t-cap);
 }
 
 .ife-strip-end {
@@ -279,7 +374,7 @@
 }
 
 .ife-strip-arrival-time {
-  font-size: 36px;
+  font-size: var(--t-lead);
   font-weight: 400;
   letter-spacing: -0.01em;
 }
@@ -304,10 +399,8 @@
      hamburger's mark and the city's first letter land on — rather than
      wherever its invisible box happens to stop. Measured: the mark now
      starts and ends at 72. */
-  padding: 0 calc(var(--gutter) - 14px);
-  background: rgba(7, 9, 13, 0.72);
-  -webkit-backdrop-filter: blur(22px) saturate(1.3);
-  backdrop-filter: blur(22px) saturate(1.3);
+  padding: 0 calc(var(--gutter) - 12px);
+  background: rgb(var(--ground-rgb));
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.12),
     0 -20px 46px rgba(0, 0, 0, 0.5);
@@ -386,7 +479,7 @@
   appearance: none;
   background: none;
   border: 0;
-  padding: 0 0 0 10px;
+  padding: 0 0 0 8px;
   margin-left: auto;
   margin-right: 12px;
   color: var(--fg);
@@ -425,13 +518,13 @@
 .ife-rail-now-time {
   margin-left: auto;
   flex: 0 0 auto;
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--faint);
 }
 
 .ife-rail-now-title {
   font-family: var(--font-display);
-  font-size: 25px;
+  font-size: var(--t-cap);
   font-weight: 500;
   letter-spacing: -0.01em;
   overflow: hidden;
@@ -442,7 +535,7 @@
 /* 24px. It was 21 — the second smallest thing in the cabin, on the name of
    whoever made what you are listening to. */
 .ife-rail-now-sub {
-  font-size: 24px;
+  font-size: var(--t-cap);
   color: var(--dim);
   min-width: 0;
   overflow: hidden;
@@ -462,14 +555,14 @@
   align-items: center;
   /* The seat is a label, not a key, so it keeps a gap the keys do not have —
      without it, at a 2px rail gap, "12K" reads as the first button. */
-  padding: 0 14px;
-  margin-right: 22px;
+  padding: 0 12px;
+  margin-right: 20px;
   align-self: stretch;
 }
 
 .ife-seat-chip-no {
   font-family: var(--font-mono);
-  font-size: 34px;
+  font-size: var(--t-lead);
   font-weight: 500;
   letter-spacing: -0.01em;
 }
@@ -558,11 +651,9 @@
   right: 0;
   z-index: 30;
   min-width: 460px;
-  padding: 32px 34px 34px;
-  border-radius: 18px;
-  background: rgba(14, 17, 23, 0.96);
-  -webkit-backdrop-filter: blur(24px) saturate(1.3);
-  backdrop-filter: blur(24px) saturate(1.3);
+  padding: 30px 30px 30px;
+  border-radius: var(--r-panel);
+  background: rgb(var(--panel-rgb));
   box-shadow: inset 0 1px 0 var(--specular), var(--lift);
   animation: ife-pop-in 160ms ease both;
 }
@@ -582,13 +673,13 @@
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--r-chip);
   color: var(--fg);
   font: inherit;
-  font-size: 32px;
+  font-size: var(--t-lead);
   width: 100%;
   text-align: left;
-  padding: 22px 22px;
+  padding: 20px 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -627,7 +718,7 @@
   z-index: 30;
   width: 26px;
   height: 300px;
-  border-radius: 13px;
+  border-radius: var(--r-chip);
   background: rgba(var(--text-rgb), 0.14);
   overflow: hidden;
   cursor: pointer;
@@ -652,12 +743,12 @@
 
 .ife-pad {
   height: 100%;
-  padding: 60px var(--gutter);
+  padding: 30px var(--gutter) 12px;
 }
 
 .ife-title {
   font-family: var(--font-display);
-  font-size: var(--t-xl);
+  font-size: var(--t-major);
   font-weight: 500;
   letter-spacing: -0.02em;
 }
@@ -665,6 +756,40 @@
 /* A photograph used as ground. Always under a scrim: the city is context, and
    the moment it competes with the type nothing on the screen is legible at
    arm's length in a dark cabin. */
+/* Two layers now, so the picture can arrive in two steps: the container
+   keeps the grade each screen puts on it, and the layers inside fade. */
+.ife-photo-layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: opacity 420ms ease;
+}
+
+/* The thumbnail is 330px wide and this is 1920: unblurred it is a
+   photograph of its own pixels. Blurred it reads as the shape of the
+   picture, which is what it is. Scaled up a little so the blur has no edge
+   to show. */
+.ife-photo-layer--thumb {
+  filter: blur(18px);
+  transform: scale(1.06);
+}
+
+.ife-photo-layer[data-shown="false"] {
+  opacity: 0;
+}
+
+.ife-photo-layer[data-shown="true"] {
+  opacity: 1;
+}
+
+/* The thumbnail stays underneath rather than being removed: it costs
+   nothing, and it is what shows through if the big render ever fails. */
+.ife-photo-layer--thumb[data-hidden="true"] {
+  opacity: 0;
+  transition-delay: 220ms;
+}
+
 .ife-photo {
   position: absolute;
   inset: 0;
@@ -684,7 +809,7 @@
   position: absolute;
   right: 56px;
   bottom: 14px;
-  font-size: 25px;
+  font-size: var(--t-cap);
   letter-spacing: 0.06em;
   color: rgba(var(--text-rgb), 0.34);
   max-width: 620px;
@@ -746,7 +871,7 @@
   inset: 0;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  padding: 88px var(--gutter);
+  padding: 90px var(--gutter);
 }
 
 .ife-idle-top {
@@ -759,7 +884,7 @@
    is the one fact a passenger standing in the aisle is looking for. */
 .ife-idle-seat {
   font-family: var(--font-display);
-  font-size: var(--t-hero);
+  font-size: var(--t-idle);
   font-weight: 600;
   line-height: 0.84;
   letter-spacing: -0.045em;
@@ -772,15 +897,15 @@
 
 .ife-idle-city {
   font-family: var(--font-display);
-  font-size: 78px;
+  font-size: var(--t-major);
   font-weight: 400;
   letter-spacing: -0.03em;
 }
 
 .ife-idle-city-sub {
-  font-size: 32px;
+  font-size: var(--t-lead);
   color: var(--dim);
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 /* The clock is the only thing down here now, and it stays where it was. */
@@ -795,7 +920,7 @@
 }
 
 .ife-idle-clock-time {
-  font-size: 68px;
+  font-size: var(--t-major);
   font-weight: 300;
   letter-spacing: -0.01em;
 }
@@ -828,25 +953,32 @@
     linear-gradient(to right, rgba(7, 8, 11, 0.86) 0%, rgba(7, 8, 11, 0.34) 32%, rgba(7, 8, 11, 0) 62%);
 }
 
+/* At the foot of the picture, not the top of it.
+ 
+   Pinned to the top, the column ran out at 650 of 872 and left a third of
+   the photograph as an empty panel with nothing in it — which reads as a
+   layout that did not finish rather than as air. At the foot it sits where
+   the scrim is already darkest, which is also where a poster puts its type,
+   and the void goes to the top where the sky in the photograph is. */
 .ife-home-place {
   position: absolute;
   left: var(--gutter);
-  top: 60px;
+  bottom: 54px;
   /* 500, not 620: measured against the longest label in either language at
-     38px, plus the icon column. The notes were what made it wide. */
+     38px. */
   width: 500px;
 }
 
 .ife-home-ident {
-  font-size: 24px;
+  font-size: var(--t-cap);
   color: var(--dim);
   letter-spacing: 0.06em;
 }
 
 .ife-home-city {
-  margin-top: 26px;
+  margin-top: 24px;
   font-family: var(--font-display);
-  font-size: 104px;
+  font-size: var(--t-city);
   font-weight: 500;
   letter-spacing: -0.04em;
   line-height: 0.98;
@@ -856,21 +988,36 @@
 /* One fact, at the size of a fact you look up from a book to read. Everything
    else about the flight is one card away. */
 .ife-home-apt {
-  font-size: 26px;
+  font-size: var(--t-cap);
   color: var(--dim);
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .ife-home-count {
-  margin-top: 46px;
+  margin-top: 30px;
 }
 
 .ife-home-count-value {
-  font-size: 92px;
+  font-size: var(--t-figure);
   font-weight: 300;
   letter-spacing: -0.035em;
   line-height: 1;
-  margin-top: 10px;
+  margin-top: 8px;
+  white-space: nowrap;
+}
+
+/* "4h 39min" as a departure board sets it: the figures are the content, the
+   units are grammar. Half the size and a little dimmer, riding the baseline
+   of the figures rather than centred on them. */
+.ife-home-count-part + .ife-home-count-part {
+  margin-left: 0.3em;
+}
+
+.ife-home-count-unit {
+  font-size: 0.46em;
+  letter-spacing: 0;
+  color: var(--dim);
+  margin-left: 0.1em;
 }
 
 /* Arrival, local time, weather. These were three separately styled blocks
@@ -879,11 +1026,17 @@
    somebody forgot to fill in. A label column and a value column, both aligned,
    is what a cabin placard does, and it says on the ground that you have
    arrived rather than punctuating at you. */
+/* On the ground there are no rows left, and a flex box overrides the UA's
+   own rule for [hidden]. */
+.ife-home-facts[hidden] {
+  display: none;
+}
+
 .ife-home-facts {
-  margin: 44px 0 0;
+  margin: 30px 0 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   max-width: 640px;
 }
 
@@ -891,11 +1044,11 @@
   display: grid;
   /* Wide enough for the longest caption in either language at --t-cap. It
      was 186, which held at 22px and wrapped "LOCAL TIME" at 26. */
-  grid-template-columns: 216px 1fr;
+  grid-template-columns: 260px 1fr;
   align-items: baseline;
   gap: 20px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
-  padding-top: 17px;
+  padding-top: 16px;
 }
 
 .ife-home-fact:first-child {
@@ -905,7 +1058,7 @@
 
 .ife-home-fact dd {
   margin: 0;
-  font-size: 30px;
+  font-size: var(--t-lead);
   color: var(--fg);
   letter-spacing: -0.01em;
 }
@@ -920,15 +1073,34 @@
    they leave, or the rail grows holes. */
 .ife-rail-cards {
   position: absolute;
-  left: 748px;
+  left: 604px;
   right: 0;
   top: 34px;
   bottom: 34px;
   display: grid;
-  grid-template-rows: repeat(2, 1fr);
+  /* minmax(0, 1fr), not 1fr. A `1fr` track is `minmax(auto, 1fr)`, and
+     `auto` is the largest min-content in the row — so one card whose content
+     insists on a height (a sleeve told to fill its card) made both rows
+     taller than the half they were given, and the rail grew 112px past the
+     stage. The film's title ended up underneath the bottom rail. */
+  grid-template-rows: repeat(2, minmax(0, 1fr));
   grid-auto-flow: column dense;
   grid-auto-columns: 300px;
-  gap: 22px;
+  gap: 20px;
+  /* The rail bleeds off the right while there is more of it, and lands on a
+     margin when there is not. Pushed to the end the last card used to finish
+     flush against the bezel, which reads as a card that has been cut off
+     rather than the last one.
+
+     The margin is the gutter, not the rail's own 34px inset. 34 is vertical
+     breathing room inside a band; the gutter is where this screen's content
+     stops, and the column on the left already starts at it. A rail ending
+     34 from the edge ends somewhere nothing else on the screen ends.
+
+     `scroll-padding` because snapping ignores padding: without it the snap
+     point sits under the edge and the margin never arrives. */
+  padding-right: var(--gutter);
+  scroll-padding-right: var(--gutter);
   overflow-x: auto;
   scrollbar-width: none;
   scroll-snap-type: x proximity;
@@ -937,6 +1109,131 @@
 
 .ife-rail-cards::-webkit-scrollbar {
   display: none;
+}
+
+/* ── Glass, on the one screen that has something behind it ───────────────
+   
+   Every panel in this cabin is a flat fill, and that is right: they sit on a
+   ground, and glass over a ground is a picture of a material rather than a
+   material. The home screen is the exception — a photograph of where you are
+   going, with the rail lying on top of it — and a card there has something
+   to refract.
+   
+   This is not the glass that came off. That one was five effects everywhere:
+   a gradient wash down the whole face, an inner glow, a drop shadow, a lit
+   lip and a blur, on every panel on every screen. What is here is what makes
+   a piece of dark glass look like one, and all of it lives on the edge:
+   
+     · a smoked fill that is mostly transparent, so the city is genuinely
+       behind it rather than printed on it
+     · a real blur, heavy enough that the picture behind is light and colour
+       rather than detail — that is the whole difference between glass and a
+       tinted window
+     · saturation lifted through it, because glass concentrates colour
+     · a bright rim along the top and down the left, fading as it turns the
+       corner, and a dark one along the bottom: one light source, up and to
+       the left, the same on every card
+     · no gradient across the face and no glow in the middle. A face with a
+       wash on it is plastic.
+   
+   Only here, and only these cards. `--glass-*` is untouched, so nothing else
+   in the cabin moves. */
+.ife-home .ife-card {
+  background-color: rgba(9, 14, 24, 0.44);
+  /* 24px, and the number is measured rather than chosen.
+     
+     At 36 the rail drew 3 frames in 3 seconds — p50 750ms, p90 2250ms, one
+     frame per second while a finger was pushing it — and a screenshot of the
+     page took ten. At 24 it is 60fps, p50 17ms, indistinguishable from no
+     blur at all, and at 16 and 10 the same. The cliff is between 24 and 36:
+     past some radius Chrome stops blurring a downscaled copy of the backdrop
+     and starts doing it at full size, and five cards over a photograph is
+     five of those. 24 is the whole of the look and none of the cost. */
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
+    inset 1.5px 0 0 rgba(255, 255, 255, 0.12),
+    inset -1px 0 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
+    0 20px 44px rgba(0, 0, 0, 0.4);
+}
+
+/* The lit edge follows the tint, because a brass card is lit by the same
+   lamp as a white one — it is the glass that is brass, not the light. */
+.ife-home .ife-card[data-tint="brass"] {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 226, 170, 0.34),
+    inset 1.5px 0 0 rgba(255, 226, 170, 0.12),
+    inset -1px 0 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
+    0 20px 44px rgba(0, 0, 0, 0.4);
+}
+
+.ife-home .ife-card[data-tint="cool"] {
+  box-shadow:
+    inset 0 1.5px 0 rgba(190, 226, 244, 0.32),
+    inset 1.5px 0 0 rgba(190, 226, 244, 0.12),
+    inset -1px 0 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
+    0 20px 44px rgba(0, 0, 0, 0.4);
+}
+
+/* A record's sleeve, full bleed, with the card's words over the foot of it.
+   The same shape the film card already had — these are the other pictures
+   this cabin owns. */
+.ife-home .ife-card--sleeve {
+  padding: 0;
+  overflow: hidden;
+  justify-content: flex-end;
+}
+
+.ife-card-sleeve {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.ife-card-sleeve > * {
+  width: 100%;
+  height: 100%;
+}
+
+/* The record's own printed name comes off inside a card, because the card
+   says it too and in the cabin's face: "Night Shift" was lying across
+   "NIGHT SHIFT". Same reason the sidebar and the rail drop the foot line —
+   a sleeve in a frame is artwork, and the label belongs to the frame. */
+.ife-card-sleeve .ife-sleeve-caption,
+.ife-card-sleeve .ife-sleeve-foot {
+  display: none;
+}
+
+.ife-card--sleeve .ife-card-cap,
+.ife-card--sleeve .ife-card-name {
+  position: relative;
+  z-index: 1;
+  padding: 0 24px;
+}
+
+.ife-card--sleeve .ife-card-name {
+  padding-bottom: 24px;
+}
+
+/* Something for those words to sit on: a sleeve is its own picture and some
+   of them are bright at the bottom. */
+.ife-card--sleeve::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 54%;
+  background: linear-gradient(
+    to top,
+    rgba(5, 8, 14, 0.92) 0%,
+    rgba(5, 8, 14, 0.5) 46%,
+    rgba(5, 8, 14, 0) 100%
+  );
 }
 
 /* Square because the icon and the label want different axes and a square is
@@ -961,8 +1258,7 @@
   text-decoration: none;
   box-shadow:
     inset 1px 0 0 rgba(219, 182, 108, 0.42),
-    inset 0 1px 0 var(--specular),
-    var(--lift);
+    var(--glass-edge);
 }
 
 .ife-card {
@@ -972,8 +1268,6 @@
   border-radius: var(--r-tile);
   background-image: var(--glass-tint);
   background-color: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass);
   color: var(--fg);
   font: inherit;
@@ -986,8 +1280,8 @@
      because one rule said `text-align: left` and the element it said it to
      was not the one holding the numbers. */
   text-align: left;
-  padding: 32px 30px 30px;
-  gap: 10px;
+  padding: 30px 30px 30px;
+  gap: 8px;
 }
 
 /* No hover state. This is a touch screen: a pointer never rests on a card, so
@@ -1009,6 +1303,22 @@
   color: var(--accent-bright);
   display: block;
   margin-top: auto;
+}
+
+/* A made mark where a drawn one was. `contain`, not the `cover` the menu
+   rows use: a row's tile is a 60px square and the artwork is meant to fill
+   it, while a card's mark is an object sitting on a panel and cropping it
+   would cut the object.
+   
+   240, the card's whole content width, because the artwork no longer fills
+   its own square. The four marks were measured and normalised against each
+   other — same optical mass, same mean value — which meant shrinking the
+   three heavy ones inside their squares to match the clef. The box grew by
+   the same amount so the objects did not. */
+.ife-card-icon .ife-mark {
+  width: 240px;
+  height: 240px;
+  object-fit: contain;
 }
 
 /* Two tints, each carrying a meaning the work already uses: brass is the
@@ -1036,6 +1346,22 @@
   display: block;
 }
 
+/* The caption belongs to the name under it, not to the picture above it.
+   Both the mark and the name ask for `margin-top: auto`, so the card's spare
+   height was being split in two — once above the mark and once between the
+   caption and the name, which left "JFK → LHR" stranded in the middle of
+   the map card with air on both sides. Moving the second gap above the
+   caption puts all of it in one place: picture, air, then the words. Only
+   where a mark is directly followed by a caption, which is the only shape
+   that has the problem. */
+.ife-card-icon + .ife-card-cap {
+  margin-top: auto;
+}
+
+.ife-card-icon + .ife-card-cap + .ife-card-name {
+  margin-top: 0;
+}
+
 .ife-card--media .ife-card-cap {
   color: var(--accent-bright);
 }
@@ -1048,7 +1374,7 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 /* Label over value, not label beside it. Side by side, "GROUND SPEED" and
@@ -1059,9 +1385,9 @@
 .ife-card-stat {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
-  padding-top: 15px;
+  padding-top: 16px;
   min-width: 0;
 }
 
@@ -1075,7 +1401,7 @@
 }
 
 .ife-card-stat > span:last-child {
-  font-size: 32px;
+  font-size: var(--t-lead);
   letter-spacing: -0.01em;
 }
 
@@ -1083,7 +1409,7 @@
    stacked pairs in a 622px box left the right two thirds of it empty. */
 .ife-card[data-wide="true"] .ife-card-stats {
   flex-direction: row;
-  gap: 34px;
+  gap: 30px;
 }
 
 .ife-card[data-wide="true"] .ife-card-stat {
@@ -1148,10 +1474,19 @@
 }
 
 .ife-card--media .ife-card-name {
-  margin-top: auto;
+  margin-top: 0;
 }
 
-.ife-card--media .ife-card-lines {
+/* "Now showing" sat at the top of a card 800px tall with the film's own
+   frame between it and the title it belongs to — two captions in one card,
+   one at each end. At the foot they read as one block: what this is, then
+   what it is called.
+   
+   No auto margin on either. The card is already `justify-content: flex-end`,
+   so its children sit at the bottom; an auto margin on top of that eats the
+   free space *and* pushes everything after it past the edge, which is how
+   the first attempt at this left the film's title off the card. */
+.ife-card--media .ife-card-name {
   padding-bottom: 30px;
 }
 
@@ -1162,7 +1497,7 @@
 .ife-card-name {
   margin-top: auto;
   font-family: var(--font-display);
-  font-size: 38px;
+  font-size: var(--t-name);
   font-weight: 500;
   letter-spacing: -0.015em;
   line-height: 1.1;
@@ -1171,11 +1506,11 @@
 /* A card says several things, one per line, rather than one thing with the
    others cut off by an ellipsis. */
 .ife-card-lines {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 25px;
+  gap: 4px;
+  font-size: var(--t-cap);
   color: var(--faint);
   max-width: 100%;
 }
@@ -1190,21 +1525,21 @@
 .ife-figures {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 30px 90px;
-  margin-top: 34px;
+  gap: 16px 90px;
+  margin-top: 24px;
 }
 
 .ife-figure-value {
-  font-size: var(--t-xl);
+  font-size: var(--t-major);
   font-weight: 400;
-  margin-top: 10px;
+  margin-top: 8px;
   display: inline-block;
 }
 
 .ife-figure-unit {
-  font-size: 26px;
+  font-size: var(--t-cap);
   color: var(--dim);
-  margin-left: 10px;
+  margin-left: 8px;
 }
 
 /* ── Map ─────────────────────────────────────────────────────────────── */
@@ -1217,12 +1552,27 @@
   inset: 0;
 }
 
-.ife-stage-map[data-show="false"],
+/* Painted, but not to be looked at. The map has to draw one real frame
+   somewhere, and the cheapest place is while the passenger is still reading
+   the screen before it. Not opacity: 0 — a fully transparent layer is
+   something the compositor is allowed to skip. */
+.ife-stage-map[data-show="false"][data-warming="true"] {
+  opacity: 0.004;
+  pointer-events: none;
+}
+
+.ife-stage-map[data-show="false"][data-warming="false"],
 /* MapLibre's attribution sets `visibility: visible` on itself, and a
    descendant's own visibility beats an ancestor's hidden — so with the map
-   put away, its tile credit was still printed along the bottom of the home
-   screen. */
-.ife-stage-map[data-show="false"] * {
+   put away, its tile credit was still printed along the bottom of whatever
+   screen you were on.
+ 
+   Named rather than left to the universal selector, and that is the second
+   time this has bitten: splitting the map into its own chunk moved
+   maplibre-gl.css after this file, and on a specificity tie the later sheet
+   wins. Three classes beats anything MapLibre ships whatever the order. */
+.ife-stage-map[data-show="false"][data-warming="false"] *,
+.ife-root .ife-stage-map[data-show="false"] .maplibregl-ctrl-attrib {
   visibility: hidden;
   pointer-events: none;
 }
@@ -1265,14 +1615,18 @@
   outline: none;
 }
 
-.ife-map .maplibregl-ctrl-attrib {
+/* Three classes, not two: maplibre-gl.css arrives after this file now that
+   the map is its own chunk, so a tie on specificity goes to MapLibre and the
+   credit came back as a white pill. */
+.ife-root .ife-map .maplibregl-ctrl-attrib {
   /* Required attribution, and it has to be readable to count as attribution.
      MapLibre ships this at 12px for a browser window. It stays a step under
      the cabin's own floor: legible, and not competing with the figures it
      sits beneath. */
-  font-size: 22px;
+  font-size: var(--t-fine);
   background: none;
   color: var(--faint);
+  border-radius: 0;
 }
 
 /* Up to the top right, out of the figures' way.
@@ -1292,10 +1646,10 @@
 }
 
 .ife-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
-  margin: 14px var(--gutter) 0 0;
+  margin: 12px var(--gutter) 0 0;
 }
 
-.ife-map .maplibregl-ctrl-attrib a {
+.ife-root .ife-map .maplibregl-ctrl-attrib a {
   color: var(--faint);
 }
 
@@ -1306,7 +1660,7 @@
   left: var(--gutter);
   bottom: 40px;
   display: flex;
-  gap: 62px;
+  gap: 60px;
   align-items: flex-end;
   pointer-events: none;
   z-index: 2;
@@ -1338,7 +1692,7 @@
 }
 
 .ife-inst-unit {
-  font-size: 30px;
+  font-size: var(--t-cap);
   fill: rgba(var(--text-rgb), 0.72);
   letter-spacing: 0.04em;
 }
@@ -1354,7 +1708,7 @@
 }
 
 .ife-inst-tick-num {
-  font-size: 26px;
+  font-size: var(--t-cap);
   fill: rgba(var(--text-rgb), 0.86);
 }
 
@@ -1367,24 +1721,24 @@
 }
 
 .ife-inst-value {
-  font-size: 44px;
+  font-size: var(--t-name);
   font-weight: 500;
   letter-spacing: -0.01em;
 }
 
 .ife-inst-under {
-  font-size: 26px;
+  font-size: var(--t-cap);
   fill: rgba(var(--text-rgb), 0.7);
 }
 
 .ife-inst-extra-label {
-  font-size: 25px;
+  font-size: var(--t-cap);
   fill: rgba(var(--text-rgb), 0.55);
   letter-spacing: 0.1em;
 }
 
 .ife-inst-extra {
-  font-size: 34px;
+  font-size: var(--t-lead);
   fill: rgba(var(--text-rgb), 0.9);
 }
 
@@ -1399,7 +1753,7 @@
 }
 
 .ife-inst-rose-mark {
-  font-size: 28px;
+  font-size: var(--t-cap);
   fill: rgba(var(--text-rgb), 0.9);
 }
 
@@ -1464,11 +1818,9 @@
   transform: translateX(0);
 }
 
-/* Narrower, and without the backdrop-filter — the blur put it on its own
-   composited layer inside the glass's fractional transform, which is the
-   thing this cabin measured its way out of on the rail. It keeps a surface
-   because it is the edge of a panel rather than a key: it is literally what
-   is left of the drawer when the drawer is pushed off the screen. */
+/* Narrower than the drawer it belongs to. It keeps a surface because it is
+   the edge of a panel rather than a key: it is literally what is left of the
+   drawer when the drawer is pushed off the screen. */
 .ife-mapside-handle {
   position: absolute;
   left: -56px;
@@ -1483,7 +1835,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(8, 10, 14, 0.82);
+  background: rgb(var(--panel-rgb));
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.12),
     -14px 0 32px rgba(0, 0, 0, 0.45);
@@ -1497,35 +1849,33 @@
 .ife-mapside-panel {
   position: absolute;
   inset: 0;
-  padding: 26px 26px 26px 22px;
+  padding: 24px 24px 24px 20px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   background-image: var(--glass-tint);
-  background-color: rgba(8, 10, 14, 0.82);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  backdrop-filter: blur(20px) saturate(1.4);
+  background-color: rgb(var(--panel-rgb));
   box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.1),
     -24px 0 50px rgba(0, 0, 0, 0.5);
 }
 
 .ife-mapside-head {
   color: var(--faint);
-  padding: 14px 18px 10px;
+  padding: 12px 16px 8px;
 }
 
 .ife-mapview {
   appearance: none;
   background: none;
   border: 0;
-  border-radius: 20px;
+  border-radius: var(--r-tile);
   color: var(--dim);
   font-family: var(--font-display);
-  font-size: 29px;
+  font-size: var(--t-cap);
   font-weight: 500;
   letter-spacing: -0.015em;
   text-align: left;
-  padding: 13px 18px;
+  padding: 12px 16px;
   cursor: pointer;
   transition:
     color 140ms ease,
@@ -1543,8 +1893,8 @@
 
 .ife-mapzoom {
   display: flex;
-  gap: 14px;
-  padding: 4px 18px 0;
+  gap: 12px;
+  padding: 4px 16px 0;
 }
 
 /* No backdrop filter on a key already sitting on a filtered panel: a blur of
@@ -1556,9 +1906,7 @@
   flex: 1;
   width: auto;
   height: 72px;
-  border-radius: 20px;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  border-radius: var(--r-tile);
   background-color: rgba(var(--text-rgb), 0.08);
   box-shadow: none;
 }
@@ -1576,15 +1924,16 @@
    is not pointing at anywhere. */
 .ife-city-marker {
   display: flex;
-  flex-direction: column;
+  flex-direction: row-reverse;
   align-items: center;
+  gap: 8px;
   pointer-events: none;
   will-change: transform;
 }
 
 .ife-city-name {
   font-family: var(--font-display);
-  font-size: 24px;
+  font-size: var(--t-cap);
   font-weight: 500;
   letter-spacing: 0.01em;
   color: rgba(255, 252, 246, 0.98);
@@ -1594,14 +1943,16 @@
   white-space: nowrap;
 }
 
+/* A dot immediately left of the name, on the same baseline, which is how
+   the reference cabin marks a place and how every paper map has. It was a
+   stalk hanging under a floating name, and a stalk is a second idea: the dot
+   is already the "here", and it points at the ground by being on it. */
 .ife-city-stalk {
-  width: 1px;
-  height: 22px;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 252, 246, 0.6),
-    rgba(255, 252, 246, 0.12)
-  );
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(255, 252, 246, 0.95);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
 /* ── The horizon, in the window views ─────────────────────────────────── */
@@ -1613,7 +1964,7 @@
 
 .ife-inst-horizon-label {
   font-family: var(--font-mono);
-  font-size: 25px;
+  font-size: var(--t-cap);
   letter-spacing: 0.08em;
   fill: rgba(var(--text-rgb), 0.5);
   text-anchor: end;
@@ -1732,7 +2083,7 @@
 }
 
 .ife-fact-value {
-  font-size: 34px;
+  font-size: var(--t-lead);
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
@@ -1780,20 +2131,29 @@
 .ife-ap-text {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 8px;
   white-space: nowrap;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95);
 }
 
 .ife-ap-code {
-  font-size: 26px;
+  font-size: var(--t-cap);
   letter-spacing: 0.06em;
   color: var(--fg);
 }
 
 .ife-ap-city {
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--dim);
+}
+
+/* MapLibre's own sheet sets `font: 12px/20px "Helvetica Neue"` on the map
+   container, and every label this cabin hangs on the map inherited it — one
+   screen in four faces instead of three. Asserted back on the container so
+   nothing added to the map later has to remember. */
+.ife-root .maplibregl-map,
+.ife-root .maplibregl-map .maplibregl-marker {
+  font-family: var(--font-sans);
 }
 
 .ife-map-fail {
@@ -1881,18 +2241,18 @@
   border: 0;
   color: var(--dim);
   font-family: var(--font-display);
-  font-size: 27px;
+  font-size: var(--t-lead);
   font-weight: 500;
   letter-spacing: -0.01em;
   text-align: left;
-  padding: 14px 20px;
+  padding: 12px 20px;
   margin: 0 16px 8px;
-  border-radius: 20px;
+  border-radius: var(--r-tile);
   cursor: pointer;
   display: grid;
   grid-template-columns: 48px 1fr;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   transition:
     background-color 140ms ease,
     color 140ms ease;
@@ -1918,14 +2278,14 @@
   color: var(--fg);
   font: inherit;
   text-align: left;
-  padding: 10px 20px;
+  padding: 8px 20px;
   margin: 0 16px;
-  border-radius: 20px;
+  border-radius: var(--r-tile);
   cursor: pointer;
   display: grid;
   grid-template-columns: 48px 1fr;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   transition: background-color 140ms ease;
 }
 
@@ -1956,7 +2316,7 @@
 
 .ife-library-genre {
   display: block;
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--accent-bright);
   letter-spacing: 0.04em;
   margin-top: 2px;
@@ -1969,7 +2329,7 @@
 .ife-library-name {
   display: block;
   font-family: var(--font-display);
-  font-size: 27px;
+  font-size: var(--t-lead);
   font-weight: 500;
   letter-spacing: -0.01em;
   line-height: 1.12;
@@ -1986,7 +2346,7 @@
 /* ── The shelf ───────────────────────────────────────────────────────── */
 .ife-shelf {
   grid-row: 1 / 2;
-  padding: 16px var(--gutter) 20px 56px;
+  padding: 16px var(--gutter) 20px 60px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -2011,7 +2371,7 @@
 .ife-shelf-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 26px;
+  gap: 24px;
   margin: auto 0;
 }
 
@@ -2055,7 +2415,7 @@
 
 /* When there is art, the art is the sleeve. */
 .ife-sleeve--art {
-  background: #07080b;
+  background: var(--bg);
 }
 
 .ife-sleeve-art {
@@ -2168,7 +2528,7 @@
 .ife-album-artists {
   display: block;
   color: var(--dim);
-  font-size: 25px;
+  font-size: var(--t-cap);
   margin-top: 20px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2181,11 +2541,11 @@
    has used since a record had a cover. */
 .ife-station-view {
   grid-row: 1 / 2;
-  padding: 34px var(--gutter) 0 56px;
+  padding: 30px var(--gutter) 0 60px;
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
-  column-gap: 46px;
+  column-gap: 48px;
   min-height: 0;
 }
 
@@ -2200,13 +2560,13 @@
 .ife-station-head {
   display: flex;
   align-items: baseline;
-  gap: 28px;
+  gap: 30px;
   padding-bottom: 30px;
 }
 
 .ife-station-title {
   font-family: var(--font-display);
-  font-size: 54px;
+  font-size: var(--t-title);
   font-weight: 500;
   letter-spacing: -0.025em;
   margin: 0;
@@ -2221,14 +2581,12 @@
   appearance: none;
   background-image: var(--glass-tint);
   background-color: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--r-round);
   color: var(--fg);
   font: inherit;
-  font-size: 24px;
+  font-size: var(--t-cap);
   height: 70px;
   padding: 0 38px;
   cursor: pointer;
@@ -2273,13 +2631,13 @@
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-chip);
   color: var(--dim);
   font: inherit;
-  font-size: 26px;
+  font-size: var(--t-cap);
   width: 100%;
   text-align: left;
-  padding: 19px 20px;
+  padding: 20px 20px;
   cursor: pointer;
   display: grid;
   /* Number, title, artist, length — the four columns a track list has had
@@ -2292,7 +2650,7 @@
 
 .ife-track-len {
   text-align: right;
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--faint);
 }
 
@@ -2306,7 +2664,7 @@
 }
 
 .ife-track-n {
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--faint);
 }
 
@@ -2320,7 +2678,7 @@
    reading as the title. */
 .ife-track-title {
   font-family: var(--font-display);
-  font-size: 27px;
+  font-size: var(--t-lead);
   font-weight: 500;
   letter-spacing: -0.01em;
   overflow: hidden;
@@ -2329,7 +2687,7 @@
 }
 
 .ife-track-artist {
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--faint);
   white-space: nowrap;
 }
@@ -2342,7 +2700,7 @@
   box-shadow: inset 0 1px 0 var(--specular), 0 -18px 40px rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
-  gap: 26px;
+  gap: 24px;
   padding: 0 var(--gutter);
   position: relative;
 }
@@ -2354,7 +2712,7 @@
 .ife-now-swatch {
   width: 76px;
   height: 76px;
-  border-radius: 8px;
+  border-radius: var(--r-chip);
   background: var(--stationColor);
   box-shadow: 0 0 40px -6px var(--stationColor), var(--lift-sm);
 }
@@ -2367,7 +2725,7 @@
 .ife-now-title {
   display: block;
   font-family: var(--font-display);
-  font-size: 32px;
+  font-size: var(--t-lead);
   font-weight: 500;
   margin-top: 4px;
   overflow: hidden;
@@ -2378,7 +2736,7 @@
 .ife-now-artist {
   display: block;
   color: var(--faint);
-  font-size: 25px;
+  font-size: var(--t-cap);
   margin-top: 2px;
 }
 
@@ -2478,7 +2836,7 @@
   background: var(--bg);
   display: grid;
   grid-template-rows: 1fr auto;
-  padding: 110px var(--gutter) 84px;
+  padding: 104px var(--gutter) 90px;
   /* No close control exists, by design. This is the argument of the piece made
      literal: the screen in front of you is not yours during an announcement. */
 }
@@ -2490,7 +2848,7 @@
 
 .ife-pa-title {
   font-family: var(--font-display);
-  font-size: 72px;
+  font-size: var(--t-major);
   font-weight: 400;
   letter-spacing: -0.03em;
   margin-top: 30px;
@@ -2498,9 +2856,9 @@
 
 .ife-pa-body {
   color: var(--dim);
-  margin-top: 34px;
+  margin-top: 30px;
   max-width: 1180px;
-  font-size: 32px;
+  font-size: var(--t-lead);
 }
 
 .ife-pa-foot {
@@ -2534,7 +2892,7 @@
 
 .ife-soon-text {
   color: var(--dim);
-  margin-top: 22px;
+  margin-top: 20px;
 }
 
 /* ── Route thumbnail, inside the tall card ───────────────────────────── */
@@ -2542,9 +2900,15 @@
   width: 100%;
   flex: 1;
   min-height: 0;
-  margin: 26px 0 10px;
+  margin: 24px 0 8px;
   display: block;
 }
+
+/* The drawing takes the slack; the flight keeps a fixed strip under it. With
+   both on flex:1 the card gave half its height to a picture of a globe and
+   half to a line 6px tall, which is the wrong way round — the globe is the
+   card's face and the line is its one true fact. */
+
 
 /* ── Flight profile ──────────────────────────────────────────────────── */
 .ife-fi-head {
@@ -2568,27 +2932,52 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
 .ife-profile-code {
   display: block;
-  font-size: 26px;
-  margin-top: 5px;
+  font-size: var(--t-cap);
+  margin-top: 4px;
 }
 
 .ife-profile-mid {
   color: var(--dim);
-  font-size: 24px;
+  font-size: var(--t-cap);
+}
+
+/* The one line on this page that is about the passenger rather than the
+   aeroplane, so it sits above the credit and below the figures, separated by
+   a rule rather than by a heading. */
+/* The row on the departure board that belongs to the seat reading it. Brass,
+   which in this cabin has always meant "yours". */
+.ife-conns-row[data-mine="true"] {
+  background: var(--accent-dim);
+}
+
+.ife-conns-mine {
+  margin-left: 12px;
+  padding: 2px 8px;
+  border-radius: var(--r-hair);
+  background: var(--accent);
+  color: #1a1408;
+  font-weight: 600;
+}
+
+.ife-fi-booking {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--dim);
 }
 
 .ife-fi-credit {
-  margin-top: 26px;
+  margin-top: 12px;
   color: var(--faint);
 }
 
 .ife-profile-note {
-  margin-top: 10px;
+  margin-top: 8px;
   color: var(--faint);
 }
 
@@ -2601,14 +2990,14 @@
 .ife-head {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 30px;
   height: 100px;
   flex: 0 0 auto;
 }
 
 .ife-head-title {
   font-family: var(--font-display);
-  font-size: 52px;
+  font-size: var(--t-title);
   font-weight: 500;
   letter-spacing: -0.025em;
   margin: 0;
@@ -2638,24 +3027,27 @@
   inset: 0;
   display: grid;
   grid-template-columns: 380px minmax(0, 1fr);
-  gap: 40px;
-  padding: 26px var(--gutter) 0 var(--gutter);
+  gap: 38px;
+  padding: 0 var(--gutter);
 }
 
 .ife-catalog-cats {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-top: 6px;
+  /* Aligned with the first film, not with the header above it: the list of
+     collections starts where the shelf starts. The 100px is the header's
+     own height, which is what every other screen's title occupies. */
+  padding-top: 104px;
   min-width: 0;
 }
 
-.ife-catalog-title {
-  font-family: var(--font-display);
-  font-size: 52px;
-  font-weight: 500;
-  letter-spacing: -0.025em;
-  margin: 0 0 22px;
+/* Header over shelf, the shape the music screen already had. */
+.ife-catalog-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* No bar down the left of the current one. The selected row is a filled
@@ -2666,14 +3058,14 @@
   appearance: none;
   background: none;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-chip);
   color: var(--dim);
   font-family: var(--font-display);
-  font-size: 32px;
+  font-size: var(--t-lead);
   font-weight: 500;
   letter-spacing: -0.015em;
   text-align: left;
-  padding: 15px 20px;
+  padding: 12px 20px;
   cursor: pointer;
 }
 
@@ -2684,7 +3076,7 @@
 
 .ife-catalog-note {
   margin-top: auto;
-  padding: 0 20px 26px;
+  padding: 16px 20px 24px;
   color: var(--faint);
 }
 
@@ -2692,11 +3084,11 @@
 .ife-catalog-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 30px 26px;
+  gap: 30px 24px;
   align-content: start;
   overflow-y: auto;
   scrollbar-width: none;
-  padding-bottom: 26px;
+  padding-bottom: 24px;
 }
 
 .ife-catalog-grid::-webkit-scrollbar {
@@ -2732,30 +3124,28 @@
 .ife-poster-frame {
   position: absolute;
   inset: 0;
-  background-size: cover;
-  background-position: center 34%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 34%;
   filter: saturate(1.06) contrast(1.08);
 }
 
-/* The archive's frames are 180px wide and a poster is not. Half this shelf is
-   kinescope — a film camera pointed at a television — so the line structure
-   is what the material is, and putting it back makes the softness read as the
-   source instead of as a mistake. */
+/* Just the scrim the label sits on. There were scan lines over every frame
+   as well — the argument was that half this shelf is kinescope, so putting
+   the line structure back would make the softness read as the source rather
+   than as a mistake. It was an argument about the material, and the material
+   can make it itself: what the lines actually did was put a grating over
+   somebody's photograph of Piccadilly Circus. The frame is the film. */
 .ife-poster-lines {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(
-      to top,
-      rgba(7, 8, 11, 0.94) 0%,
-      rgba(7, 8, 11, 0.24) 26%,
-      rgba(7, 8, 11, 0) 54%
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.045) 0 1px,
-      rgba(0, 0, 0, 0.14) 1px 3px
-    );
+  background: linear-gradient(
+    to top,
+    rgba(7, 8, 11, 0.94) 0%,
+    rgba(7, 8, 11, 0.24) 26%,
+    rgba(7, 8, 11, 0) 54%
+  );
 }
 
 .ife-poster-label {
@@ -2763,11 +3153,23 @@
   left: 18px;
   right: 18px;
   bottom: 16px;
-  color: rgba(var(--text-rgb), 0.82);
-  font-size: var(--t-cap);
-  white-space: nowrap;
+  color: var(--fg);
+  /* The floor, because this is a credit printed on a picture: at
+     `cap` "RICK PRELINGER" is 290px in a 254px poster and every card on
+     the shelf ended in an ellipsis. */
+  font-size: var(--t-fine);
+  /* Two lines, not one with a full stop after it.
+     
+     These are the names on the cans: "Encyclopaedia Britannica Films",
+     "Coleman Productions (New York City)", "IBM Corporation, Military
+     Products Division". Measured, sixteen of the twenty-eight are wider than
+     the 284px poster at any size this cabin sets type at, so one line was
+     always going to end in an ellipsis — a shelf of "RICK PRELIN…" tells you
+     less than two lines of the real name does. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .ife-poster-label--none {
@@ -2781,7 +3183,7 @@
   overflow: hidden;
   min-height: 2.4em;
   font-family: var(--font-display);
-  font-size: 27px;
+  font-size: var(--t-lead);
   font-weight: 500;
   margin-top: 16px;
   letter-spacing: -0.01em;
@@ -2791,7 +3193,7 @@
 .ife-film-meta {
   display: block;
   color: var(--faint);
-  font-size: 25px;
+  font-size: var(--t-cap);
   margin-top: 8px;
 }
 
@@ -2819,9 +3221,9 @@
 .ife-film-detail-cols {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
-  gap: 52px;
+  gap: 48px;
   align-items: start;
-  margin-top: 26px;
+  margin-top: 24px;
 }
 
 .ife-film-detail-text {
@@ -2833,14 +3235,18 @@
   left: var(--gutter);
   right: var(--gutter);
   bottom: 54px;
-  max-width: 1120px;
+  /* No cap. 1120 in a 1776 glass left the right third of the screen empty
+     and squeezed the paragraph into 712px, which is where the ellipsis in
+     the middle of "nine thousand home…" came from: the text was clamped for
+     want of width that was sitting unused beside it. The measure is set on
+     the paragraph itself, in characters, which is where a measure belongs. */
 }
 
 .ife-film-detail-title {
   font-family: var(--font-display);
   /* 84px was set when the title had the whole width. Beside a cover it has
      960px, and two of these titles are long enough to need it. */
-  font-size: 64px;
+  font-size: var(--t-title);
   font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.04;
@@ -2849,22 +3255,22 @@
 
 .ife-film-detail-meta {
   color: var(--dim);
-  font-size: 24px;
-  margin-top: 18px;
+  font-size: var(--t-cap);
+  margin-top: 16px;
   letter-spacing: 0.04em;
 }
 
 .ife-film-detail-creator {
   color: var(--accent-bright);
-  font-size: 25px;
-  margin-top: 10px;
+  font-size: var(--t-cap);
+  margin-top: 8px;
 }
 
 .ife-film-detail-synopsis {
   color: var(--dim);
-  font-size: 27px;
+  font-size: var(--t-lead);
   line-height: 1.42;
-  margin: 26px 0 0;
+  margin: 24px 0 0;
   /* Beside the cover there is room for the archive's own words. Four of these
      descriptions are a paragraph long and they are the most interesting text
      in the cabin; clamping them at four lines cut the Bell System out of the
@@ -2880,7 +3286,7 @@
   display: flex;
   align-items: center;
   gap: 30px;
-  margin-top: 34px;
+  margin-top: 30px;
 }
 
 /* The one button on a page that starts something gets the brass. */
@@ -2965,13 +3371,13 @@
   height: 148px;
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 30px;
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.78), transparent);
 }
 
 .ife-screening-controls {
   bottom: 0;
-  padding-bottom: 40px;
+  padding-bottom: 38px;
   padding-top: 90px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.86), transparent);
 }
@@ -2990,7 +3396,7 @@
 
 .ife-screening-title {
   font-family: var(--font-display);
-  font-size: 34px;
+  font-size: var(--t-lead);
   font-weight: 500;
   letter-spacing: -0.015em;
 }
@@ -3011,7 +3417,7 @@
   left: 0;
   right: 0;
   height: 5px;
-  border-radius: 3px;
+  border-radius: var(--r-hair);
   background: rgba(var(--text-rgb), 0.18);
 }
 
@@ -3020,7 +3426,7 @@
   position: absolute;
   left: 0;
   height: 5px;
-  border-radius: 3px;
+  border-radius: var(--r-hair);
 }
 
 .ife-seek-buffered {
@@ -3044,20 +3450,20 @@
 .ife-screening-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-top: 14px;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .ife-vbtn {
   appearance: none;
   background: rgba(var(--text-rgb), 0.08);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--r-round);
   color: var(--fg);
   font: inherit;
   min-width: 72px;
   height: 72px;
-  padding: 0 22px;
+  padding: 0 20px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -3070,11 +3476,11 @@
 }
 
 .ife-vbtn-num {
-  font-size: 24px;
+  font-size: var(--t-cap);
 }
 
 .ife-screening-time {
-  font-size: 26px;
+  font-size: var(--t-cap);
   margin-left: 12px;
 }
 
@@ -3097,7 +3503,7 @@
 .ife-games {
   position: absolute;
   inset: 0;
-  padding: 16px var(--gutter) 40px;
+  padding: 16px var(--gutter) 38px;
   display: flex;
   flex-direction: column;
 }
@@ -3121,13 +3527,11 @@
   border-radius: var(--r-key);
   background-image: var(--glass-tint);
   background-color: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass);
   color: var(--fg);
   font: inherit;
   text-align: left;
-  padding: 30px 34px;
+  padding: 30px 30px;
   cursor: pointer;
   /* Art beside the copy, not above it. Four cards in two rows leaves each one
      about 340px tall, and stacked the art box was measured at 65px — a
@@ -3136,7 +3540,7 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 34px;
+  gap: 30px;
   min-height: 0;
   transition:
     background-color 160ms ease,
@@ -3189,29 +3593,38 @@
   display: grid;
   place-items: center;
   background: rgba(var(--text-rgb), 0.06);
-  border-radius: 3px;
+  border-radius: var(--r-hair);
   font-family: var(--font-mono);
-  font-size: 22px;
+  font-size: var(--t-fine);
   color: var(--dim);
 }
 
 .ife-mini-sudoku span[data-edge-r="true"] {
-  margin-right: 9px;
+  margin-right: 8px;
 }
 
 .ife-mini-sudoku span[data-edge-b="true"] {
-  margin-bottom: 9px;
+  margin-bottom: 8px;
 }
 
 /* The quiz card's face is a question, which has no fixed shape — it gets a
-   column of its own width rather than a square. */
+   column rather than a square, and the column is pinned.
+   
+   `flex: 1 1 46%` let it grow, and the citation under the question is a long
+   unwrappable-looking run of tracked caps — "SOURCE · ICAO ANNEX 10 · FAA AC
+   20-165" — so the column took the width that line wanted and left the
+   card's own title and note about 235px to live in. At 30px caps that was
+   four words a line, overflowing the card at both ends. */
 .ife-gamecard:has(.ife-gamecard-quote) .ife-gamecard-art {
-  flex: 1 1 46%;
+  flex: 0 0 46%;
+  max-width: 46%;
+  align-items: start;
+  text-align: left;
 }
 
 .ife-gamecard-quote {
   font-family: var(--font-display);
-  font-size: 40px;
+  font-size: var(--t-lead);
   font-weight: 400;
   letter-spacing: -0.02em;
   line-height: 1.18;
@@ -3226,16 +3639,16 @@
 }
 
 .ife-gamecard-name {
-  margin-top: 34px;
+  margin-top: 30px;
   font-family: var(--font-display);
-  font-size: 46px;
+  font-size: var(--t-name);
   font-weight: 500;
   letter-spacing: -0.025em;
 }
 
 .ife-gamecard-sub {
   color: var(--dim);
-  font-size: 25px;
+  font-size: var(--t-cap);
   margin-top: 12px;
 }
 
@@ -3247,7 +3660,7 @@
 .ife-game {
   position: absolute;
   inset: 0;
-  padding: 16px var(--gutter) 34px;
+  padding: 16px var(--gutter) 30px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -3263,15 +3676,13 @@
   appearance: none;
   background-image: var(--glass-tint);
   background-color: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--r-round);
   color: var(--dim);
   font: inherit;
-  font-size: 25px;
-  padding: 14px 26px;
+  font-size: var(--t-cap);
+  padding: 12px 24px;
   cursor: pointer;
   transition: background-color 140ms ease, color 140ms ease;
 }
@@ -3305,10 +3716,10 @@
   display: grid;
   grid-template-columns: repeat(9, 70px);
   grid-auto-rows: 70px;
-  gap: 3px;
+  gap: 2px;
   background: rgba(var(--text-rgb), 0.05);
-  padding: 10px;
-  border-radius: 10px;
+  padding: 8px;
+  border-radius: var(--r-chip);
   box-shadow: inset 0 1px 0 var(--specular), var(--lift-sm);
 }
 
@@ -3316,10 +3727,10 @@
   appearance: none;
   background: rgba(7, 8, 11, 0.55);
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-hair);
   color: var(--dim);
   font-family: var(--font-mono);
-  font-size: 34px;
+  font-size: var(--t-lead);
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
 }
@@ -3343,11 +3754,11 @@
 }
 
 .ife-cell[data-edge-r="true"] {
-  margin-right: 15px;
+  margin-right: 16px;
 }
 
 .ife-cell[data-edge-b="true"] {
-  margin-bottom: 15px;
+  margin-bottom: 16px;
 }
 
 .ife-sudoku-side {
@@ -3359,7 +3770,7 @@
 .ife-pad-keys {
   display: grid;
   grid-template-columns: repeat(3, 108px);
-  gap: 14px;
+  gap: 12px;
 }
 
 .ife-key {
@@ -3367,10 +3778,10 @@
   height: 108px;
   background: rgba(var(--text-rgb), 0.06);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--r-chip);
   color: var(--fg);
   font-family: var(--font-mono);
-  font-size: 40px;
+  font-size: var(--t-name);
   cursor: pointer;
   transition: background-color 130ms ease;
 }
@@ -3386,14 +3797,14 @@
 
 .ife-sudoku-state {
   margin-top: 30px;
-  font-size: 24px;
+  font-size: var(--t-cap);
   color: var(--dim);
 }
 
 .ife-sudoku-solved {
   color: var(--accent-bright);
   font-family: var(--font-display);
-  font-size: 40px;
+  font-size: var(--t-name);
 }
 
 /* ── Overhead ────────────────────────────────────────────────────────── */
@@ -3414,12 +3825,12 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 24px;
   align-items: flex-start;
 }
 
 .ife-quiz-n {
-  font-size: 26px;
+  font-size: var(--t-cap);
   color: var(--accent);
   letter-spacing: 0.06em;
 }
@@ -3434,18 +3845,18 @@
 
 .ife-quiz-q {
   font-family: var(--font-display);
-  font-size: 52px;
+  font-size: var(--t-title);
   font-weight: 400;
   letter-spacing: -0.025em;
   line-height: 1.14;
-  margin: 18px 0 0;
+  margin: 16px 0 0;
   max-width: 20ch;
 }
 
 .ife-quiz-options {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   width: 100%;
 }
 
@@ -3453,12 +3864,12 @@
   appearance: none;
   background: rgba(var(--text-rgb), 0.05);
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--r-chip);
   color: var(--fg);
   font: inherit;
-  font-size: 30px;
+  font-size: var(--t-lead);
   text-align: left;
-  padding: 28px 34px;
+  padding: 30px 30px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -3472,7 +3883,7 @@
 
 .ife-quiz-letter {
   color: var(--faint);
-  font-size: 25px;
+  font-size: var(--t-cap);
 }
 
 .ife-quiz-option[data-right="true"] {
@@ -3486,7 +3897,7 @@
 }
 
 .ife-quiz-why {
-  margin-top: 34px;
+  margin-top: 30px;
   max-width: 44ch;
   border-top: 0;
 }
@@ -3497,13 +3908,13 @@
 
 .ife-quiz-why-text {
   color: var(--dim);
-  font-size: 26px;
+  font-size: var(--t-cap);
   line-height: 1.42;
   margin: 12px 0 0;
 }
 
 .ife-quiz-source {
-  margin-top: 14px;
+  margin-top: 12px;
   color: var(--faint);
 }
 
@@ -3517,14 +3928,14 @@
 }
 
 .ife-quiz-score {
-  font-size: 140px;
+  font-size: var(--t-city);
   font-weight: 300;
   letter-spacing: -0.04em;
   line-height: 1;
 }
 
 .ife-quiz-end .ife-btn {
-  margin-top: 34px;
+  margin-top: 30px;
 }
 
 .ife-film-detail-nodesc {
@@ -3579,15 +3990,15 @@
   left: 0;
   top: var(--strip-h);
   bottom: 0;
-  /* 500, not 620: measured against the longest label in either language at
-     38px, plus the icon column. The notes were what made it wide. */
-  width: 500px;
+  /* 400, measured: the longest label in either language draws 277px at
+     --t-name, plus the row's own 20px inset and the body's 34px margin on
+     both sides. It was 500 to hold a 60px mark column and its gutter, and
+     the marks have gone to the cards. */
+  width: 520px;
   display: flex;
   flex-direction: column;
-  background: rgba(10, 12, 17, 0.97);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  backdrop-filter: blur(20px) saturate(1.3);
-  box-shadow: inset -1px 0 0 var(--specular), 30px 0 70px rgba(0, 0, 0, 0.6);
+  background: rgb(var(--panel-rgb));
+  box-shadow: inset -1px 0 0 var(--line);
   transform: translateX(-100%);
   transition: transform 280ms cubic-bezier(0.22, 0.61, 0.36, 1);
   pointer-events: auto;
@@ -3602,7 +4013,7 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
-  padding: 26px 34px 18px;
+  padding: 24px 30px 16px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -3618,9 +4029,12 @@
   gap: 8px;
 }
 
+/* Inset by the row's own padding, so the caption's first letter and the
+   rows' first letters are on one line. The highlight behind a row needs its
+   margin; the word inside it should not pay for that twice. */
 .ife-drawer-group-name {
   color: var(--accent-bright);
-  padding: 0 16px 10px;
+  padding: 0 20px 8px;
 }
 
 /* A row, not a card: a list of eleven boxes each with its own shadow is a
@@ -3633,106 +4047,47 @@
    drawer and puts the labels up to 38px, and the only state a note was
    carrying that the row could not is whether a switch is on: the row goes
    brass for that already. */
+/* A row is a word and the block it lights up in. The 60px mark column went
+   with the marks; the rows keep the inset the highlight needs and nothing
+   else. */
 .ife-drawer-row {
   appearance: none;
   background: none;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-chip);
   color: var(--fg);
   font: inherit;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
-  display: flex;
-  align-items: baseline;
-  gap: 26px;
-  padding: 8px 16px;
+  display: block;
+  padding: 8px 20px;
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  /* The display face's default leading is for paragraphs. These are labels,
+     one line each, and the slack between them was the reason the list ran
+     off the bottom of the glass. */
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .ife-drawer-row[data-current="true"] {
   background: rgba(255, 255, 255, 0.05);
 }
 
-.ife-drawer-row[data-on="true"] {
-  background: rgba(201, 164, 92, 0.16);
-}
-
-.ife-drawer-row[data-on="true"] .ife-drawer-row-note {
-  color: var(--accent-bright);
-}
-
-/* The lens a drawn mark sits in, at the size a list row can carry. Three
-   rows went, so there is room for it to be the size an icon wants to be. */
-.ife-drawer-row-icon {
-  color: var(--accent-bright);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  flex: 0 0 60px;
-  width: 60px;
-  height: 60px;
-  border-radius: 18px;
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.11) 0%,
-      rgba(255, 255, 255, 0.028) 50%,
-      rgba(255, 255, 255, 0) 100%
-    ),
-    rgba(255, 255, 255, 0.035);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.26),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
-    0 6px 14px rgba(0, 0, 0, 0.35);
-}
-
-/* A made mark brings its own body, so the lens under it comes off: a tile
-   inside a second tile is two icons deep. The radius is the panel's, applied
-   here rather than drawn into the artwork, so the corners cannot disagree —
-   the art goes edge to edge and this decides the shape.
-   18/60 is 0.3, which is the ratio iOS settled its squircle on. */
-.ife-drawer-row-icon[data-art="true"] {
-  background: none;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
-    0 8px 18px rgba(0, 0, 0, 0.5);
-  overflow: hidden;
-}
-
+/* `contain`, not `cover`. These are objects on transparency, and a mark
+   whose proportions are not the box's would be cropped by cover rather than
+   fitted: the clef is 337 wide and 822 tall inside its square. */
 .ife-mark {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
-.ife-drawer-row[data-on="true"] .ife-drawer-row-icon {
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(219, 182, 108, 0.32) 0%,
-      rgba(201, 164, 92, 0.1) 50%,
-      rgba(201, 164, 92, 0.03) 100%
-    ),
-    rgba(201, 164, 92, 0.06);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 226, 170, 0.48),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-    0 6px 14px rgba(0, 0, 0, 0.35);
-}
 
-.ife-drawer-row-label {
-  font-family: var(--font-display);
-  font-size: 38px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  /* The display face's default leading is for paragraphs. These are labels,
-     one line each, eleven of them, and the slack between them was the reason
-     the list ran off the bottom of the glass. */
-  line-height: 1.1;
-  white-space: nowrap;
-}
 
 /* The hamburger sits at the very corner, so it keeps the strip's own gutter
    rather than the negative margin the back arrow had. */
@@ -3763,7 +4118,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 26px;
+  gap: 24px;
 }
 
 .ife-2048-board {
@@ -3788,7 +4143,7 @@
    different coordinate systems. */
 .ife-2048-cell {
   pointer-events: none;
-  border-radius: 8px;
+  border-radius: var(--r-chip);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3828,10 +4183,8 @@
 .ife-2048-end {
   position: absolute;
   inset: 0;
-  border-radius: 14px;
-  background: rgba(7, 8, 11, 0.82);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  border-radius: var(--r-panel);
+  background: rgb(var(--ground-rgb));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3841,7 +4194,7 @@
 
 .ife-2048-end-title {
   font-family: var(--font-display);
-  font-size: 46px;
+  font-size: var(--t-name);
   font-weight: 500;
   letter-spacing: -0.02em;
 }
@@ -3854,7 +4207,7 @@
   display: flex;
   align-items: baseline;
   gap: 12px;
-  font-size: 30px;
+  font-size: var(--t-lead);
 }
 
 /* The card's thumbnail is the same board at a quarter of the size, which is
@@ -3870,22 +4223,22 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   grid-template-rows: repeat(4, 1fr);
-  gap: 5px;
-  padding: 5px;
-  border-radius: 8px;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-chip);
   background: rgba(var(--text-rgb), 0.05);
 }
 
 .ife-mini-2048 span {
   min-width: 0;
   min-height: 0;
-  border-radius: 4px;
+  border-radius: var(--r-hair);
   background: rgba(var(--text-rgb), 0.05);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
-  font-size: 22px;
+  font-size: var(--t-fine);
   color: var(--bg);
 }
 
@@ -3903,7 +4256,7 @@
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 40px;
+  gap: 38px;
   padding-top: 8px;
 }
 
@@ -3941,7 +4294,7 @@
 .ife-pairs-back {
   position: absolute;
   inset: 0;
-  border-radius: 10px;
+  border-radius: var(--r-chip);
   transition: opacity 180ms ease;
 }
 
@@ -3975,7 +4328,7 @@
 .ife-pairs-found {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -3985,16 +4338,16 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   font-family: var(--font-display);
-  font-size: 25px;
+  font-size: var(--t-cap);
   font-weight: 500;
   letter-spacing: -0.01em;
 }
 
 .ife-pairs-note {
   color: var(--faint);
-  font-size: 25px;
+  font-size: var(--t-cap);
   line-height: 1.4;
   margin: 8px 0 0;
 }
@@ -4004,7 +4357,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 22px;
+  gap: 20px;
 }
 
 /* ── The card's pairs thumbnail ───────────────────────────────────────── */
@@ -4017,7 +4370,7 @@
 }
 
 .ife-mini-pairs span {
-  border-radius: 6px;
+  border-radius: var(--r-hair);
   background-size: cover;
   background-position: center 34%;
   filter: saturate(1.05) contrast(1.06);
@@ -4041,7 +4394,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 30px 26px 26px;
+  padding: 30px 24px 24px;
   box-shadow: inset -1px 0 0 var(--line);
   overflow-y: auto;
   scrollbar-width: none;
@@ -4053,18 +4406,18 @@
 
 .ife-chat-seats-head {
   color: var(--faint);
-  padding: 0 12px 10px;
+  padding: 0 12px 8px;
 }
 
 .ife-chat-new {
   align-self: stretch;
   justify-content: center;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .ife-chat-empty {
   color: var(--faint);
-  font-size: 25px;
+  font-size: var(--t-cap);
   line-height: 1.4;
   padding: 0 12px;
   margin: 0;
@@ -4074,7 +4427,7 @@
   appearance: none;
   background: none;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-chip);
   color: var(--fg);
   font: inherit;
   text-align: left;
@@ -4083,7 +4436,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
-  padding: 16px 14px;
+  padding: 16px 12px;
 }
 
 .ife-chat-seat[data-on="true"] {
@@ -4091,13 +4444,13 @@
 }
 
 .ife-chat-seat-no {
-  font-size: 30px;
+  font-size: var(--t-lead);
   letter-spacing: 0.04em;
 }
 
 .ife-chat-seat-last {
   color: var(--dim);
-  font-size: 25px;
+  font-size: var(--t-cap);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4107,13 +4460,13 @@
 .ife-chat-unread {
   background: var(--accent);
   color: var(--bg);
-  border-radius: 999px;
+  border-radius: var(--r-round);
   min-width: 34px;
   height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 25px;
+  font-size: var(--t-cap);
   font-weight: 500;
 }
 
@@ -4121,14 +4474,14 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 26px var(--gutter) 22px 44px;
+  padding: 24px var(--gutter) 20px 48px;
 }
 
 .ife-chat-head {
   display: flex;
   align-items: baseline;
   gap: 24px;
-  padding-bottom: 18px;
+  padding-bottom: 16px;
 }
 
 .ife-chat-head .ife-head-title {
@@ -4147,8 +4500,8 @@
   scrollbar-width: none;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 8px 0 18px;
+  gap: 12px;
+  padding: 8px 0 16px;
 }
 
 .ife-chat-log::-webkit-scrollbar {
@@ -4158,8 +4511,8 @@
 .ife-chat-msg {
   max-width: 62%;
   align-self: flex-start;
-  border-radius: 12px;
-  padding: 18px 22px 14px;
+  border-radius: var(--r-chip);
+  padding: 16px 20px 12px;
   background: rgba(var(--text-rgb), 0.07);
   display: flex;
   flex-direction: column;
@@ -4186,12 +4539,12 @@
 }
 
 .ife-chat-msg-text {
-  font-size: 28px;
+  font-size: var(--t-lead);
   line-height: 1.35;
 }
 
 .ife-chat-msg-meta {
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--faint);
   letter-spacing: 0.04em;
 }
@@ -4201,25 +4554,23 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 20px;
   color: var(--dim);
-  font-size: 26px;
+  font-size: var(--t-cap);
   line-height: 1.45;
+}
+
+/* The measure belongs to the paragraph. On the container it also held the
+   header, so "NO MESSAGES" stopped 250px short of the panel's right edge
+   while every other screen's meta sits on the gutter. */
+.ife-chat-blank > p,
+.ife-chat-address > p {
+  margin: 0;
   max-width: 60ch;
 }
 
-.ife-chat-blank-title {
-  font-family: var(--font-display);
-  font-size: 56px;
-  font-weight: 500;
-  letter-spacing: -0.025em;
-  color: var(--fg);
-  margin: 0;
-}
-
 .ife-chat-address-value {
-  font-size: 92px;
+  font-size: var(--t-figure);
   letter-spacing: 0.04em;
   color: var(--fg);
 }
@@ -4236,8 +4587,8 @@
   border-radius: var(--r-panel);
   background: rgba(0, 0, 0, 0.34);
   box-shadow: var(--glass-in);
-  padding: 18px 22px;
-  font-size: 28px;
+  padding: 16px 20px;
+  font-size: var(--t-lead);
   line-height: 1.3;
 }
 
@@ -4252,12 +4603,12 @@
 .ife-keys {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .ife-keys-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: center;
 }
 
@@ -4267,12 +4618,10 @@
   border-radius: var(--r-panel);
   background-image: var(--glass-tint);
   background-color: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass);
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: 30px;
+  font-size: var(--t-cap);
   min-width: 78px;
   height: 78px;
   cursor: pointer;
@@ -4321,29 +4670,44 @@
    The first question, on the whole glass. Each option is written in its own
    language and nothing else: "Chinese" is only useful to somebody who already
    reads English. */
+/* The same shape as the question after it.
+   
+   This was the one centred screen in the cabin: a title in the middle, two
+   tiles side by side under it and a pill under those. Everything else here
+   starts at the gutter and runs to the other one, and a screen that centres
+   itself while its neighbours do not reads as a screen from somewhere else.
+   Left-aligned, full width, foot on the right — which is the first-run
+   grammar, used twice. */
 .ife-lang-screen {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  gap: 60px;
+  gap: 48px;
   padding: 0 var(--gutter);
 }
 
 .ife-lang-title {
   font-family: var(--font-display);
-  font-size: 64px;
+  font-size: var(--t-major);
   font-weight: 500;
   letter-spacing: -0.03em;
   margin: 0;
 }
 
+/* Two cards on the four-track measure the question after this one uses, so
+   a language sits in exactly the space a way-to-spend-the-flight sits in.
+   Stretched to half the glass each they were two brass billboards with one
+   word floating in the middle of them. */
 .ife-lang-grid {
   display: grid;
-  grid-template-columns: repeat(2, 380px);
-  gap: 34px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.ife-lang-card {
+  grid-column: span 1;
 }
 
 .ife-lang-card {
@@ -4352,37 +4716,46 @@
   border-radius: var(--r-key);
   background-image: var(--glass-tint);
   background-color: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass);
   color: var(--fg);
   font: inherit;
   cursor: pointer;
-  padding: 58px 0;
+  padding: 60px 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
 }
 
 .ife-lang-card[data-on="true"] {
-  background: rgba(201, 164, 92, 0.16);
-  box-shadow: inset 0 1px 0 rgba(219, 182, 108, 0.36), var(--lift-sm);
+  background: var(--glass-on-fill);
+  box-shadow: var(--glass-on);
 }
 
 .ife-lang-name {
   font-family: var(--font-display);
-  font-size: 58px;
+  font-size: var(--t-title);
   font-weight: 500;
   letter-spacing: -0.02em;
 }
 
-.ife-lang-note {
-  color: var(--faint);
+/* Under the cards, not out at the far margin.
+   
+   The question after this one puts its Skip key at the right edge, and that
+   works there because four cards reach the right edge. Two do not, so the
+   same rule left Continue alone in half a screen of nothing. It hangs off
+   the same four-track measure instead, in the second track, so its right
+   edge lands on the second card's. */
+.ife-lang-foot {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
 }
 
-.ife-lang-skip {
-  margin-top: 10px;
+.ife-lang-foot .ife-btn {
+  /* Under the last card, which is the third track now that there are
+     seven languages in two rows. */
+  grid-column: 3;
+  justify-self: end;
 }
 
 /* ── The first question ───────────────────────────────────────────────────
@@ -4396,22 +4769,33 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 44px;
+  gap: 48px;
   padding: 0 var(--gutter);
 }
 
 .ife-start-title {
   font-family: var(--font-display);
-  font-size: 62px;
+  font-size: var(--t-major);
   font-weight: 500;
   letter-spacing: -0.03em;
   margin: 0;
 }
 
+/* Four cards, or five up front. Columns from the count rather than a hard
+   four, so the business cabin's extra answer needs no second rule — and a
+   maximum width, because five cards stretched across 1776px are five
+   billboards. */
+/* Gutter to gutter. The cap was 1520 in a 1920 glass, so the row of choices
+   stopped 400px short of the right margin and the only thing out there was
+   the Skip key, floating in the hole the grid had left. Four choices are the
+   screen; they take the width the screen has. It also stops "Look out of the
+   window" wrapping while the other three sit on one line, which was the
+   bodies of four cards starting at three different heights. */
 .ife-start-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 26px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 24px;
 }
 
 .ife-start-card {
@@ -4421,8 +4805,6 @@
   overflow: hidden;
   background-image: var(--glass-tint);
   background-color: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass);
   color: var(--fg);
   font: inherit;
@@ -4433,73 +4815,88 @@
   padding: 0;
 }
 
+/* One face, four contents. They were four different objects in a row — a
+   photograph bled to the edges, a sleeve floating in a padded box, a line
+   drawing, and a black rectangle — and four treatments across four cards is
+   four cards that do not look like a set. Same ground, same aspect, filled. */
 .ife-start-face {
-  display: block;
-  aspect-ratio: 4 / 3;
-  background-size: cover;
-  background-position: center 34%;
-  filter: saturate(1.05) contrast(1.06);
-}
-
-.ife-start-face--sleeve,
-.ife-start-face--route {
-  aspect-ratio: 4 / 3;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 22px;
-  background: rgba(var(--text-rgb), 0.04);
+  aspect-ratio: 5 / 4;
+  overflow: hidden;
+  background: rgba(var(--text-rgb), 0.05);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.07);
 }
 
-/* The sleeve is square and the face is 4:3, so the sleeve takes the height
-   and finds its own width. Given the width instead it grew taller than the
-   face and pushed this one card below its neighbours. */
-.ife-start-face--sleeve > * {
+.ife-start-still {
+  display: block;
+  width: 100%;
   height: 100%;
-  width: auto;
-  aspect-ratio: 1;
+  object-fit: cover;
+  object-position: center 34%;
+  filter: saturate(1.05) contrast(1.06);
 }
 
-/* Rest is dark, and stays dark. */
-.ife-start-face--rest {
-  background: #04050a;
-  box-shadow: inset 0 -1px 0 var(--line);
+/* The record fills its card, and its own caption comes off: this card
+   already has a title, and the record's name printed inside a card titled
+   "Listen to something" is the same word twice. */
+.ife-start-face--sleeve > * {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ife-start-face--sleeve .ife-sleeve-caption {
+  display: none;
+}
+
+.ife-start-face--route {
+  padding: 30px 24px;
+}
+
+/* A mark where there is no picture. Not a hole: "rest has no face" is a nice
+   sentence, and on the glass a black rectangle in a row of pictures reads as
+   an image that failed to load. */
+.ife-start-mark {
+  color: var(--accent-bright);
+  display: flex;
+}
+
+.ife-start-mark--quiet {
+  color: rgba(var(--text-rgb), 0.3);
 }
 
 .ife-start-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 26px 28px 30px;
+  gap: 8px;
+  padding: 24px 24px 30px;
+  min-height: 150px;
 }
 
 .ife-start-name {
   font-family: var(--font-display);
-  font-size: 34px;
+  font-size: var(--t-lead);
   font-weight: 500;
   letter-spacing: -0.015em;
 }
 
 .ife-start-sub {
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--dim);
   line-height: 1.35;
 }
 
+/* One key, on the right, where a key that means "none of these" belongs.
+   The line beside it said the choice could be changed later and that nothing
+   depended on it — a screen explaining its own consequences before anybody
+   had touched it, which is a manual rather than a choice. */
 .ife-start-foot {
   display: flex;
-  align-items: center;
-  gap: 30px;
-}
-
-.ife-start-later {
-  color: var(--faint);
-  font-size: 25px;
-  max-width: 70ch;
-}
-
-.ife-start-skip {
-  margin-left: auto;
+  justify-content: flex-end;
 }
 
 /* ── This flight ──────────────────────────────────────────────────────────
@@ -4516,12 +4913,12 @@
 }
 
 .ife-ov-strip {
-  flex: 1;
+  flex: 0 0 250px;
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
-  margin-bottom: 44px;
+  gap: 16px;
+  margin-bottom: 30px;
 }
 
 .ife-ov-card {
@@ -4530,8 +4927,6 @@
   overflow: hidden;
   background-image: var(--glass-tint);
   background-color: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass);
   display: flex;
   align-items: flex-end;
@@ -4547,6 +4942,7 @@
   box-shadow: inset 0 0 0 1.5px rgba(201, 164, 92, 0.4);
 }
 
+/* The card's own photo is the same two layers, at card size. */
 .ife-ov-photo {
   position: absolute;
   inset: 0;
@@ -4569,23 +4965,23 @@
 .ife-ov-card-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 30px 30px 28px;
+  gap: 8px;
+  padding: 30px 30px 30px;
 }
 
 .ife-ov-name {
   font-family: var(--font-display);
-  font-size: 34px;
+  font-size: var(--t-lead);
   font-weight: 500;
   letter-spacing: -0.015em;
 }
 
 .ife-ov-when {
-  font-size: 30px;
+  font-size: var(--t-lead);
 }
 
 .ife-ov-note {
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--faint);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -4641,7 +5037,7 @@
 .ife-ov-end {
   position: absolute;
   top: 38px;
-  font-size: 24px;
+  font-size: var(--t-cap);
   color: var(--dim);
   letter-spacing: 0.06em;
 }
@@ -4663,14 +5059,14 @@
 
 .ife-conns-empty {
   color: var(--dim);
-  font-size: 30px;
-  margin: 40px 0 0;
+  font-size: var(--t-lead);
+  margin: 38px 0 0;
 }
 
 .ife-conns-table {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   margin-top: 8px;
 }
 
@@ -4679,14 +5075,12 @@
   grid-template-columns: minmax(0, 1.6fr) 1fr 1fr 0.7fr 0.8fr 1.2fr;
   align-items: center;
   gap: 24px;
-  padding: 22px 26px;
+  padding: 20px 24px;
   border-radius: var(--r-panel);
   background-image: var(--glass-tint);
   background-color: var(--glass-fill);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass);
-  font-size: 28px;
+  font-size: var(--t-lead);
 }
 
 .ife-conns-row--head {
@@ -4717,7 +5111,7 @@
 .ife-conns-status {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ife-conns-evidence {
@@ -4731,7 +5125,7 @@
 .ife-conns-note {
   margin-top: auto;
   color: var(--faint);
-  font-size: 25px;
+  font-size: var(--t-cap);
   max-width: 90ch;
   line-height: 1.4;
 }
@@ -4747,7 +5141,7 @@
   cursor: pointer;
   width: 64px;
   height: 64px;
-  border-radius: 20px;
+  border-radius: var(--r-tile);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4756,7 +5150,7 @@
 .ife-transport--play {
   width: 84px;
   height: 84px;
-  border-radius: 28px;
+  border-radius: var(--r-key);
   color: #0a0c11;
   background:
     linear-gradient(
@@ -4785,7 +5179,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 40px;
+  gap: 38px;
   padding: 20px var(--gutter);
   box-shadow: inset 0 1px 0 var(--specular);
   background: rgba(9, 11, 15, 0.7);
@@ -4794,7 +5188,7 @@
 .ife-now-what {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 20px;
   min-width: 0;
 }
 
@@ -4806,13 +5200,13 @@
 .ife-now-text {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
 .ife-now-title {
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: var(--t-cap);
   font-weight: 500;
   letter-spacing: -0.015em;
   overflow: hidden;
@@ -4821,7 +5215,7 @@
 }
 
 .ife-now-artist {
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4839,18 +5233,18 @@
 .ife-now-transport {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 20px;
 }
 
 .ife-now-seekrow {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   width: 100%;
 }
 
 .ife-now-clock {
-  font-size: 25px;
+  font-size: var(--t-cap);
   color: var(--faint);
   flex: 0 0 auto;
 }
@@ -4864,7 +5258,7 @@
   padding: 0;
   flex: 1;
   height: 12px;
-  border-radius: 999px;
+  border-radius: var(--r-round);
   background: rgba(0, 0, 0, 0.42);
   box-shadow: var(--glass-in);
   cursor: pointer;
@@ -4889,23 +5283,23 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   cursor: default;
-  padding-right: 6px;
+  padding-right: 4px;
 }
 
 .ife-drawer-rowmain {
   appearance: none;
   background: none;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-chip);
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 26px;
+  gap: 24px;
   min-width: 0;
   padding: 0;
 }
@@ -4925,6 +5319,680 @@
 .ife-drawer-transport .ife-transport {
   width: 46px;
   height: 46px;
-  border-radius: 14px;
+  border-radius: var(--r-panel);
   color: var(--dim);
+}
+
+/* ── The timetable ────────────────────────────────────────────────────────
+   Every row of it is a plan, and it is drawn the way this cabin draws a plan:
+   brass, broken, and still a plan after the moment has gone by, because a
+   moment passing is not evidence that anything happened. What changes when
+   the time is behind you is only how loud the row is — a plan for ten
+   minutes ago is of less use than a plan for an hour's time. */
+.ife-tt {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ife-tt-head {
+  margin-top: 20px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 16px;
+}
+
+.ife-tt-flag::before {
+  /* The same two dashes the map draws an unheard stretch with. */
+  content: "";
+  display: inline-block;
+  width: 34px;
+  height: 0;
+  margin-right: 12px;
+  vertical-align: 0.3em;
+  border-top: 2px dashed var(--accent);
+}
+
+/* The rule the marks hang off. One solid thing on it: how far the aircraft
+   has actually come. */
+.ife-tt-rule {
+  position: relative;
+  height: 22px;
+  margin-bottom: 20px;
+}
+
+.ife-tt-track,
+.ife-tt-flown {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  height: 2px;
+}
+
+.ife-tt-track {
+  right: 0;
+  background: rgba(var(--text-rgb), 0.16);
+}
+
+.ife-tt-flown {
+  background: var(--fg);
+}
+
+.ife-tt-tick {
+  position: absolute;
+  top: 3px;
+  width: 2px;
+  height: 16px;
+  margin-left: -1px;
+  background: var(--accent);
+}
+
+/* A cabin event is not a meal, and the one difference worth drawing is how
+   far the mark comes down the rule. */
+.ife-tt-tick[data-cabin="true"] {
+  top: 7px;
+  height: 8px;
+  background: rgba(201, 164, 92, 0.55);
+}
+
+.ife-tt-now {
+  position: absolute;
+  top: 5px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 0 0 5px rgba(7, 8, 11, 0.9);
+}
+
+/* Two columns, four rows and three.
+   
+   Seven services in one column a quarter of the screen wide, in a box 212px
+   tall holding 415px of them: four and a half were visible and the rest were
+   behind a scroll fade, while three quarters of the row's width sat empty
+   beside it. The whole point of this screen is the whole flight, so it shows
+   the whole flight — the second column costs nothing that was being used. */
+.ife-tt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(4, auto);
+  grid-auto-flow: column;
+  column-gap: 90px;
+  row-gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.ife-tt-list::-webkit-scrollbar {
+  display: none;
+}
+
+/* The last row on screen is usually cut in half, which is what a scroller
+   looks like — but a half row sitting directly above a paragraph reads as a
+   rendering fault. It fades out instead. */
+.ife-tt-list {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 46px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 46px),
+    transparent 100%
+  );
+}
+
+.ife-tt-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 30px;
+  padding: 4px 0;
+  /* These are one-line entries, not paragraphs: the inherited leading was
+     adding 17px of air inside every row and it is the rules between them
+     that separate them anyway. */
+  line-height: 1.2;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.ife-tt-row:nth-child(1),
+.ife-tt-row:nth-child(5) {
+  box-shadow: none;
+}
+
+/* Behind you, and therefore of less use. Still a plan. */
+.ife-tt-row[data-past="true"] {
+  opacity: 0.42;
+}
+
+.ife-tt-when {
+  font-size: var(--t-lead);
+}
+
+.ife-tt-what {
+  font-family: var(--font-display);
+  font-size: var(--t-lead);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.ife-tt-courses {
+  color: var(--faint);
+  font-size: var(--t-cap);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ife-tt-note {
+  margin: 20px 0 0;
+  max-width: 90ch;
+  color: var(--faint);
+  font-size: var(--t-cap);
+  line-height: 1.45;
+}
+
+/* The column beside a menu has room for the times and nothing else. */
+.ife-tt[data-compact="true"] .ife-tt-row {
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.ife-tt[data-compact="true"] .ife-tt-when,
+.ife-tt[data-compact="true"] .ife-tt-what {
+  font-size: var(--t-cap);
+}
+
+.ife-tt[data-compact="true"] .ife-tt-what {
+  white-space: normal;
+}
+
+/* ── Dining ───────────────────────────────────────────────────────────────
+   A menu is a promise, not a report — the galley runs out, the second choice
+   goes first, the crew are two hours behind a headwind. So a menu marked as
+   a plan is not a hedge; it is what a menu has always been, and it is the
+   one thing that lets this screen exist in a piece about the difference
+   between what was measured and what was assumed. */
+/* 34px at the foot, not the 72 of the side gutter. The body is a scroller,
+   and it was 13px short of its own last line: the note under the bar was
+   being cut through the middle of its glyphs while 72px of margin sat empty
+   underneath it. The other screens that carry a full page of type close at
+   34 or 40; the gutter is a side measure and was never a floor. */
+.ife-dining {
+  position: absolute;
+  inset: 0;
+  padding: 8px var(--gutter) 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Food across the top, the bar across the foot. A 1920-wide panel is not a
+   page: two narrow columns side by side wasted the width and made a drinks
+   list wrap on the word "drinks". */
+.ife-dining-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.ife-dining-body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Two columns. One was a 1500px scroller with the bar at the bottom of it,
+   which is a menu you have to go looking for the drinks in. Four sections in
+   a two-by-two lands the lot on the glass. */
+.ife-dining-services {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: 24px 48px;
+  flex: 0 0 auto;
+}
+
+.ife-dining-services::-webkit-scrollbar {
+  display: none;
+}
+
+.ife-menu-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 30px;
+  padding-bottom: 12px;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.ife-menu-title {
+  font-family: var(--font-display);
+  font-size: var(--t-lead);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.ife-menu-when {
+  font-size: var(--t-cap);
+  flex: 0 0 auto;
+}
+
+.ife-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A dish and, where there is anything to say, one line under it. A menu that
+   describes every plate in a paragraph is a menu nobody reads on a screen. */
+.ife-menu-course {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  padding: 8px 0;
+}
+
+.ife-menu-dish {
+  font-size: var(--t-lead);
+  color: var(--fg);
+  min-width: 0;
+}
+
+.ife-menu-note {
+  font-size: var(--t-cap);
+  color: var(--faint);
+  letter-spacing: 0.02em;
+  margin-left: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.ife-dining-side {
+  flex: 0 0 auto;
+  padding-top: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* The last word on the screen, across the foot of it. */
+.ife-dining-side .ife-tt-note {
+  margin: 8px 0 0;
+  max-width: none;
+}
+
+.ife-dining-side .ife-tt {
+  margin-top: 0;
+}
+
+/* ── The bar ──────────────────────────────────────────────────────────────
+   Three short lists rather than one long one, because "before departure",
+   "with the meal" and "any time" is the only ordering a drinks list has —
+   it is not a menu you choose one thing from. */
+/* No rule under the bar's own head: the section already sits under one. */
+.ife-menu--bar .ife-menu-head {
+  box-shadow: none;
+  padding-bottom: 0;
+}
+
+/* One column per kind, across the width: seven up front, five down the
+   back, and each one a list you could point at rather than the word for
+   one. */
+.ife-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  grid-auto-flow: column;
+  gap: 30px;
+  padding-top: 4px;
+}
+
+/* The kind, and under it — only where it is not "whenever you ask" — when
+   it is poured. The champagne is on the ground and the wine is with the
+   tray, and those are the two worth saying. The line is always there, empty
+   or not, so the seven lists start on one baseline. */
+.ife-bar-kind {
+  display: block;
+  color: var(--accent-bright);
+}
+
+.ife-bar-when {
+  display: inline;
+  /* Inside a `.ife-cap` and not part of it: the kind is shouted, the
+     qualifier is said. Left as-is it read "WINE WITH THE MEAL", which is
+     one phrase rather than a heading and its note. */
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: var(--t-cap);
+  color: var(--faint);
+  margin-left: 8px;
+  letter-spacing: 0.02em;
+}
+
+.ife-bar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--t-cap);
+  line-height: 1.24;
+  color: var(--dim);
+}
+
+/* The licence, beside the creator, on the four cards that carry one. */
+.ife-film-licence {
+  margin-left: 16px;
+  font-size: var(--t-cap);
+  color: var(--faint);
+  letter-spacing: 0.04em;
+}
+
+/* ── Chinese ──────────────────────────────────────────────────────────────
+   The display face has no CJK glyphs, so every Chinese word on this glass is
+   set in whatever the panel has — PingFang, Source Han, Noto. That is fine:
+   those are good faces. What is not fine is handing them tracking drawn for
+   a Latin grotesque. Bricolage at 104px wants -0.03em; the same figure on
+   two Han characters closes the gap the glyphs are designed around and the
+   word reads as one blot.
+
+   No CJK webfont, deliberately. Noto Sans SC through the same proxy is
+   hundreds of kilobytes of subsets for a handful of words, on a screen whose
+   whole boot is now 123KB. The system face is already the right face; it
+   only needed to be set properly. */
+:lang(zh) .ife-home-city,
+:lang(ja) .ife-home-city,
+:lang(zh) .ife-idle-city,
+:lang(ja) .ife-idle-city,
+:lang(zh) .ife-head-title,
+:lang(ja) .ife-head-title,
+:lang(zh) .ife-catalog-title,
+:lang(ja) .ife-catalog-title,
+:lang(zh) .ife-start-title,
+:lang(ja) .ife-start-title,
+:lang(zh) .ife-station-title,
+:lang(ja) .ife-station-title,
+:lang(zh) .ife-menu-title,
+:lang(ja) .ife-menu-title,
+:lang(zh) .ife-card-name,
+:lang(ja) .ife-card-name,
+:lang(zh) .ife-album-name,
+:lang(ja) .ife-album-name,
+:lang(zh) .ife-library-name,
+:lang(ja) .ife-library-name,
+:lang(zh) .ife-drawer-row,
+:lang(ja) .ife-drawer-row,
+:lang(zh) .ife-strip-city,
+:lang(ja) .ife-strip-city,
+:lang(zh) .ife-film-detail-title,
+:lang(ja) .ife-film-detail-title,
+:lang(zh) .ife-tt-what,
+:lang(ja) .ife-tt-what {
+  letter-spacing: 0;
+}
+
+/* A Han character fills its em; a lower-case Latin letter fills about half
+   of it. Set at the same number the Chinese is half again as big, so the
+   headline sizes come down and the leading opens up.
+   
+   The step down happens in the scale, not in seven separate rules naming
+   seven separate elements. Chinese takes the same eight steps as English,
+   each one notch smaller from `lead` upward — which is why a Chinese screen
+   that gains a new heading gets the right size without anybody remembering
+   to add it here. Captions do not move: they are short and already at the
+   floor. */
+.ife-root:lang(zh),
+.ife-root:lang(ja) {
+  --t-city: 88px;
+  --t-major: 62px;
+  --t-title: 46px;
+  --t-name: 34px;
+  --t-lead: 30px;
+}
+
+:lang(zh) .ife-home-city,
+:lang(ja) .ife-home-city {
+  line-height: 1.06;
+}
+
+/* Not on the scale: the idle screen sets one word at whatever fills it. */
+:lang(zh) .ife-idle-city,
+:lang(ja) .ife-idle-city {
+  font-size: 88px;
+}
+
+/* ── Duty free ────────────────────────────────────────────────────────────
+   A guide read downwards: one band per aisle, the aisle's name held at the
+   left, the things in a row beside it. The home rail already owns the
+   sideways push; a screen that asks for both gestures is a screen you have
+   to work out. */
+.ife-shop {
+  position: absolute;
+  inset: 0;
+  padding: 8px var(--gutter) 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ife-shop-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  /* The last band fades rather than being cut, which is the only "more below"
+     a thumb has ever needed — the same device the timetable uses. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 48px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 48px),
+    transparent 100%
+  );
+}
+
+.ife-shop-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── The goods, displayed rather than listed ───────────────────────────────
+   This screen was a price list with thumbnails and it made nobody want
+   anything. Three things were wrong and all three were structural.
+
+   The picture was 30% of a card and pushed to one side, so the thing being
+   sold was the smallest element in its own row. Every card was the same
+   weight, so squinting at the screen produced no subject at all. And each
+   object floated in a box with no ground under it, which is what makes a
+   photograph read as clip-art rather than as a thing on a shelf.
+
+   So: the object is now the card. Nothing is drawn around it — no fill, no
+   hairline, no radius — because a display case is made of light and space,
+   and because this cabin already had one box too many. Separation is the
+   30px of air between columns, which is the same answer the rest of the
+   screens give. */
+
+.ife-shop-band {
+  padding: 0 0 60px;
+}
+
+/* The aisle names the goods and then gets out of the way. It was a 200px
+   column down the left, which spent an eighth of the screen's width on four
+   words and pushed the shelf into what was left. */
+.ife-shop-band-name {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.ife-shop-band-name h3 {
+  margin: 0;
+  color: var(--accent-bright);
+  white-space: nowrap;
+}
+
+/* The rule runs to the end of the row, which is what says "everything under
+   here is this aisle" now that the name is no longer beside it. */
+.ife-shop-band-name::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.ife-shop-wares {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 30px;
+}
+
+/* An aisle of two gets two columns rather than three and a hole. */
+.ife-shop-wares:has(> :nth-child(2):last-child) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ife-ware-card {
+  /* One card width for the whole screen, whatever the aisle holds. Without
+     the cap an aisle of two took half the row each — 873px of column for one
+     bottle — and the goods changed size band to band for no reason a reader
+     can see.
+
+     `width` + `justify-self`, not `margin: 0 auto`: auto side margins on a
+     grid item switch off the default stretch, so the card fell back to
+     fit-content and collapsed to the width of its own caption. */
+  width: 100%;
+  max-width: 520px;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.ife-ware {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 100%;
+  height: 270px;
+  color: var(--accent);
+}
+
+/* The first aisle is the feature, the way the top of a catalogue page is.
+   Without it every object on the screen carries the same weight and there is
+   no subject to find. */
+.ife-shop-band:first-child .ife-ware {
+  height: 320px;
+}
+
+/* A pool of light, not a panel. It is the cabin's own brass at a tenth
+   strength and it fades out well before the column edge, so what separates
+   two goods is still the space between them — the pool only gives the object
+   somewhere to be. */
+.ife-ware::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    58% 52% at 50% 46%,
+    rgba(var(--accent-rgb), 0.11),
+    rgba(var(--accent-rgb), 0.035) 54%,
+    transparent 72%
+  );
+}
+
+/* The things that are not drink take the cabin's cool, so a shop is not a
+   row of brass bottles with some grey after it. */
+.ife-ware[data-shape="watch"],
+.ife-ware[data-shape="square"],
+.ife-ware[data-shape="glasses"],
+.ife-ware[data-shape="plane"],
+.ife-ware[data-shape="cards"],
+.ife-ware[data-shape="sock"] {
+  color: var(--cool);
+}
+
+.ife-ware svg {
+  position: absolute;
+  inset: 9%;
+  width: auto;
+  height: auto;
+  margin: auto;
+}
+
+.ife-ware--photo {
+  color: inherit;
+}
+
+/* drop-shadow rather than box-shadow, and that is the whole point of it:
+   box-shadow would draw a rectangle behind a bottle, where drop-shadow
+   follows the alpha and gives the bottle its own shadow. Offset down and
+   soft, so it reads as contact with a surface. */
+.ife-ware--photo img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 16px 20px rgba(0, 0, 0, 0.55));
+}
+
+.ife-ware-name {
+  font-size: var(--t-name);
+  color: var(--fg);
+  line-height: 1.15;
+  margin-top: 16px;
+}
+
+.ife-ware-note {
+  font-size: var(--t-cap);
+  color: var(--dim);
+  line-height: 1.25;
+  margin-top: 6px;
+}
+
+/* Size and price on one line, and the price no longer competes with the
+   name. It was set at the same size as the thing it was the price of, which
+   is a receipt's priority rather than a catalogue's — you look at what it is
+   first and what it costs second. Brass, because in this cabin that colour
+   already means "a figure you can act on". */
+.ife-ware-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.ife-ware-measure {
+  font-size: var(--t-cap);
+  color: var(--faint);
+}
+
+.ife-ware-price {
+  font-size: var(--t-cap);
+  color: var(--accent-bright);
+}
+
+.ife-shop-note-foot {
+  margin: 16px 0 48px;
+  max-width: 96ch;
+  font-size: var(--t-cap);
+  color: var(--faint);
+  line-height: 1.3;
 }
