@@ -49,8 +49,9 @@
 
   --r: 10px;
   --r-sm: 6px;
-  --blur: 32px;
+  --blur: 30px;
   --blur-float: 18px;
+  --blur-scrim: 12px; /* a full-screen dim: the cheapest blur that still separates */
   --edge: 20px;
   --panel-gap: 10px;
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
@@ -171,21 +172,21 @@ html, body {
    No outer glow — elevation comes from the blur and one ambient shadow. */
 .glass-panel {
   background: var(--relief-face), var(--surface);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
-  backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
   border: none;
   border-radius: var(--r);
   box-shadow: inset 0 1px 0 var(--specular), var(--relief-raised);
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
+  backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
 }
 
 /* Tier 3 — float. Applied to tooltips, toasts and pills in the surface pass. */
 .glass-float {
   background: var(--surface-float);
-  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4);
-  backdrop-filter: blur(var(--blur-float)) saturate(1.4);
   border: 1px solid var(--hairline);
   border-radius: var(--r-sm);
   box-shadow: var(--shadow-sm);
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.4);
 }
 
 /* ── Keyframes ── */
@@ -214,19 +215,19 @@ html, body {
   width: 280px;
   pointer-events: none;
   animation: fadein 0.7s var(--ease) both;
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  backdrop-filter: blur(20px) saturate(1.3);
   border-radius: var(--r);
   box-shadow: var(--relief-raised);
   padding: 16px 20px;
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.3);
+  backdrop-filter: blur(var(--blur)) saturate(1.3);
 }
 
 /* Override glass-panel on HUD — lighter blur than the standard pane, but the
    same relief, so the page keeps one light source. */
 #hud.glass-panel {
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  backdrop-filter: blur(20px) saturate(1.3);
   box-shadow: inset 0 1px 0 var(--specular), var(--relief-raised);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.3);
+  backdrop-filter: blur(var(--blur)) saturate(1.3);
 }
 
 .hud-title {
@@ -328,7 +329,6 @@ html, body {
   border-bottom: 1px solid var(--hairline);
 }
 .hud-city-btn:hover { background: none;
-  border-color: rgba(var(--accent-rgb), 0.5);
 }
 .hud-city-btn-text { display: flex; flex-direction: column; gap: 3px; flex: 1; }
 
@@ -378,11 +378,13 @@ html, body {
   z-index: 20; pointer-events: auto;
   transition: transform 0.4s var(--ease), opacity 0.4s ease; border-top: 1px solid var(--hairline); border-radius: var(--r);
   border-left: 1px solid rgba(255, 255, 255, 0.06);
-  border-right: 1px solid rgba(255, 255, 255, 0.06); border-bottom: 1px solid var(--hairline); background: var(--surface); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
+  border-right: 1px solid rgba(255, 255, 255, 0.06); border-bottom: 1px solid var(--hairline); background: var(--surface); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
   overflow-y: auto; overflow-x: hidden;
   max-height: calc(100vh - 40px);
   padding: 0;
   scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent;
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
+  backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
 }
 .detail-panel::-webkit-scrollbar { width: 3px; }
 .detail-panel::-webkit-scrollbar-track { background: transparent; }
@@ -421,8 +423,8 @@ html, body {
    while every other pane had moved on. Same values as the rest now. */
 .detail-panel.glass-panel {
   background: var(--relief-face), var(--surface);
-  -webkit-backdrop-filter: blur(30px) saturate(2) brightness(1.15);
-  backdrop-filter: blur(30px) saturate(2) brightness(1.15);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(2) brightness(1.15);
+  backdrop-filter: blur(var(--blur)) saturate(2) brightness(1.15);
 }
 
 /* Hide hud-dividers inside detail — replaced by section padding */
@@ -585,8 +587,8 @@ html, body {
 }
 .wake-modal-overlay.hidden { display: none; }
 .wake-modal { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r); padding: 16px; width: 280px; max-width: 90vw; box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
-  backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
+  backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
 }
 .wake-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .wake-modal-cat { font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 700; letter-spacing: var(--track-label); }
@@ -697,8 +699,6 @@ html, body {
   font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.4;
   letter-spacing: 0; color: rgba(var(--text-rgb), 0.55);
   background: rgba(5,7,13,0.96);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
   border: 1px solid rgba(255,255,255,0.05);
   border-radius: var(--r-sm); padding: 5px 8px;
   white-space: nowrap; pointer-events: none;
@@ -824,13 +824,15 @@ html, body {
   font-size: var(--fs-label);
   color: rgba(255,255,255,0.7);
   letter-spacing: 0;
-  line-height: 1.6; background: var(--surface); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); border-radius: var(--r); border: 1px solid var(--hairline); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
+  line-height: 1.6; background: var(--surface); border-radius: var(--r); border: 1px solid var(--hairline); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
   z-index: 500;
   opacity: 0;
   transition: opacity 0.35s ease, transform 0.35s var(--ease);
   pointer-events: none;
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--accent-rgb), 0.12) transparent;
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
+  backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
 }
 .airline-deep.show {
   opacity: 1;
@@ -845,8 +847,8 @@ html, body {
   opacity: 0;
   transition: opacity 0.35s ease;
   pointer-events: none;
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(var(--blur-scrim));
+  backdrop-filter: blur(var(--blur-scrim));
 }
 .airline-deep-backdrop.show {
   opacity: 1; pointer-events: auto;
@@ -1097,7 +1099,7 @@ html, body {
   border-radius: var(--r-sm); margin: -4px 0 -4px 6px;
 }
 .detail-close:hover { color: var(--text); background: rgba(255,255,255,0.06); }
-.detail-close:active { transform: scale(0.9); }
+.detail-close:active { transform: scale(0.9); background: rgba(0, 0, 0, 0.2); }
 
 /* Data grid — primary flight data */
 .detail-grid {
@@ -1129,8 +1131,6 @@ html, body {
   font-family: var(--font-mono);
   font-size: var(--fs-label); color: rgba(220,230,255,0.85);
   background: rgba(6, 10, 22, 0.95);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
   border: 1px solid rgba(var(--accent-rgb), 0.12);
   padding: 4px 9px; border-radius: var(--r-sm);
   white-space: normal; max-width: 280px; line-height: 1.5;
@@ -1215,9 +1215,7 @@ html, body {
   font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.6;
   color: rgba(220,230,255,0.78);
   background: rgba(5, 8, 18, 0.97);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(var(--accent-rgb), 0.11);
+  border: 0;
   padding: 7px 10px; border-radius: var(--r-sm);
   white-space: normal; pointer-events: none;
   opacity: 0; transition: opacity 0.18s ease, transform 0.18s var(--ease);
@@ -1307,7 +1305,7 @@ html, body {
 /* ── Aircraft Hover Tooltip ── */
 .aircraft-tooltip {
   position: fixed; top: 0; left: 0;
-  z-index: 50; pointer-events: none; background: var(--surface-float); -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4); border: 1px solid var(--hairline); border-radius: var(--r-sm);
+  z-index: 50; pointer-events: none; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm);
   padding: 7px 14px;
   display: flex; align-items: center; gap: 9px;
   white-space: nowrap;
@@ -1503,7 +1501,7 @@ html, body {
   background: rgba(var(--accent-rgb), 0.07);
   padding: 1.5px 5px;
   border-radius: var(--r-sm);
-  border: 1px solid rgba(var(--accent-rgb), 0.12);
+  border: 0;
 }
 
 /* Flight status badge in search results */
@@ -1513,7 +1511,7 @@ html, body {
   letter-spacing: 0; text-transform: uppercase;
   padding: 2px 5px; border-radius: var(--r-sm);
   margin-left: 4px;
-  border: 1px solid transparent;
+  border: 0;
 }
 .search-result-status.climb   { color: #a0e8aa; background: rgba(110,200,122,0.12); border-color: rgba(110,200,122,0.22); }
 .search-result-status.cruise  { color: rgba(var(--accent-rgb), 0.85); background: rgba(var(--accent-rgb), 0.10); border-color: rgba(var(--accent-rgb), 0.20); }
@@ -1642,9 +1640,9 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
-  backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
   box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
+  backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
 }
 
 /* Hide spotter when detail panel is visible */
@@ -1733,9 +1731,9 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
-  backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
   box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
+  backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
 }
 .challenge-panel.hidden { display: none; }
 
@@ -1781,9 +1779,9 @@ html, body {
   background: var(--surface-float);
   border: 1px solid var(--hairline);
   border-radius: var(--r-sm);
-  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4);
-  backdrop-filter: blur(var(--blur-float)) saturate(1.4);
   box-shadow: var(--shadow-sm);
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.4);
 }
 
 .spot-xp-pop {
@@ -1810,7 +1808,7 @@ html, body {
   z-index: 50;
   pointer-events: none;
   display: flex; align-items: baseline; gap: 8px;
-  padding: 5px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4);
+  padding: 5px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm);
   transition: opacity 1.5s ease;
   box-shadow: var(--shadow-sm);
 }
@@ -1834,9 +1832,11 @@ html, body {
   transform: translateX(-50%) translateY(-18px);
   z-index: 200;
   display: flex; align-items: center; gap: 12px;
-  padding: 11px 18px; background: var(--surface-float); -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
+  padding: 11px 18px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
   opacity: 0; transition: all 0.4s var(--ease);
   pointer-events: none; white-space: nowrap;
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.4);
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.hidden { opacity: 0; transform: translateX(-50%) translateY(-18px); }
@@ -1871,9 +1871,11 @@ html, body {
   transform: translateY(-50%);
   z-index: 15;
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 18px; background: var(--surface-float); -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
+  padding: 9px 18px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
   transition: all 0.4s var(--ease-spring); pointer-events: auto;
   cursor: default;
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.4);
 }
 
 .follow-indicator.hidden {
@@ -1912,7 +1914,7 @@ html, body {
   position: fixed;
   top: var(--edge); left: calc(var(--edge) + 280px + var(--panel-gap));
   width: 268px;
-  z-index: 300; pointer-events: auto; background: var(--surface); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
+  z-index: 300; pointer-events: auto; background: var(--surface);
   border-left: 1px solid rgba(255, 255, 255, 0.04);
   border-right: 1px solid rgba(255, 255, 255, 0.04);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04); border-radius: var(--r); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
@@ -1922,6 +1924,8 @@ html, body {
   scrollbar-color: rgba(var(--accent-rgb), 0.08) transparent;
   transition: transform 0.4s var(--ease), opacity 0.4s ease;
   border: 1px solid var(--hairline);
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
+  backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
 }
 .help-panel:not(.hidden) { animation: help-slide-in 0.4s var(--ease) both; }
 .help-panel.hidden { transform: translateX(-280px); opacity: 0; pointer-events: none; }
@@ -1983,8 +1987,8 @@ html, body {
   justify-self: end;
   font-family: var(--font-mono);
   font-size: var(--fs-label); color: var(--text);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.06);
+  border: 0; box-shadow: var(--relief-key-sm);
   border-radius: var(--r-sm); padding: 3px 7px;
   text-align: center;
   white-space: nowrap;
@@ -2084,11 +2088,13 @@ html, body {
 .load-status {
   position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
   z-index: 60; display: flex; align-items: center; gap: 7px;
-  padding: 5px 13px 5px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4); box-shadow: var(--shadow-sm);
+  padding: 5px 13px 5px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
   color: rgba(255,255,255,0.35);
   animation: fadein 0.4s var(--ease) both;
   pointer-events: none; white-space: nowrap;
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.4);
 }
 .load-status.hidden { display: none; }
 .load-status-spinner {
@@ -2104,7 +2110,7 @@ html, body {
   width: min(92vw, 400px); background: var(--surface);
   border-left: 1px solid rgba(255,255,255,0.05);
   border-right: 1px solid rgba(255,255,255,0.05);
-  border-bottom: 1px solid rgba(255,255,255,0.04); border-radius: var(--r); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
+  border-bottom: 1px solid rgba(255,255,255,0.04); border-radius: var(--r); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
   overflow: hidden;
   animation: pop-in 0.32s var(--ease-spring) both;
   border: 1px solid var(--hairline);
@@ -2162,10 +2168,10 @@ html, body {
   position: fixed; inset: 0; z-index: 500;
   display: flex; align-items: center; justify-content: center;
   background: rgba(4, 5, 10, 0.85);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  backdrop-filter: blur(20px) saturate(1.2);
   animation: fade-in 0.25s ease both;
   contain: layout style;
+  -webkit-backdrop-filter: blur(var(--blur-scrim)) saturate(1.2);
+  backdrop-filter: blur(var(--blur-scrim)) saturate(1.2);
 }
 .city-overlay.hidden { display: none; }
 
@@ -2177,8 +2183,6 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
-  backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
 }
 
 .city-overlay-header {
@@ -2397,7 +2401,7 @@ html, body {
   min-width: 230px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm);
   padding: 15px 22px 13px;
   text-align: center;
-  pointer-events: none; -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4); box-shadow: var(--shadow-sm);
+  pointer-events: none; box-shadow: var(--shadow-sm);
   opacity: 1;
   transition: opacity 0.18s ease, transform 0.18s var(--ease);
   z-index: 10;
@@ -2439,9 +2443,9 @@ html, body {
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
   text-transform: uppercase; padding: 2px 8px; border-radius: var(--r-sm);
 }
-.aic-tier-mega-hub  { background: rgba(var(--accent-rgb), 0.18); color: rgba(var(--accent-rgb), 0.9); border: 1px solid rgba(var(--accent-rgb), 0.3); }
-.aic-tier-major     { background: rgba(100,160,200,0.12); color: rgba(150,200,230,0.7); border: 1px solid rgba(100,160,200,0.2); }
-.aic-tier-regional  { background: rgba(var(--text-rgb), 0.05); color: rgba(var(--text-rgb), 0.35); border: 1px solid rgba(var(--text-rgb), 0.1); }
+.aic-tier-mega-hub  { background: rgba(var(--accent-rgb), 0.18); color: rgba(var(--accent-rgb), 0.9); border: 0; }
+.aic-tier-major     { background: rgba(var(--text-rgb), 0.08); color: var(--text-2); border: 0; }
+.aic-tier-regional  { background: rgba(var(--text-rgb), 0.05); color: var(--text-3); border: 0; }
 
 /* ── List pane ── */
 .city-list-pane {
@@ -2679,14 +2683,14 @@ html, body {
 /* ── T1-04: Copy button + Toast ── */
 .detail-header-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .detail-copy-btn {
-  background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.06); border: 0; border-radius: var(--r-sm); box-shadow: var(--relief-key-sm);
   color: var(--text-3); font-size: var(--fs-label); cursor: pointer; padding: 8px 10px;
   min-width: 44px; min-height: 44px;
   display: flex; align-items: center; justify-content: center;
   margin: -6px 0; transition: color 0.15s, border-color 0.15s; line-height: 1;
 }
-.detail-copy-btn:hover { color: var(--accent); border-color: var(--accent); }
-.detail-copy-btn:active { transform: scale(0.92); }
+.detail-copy-btn:hover { color: var(--accent); background: rgba(255, 255, 255, 0.10); }
+.detail-copy-btn:active { transform: scale(0.96); box-shadow: var(--relief-key-press); }
 
 
 @keyframes toast-in {
@@ -2835,9 +2839,9 @@ html, body {
   background: var(--surface-float);
   border: 1px solid var(--hairline);
   border-radius: var(--r-sm);
-  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4);
-  backdrop-filter: blur(var(--blur-float)) saturate(1.4);
   box-shadow: var(--shadow-sm);
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.4);
 }
 .screenshot-hint.hidden { display: none; }
 
@@ -2848,7 +2852,7 @@ html, body {
   color: var(--text-3); transition: color 0.15s, transform 0.15s;
 }
 .detail-fav-btn:hover { color: var(--accent); transform: scale(1.15); }
-.detail-fav-btn:active { transform: scale(0.9); }
+.detail-fav-btn:active { transform: scale(0.9); opacity: 0.7; }
 .detail-fav-btn.active { color: var(--accent); }
 
 /* ── T2-09: Bloom / trail toggle label ── */
@@ -2859,14 +2863,14 @@ html, body {
   font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 600;
   letter-spacing: var(--track-label); color: var(--text);
   background: var(--surface-deep);
-  -webkit-backdrop-filter: blur(22px);
-  backdrop-filter: blur(22px);
   border: 1px solid var(--border);
   border-radius: 0 var(--r) var(--r) 0;
   padding: 6px 12px;
   pointer-events: none;
   box-shadow: var(--shadow);
   animation: fadein 0.25s var(--ease) both;
+  -webkit-backdrop-filter: blur(var(--blur-float));
+  backdrop-filter: blur(var(--blur-float));
 }
 .bloom-label.hidden { display: none; }
 
@@ -2874,9 +2878,11 @@ html, body {
 /* ── D-1: Vertical Profile HUD ── */
 .vert-profile-panel {
   position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%);
-  z-index: 45; width: min(92vw, 560px); background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
+  z-index: 45; width: min(92vw, 560px); background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
   overflow: hidden;
   animation: fadein 0.2s var(--ease) both;
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
+  backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
 }
 .vert-profile-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -2919,15 +2925,15 @@ html, body {
   position: fixed; inset: 0; z-index: 200;
   display: flex; align-items: center; justify-content: center;
   background: rgba(6,7,10,0.78);
-  -webkit-backdrop-filter: blur(10px) saturate(1.2);
-  backdrop-filter: blur(10px) saturate(1.2);
   animation: fadein 0.25s var(--ease) both;
+  -webkit-backdrop-filter: blur(var(--blur-scrim)) saturate(1.2);
+  backdrop-filter: blur(var(--blur-scrim)) saturate(1.2);
 }
 .overlay-backdrop.hidden { display: none; }
 
 .overlay-panel {
   width: 320px; max-height: 80vh;
-  overflow-y: auto; background: var(--surface); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
+  overflow-y: auto; background: var(--surface);
   border-left: 1px solid rgba(255, 255, 255, 0.04);
   border-right: 1px solid rgba(255, 255, 255, 0.04);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04); border-radius: var(--r); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
@@ -3069,7 +3075,7 @@ html, body {
 
 /* ── Unified dynamic widget base ── */
 .stratum-widget {
-  position: fixed; background: var(--surface-float); -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4);
+  position: fixed; background: var(--surface-float);
   border-left: 1px solid rgba(255, 255, 255, 0.04);
   border-right: 1px solid rgba(255, 255, 255, 0.04);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04); border-radius: var(--r-sm);
@@ -3080,6 +3086,8 @@ html, body {
   pointer-events: none;
   z-index: 60; box-shadow: var(--shadow-sm);
   border: 1px solid var(--hairline);
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.4);
 }
 .stratum-widget.hidden { display: none; }
 .widget-label {
@@ -3178,12 +3186,12 @@ html, body {
   flex-wrap: wrap;
   padding: 8px 10px 8px 14px;
   background: var(--relief-face), var(--surface);
-  -webkit-backdrop-filter: blur(30px) saturate(2) brightness(1.15);
-  backdrop-filter: blur(30px) saturate(2) brightness(1.15);
   border: 1px solid var(--hairline); border-radius: var(--r);
   box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
   opacity: 0; transform: translateY(8px);
   transition: opacity .3s ease, transform .3s var(--ease);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(2) brightness(1.15);
+  backdrop-filter: blur(var(--blur)) saturate(2) brightness(1.15);
 }
 .filter-panel.visible { opacity: 1; transform: translateY(0); }
 .filter-panel.hidden { display: none; }
@@ -3396,9 +3404,9 @@ html, body {
   z-index: 100; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm);
   padding: 16px 24px; text-align: center;
   animation: pop-in 0.3s var(--ease) both;
-  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4);
-  backdrop-filter: blur(var(--blur-float)) saturate(1.4);
   box-shadow: var(--shadow-sm);
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.4);
 }
 .share-toast.hidden { display: none; }
 .share-toast-title {
@@ -3724,7 +3732,7 @@ html, body {
 .rwy-tooltip {
   position: fixed;
   z-index: 60;
-  pointer-events: none; background: var(--surface-float); -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4); border: 1px solid var(--hairline); border-radius: var(--r-sm);
+  pointer-events: none; background: var(--surface-float); border: 0; border-radius: var(--r-sm);
   padding: 10px 14px;
   min-width: 180px; box-shadow: var(--shadow-sm);
   transition: opacity 0.15s ease;
@@ -3785,8 +3793,6 @@ html, body {
   z-index: 60;
   pointer-events: none;
   background: var(--surface-float);
-  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4);
-  backdrop-filter: blur(var(--blur-float)) saturate(1.4);
   border: 0;
   border-radius: var(--r-sm);
   padding: 10px 14px 11px;
@@ -3848,13 +3854,13 @@ html, body {
   z-index: 50;
   width: 290px;
   background: var(--relief-face), var(--surface);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
-  backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08);
   border: none;
   border-radius: var(--r);
   box-shadow: inset 0 1px 0 var(--specular), var(--relief-raised);
   overflow: hidden;
   transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
+  backdrop-filter: blur(var(--blur))) saturate(1.6) brightness(1.08);
 }
 .radio-panel.hidden {
   opacity: 0;
@@ -4132,7 +4138,6 @@ html, body {
   box-shadow: 0 0 4px rgba(0,0,0,0.4);
 }
 .radio-volume::-webkit-slider-thumb:hover {
-  background: var(--text);
   transform: scale(1.2);
 }
 .radio-volume::-moz-range-thumb {
@@ -4167,14 +4172,14 @@ html, body {
   width: 38px; height: 38px;
   display: flex; align-items: center; justify-content: center;
   background: rgba(8, 10, 14, 0.65);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  backdrop-filter: blur(16px) saturate(1.2);
   border: 1px solid rgba(255,255,255,0.035);
   border-radius: 50%;
   color: var(--text-3);
   cursor: pointer;
   box-shadow: 0 6px 24px rgba(0,0,0,0.35);
   transition: all 0.25s var(--ease);
+  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.2);
+  backdrop-filter: blur(var(--blur-float)) saturate(1.2);
 }
 .radio-toggle-btn:hover {
   color: var(--text);
@@ -4252,8 +4257,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
   background: var(--relief-face), var(--surface);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.3);
-  backdrop-filter: blur(var(--blur)) saturate(1.3);
   border: none;
   border-radius: var(--r);
   box-shadow: var(--relief-key-sm);
@@ -4261,6 +4264,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   font-family: var(--font-mono); font-size: var(--fs-body);
   cursor: pointer;
   transition: color 0.2s, box-shadow 0.2s;
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.3);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.3);
 }
 .fab-btn:hover {
   color: var(--accent);
@@ -4272,7 +4277,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0;
   color: var(--text-2); text-transform: uppercase;
   background: var(--surface-deep);
-  border: 1px solid var(--border);
+  border: 0; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 18px rgba(0, 0, 0, 0.4);
   border-radius: var(--r-sm);
   padding: 4px 8px;
   pointer-events: none;
@@ -4310,8 +4315,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   position: fixed; z-index: 9999; width: 250px;
   padding: 10px 12px;
   background: var(--surface-float);
-  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4);
-  backdrop-filter: blur(var(--blur-float)) saturate(1.4);
   border: 1px solid var(--hairline);
   border-radius: var(--r-sm);
   box-shadow: var(--shadow-sm);
@@ -4363,9 +4366,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   z-index: 70; max-width: 420px; padding: 10px 14px;
   display: flex; flex-direction: column; gap: 3px;
   background: var(--surface-float);
-  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4);
   border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
   opacity: 0; pointer-events: none; transition: opacity 0.35s ease, transform 0.35s ease;
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.4);
 }
 .ghost-hint.is-visible { opacity: 1; transform: translate(-50%, 0); }
 .ghost-hint.hidden { display: none; }
@@ -4418,15 +4422,19 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .sky-legend-lines line { stroke: rgba(var(--text-rgb), 0.55); stroke-width: 1; }
 .sky-legend-lines circle { fill: none; stroke: rgba(var(--text-rgb), 0.85); stroke-width: 1.2; }
 .school-line { z-index: 65; }
-.sky-cap { position: fixed; width: 260px; padding: 6px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm);
-  -webkit-backdrop-filter: blur(var(--blur-float)); backdrop-filter: blur(var(--blur-float)); box-shadow: var(--shadow-sm);
-  font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.4; color: var(--text-2); transition: opacity 0.2s; }
+.sky-cap { position: fixed; width: 260px; padding: 6px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
+  font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.4; color: var(--text-2); transition: opacity 0.2s;
+  -webkit-backdrop-filter: blur(var(--blur-float)));
+  backdrop-filter: blur(var(--blur-float)));
+}
 .sky-cap b { display: block; font-family: var(--font-mono); font-weight: 600; color: var(--text); letter-spacing: 0; }
 
 /* ── Ground school ── */
 .school-card { position: fixed; left: 50%; bottom: calc(var(--edge) + 56px); transform: translateX(-50%); z-index: 71; width: 400px; max-width: calc(100vw - 32px);
-  padding: 12px 14px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
-  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4); pointer-events: auto; }
+  padding: 12px 14px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm); pointer-events: auto;
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.4);
+}
 .school-head { display: flex; align-items: center; justify-content: space-between; }
 .school-kicker { font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-3); }
 .school-x { background: none; border: none; color: var(--text-3); font-size: 16px; cursor: pointer; padding: 0 2px; }
@@ -4885,7 +4893,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: none; border: none; box-shadow: none;
   color: var(--text-3); cursor: pointer; border-radius: 4px;
 }
-#hud-atc .hud-atc-next:hover { color: var(--text); box-shadow: var(--relief-inset-sm); }
+#hud-atc .hud-atc-next:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
 
 /* Three bars, flat and dark until something is arriving. */
 .hud-atc-level { display: inline-flex; align-items: flex-end; gap: 2px; height: 9px; flex-shrink: 0; }
@@ -4935,7 +4943,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod--act:hover { box-shadow: var(--relief-key); }
 .hud-mod--act:active { box-shadow: var(--relief-inset-sm); }
 #hud-atc.hud-mod:hover { box-shadow: var(--relief-raised); }
-.hud-meta.hud-mod:hover { box-shadow: var(--relief-raised); }
+.hud-meta.hud-mod:hover { box-shadow: var(--relief-key); }
 .hud-meta.hud-mod { cursor: pointer; }
 
 /* The hero's own label row sits above the number, so the number keeps the
@@ -4992,8 +5000,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .radio-panel,
 .help-panel,
 .no-coverage-panel {
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.9) brightness(1.12);
-  backdrop-filter: blur(var(--blur)) saturate(1.9) brightness(1.12);
+}
+.detail-panel, #hud.glass-panel, .radio-panel, .help-panel {
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.9) brightness(1.12);
+  backdrop-filter: blur(var(--blur))) saturate(1.9) brightness(1.12);
 }
 
 /* ── One tile, one shape ──
@@ -5115,8 +5125,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .help-panel,
 .no-coverage-panel {
   background: var(--relief-face), var(--surface);
-  -webkit-backdrop-filter: blur(30px) saturate(2) brightness(1.15);
-  backdrop-filter: blur(30px) saturate(2) brightness(1.15);
+}
+#hud.glass-panel, .detail-panel, .radio-panel, .help-panel {
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(2) brightness(1.15);
+  backdrop-filter: blur(var(--blur)) saturate(2) brightness(1.15);
 }
 /* The tiles inside keep a touch more body than the pane, or the type on them
    sits directly on the map and stops being readable. */
@@ -5189,8 +5201,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .city-list-pane,
 .school-q {
   background: rgba(255, 255, 255, 0.055);
-  -webkit-backdrop-filter: blur(14px) saturate(1.7) brightness(1.06);
-  backdrop-filter: blur(14px) saturate(1.7) brightness(1.06);
   box-shadow: var(--relief-tile);
 }
 .hud-mod--act:hover,
@@ -5224,9 +5234,11 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-atc-power,
 .school-opts button {
   background: rgba(255, 255, 255, 0.06);
-  -webkit-backdrop-filter: blur(12px) saturate(1.5);
-  backdrop-filter: blur(12px) saturate(1.5);
   box-shadow: var(--relief-key-sm);
+}
+.fab-btn {
+  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.5);
+  backdrop-filter: blur(var(--blur-float)) saturate(1.5);
 }
 .fab-btn:hover,
 .hud-atc-power:hover {
@@ -5281,21 +5293,23 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    without wearing its colour. */
 #hud.glass-panel, .detail-panel.glass-panel, .radio-panel,
 .city-overlay-content, .help-panel, .no-coverage-panel {
-  -webkit-backdrop-filter: blur(30px) saturate(1.25) brightness(1.14);
-  backdrop-filter: blur(30px) saturate(1.25) brightness(1.14);
+}
+#hud.glass-panel, .detail-panel.glass-panel, .radio-panel, .help-panel {
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.25) brightness(1.14);
+  backdrop-filter: blur(var(--blur)) saturate(1.25) brightness(1.14);
 }
 .hud-mod,
 .detail-panel .detail-section-body, .detail-panel .detail-heard,
 .detail-panel .detail-commons, .detail-panel .detail-airline-row,
 .detail-panel .detail-route, .detail-panel .detail-progress,
 .city-globe-pane, .city-list-pane, .school-q {
-  -webkit-backdrop-filter: blur(14px) saturate(1.2) brightness(1.05);
-  backdrop-filter: blur(14px) saturate(1.2) brightness(1.05);
 }
 .fab-btn, .radio-power-btn, .radio-vol-btn, .radio-close-btn,
 .hud-atc-power, .school-opts button {
-  -webkit-backdrop-filter: blur(12px) saturate(1.15);
-  backdrop-filter: blur(12px) saturate(1.15);
+}
+.fab-btn {
+  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.15);
+  backdrop-filter: blur(var(--blur-float)) saturate(1.15);
 }
 
 /* ── The tower switch is a play button ──
@@ -5690,8 +5704,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    surface in the app rather than a grey box that arrived from somewhere else. */
 .city-overlay {
   background: rgba(6, 9, 18, 0.58);
-  -webkit-backdrop-filter: blur(16px) saturate(1.25);
-  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--blur-scrim)) saturate(1.25);
+  backdrop-filter: blur(var(--blur-scrim)) saturate(1.25);
 }
 
 /* ── Your record, in the action row ──
@@ -5911,13 +5925,13 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   padding: 0 14px 14px;
   border-radius: var(--r);
   background: rgba(255, 255, 255, 0.07);
-  -webkit-backdrop-filter: blur(34px) saturate(2) brightness(1.2);
-  backdrop-filter: blur(34px) saturate(2) brightness(1.2);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     inset 0 -1px 0 rgba(0, 0, 0, 0.3),
     0 24px 64px rgba(0, 0, 0, 0.55);
   scrollbar-width: thin;
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(2) brightness(1.2);
+  backdrop-filter: blur(var(--blur)) saturate(2) brightness(1.2);
 }
 
 .help-header {
@@ -5942,7 +5956,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   margin: 0 0 10px; padding: 9px 11px 10px;
   border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.05);
-  -webkit-backdrop-filter: saturate(1.6); backdrop-filter: saturate(1.6);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 /* The accent bar and the rule above each header were doing the separating.
@@ -6012,11 +6025,11 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   padding: 0 11px;
   gap: 8px;
   background: var(--relief-face), var(--surface);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.3);
-  backdrop-filter: blur(var(--blur)) saturate(1.3);
   border: none;
   box-shadow: var(--relief-key-sm);
   transition: color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  -webkit-backdrop-filter: blur(var(--blur-float))) saturate(1.3);
+  backdrop-filter: blur(var(--blur-float))) saturate(1.3);
 }
 .radio-toggle-btn:hover { transform: none; box-shadow: var(--relief-key-sm), 0 0 14px rgba(var(--accent-rgb), 0.1); }
 /* The pulse was standing in for "something is happening". The meter does that
@@ -6462,8 +6475,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .city-globe-pane,
 .city-list-pane {
   background: rgba(255, 255, 255, 0.022);
-  -webkit-backdrop-filter: blur(18px) saturate(1.5);
-  backdrop-filter: blur(18px) saturate(1.5);
   /* The tile token, not a lip alone: a lip says pane, the outer pair says
      the pane sits on something. Without it the globe is printed on the
      panel rather than resting in it. */
@@ -6741,8 +6752,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   z-index: 25; pointer-events: auto;
   padding: 14px 16px 16px;
   background: rgba(255, 255, 255, 0.045);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.5);
-  backdrop-filter: blur(var(--blur)) saturate(1.5);
   border: 0;
   border-radius: var(--r);
   box-shadow:
@@ -6753,6 +6762,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   max-height: calc(100vh - 100px);
   animation: aw-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
   scrollbar-width: none;
+  -webkit-backdrop-filter: blur(var(--blur))) saturate(1.5);
+  backdrop-filter: blur(var(--blur))) saturate(1.5);
 }
 .airport-widget::-webkit-scrollbar { display: none; }
 .airport-widget.hidden { display: none; }
@@ -6847,3 +6858,25 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   margin-top: 8px;
   font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); line-height: 1.45;
 }
+
+
+/* ── Press states ──────────────────────────────────────────────────────────
+   Two rules, so that nothing here becomes bubble wrap. A thing that is flat
+   at rest -- a row, a text link, a close cross -- darkens when pressed and
+   does not sink, because a well appearing from nothing is a flicker, not an
+   affordance. A thing that is raised at rest -- a key -- takes the key press.
+   Everything below had no press at all; you pressed it and nothing moved. */
+.search-result:active { background: rgba(var(--accent-rgb), 0.10); }
+.help-row:active { background: rgba(255, 255, 255, 0.06); }
+.city-list-item:active { background: rgba(255, 255, 255, 0.08); }
+.cdp-back-btn:active { opacity: 0.7; }
+.emergency-dismiss:active { opacity: 0.7; }
+.aw-close:active { color: var(--text); opacity: 0.7; }
+.hud-meta.hud-mod:active { box-shadow: var(--relief-key-press); }
+#hud-atc .hud-atc-next:active { background: rgba(0, 0, 0, 0.2); box-shadow: var(--relief-key-press); }
+.radio-volume::-webkit-slider-thumb:active { box-shadow: var(--relief-key-press); }
+
+/* The picker's content box carries .glass-panel and sits inside the picker
+   scrim, which already blurs the map. The class rule would blur it a second
+   time for nothing but a compositor pass. */
+.city-overlay-content { -webkit-backdrop-filter: none; backdrop-filter: none; }
