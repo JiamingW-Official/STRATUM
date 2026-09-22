@@ -12,10 +12,17 @@ import { pick, useT } from "../i18n";
  * And the evidence rule turns up a third time, in the place it matters most
  * on a board like this. A departure board is a set of statements about the
  * future: until the ground tells the aircraft otherwise, every row is the
- * schedule rather than the fact. Rows the cabin has actually been told about
- * are solid; rows that are only the plan are dashed, in the brass this work
- * uses for everything it believes but has not heard. A passenger running for
- * a gate deserves to know which of those two they are reading.
+ * schedule rather than the fact. Rows that are only the plan carry one
+ * brass word, in the colour this work uses for everything it believes but
+ * has not heard. A passenger running for a gate deserves to know which of
+ * those two they are reading.
+ *
+ * And that is the whole of the decoration, because this is a departure
+ * board. It was six rows each drawn as its own glass panel, the unconfirmed
+ * ones ringed in brass, and every row stating CONFIRMED or SCHEDULED on a
+ * second line — one bit of information given a panel, a ring and a caption.
+ * A board is a table: aligned columns, a hairline between rows, and a mark
+ * only where something departs from the ordinary.
  */
 export function Connections() {
   const { t, lang } = useT();
@@ -84,15 +91,26 @@ export function Connections() {
                 {/* A gate nobody has been given is a dash, not a guess. */}
                 <span className="ife-mono">{c.gate ?? "—"}</span>
                 <span className="ife-mono">{c.terminal ?? "—"}</span>
+                {/* A footnote mark, and the key is at the foot of the
+                    board — which is how a printed timetable has always
+                    carried this and takes no column width to do it. The
+                    word itself did: "Cancelled SCHEDULED" was wider than
+                    the status column, so it wrapped and dragged the whole
+                    row's figures out of line. */}
                 <span className="ife-conns-status">
                   {t(statusKey[c.status])}
-                  <span className="ife-conns-evidence ife-cap">
-                    {c.confirmed ? t("confirmed") : t("scheduled")}
-                  </span>
+                  {!c.confirmed && (
+                    <span className="ife-conns-evidence" aria-label={t("scheduled")}>
+                      *
+                    </span>
+                  )}
                 </span>
               </div>
             ))}
           </div>
+          <p className="ife-conns-key">
+            <span className="ife-conns-evidence">*</span> {t("scheduled")}
+          </p>
           <p className="ife-conns-note">{t("connectionsWhen")}</p>
         </>
       )}

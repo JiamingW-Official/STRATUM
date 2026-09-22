@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test:ife": "playwright test tests/ife.spec.ts",
     "test:look": "playwright test tests/ife.visual.spec.ts",
-    "look:update": "UPDATE_BASELINE=1 playwright test tests/ife.visual.spec.ts",
+    "look:update": "playwright test tests/ife.visual.spec.ts --update-snapshots",
     "verify:ife": "npm run typecheck && npm run build && npm run test:ife && npm run test:look && npm run test:ambience",
     "test:book": "playwright test tests/booking.spec.ts",
     "verify:book": "npm run typecheck && npm run build && npm run test:book",

@@ -268,7 +268,6 @@ const DICT = {
   heard: ["heard", "已听到"],
   notHeard: ["not heard", "未听到"],
   estimated: ["estimated", "推算"],
-  confirmed: ["confirmed", "已确认"],
   chat: ["Seat messages", "座位消息"],
   threads: ["Messages", "会话"],
   newMessage: ["New message", "新消息"],

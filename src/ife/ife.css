@@ -3012,17 +3012,13 @@
    a rule rather than by a heading. */
 /* The row on the departure board that belongs to the seat reading it. Brass,
    which in this cabin has always meant "yours". */
-.ife-conns-row[data-mine="true"] {
-  background: var(--accent-dim);
-}
-
+/* Not a filled brass pill. On a table a pill is a badge stuck to a row;
+   the row is already tinted, and this only has to name what the tint
+   means. */
 .ife-conns-mine {
   margin-left: 12px;
-  padding: 2px 8px;
-  border-radius: var(--r-hair);
-  background: var(--accent);
-  color: #1a1408;
-  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.08em;
 }
 
 .ife-fi-booking {
@@ -5124,36 +5120,53 @@
   margin: 38px 0 0;
 }
 
+/* The columns belong to the table, not to each row. Every row used to be
+   its own grid, so `1fr` resolved against that row's own content and a
+   wider status cell quietly pushed that row's figures out of line with the
+   row above it — a table whose columns do not line up is a list. Declared
+   once here and inherited through `display: contents`, except that a row
+   still needs a box to carry its rule and its tint, so the widths are
+   restated on the row and pinned with minmax(0, …) so content can never
+   push them. */
 .ife-conns-table {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   margin-top: 8px;
 }
 
+/* A row, not a card. Each of these used to be its own rounded glass panel
+   with the cabin's fill and shadow, and the unconfirmed ones carried a
+   1.5px brass ring instead — six floating boxes where a departure board
+   has rows. The columns already line the figures up; a hairline is all a
+   table needs to say where one row stops. */
 .ife-conns-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) 1fr 1fr 0.7fr 0.8fr 1.2fr;
-  align-items: center;
+  grid-template-columns:
+    minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr)
+    minmax(0, 0.7fr) minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: baseline;
   gap: 24px;
-  padding: 20px 24px;
-  border-radius: var(--r-panel);
-  background-image: var(--glass-tint);
-  background-color: var(--glass-fill);
-  box-shadow: var(--glass);
+  padding: 22px 16px;
+  box-shadow: inset 0 -1px 0 var(--line);
   font-size: var(--t-lead);
 }
 
 .ife-conns-row--head {
-  background: none;
-  padding-bottom: 8px;
+  padding-bottom: 12px;
   color: var(--faint);
   font-size: var(--t-cap);
+  box-shadow: inset 0 -1px 0 var(--line-strong);
 }
 
-.ife-conns-row[data-confirmed="false"] {
-  background: none;
-  box-shadow: inset 0 0 0 1.5px rgba(201, 164, 92, 0.34);
+/* The last row has the screen's edge under it already. */
+.ife-conns-row:last-child {
+  box-shadow: none;
+}
+
+/* Yours, marked by the quietest thing that can mark a row in a table: the
+   ground under it. */
+.ife-conns-row[data-mine="true"] {
+  background: var(--accent-dim);
 }
 
 .ife-conns-row[data-status="cancelled"] .ife-conns-status {
@@ -5169,18 +5182,24 @@
   white-space: nowrap;
 }
 
+/* On one line now. Two lines made every row two rows tall to carry a word
+   that was the same on four of them. */
 .ife-conns-status {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: baseline;
+  gap: 12px;
 }
 
 .ife-conns-evidence {
-  color: var(--faint);
+  color: var(--accent);
+  font-family: var(--font-mono);
 }
 
-.ife-conns-row[data-confirmed="false"] .ife-conns-evidence {
-  color: var(--accent);
+/* The key, immediately under the last row, where a timetable puts it. */
+.ife-conns-key {
+  margin: 20px 0 0;
+  color: var(--dim);
+  font-size: var(--t-cap);
 }
 
 .ife-conns-note {

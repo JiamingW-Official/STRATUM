@@ -29,7 +29,7 @@ import { stubMapTiles } from "./tiles";
  * A failure is a prompt to look at the diff Playwright writes, not a verdict.
  * If the change was intended, re-record:
  *
- *     UPDATE_BASELINE=1 npx playwright test tests/ife.visual.spec.ts
+ *     npm run look:update      (playwright --update-snapshots)
  *
  * and the new pictures land in tests/baseline/. Recording is never automatic:
  * a gate that rewrites its own expectation when it fails is not a gate.
@@ -45,8 +45,6 @@ const GLASS = ".bench-glass";
  * a whole number of pixels.
  */
 test.use({ viewport: { width: 2200, height: 1400 } });
-
-const UPDATE = process.env.UPDATE_BASELINE === "1";
 
 /** 2x2 of dusk, stretched over whatever the photograph would have been. */
 const FLAT_IMAGE =
@@ -135,29 +133,62 @@ async function settled(page: Page) {
       { timeout: 15_000 },
     )
     .catch(() => {});
-  await page.evaluate(() => document.fonts.ready);
+  /**
+   * Every face loaded, and still loaded a frame later.
+   *
+   * `document.fonts.ready` is a promise that resolves when the faces
+   * requested *so far* have arrived — and this cabin asks for more of them
+   * as it draws, because the language picker is the first screen carrying
+   * CJK and Cyrillic. Measured on four cold runs of the picker, three had
+   * `document.fonts.status === "loading"` at the moment the shot was taken;
+   * the type rendered in fallback metrics and the whole screen sat about
+   * two pixels off, which is 17,002 pixels of ghosted glyphs against a
+   * baseline recorded in the other state. The glass itself was innocent:
+   * its box measured 1744.13 x 981.07 on every one of those runs.
+   *
+   * So this waits for the set to reach "loaded" rather than for one promise
+   * to resolve, and re-checks after a frame in case drawing the swapped
+   * type asked for another face.
+   */
+  await page
+    .waitForFunction(
+      async () => {
+        await document.fonts.ready;
+        if (document.fonts.status !== "loaded") return false;
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        return document.fonts.status === "loaded";
+      },
+      null,
+      { timeout: 15_000 },
+    )
+    .catch(() => {});
 }
 
 async function shot(page: Page, name: string, extra: Locator[] = []) {
   await settled(page);
   const glass = page.locator(GLASS);
   const mask = [...volatileParts(page), ...extra];
-  if (UPDATE) {
-    // The same options the assertion below uses, and this is not tidiness.
-    // toHaveScreenshot disables animations; Locator.screenshot does not. So
-    // a baseline recorded here was caught with transitions in flight and
-    // then compared against a frame where they were pinned to their end
-    // state, and the gate failed by a few thousand pixels of type — a
-    // different few thousand every run, which is what sent this looking for
-    // a flake in the cabin instead of in the gate.
-    await glass.screenshot({
-      path: `tests/baseline/${name}.png`,
-      mask,
-      animations: "disabled",
-      caret: "hide",
-    });
-    return;
-  }
+  /**
+   * One path, recorded exactly the way it is compared.
+   *
+   * There used to be two: an UPDATE_BASELINE branch calling
+   * Locator.screenshot to write the file, and this assertion to check it.
+   * Two paths that take a picture of the same thing are two chances to take
+   * a different picture, and they did — twice.
+   *
+   * The first time the recorder let animations run and the assertion pinned
+   * them. Passing the same options fixed that and hid the second one, which
+   * is worse because it is not an option at all: toHaveScreenshot keeps
+   * shooting until two frames in a row come out identical, and
+   * Locator.screenshot takes the first frame it is given. So the recorder
+   * could catch a layout two pixels from where it settles, write that, and
+   * the gate would then fail forever — deterministically, 17,002 pixels on
+   * ife-zh-language, surviving every re-record because the recorder wrote
+   * the same unsettled frame every time.
+   *
+   * Recording is `--update-snapshots` now, which drives this same
+   * assertion. There is nothing left to disagree with.
+   */
   await expect(glass).toHaveScreenshot(`${name}.png`, {
     mask,
     // Tight. The point of this gate is to notice 4px, which is what the
@@ -232,7 +263,35 @@ async function openBench(page: Page) {
   await page.waitForSelector(GLASS);
   await page.getByRole("button", { name: "Pause" }).click();
   // Type is most of this design, so nothing is judged until the faces are in.
-  await page.evaluate(() => document.fonts.ready);
+  /**
+   * Every face loaded, and still loaded a frame later.
+   *
+   * `document.fonts.ready` is a promise that resolves when the faces
+   * requested *so far* have arrived — and this cabin asks for more of them
+   * as it draws, because the language picker is the first screen carrying
+   * CJK and Cyrillic. Measured on four cold runs of the picker, three had
+   * `document.fonts.status === "loading"` at the moment the shot was taken;
+   * the type rendered in fallback metrics and the whole screen sat about
+   * two pixels off, which is 17,002 pixels of ghosted glyphs against a
+   * baseline recorded in the other state. The glass itself was innocent:
+   * its box measured 1744.13 x 981.07 on every one of those runs.
+   *
+   * So this waits for the set to reach "loaded" rather than for one promise
+   * to resolve, and re-checks after a frame in case drawing the swapped
+   * type asked for another face.
+   */
+  await page
+    .waitForFunction(
+      async () => {
+        await document.fonts.ready;
+        if (document.fonts.status !== "loaded") return false;
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        return document.fonts.status === "loaded";
+      },
+      null,
+      { timeout: 15_000 },
+    )
+    .catch(() => {});
 }
 
 const wake = async (page: Page, lang: string) => {
