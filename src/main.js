@@ -1902,6 +1902,14 @@ function _nearestCityName(lat, lon) {
 let _cmpCity = null;
 let _cameFor = null; // { code, pct, at } — what you were told before you left
 const _CAME_MS = 120000;
+// The comparison is chosen once per visit and held until the airspace changes.
+// It used to be re-chosen on every poll -- "the sky farthest from this share"
+// -- and as the shares moved the winner moved with them: Nanjing, then Daegu,
+// then Auckland inside one sitting. A reference point that keeps changing is
+// not a comparison, and a place you have never heard of is not a door worth
+// opening. So: mega hubs first, the strongest contrast among them, decided at
+// arrival and kept. The numbers on both sides stay live; the name does not.
+let _cmpPick = null; // { forCode, city } — chosen for this visit
 function _renderVisibilityCmp() {
   const el = document.getElementById("hud-sky-cmp");
   if (!el) return;
@@ -1910,18 +1918,38 @@ function _renderVisibilityCmp() {
   const eligible = cells.filter((c) => c.samples >= 3 && c.total >= 300);
   if (!eligible.length || !_lastSky.total) { el.textContent = ""; return; }
   const share = _lastSky.unseen / _lastSky.total;
-  // The comparison: the eligible sky farthest from this share, on the other
-  // side of an ocean where possible, so the contrast is between jurisdictions
-  // and not between two neighbouring fields.
-  let cmp = null, gap = -1;
-  for (const c of eligible) {
-    if (Math.abs(c.lat - here.lat) < 0.6 && Math.abs(c.lon - here.lon) < 0.6) continue;
-    const s = c.masked / c.total;
-    const far = Math.abs(c.lon - here.lon) > 40 ? 1 : 0.35;
-    const g = Math.abs(s - share) * far;
-    if (g > gap) { gap = g; cmp = c; }
+  const forCode = activeCity?.code || null;
+  const nearHere = (c) => Math.abs(c.lat - here.lat) < 0.6 && Math.abs(c.lon - here.lon) < 0.6;
+  const cellOf = (city) => eligible.find((c) => Math.abs(c.lat - city.lat) < 0.6 && Math.abs(c.lon - city.lon) < 0.6) || null;
+
+  let cmp = null, city = null, gap = 1;
+  if (_cmpPick && _cmpPick.forCode === forCode) {
+    city = _cmpPick.city;
+    cmp = cellOf(city); // the same place, with whatever the index says about it now
   }
-  const city = cmp ? _nearestCity(cmp.lat, cmp.lon) : null;
+  if (!cmp) {
+    // Farthest from this share, on the other side of an ocean where possible,
+    // so the contrast is between jurisdictions and not two neighbouring fields.
+    const pick = (allow) => {
+      let best = null;
+      for (const c of eligible) {
+        if (nearHere(c)) continue;
+        const cc = _nearestCity(c.lat, c.lon);
+        if (!cc || cc.code === forCode || !allow(cc)) continue;
+        const far = Math.abs(c.lon - here.lon) > 40 ? 1 : 0.35;
+        const g = Math.abs(c.masked / c.total - share) * far;
+        if (!best || g > best.gap) best = { cell: c, city: cc, gap: g };
+      }
+      return best;
+    };
+    const best = pick((cc) => _computeDotSizesSet_MEGA.has(cc.code)) || pick(() => true);
+    if (best && best.gap >= 0.03) {
+      cmp = best.cell; city = best.city; gap = best.gap;
+      _cmpPick = { forCode, city };
+    } else {
+      cmp = null; city = null; gap = -1;
+    }
+  }
   const name = city ? city.name.replace(/\s+[A-Z]{3}$/, "") : null;
   if (!cmp || !name || gap < 0.03) {
     el.textContent = ""; el.classList.remove("is-door"); _cmpCity = null;
