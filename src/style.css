@@ -272,7 +272,7 @@ html, body {
   50% { opacity: 1; }
 }
 
-.hud-status { display: flex; align-items: center; gap: 5px; }
+.hud-status { display: flex; align-items: center; gap: 4px; }
 
 .hud-live-dot {
   width: 5px; height: 5px; border-radius: 50%;
@@ -335,7 +335,7 @@ html, body {
   font-family: var(--font-mono); color: var(--text-2); font-variant-numeric: tabular-nums;
 }
 
-.hud-meta { display: flex; flex-direction: column; gap: 3px; }
+.hud-meta { display: flex; flex-direction: column; gap: 4px; }
 
 .hud-city-btn {
   display: flex; align-items: center; gap: 8px; background: none; border: none; padding: 10px 2px;
@@ -348,7 +348,7 @@ html, body {
 }
 .hud-city-btn:hover { background: none;
 }
-.hud-city-btn-text { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.hud-city-btn-text { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 
 .hud-city-sub { font-size: var(--fs-label); color: var(--text-3); opacity: 1; letter-spacing: var(--track-label);
   transition: opacity var(--dur-fast);
@@ -451,7 +451,7 @@ html, body {
 /* Route banner */
 .detail-route {
   display: flex; align-items: center; justify-content: center;
-  gap: 14px; padding: 12px 16px 14px; background: none; border-top: 1px solid var(--hairline);
+  gap: 16px; padding: 12px 16px 14px; background: none; border-top: 1px solid var(--hairline);
   position: relative;
 }
 .detail-route::after {
@@ -639,11 +639,11 @@ html, body {
 
 /* A-4: Wind Triangle */
 .wind-tri-wrap { padding: 6px 16px 8px; border-top: 1px solid rgba(255,255,255,0.04); }
-.wind-tri-inner { display: flex; align-items: center; gap: 10px; }
+.wind-tri-inner { display: flex; align-items: center; gap: 12px; }
 .wind-tri-svg { flex-shrink: 0; }
 .wind-tri-legend { flex: 1; }
 .wind-tri-row {
-  display: flex; align-items: center; gap: 5px;
+  display: flex; align-items: center; gap: 4px;
   font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
   line-height: 1.6;
 }
@@ -935,7 +935,7 @@ html, body {
 }
 .adp-stats {
   display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 1px; border-radius: var(--r); overflow: hidden;
+  gap: 2px; border-radius: var(--r); overflow: hidden;
   background: rgba(255,255,255,0.04); margin-bottom: 16px;
 }
 .adp-stat {
@@ -1127,7 +1127,7 @@ html, body {
 }
 
 .detail-cell {
-  display: flex; flex-direction: column; gap: 3px; padding: 8px 16px 10px;
+  display: flex; flex-direction: column; gap: 4px; padding: 8px 16px 10px;
   cursor: pointer; background: none;
   transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
   position: relative;
@@ -1209,7 +1209,7 @@ html, body {
 
 /* Meta rows — interactive, scannable */
 .detail-meta {
-  display: flex; flex-direction: column; gap: 3px; padding: 4px 16px 8px;
+  display: flex; flex-direction: column; gap: 4px; padding: 4px 16px 8px;
 }
 
 .detail-meta-row {
@@ -1325,7 +1325,7 @@ html, body {
   position: fixed; top: 0; left: 0;
   z-index: 50; pointer-events: none; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm);
   padding: 7px 14px;
-  display: flex; align-items: center; gap: 9px;
+  display: flex; align-items: center; gap: 8px;
   white-space: nowrap;
   opacity: 1;
   transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
@@ -1456,7 +1456,7 @@ html, body {
   letter-spacing: var(--track-label); text-transform: uppercase;
   color: rgba(var(--accent-rgb), 0.50);
   padding: 11px 16px 5px 16px;
-  display: flex; align-items: center; gap: 7px;
+  display: flex; align-items: center; gap: 8px;
   border-top: 1px solid rgba(255,255,255,0.04);
   position: relative;
 }
@@ -1478,7 +1478,7 @@ html, body {
 
 .search-result {
   padding: 9px 16px 9px 14px; cursor: pointer;
-  display: flex; flex-direction: column; gap: 3px;
+  display: flex; flex-direction: column; gap: 4px;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
   border-left: 2px solid transparent;
 }
@@ -1682,7 +1682,7 @@ html, body {
   border-radius: var(--r-sm); padding: 1px 5px;
 }
 
-.spotter-score-label { display: flex; align-items: baseline; gap: 3px; }
+.spotter-score-label { display: flex; align-items: baseline; gap: 4px; }
 
 .spotter-score-value {
   font-size: var(--fs-value); font-weight: 400;
@@ -1888,7 +1888,7 @@ html, body {
   top: 50%; left: var(--edge);
   transform: translateY(-50%);
   z-index: 15;
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 12px;
   padding: 9px 18px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
   transition: all var(--dur-slow) var(--ease-spring); pointer-events: auto;
   cursor: default;
@@ -1984,7 +1984,7 @@ html, body {
 
 .help-grid {
   display: flex; flex-direction: column;
-  gap: 1px; padding: 4px 16px 8px;
+  gap: 2px; padding: 4px 16px 8px;
 }
 /* Keys were flush left and descriptions flush right, so with key widths running
    from "/" to "Shift+Click" the eye crossed a different-sized void on every
@@ -2053,7 +2053,7 @@ html, body {
 
 .scene-trans-body {
   display: flex; flex-direction: column;
-  align-items: center; gap: 10px;
+  align-items: center; gap: 12px;
   opacity: 0;
   transition: opacity var(--dur-base) var(--ease) 0.15s;
 }
@@ -2086,7 +2086,7 @@ html, body {
 
 /* ── Boot splash progress steps ── */
 .scene-trans-steps {
-  display: flex; align-items: center; gap: 7px;
+  display: flex; align-items: center; gap: 8px;
   margin-top: 18px;
 }
 .sts-item {
@@ -2105,7 +2105,7 @@ html, body {
 /* ── Post-boot loading status pill ── */
 .load-status {
   position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
-  z-index: 60; display: flex; align-items: center; gap: 7px;
+  z-index: 60; display: flex; align-items: center; gap: 8px;
   padding: 5px 13px 5px 10px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
   color: rgba(255,255,255,0.35);
@@ -2134,7 +2134,7 @@ html, body {
   border: 1px solid var(--hairline);
 }
 .no-coverage-header {
-  display: flex; align-items: center; gap: 14px;
+  display: flex; align-items: center; gap: 16px;
   padding: 20px 20px 14px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
@@ -2154,7 +2154,7 @@ html, body {
 }
 .no-coverage-footer {
   padding: 0 20px 20px;
-  display: flex; flex-direction: column; gap: 14px;
+  display: flex; flex-direction: column; gap: 16px;
 }
 .no-coverage-note {
   font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0;
@@ -2272,8 +2272,8 @@ html, body {
   color: var(--text-2); line-height: 1.3;
 }
 .cdp-context { margin-top: 3px; font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); }
-.cdp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; padding: 16px 18px 0; }
-.cdp-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cdp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 12px; padding: 16px 18px 0; }
+.cdp-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .cdp-cell .hud-mod-label { display: block; }
 .cdp-val {
   font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500;
@@ -2290,7 +2290,7 @@ html, body {
 .cdp-section-label { display: block; margin: 16px 18px 4px; }
 .cdp-nearby { padding: 0 18px 8px; }
 .cdp-nearby-item {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 12px;
   padding: 5px 0; cursor: pointer;
   font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
   transition: color var(--dur-fast) var(--ease);
@@ -2928,7 +2928,7 @@ html, body {
   background: rgba(255,255,255,0.008);
 }
 .stats-cell {
-  display: flex; flex-direction: column; gap: 3px;
+  display: flex; flex-direction: column; gap: 4px;
   padding: 11px 12px; text-align: center;
   transition: background var(--dur-fast) var(--ease);
 }
@@ -2954,7 +2954,7 @@ html, body {
 /* ── T2-15: Emergency banner ── */
 .emergency-banner {
   position: fixed; top: 0; left: 0; right: 0; z-index: 55;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
   padding: 7px 16px;
   background: linear-gradient(90deg, rgba(140,35,35,0.92), rgba(160,45,45,0.88));
   border-bottom: 1px solid rgba(255,80,80,0.25);
@@ -3086,7 +3086,7 @@ html, body {
   position: fixed;
   bottom: calc(30px + var(--edge)); left: var(--edge);
   z-index: 46; pointer-events: auto;
-  display: flex; align-items: center; gap: 14px;
+  display: flex; align-items: center; gap: 16px;
   max-width: calc(100vw - var(--edge) * 2);
   flex-wrap: wrap;
   padding: 8px 10px 8px 14px;
@@ -3157,7 +3157,7 @@ html, body {
 .filter-isolate:active { box-shadow: var(--relief-key-press); }
 
 .filter-tail {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 12px;
   margin-left: auto; padding-left: 12px;
 }
 .filter-count {
@@ -3204,7 +3204,7 @@ html, body {
   font-weight: 500; letter-spacing: 0;
 }
 .fleet-phase-row {
-  display: flex; gap: 10px;
+  display: flex; gap: 12px;
   font-family: var(--font-mono); font-size: var(--fs-label);
   margin-bottom: 6px;
 }
@@ -3238,7 +3238,7 @@ html, body {
 .spotter-airline-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 3px 20px;
+  gap: 4px 16px;
 }
 .spotter-airline-item {
   display: flex; justify-content: space-between; align-items: center;
@@ -3497,7 +3497,7 @@ html, body {
   .airline-meta { font-size: var(--fs-label); }
 
   /* Route banner */
-  .detail-route { padding: 8px 12px 10px; gap: 10px; }
+  .detail-route { padding: 8px 12px 10px; gap: 12px; }
   .detail-route-code { font-size: var(--fs-value); letter-spacing: var(--track-label); }
   .detail-route-city { font-size: var(--fs-label); max-width: 70px; }
 
@@ -3730,7 +3730,7 @@ html, body {
 }
 .nav-tooltip-rows { margin-top: 6px; }
 .nav-tooltip-row {
-  display: flex; justify-content: space-between; gap: 14px;
+  display: flex; justify-content: space-between; gap: 16px;
   padding: 2px 0;
   font-family: var(--font-mono);
   font-size: var(--fs-label);
@@ -4241,7 +4241,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* HUD — sky as people. Two plain sentences under the counters; the "unseen"
    line carries the accent because it is the claim the whole layer makes. */
-.hud-sky { display: flex; flex-direction: column; gap: 3px; padding: 8px 0 2px; border-top: 1px solid var(--hairline); }
+.hud-sky { display: flex; flex-direction: column; gap: 4px; padding: 8px 0 2px; border-top: 1px solid var(--hairline); }
 .hud-sky-cmp:empty { display: none; }
 /* Layer on: the hero brightens, because what it counts is now drawn. */
 .ghost-mode .hud-hero-value { color: var(--accent-bright); }
@@ -4256,7 +4256,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* The HUD panel is pointer-events:none so the map stays draggable through it;
    interactive children must opt back in. */
 .hud-atc { pointer-events: auto; }
-.hud-atc-btn { display: inline-flex; align-items: center; gap: 7px; background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 9px; cursor: pointer; color: var(--text-2); font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: 0; transition: color var(--dur-fast), border-color var(--dur-fast); }
+.hud-atc-btn { display: inline-flex; align-items: center; gap: 8px; background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 9px; cursor: pointer; color: var(--text-2); font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: 0; transition: color var(--dur-fast), border-color var(--dur-fast); }
 .hud-atc-btn:hover { color: var(--text); border-color: var(--hairline-strong); }
 .hud-atc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); flex-shrink: 0; }
 .hud-atc-btn.is-live { color: var(--text); border-color: rgba(var(--accent-rgb), 0.35); }
@@ -4269,7 +4269,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .ghost-hint {
   position: fixed; left: 50%; bottom: calc(var(--edge) + 56px); transform: translate(-50%, 6px);
   z-index: 70; max-width: 420px; padding: 10px 14px;
-  display: flex; flex-direction: column; gap: 3px;
+  display: flex; flex-direction: column; gap: 4px;
   background: var(--surface-float);
   border: 1px solid var(--hairline); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
   opacity: 0; pointer-events: none; transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
@@ -4379,10 +4379,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   mask-image: linear-gradient(to right, transparent, #000 3%, #000 84%, transparent 94%);
 }
 .ticker-track {
-  display: inline-flex; align-items: center; gap: 30px;
+  display: inline-flex; align-items: center; gap: 32px;
   height: 100%; white-space: nowrap; will-change: transform;
 }
-.tk { display: inline-flex; align-items: baseline; gap: 7px; font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0; }
+.tk { display: inline-flex; align-items: baseline; gap: 8px; font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0; }
 .tk-sym { color: rgba(var(--text-rgb), 0.92); font-weight: 600; }
 .tk-val { color: rgba(var(--text-rgb), 0.5); }
 .tk-chg { font-variant-numeric: tabular-nums; }
@@ -4769,12 +4769,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    on its own line with a level meter beside it. The meter is the one piece of
    motion in this panel and it only moves while audio is actually arriving,
    which is what makes it information rather than decoration. */
-#hud-atc.hud-mod { flex-direction: column; align-items: stretch; gap: 3px; }
+#hud-atc.hud-mod { flex-direction: column; align-items: stretch; gap: 4px; }
 .hud-atc-top { display: flex; align-items: center; justify-content: space-between; }
 .hud-atc-top .hud-mod-label { line-height: 1; }
 
 #hud-atc .hud-atc-btn {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
   background: none; box-shadow: none; border: none; padding: 0;
   cursor: pointer; text-align: left; width: 100%;
 }
@@ -4868,7 +4868,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: var(--relief-face);
   box-shadow: var(--relief-raised-sm);
 }
-.city-overlay-content { gap: 10px; padding: 12px; }
+.city-overlay-content { gap: 12px; padding: 12px; }
 .city-overlay-header { border: none; padding-bottom: 2px; }
 .city-search-input {
   border: none;
@@ -4969,7 +4969,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* Tighter across. The tiles had 12px of side padding inside a 14px-padded
    panel, which put 26px of nothing between a number and the panel edge. */
-#hud.glass-panel { padding: 12px; gap: 7px; width: 360px; }
+#hud.glass-panel { padding: 12px; gap: 8px; width: 360px; }
 .hud-mod { padding: 9px 10px; }
 
 /* ── Opening and closing the weather ──
@@ -5287,7 +5287,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 #hud-weather .hud-wx-line { display: block; }
 #hud-weather .hud-wx-temp { font-size: var(--fs-hero); line-height: 1; letter-spacing: var(--track-tight); }
 #hud-weather .hud-wx-icon { display: none; }
-#hud-weather .hud-wx-sub { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; }
+#hud-weather .hud-wx-sub { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
 #hud-weather .hud-wx-desc::before {
   content: '';
   display: inline-block; width: 0;
@@ -5303,7 +5303,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    swap the tower tile makes, so the one gesture in this project means the same
    thing in both places it appears. */
 .radio-transport {
-  display: flex; align-items: center; justify-content: center; gap: 18px;
+  display: flex; align-items: center; justify-content: center; gap: 16px;
   padding: 10px 0 6px;
 }
 .radio-tp {
@@ -5398,7 +5398,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-act:active { background: rgba(0, 0, 0, 0.2); box-shadow: var(--relief-inset-sm); }
 #hud-atc .radio-tp { width: 22px; height: 22px; }
 #hud-atc .radio-tp--main { width: 30px; height: 30px; }
-.hud-atc-transport { gap: 7px; align-items: center; }
+.hud-atc-transport { gap: 8px; align-items: center; }
 
 /* The hero's cue becomes the same round face, with the state in its colour
    rather than in a word. */
@@ -5521,7 +5521,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* The filter bar was a label and a row of chips repeated four times, which is
    four rows of mostly label. The label sits inline with its chips now. */
-.city-filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 5px; }
+.city-filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 5px; }
 .city-filter-row > span:first-child,
 .city-filter-label { min-width: 46px; flex-shrink: 0; }
 .city-filter-bar { padding: 12px 12px 10px; }
@@ -5571,7 +5571,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    it needs and the globe takes the rest. */
 .city-globe-pane { flex: 1 1 auto; min-width: 0; }
 .city-list-pane { flex: 0 0 360px; min-width: 0; }
-.city-overlay-body { gap: 10px; }
+.city-overlay-body { gap: 12px; }
 
 /* ── The globe fills its pane again ──
    I read the octagon as a bug and it was a frame: the canvas is meant to fill
@@ -5607,7 +5607,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    every other action; lit means the sky is filtered down to your names. */
 .hud-mine {
   grid-row: 4; align-self: end;
-  display: inline-flex; align-items: center; gap: 7px;
+  display: inline-flex; align-items: center; gap: 8px;
   margin-top: auto; padding-top: 4px;
   cursor: pointer; outline: none;
 }
@@ -5829,7 +5829,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 .help-header {
   position: sticky; top: 0; z-index: 1;
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 12px;
   padding: 14px 2px 12px;
   background: linear-gradient(to bottom, rgba(38, 42, 52, 0.96) 70%, rgba(38, 42, 52, 0));
 }
@@ -5842,7 +5842,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .help-close { margin-left: auto; }
 
 .help-body {
-  columns: 236px; column-gap: 10px;
+  columns: 236px; column-gap: 12px;
 }
 .help-sec {
   break-inside: avoid; -webkit-column-break-inside: avoid;
@@ -5859,7 +5859,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 .help-sec .help-section-header::before { display: none; }
 .help-sec .help-grid { padding: 0; gap: 2px; }
-.help-sec .help-row { grid-template-columns: 84px 1fr; gap: 10px; }
+.help-sec .help-row { grid-template-columns: 84px 1fr; gap: 12px; }
 .help-hint kbd {
   font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
   background: rgba(255, 255, 255, 0.06); border-radius: 6px;
@@ -5929,12 +5929,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    now, and does it truthfully. */
 .radio-toggle-btn.active { animation: none; }
 .radio-toggle-btn .rt-idle { display: flex; align-items: center; }
-.radio-toggle-btn .rt-live { display: none; align-items: center; gap: 7px; }
+.radio-toggle-btn .rt-live { display: none; align-items: center; gap: 8px; }
 .radio-toggle-btn.is-live .rt-idle { display: none; }
 .radio-toggle-btn.is-live .rt-live { display: flex; }
 .radio-toggle-btn.is-live { color: var(--text); }
 
-.rt-dial { display: flex; align-items: baseline; gap: 3px; }
+.rt-dial { display: flex; align-items: baseline; gap: 4px; }
 .rt-freq {
   font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500;
   font-variant-numeric: tabular-nums; letter-spacing: 0;
@@ -6031,7 +6031,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   width: 340px;
 }
 
-.radio-top { display: flex; align-items: center; gap: 11px; }
+.radio-top { display: flex; align-items: center; gap: 12px; }
 
 /* The readout window: a recess cut into the face, lit from inside, with the
    meter in the same aperture because those are the two things the set reports
@@ -6077,7 +6077,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   text-shadow: 0 0 7px rgba(var(--accent-rgb), 0.45);
 }
 
-.radio-idents { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.radio-idents { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .radio-panel .radio-station-name {
   font-size: var(--fs-micro); letter-spacing: var(--track-label); margin: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -6107,9 +6107,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* One line: the transport on the left where a thumb sits, the spectrum in the
    middle because it is the part that moves, the level on the right. */
 .radio-controls {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 12px;
 }
-.radio-panel .radio-transport { padding: 0; gap: 7px; flex-shrink: 0; }
+.radio-panel .radio-transport { padding: 0; gap: 8px; flex-shrink: 0; }
 .radio-panel .radio-tp { width: 26px; height: 26px; }
 .radio-panel .radio-tp--main { width: 32px; height: 32px; }
 .radio-panel .radio-eq {
@@ -6139,9 +6139,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    340 by about 150 now, down from 178. */
 .radio-accent { display: none; }
 
-.radio-panel { gap: 7px; padding: 10px 12px 9px; }
-.radio-top { gap: 10px; }
-.radio-window { padding: 5px 8px 4px; gap: 3px; border-radius: 7px; }
+.radio-panel { gap: 8px; padding: 10px 12px 9px; }
+.radio-top { gap: 12px; }
+.radio-window { padding: 5px 8px 4px; gap: 4px; border-radius: 7px; }
 .radio-panel .radio-header-freq { font-size: var(--fs-body); }
 
 /* The dial is a trough with the band lying in it. It had been a transparent
@@ -6178,7 +6178,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .radio-panel .radio-tp { width: 25px; height: 25px; }
 .radio-panel .radio-tp--main { width: 30px; height: 30px; }
 .radio-panel .radio-transport { gap: 6px; }
-.radio-controls { gap: 9px; }
+.radio-controls { gap: 8px; }
 .radio-panel .radio-eq { height: 16px; }
 
 /* Grooves, not lines: the progress and the level are cut in, and what fills
@@ -6189,7 +6189,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: rgba(0, 0, 0, 0.3);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45);
 }
-.radio-panel .radio-progress-wrap { gap: 7px; }
+.radio-panel .radio-progress-wrap { gap: 8px; }
 .radio-panel .radio-time { font-size: var(--fs-micro); letter-spacing: 0; }
 
 /* ── The HUD, on the radio's measurements ─────────────────────────────────
@@ -6198,7 +6198,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    things, the same tile radius, and a value row sized so the number still
    leads without the tile having to be a third taller than it needs to be.
    Measured before: 330 by 389, tiles at 155 / 155 / 122 / 122 / 46. */
-#hud.glass-panel { gap: 7px; padding: 12px; width: 330px; }
+#hud.glass-panel { gap: 8px; padding: 12px; width: 330px; }
 .hud-title { margin-bottom: 8px; }
 .hud-mod { padding: 8px 9px 7px; grid-template-rows: 12px 30px auto 1fr; }
 .hud-mod-value { height: 30px; font-size: var(--fs-hero); }
@@ -6338,7 +6338,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .detail-rotor .detail-meta-row { display: none; }
 .detail-rotor .detail-meta-row.is-on {
   display: flex; align-items: baseline; justify-content: space-between;
-  width: 100%; gap: 10px; padding: 0; border: none;
+  width: 100%; gap: 12px; padding: 0; border: none;
   animation: rotor-in 0.32s var(--ease) both;
 }
 @keyframes rotor-in {
@@ -6535,10 +6535,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    line of context. Cards are paper -- a flat face, no shadow -- because only
    things you press get a lip, and nothing here is pressed. */
 .wx-line { display: block; padding: 2px 0; }
-.wx-sub { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.wx-sub { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .wx-desc { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-2); letter-spacing: 0; }
 .wx-range {
-  display: flex; align-items: center; gap: 7px;
+  display: flex; align-items: center; gap: 8px;
   font-family: var(--font-mono); font-size: var(--fs-label); font-variant-numeric: tabular-nums;
   color: var(--text-3);
 }
@@ -6576,7 +6576,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   margin-top: 8px;
 }
 .wx-card {
-  display: flex; flex-direction: column; gap: 3px;
+  display: flex; flex-direction: column; gap: 4px;
   padding: 9px 10px 8px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.035);
@@ -6603,7 +6603,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 /* The week. Day, low, bar, high, chance of rain -- the reference's row, with
    every day on the week's scale so the column reads as a shape. */
-.wx-daily { display: flex; flex-direction: column; gap: 1px; }
+.wx-daily { display: flex; flex-direction: column; gap: 2px; }
 .wx-day {
   display: grid; grid-template-columns: 30px 28px 1fr 28px 30px;
   align-items: center; gap: 8px;
@@ -6683,10 +6683,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   color: var(--text-2); line-height: 1.3; letter-spacing: 0;
 }
 
-.aw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.aw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 12px; }
 .aw-traffic { margin-top: 16px; }
 .aw-stats { margin-top: 14px; }
-.aw-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.aw-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .aw-cell .hud-mod-label { display: block; }
 .aw-big {
   font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400;
@@ -6717,7 +6717,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .aw-flight-list::-webkit-scrollbar { display: none; }
 .aw-flight-list:empty { display: none; }
 .aw-flight-item {
-  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
   padding: 5px 0; cursor: pointer;
   font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
   transition: color var(--dur-fast) var(--ease);
