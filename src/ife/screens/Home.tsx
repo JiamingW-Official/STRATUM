@@ -334,12 +334,29 @@ export function Home() {
     x ^= x << 5;
     return ((x >>> 0) % 1000) / 1000;
   };
-  // The connecting board is not in the deal. It only appears while the
-  // aircraft is coming down, and at that point it is the one card anybody is
-  // looking for — a card that is first for a reason does not get shuffled
-  // with the ones that are in any order at all.
+  // Two cards are not in the deal.
+  //
+  // The connecting board, because it only appears while the aircraft is
+  // coming down and at that point it is the one card anybody is looking
+  // for. And the flight map, for the same reason all the way through: it is
+  // the door people open on a flight, over and over, and it is the only one
+  // here they cannot get to any other way in a hurry.
+  //
+  // Leaving it in the deal was not a small cosmetic thing. On STR 001 the
+  // shuffle put it at the end of thirteen cards, behind four radio
+  // stations — the most-wanted screen on the rail, last, and reachable only
+  // by pushing the whole rail across. A card that is first for a reason
+  // does not get shuffled with the ones that are in any order at all.
+  //
+  // It comes out of the size deal with the order, which is the other thing
+  // that was wrong with it: the map card is one panel high on purpose, and
+  // the deal had been making it two.
   const doors = cards.filter(
-    (c) => !c.media && c.key !== "weather" && c.key !== "connections",
+    (c) =>
+      !c.media &&
+      c.key !== "weather" &&
+      c.key !== "connections" &&
+      c.key !== "map",
   );
   doors.forEach((c, i) => {
     const r = rand(i);
