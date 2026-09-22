@@ -370,146 +370,6 @@ html, body {
   font-family: var(--font-sans);
 }
 
-/* ── HUD Weather ── */
-.hud-weather { pointer-events: auto; padding: 5px 0 3px; }
-.hud-weather.is-empty { display: none; }
-/* An empty bordered pill is decoration, not information. */
-.hud-wx-cat:empty { display: none; }
-
-.hud-wx-line {
-  display: flex; align-items: center; gap: 6px;
-  cursor: pointer; padding: 2px 0;
-  transition: opacity 0.15s;
-}
-.hud-wx-line:hover { opacity: 0.75; }
-.hud-wx-icon { font-size: var(--fs-body); line-height: 1; }
-.hud-wx-temp { font-family: var(--font-mono); font-size: var(--fs-value); font-weight: 500;
-  color: var(--text); line-height: 1; letter-spacing: -0.01em;
-}
-.hud-wx-desc { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-2); letter-spacing: 0; text-transform: none;
-}
-.hud-wx-wind { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
-  margin-left: auto; letter-spacing: 0;
-}
-
-/* Forecast detail — collapsed by default */
-.hud-wx-detail {
-  display: none; padding-top: 8px;
-  border-top: 1px solid rgba(var(--accent-rgb), 0.15);
-  margin-top: 4px;
-}
-.hud-wx-detail.open { display: block; }
-
-/* Wind rose + METAR grid row */
-.hud-wx-body {
-  display: flex; gap: 10px; align-items: flex-start;
-  padding-bottom: 7px; margin-bottom: 6px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-}
-.hud-wx-rose-wrap {
-  display: flex; flex-direction: column;
-  align-items: center; flex-shrink: 0; gap: 3px;
-}
-.hud-wx-rose {
-  width: 64px; height: 64px; border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.15), 0 0 8px rgba(0,0,0,0.4);
-}
-.hud-wx-rose-spd { font-family: var(--font-mono); font-size: var(--fs-label);
-  color: rgba(var(--accent-rgb), 0.80); font-weight: 700; letter-spacing: 0; white-space: nowrap;
-}
-.hud-wx-atis {
-  flex: 1; display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px 2px;
-}
-.hud-wx-cell { display: flex; flex-direction: column; gap: 2px; position: relative; }
-.hud-wx-k { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); letter-spacing: var(--track-label); text-transform: uppercase; font-weight: 500;
-}
-.hud-wx-v { font-family: var(--font-mono); font-size: var(--fs-body); color: var(--text); font-weight: 500; letter-spacing: 0;
-}
-.hud-wx-ptend {
-  position: absolute; right: 0; bottom: 0; font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 500;
-}
-
-/* Comfort row */
-.hud-wx-comfort {
-  display: grid; grid-template-columns: 1fr 1fr 1fr;
-  gap: 5px 0; padding: 6px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  margin-bottom: 3px;
-}
-
-/* Sunrise / sunset row */
-.hud-wx-sun-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 4px 0 7px; border-bottom: 1px solid rgba(255,255,255,0.06);
-  flex-wrap: wrap; gap: 3px;
-  position: relative;
-}
-.hud-wx-sun { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
-  display: flex; align-items: center; gap: 4px; font-weight: 600;
-}
-.hud-wx-sun-icon { font-size: var(--fs-label); color: rgba(232,195,106,0.70); }
-
-/* Daylight progress bar */
-.hud-wx-daybar {
-  position: absolute; bottom: 1px; left: 0; right: 0;
-  height: 2px; background: rgba(255,255,255,0.07); border-radius: var(--r-sm);
-  overflow: visible;
-}
-.hud-wx-daybar-fill {
-  height: 100%; background: var(--accent); border-radius: var(--r-sm);
-  transition: width 1s linear;
-}
-.hud-wx-daybar-dot {
-  position: absolute; top: 50%; transform: translate(-50%, -50%);
-  width: 5px; height: 5px; border-radius: 50%;
-  background: rgba(232,195,106,0.90);
-  box-shadow: 0 0 5px rgba(232,195,106,0.60);
-}
-
-.hud-wx-section-label { font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 500; letter-spacing: var(--track-label); color: var(--text-3);
-  text-transform: uppercase; margin: 8px 0 4px;
-}
-.hud-wx-chart {
-  width: 100%; height: 72px; border-radius: 0; background: none;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-}
-
-/* 7-day forecast */
-.hud-wx-daily { display: flex; flex-direction: column; gap: 1.5px; }
-.hud-wx-day {
-  display: flex; align-items: center; font-family: var(--font-mono); font-size: var(--fs-label);
-  padding: 2.5px 0;
-}
-.hud-wx-day-name { width: 24px; color: var(--text-3); font-size: var(--fs-label); flex-shrink: 0; }
-.hud-wx-day-icon { width: 16px; text-align: center; font-size: var(--fs-label); flex-shrink: 0; }
-.hud-wx-day-lo { width: 22px; text-align: right; color: var(--text-3); font-size: var(--fs-label); flex-shrink: 0; }
-.hud-wx-day-bar-track {
-  flex: 1; height: 4px; margin: 0 5px;
-  background: rgba(255,255,255,0.07); border-radius: var(--r-sm);
-  overflow: hidden; position: relative;
-}
-.hud-wx-day-bar-fill {
-  position: absolute; top: 0; height: 100%; border-radius: var(--r-sm); background: var(--info);
-}
-.hud-wx-day-hi { width: 22px; color: var(--text); font-size: var(--fs-label); font-weight: 500; flex-shrink: 0; }
-.hud-wx-day-today { color: var(--accent); }
-.hud-wx-day-today .hud-wx-day-name { color: rgba(var(--accent-rgb), 0.90); font-weight: 700; }
-
-/* Precipitation column — bar + label stacked */
-.hud-wx-day-rain {
-  width: 32px; display: flex; flex-direction: column;
-  align-items: flex-end; gap: 2px; flex-shrink: 0;
-}
-.hud-wx-day-rain-bar {
-  height: 3px; border-radius: var(--r-sm); align-self: stretch;
-  background: rgba(90,172,255,0.75);
-}
-.hud-wx-day-rain-lbl { font-family: var(--font-mono); font-size: var(--fs-label);
-  color: rgba(90,172,255,0.70); white-space: nowrap;
-}
-
 /* ── Detail Panel ── */
 .detail-panel {
   position: fixed;
@@ -5127,7 +4987,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    the panel, wrapped "DEW PT" onto two lines, and pushed the footer off the
    bottom. So it takes the full width when it opens, which is the only honest
    place to put it. */
-#hud-weather:has(.hud-wx-detail.open) { grid-column: 1 / -1; }
+#hud-weather:has(.wx-detail.open) { grid-column: 1 / -1; }
 
 /* Tiles size to their own content. Stretching them to the tallest in the row
    turned the tower into a large empty box with a button adrift in the middle
@@ -6949,3 +6809,109 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-atc-power:active {
   box-shadow: var(--relief-key-press);
 }
+
+
+/* ── Weather ──────────────────────────────────────────────────────────────
+   Rebuilt from the reference: one text colour system (white, then the two
+   greys every other tile already uses), four sizes (the shared label, 11,
+   16, 30), and colour in exactly three places -- the range bar, the 24h
+   line, and the flight-category word, which aviation colours by convention.
+   The twelve inline value colours the old writer set (cold blue, hot orange,
+   humidity amber, gust red...) are gone: a number is a number; the meter is
+   what carries the hue.
+
+   Folded, the tile is label / temperature / condition / today's range. The
+   bar's end numbers are the low and the high, and the marker on it is the
+   reference's: a small white dot with a dark ring, which is what keeps it
+   from reading as a stray pixel on a gradient.
+
+   Expanded, the tile spans both columns: the day as a single line, six
+   readings as two-up cards, the week as rows. A card is label, value, one
+   line of context. Cards are paper -- a flat face, no shadow -- because only
+   things you press get a lip, and nothing here is pressed. */
+.wx-line { display: block; padding: 2px 0; }
+.wx-sub { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.wx-desc { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-2); letter-spacing: 0; }
+.wx-range {
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--font-mono); font-size: var(--fs-label); font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.wx-range.hidden { display: none; }
+.wx-hi { color: var(--text-2); }
+.wx-track {
+  position: relative; flex: 1; height: 4px; border-radius: 2px;
+  background: rgba(255, 255, 255, 0.10);
+}
+.wx-seg {
+  position: absolute; top: 0; bottom: 0; left: 0; width: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, #4f9bd8, var(--accent-bright));
+}
+.wx-now {
+  position: absolute; top: 50%; width: 6px; height: 6px; border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.55);
+  transition: left 0.6s var(--ease);
+}
+
+/* The expander. Height is animated through max-height, as before, so the
+   tiles below slide rather than jump. */
+.wx-detail {
+  display: block; overflow: hidden; max-height: 0; opacity: 0;
+  margin-top: 0; padding-top: 0;
+  transition: max-height 0.45s var(--ease), opacity 0.25s var(--ease),
+              margin-top 0.45s var(--ease), padding-top 0.45s var(--ease);
+}
+.wx-detail.open { max-height: 1200px; opacity: 1; margin-top: 10px; padding-top: 0; overflow: visible; }
+
+.wx-chart { display: block; width: 100%; height: 56px; }
+
+.wx-cards {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  margin-top: 8px;
+}
+.wx-card {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 9px 10px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  min-width: 0;
+}
+.wx-card .hud-mod-label { display: block; }
+.wx-card-v {
+  font-family: var(--font-mono); font-size: var(--fs-value); font-weight: 500;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  color: var(--text); line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wx-card-v small { font-size: var(--fs-label); font-weight: 400; color: var(--text-3); letter-spacing: 0; }
+.wx-card-s {
+  font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: 0;
+  color: var(--text-2); line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wx-card-s:empty { display: none; }
+.wx-cat { font-weight: 600; letter-spacing: 0.02em; }
+
+.wx-section { margin: 12px 0 4px; }
+.wx-section .hud-mod-label { display: block; }
+
+/* The week. Day, low, bar, high, chance of rain -- the reference's row, with
+   every day on the week's scale so the column reads as a shape. */
+.wx-daily { display: flex; flex-direction: column; gap: 1px; }
+.wx-day {
+  display: grid; grid-template-columns: 30px 28px 1fr 28px 30px;
+  align-items: center; gap: 8px;
+  padding: 5px 2px;
+  font-family: var(--font-mono); font-size: var(--fs-label); font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.wx-day-name { color: var(--text-2); }
+.wx-day-today .wx-day-name { color: var(--text); }
+.wx-day-lo { text-align: right; }
+.wx-day-hi { color: var(--text); }
+.wx-day-track { position: relative; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.10); }
+.wx-day-fill { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.wx-day-fill .wx-now { transition: none; }
+.wx-day-rain { text-align: right; }

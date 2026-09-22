@@ -137,6 +137,26 @@ const INSTRUMENT = () => {
 };
 
 async function openSky(page: Page) {
+  /**
+   * Arrive as somebody who has been here before.
+   *
+   * A first visit raises the airspace picker on a 1200ms timer, and a browser
+   * context is new every run — so the picker and the test were racing, and
+   * whichever won decided whether the run passed. When the picker won it sat
+   * over the toolbar and swallowed the click meant for #fab-airspace, and the
+   * failure looked like a broken button rather than a modal nobody had asked
+   * for. Setting the flag the app itself sets when a city is chosen takes the
+   * timer out of the run; the picker is still opened and closed deliberately
+   * further down, which is the behaviour actually being tested.
+   */
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("stratum:city-picked", "1");
+    } catch {
+      // Private mode or blocked storage: the picker turns up and
+      // dismissOverlays clears it, same as before.
+    }
+  });
   // `load` never settles: the page keeps long-lived media and tile requests
   // open by design, so wait for the app's own signals instead.
   await page.goto(SKY_PATH, { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -168,8 +188,10 @@ async function waitForAircraft(page: Page, timeout = 90_000) {
     .poll(
       async () =>
         Number(
-          (await page.locator("#hud-count").textContent())?.replace(/\D/g, "") ||
-            0,
+          (await page.locator("#hud-count").textContent())?.replace(
+            /\D/g,
+            "",
+          ) || 0,
         ),
       { timeout, intervals: [1000] },
     )
@@ -225,7 +247,9 @@ test.describe("/sky", () => {
     }
 
     // Weather lives in the HUD widget, which is present from first paint.
-    await expect(page.locator("#hud-wx-rose")).toHaveCount(1);
+    // Six reading cards: wind, visibility, pressure, cloud, feels like, sun.
+    // The wind rose this used to look for was removed with the redesign.
+    await expect(page.locator("#hud-weather .wx-card")).toHaveCount(6);
 
     // Display layers are keyboard-driven (G distance rings, V ghost layer).
     // What is being checked is that toggling them does not stop the render
@@ -277,7 +301,9 @@ test.describe("/sky", () => {
     console.log(
       `[verify:sky] leak counters before ${JSON.stringify(before)} after ${JSON.stringify(after)}`,
     );
-    expect(after.webgl, "a second WebGL context was created").toBe(before.webgl);
+    expect(after.webgl, "a second WebGL context was created").toBe(
+      before.webgl,
+    );
     expect(
       after.intervals,
       "intervals left running after unmount",

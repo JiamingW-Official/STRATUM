@@ -3817,49 +3817,6 @@ function hideTCASDisplay() {
 let _wxExpanded = false;
 
 // ── The weather tile cycles its readings ──
-// More is measured than fits: pressure, visibility, cloud, turbulence, density
-// altitude. Rather than pick one and bury the rest behind the expander, the
-// third line turns over slowly. Slowly, and with a reserved height and a
-// cross-fade rather than a slide, because a line that moves or resizes in a
-// quiet panel is the thing this project already removed once from the clock.
-// It holds while the cursor is on the tile, so a reading you are looking at
-// cannot leave mid-sentence.
-const _WX_ROTATION = [
-  ["wind", "hud-wx-wind"],
-  ["QNH", "hud-wx-pressure"],
-  ["VIS", "hud-wx-vis"],
-  ["CLOUD", "hud-wx-cloud"],
-  ["TURB", "hud-wx-turb"],
-];
-let _wxRotIdx = 0;
-let _wxRotHold = false;
-function _startWxRotation() {
-  const out = document.getElementById("hud-wx-rot");
-  const tile = document.getElementById("hud-weather");
-  if (!out || !tile) return;
-  tile.addEventListener("pointerenter", () => { _wxRotHold = true; });
-  tile.addEventListener("pointerleave", () => { _wxRotHold = false; });
-  const step = () => {
-    if (_wxRotHold || _wxExpanded) return;
-    // Skip anything the feed has not filled, so the line never shows a dash.
-    for (let n = 0; n < _WX_ROTATION.length; n++) {
-      _wxRotIdx = (_wxRotIdx + 1) % _WX_ROTATION.length;
-      const [label, id] = _WX_ROTATION[_wxRotIdx];
-      const v = document.getElementById(id)?.textContent?.trim();
-      if (v && v !== "--" && v !== "") {
-        out.style.opacity = "0";
-        setTimeout(() => {
-          out.textContent = label === "wind" ? v : `${label} ${v}`;
-          out.style.opacity = "1";
-        }, 260);
-        return;
-      }
-    }
-  };
-  setInterval(step, 5200);
-  step();
-}
-
 // Anything that is not the weather closes the weather. An expanded forecast is
 // 450px of panel sitting on top of four tiles that are the reason the panel is
 // there, so it should not need its own dismissal: pressing another tile, or
@@ -3913,363 +3870,83 @@ async function updateWeatherWidget() {
   setLocalTimezone(data.utcOffsetSeconds, data.timezoneAbbr);
 
   const desc = weatherDescription(data.weatherCode);
-  const windDir = windDirToCardinal(data.windDir);
-  const vis = formatVisibility(data.visibility);
   const cat = flightCategory(data.visibility, data.cloudCover);
-
-  // Current conditions — main line
   const set = (id, val) => {
     const e = document.getElementById(id);
     if (e) e.textContent = val;
   };
+  const html = (id, val) => {
+    const e = document.getElementById(id);
+    if (e) e.innerHTML = val;
+  };
   document.getElementById("hud-weather")?.classList.remove("is-empty");
-  set("hud-wx-icon", weatherIcon(data.weatherCode));
+
+  // ── The tile ──
   set("hud-wx-temp", `${Math.round(data.temp)}°`);
   set("hud-wx-desc", desc);
-  // Today's range, which is the line the reference widget carries under the
-  // condition and the one thing a temperature on its own never tells you:
-  // whether 17 is on the way up or on the way down.
   const rangeEl = document.getElementById("hud-wx-range");
   if (data.daily && data.daily.length && data.daily[0].tempMax != null) {
     const lo = Math.round(data.daily[0].tempMin);
     const hi = Math.round(data.daily[0].tempMax);
     set("hud-wx-lo", `${lo}°`);
     set("hud-wx-hi", `${hi}°`);
-    // This is today's row, shown alone, so it fills its track and the numbers
-    // at the ends are its own — put today on the week's scale here and the
-    // 17° and 24° printed beside it would read as the week's ends instead.
-    // The seven-day list below is where the week's scale belongs, because
-    // seven rows sharing one make it legible; one row cannot.
-    //
-    // What the bar carries instead is the same grade every row down there
-    // carries: coloured from the temperature of its own low to the
-    // temperature of its own high, so a cold day looks cold before it is
-    // read.
+    // Today alone fills its track and is graded from the colour of its own
+    // low to its own high, the same grade every row of the week carries.
     const seg = document.getElementById("hud-wx-seg");
-    if (seg) {
-      seg.style.left = "0";
-      seg.style.width = "100%";
-      seg.style.background = `linear-gradient(90deg, ${_tempHue(lo)}, ${_tempHue(hi)})`;
-    }
+    if (seg) seg.style.background = `linear-gradient(90deg, ${_tempHue(lo)}, ${_tempHue(hi)})`;
     const dot = document.getElementById("hud-wx-dot");
     if (dot) {
-      // Positioned inside today's segment, so it can never sit outside the
-      // part of the bar that is today. A flat day would divide by zero.
       const span = Math.max(1, hi - lo);
-      const at = Math.max(0, Math.min(1, (data.temp - lo) / span));
-      dot.style.left = `${at * 100}%`;
+      dot.style.left = `${Math.max(0, Math.min(1, (data.temp - lo) / span)) * 100}%`;
     }
     rangeEl?.classList.remove("hidden");
   } else {
     rangeEl?.classList.add("hidden");
   }
-  // Show gusts in compact line when notably higher: "SSW 15G20kt"
-  const hasGusts =
-    data.windGusts != null &&
-    data.windGusts >= data.windSpeed * 1.2 &&
-    data.windGusts >= 10;
-  const windCompact = hasGusts
-    ? `${windDir} ${Math.round(data.windSpeed)}G${Math.round(data.windGusts)}kt`
-    : `${windDir} ${Math.round(data.windSpeed)}kt`;
-  set("hud-wx-wind", windCompact);
-  const catEl = document.getElementById("hud-wx-cat");
-  if (catEl) {
-    catEl.textContent = cat.label;
-    catEl.style.color = cat.color;
-    catEl.dataset.cat = cat.label;
-  }
 
-  // Detail grid values — color-coded by severity
-  // setColor resets inline color to '' (CSS default) when col is null/undefined
-  const setColor = (id, txt, col) => {
-    const e = document.getElementById(id);
-    if (e) {
-      e.textContent = txt;
-      e.style.color = col || "";
-    }
-  };
+  // ── The cards. Label, value, one line of context. No colour on values:
+  // the reference colours meters, not numbers. ──
+  const kt = Math.round(data.windSpeed);
+  const gusty = data.windGusts != null && data.windGusts >= data.windSpeed * 1.2 && data.windGusts >= 10;
+  html("wx-wind-v", `${kt}<small> kt</small>`);
+  set("wx-wind-s", `${Math.round(data.windDir)}° ${windDirToCardinal(data.windDir)}${gusty ? ` · gusts ${Math.round(data.windGusts)}` : ""}`);
 
-  // Temperature: blue=cold, white=moderate, orange=hot
-  const tempC = Math.round(data.temp);
-  const tempColor = tempC <= 0 ? "#5aacff" : tempC >= 32 ? "#ee8833" : null;
-  setColor("hud-wx-temp", `${tempC}°`, tempColor);
-  set("hud-wx-feels", `${Math.round(data.feelsLike)}°`);
-  set(
-    "hud-wx-dew",
-    data.dewpoint != null ? `${Math.round(data.dewpoint)}°` : "--",
-  );
+  set("wx-vis-v", formatVisibility(data.visibility));
+  // The one coloured word in the panel. VFR / MVFR / IFR / LIFR are coloured
+  // by convention on every chart a pilot reads, so the colour is information
+  // here and decoration everywhere else.
+  html("wx-vis-s", `<span class="wx-cat" style="color:${cat.color}">${cat.label}</span>`);
 
-  // Humidity: green<70, yellow 70-85, orange >85, red >95
-  const humColor =
-    data.humidity >= 95
-      ? "#b05048"
-      : data.humidity >= 85
-        ? "#ee8833"
-        : data.humidity >= 70
-          ? "#e8c36a"
-          : null;
-  setColor("hud-wx-humidity", `${data.humidity}%`, humColor);
-
-  set("hud-wx-pressure", `${Math.round(data.pressure)} hPa`);
-
-  // VIS: color matches flight category
-  const visKm = data.visibility / 1000;
-  const visColor =
-    visKm >= 8
-      ? "#52a86c"
-      : visKm >= 5
-        ? "#5aacff"
-        : visKm >= 1.6
-          ? "#ee8833"
-          : "#cc44cc";
-  setColor("hud-wx-vis", vis, visColor);
-
-  // CLOUD: green=clear, neutral=scattered, amber=overcast
-  const cloudColor =
-    data.cloudCover < 25
-      ? "#52a86c"
-      : data.cloudCover < 65
-        ? null
-        : "rgba(200,170,100,0.9)";
-  setColor("hud-wx-cloud", `${data.cloudCover}%`, cloudColor);
-
-  // GUSTS: colored by strength
-  if (data.windGusts != null) {
-    const gColor =
-      data.windGusts < 15
-        ? null
-        : data.windGusts < 25
-          ? "#e8c36a"
-          : data.windGusts < 35
-            ? "#ee8833"
-            : "#ff5555";
-    setColor("hud-wx-gusts", `${Math.round(data.windGusts)}kt`, gColor);
-  } else {
-    set("hud-wx-gusts", "--");
-  }
-
-  // Density altitude
+  const tend = data.pressure != null ? _trackPressure(data.pressure) : null;
+  const arrow = tend == null ? "" : tend > 0.3 ? " ↑" : tend < -0.3 ? " ↓" : "";
+  html("wx-qnh-v", `${Math.round(data.pressure)}<small> hPa${arrow}</small>`);
   const dalt = computeDensityAltitude(data.pressure, data.temp);
-  if (dalt != null) {
-    const daColor =
-      dalt < 0
-        ? "#52a86c"
-        : dalt < 1500
-          ? null
-          : dalt < 3500
-            ? "#e8c36a"
-            : "#ee8833";
-    setColor("hud-wx-dalt", `${dalt > 0 ? "+" : ""}${dalt}ft`, daColor);
-  } else {
-    set("hud-wx-dalt", "--");
-  }
+  set("wx-qnh-s", dalt != null ? `density alt ${dalt > 0 ? "+" : ""}${dalt} ft` : "");
 
-  // Turbulence estimate
+  html("wx-cloud-v", `${data.cloudCover}<small> %</small>`);
   const turb = estimateTurbulence(data);
-  const turbEl = document.getElementById("hud-wx-turb");
-  if (turbEl && turb) {
-    turbEl.textContent = turb.label;
-    turbEl.style.color = turb.color;
-  }
+  set("wx-cloud-s", turb ? `turbulence ${String(turb.label).toLowerCase()}` : "");
 
-  // Wind rose
-  _drawWindRose(data.windDir, data.windSpeed, data.windGusts);
-  const roseSpdEl = document.getElementById("hud-wx-rose-spd");
-  if (roseSpdEl)
-    roseSpdEl.textContent = `${Math.round(data.windDir)}° / ${Math.round(data.windSpeed)}kt`;
+  set("wx-feels-v", `${Math.round(data.feelsLike)}°`);
+  set("wx-feels-s", `humidity ${data.humidity}%${data.dewpoint != null ? ` · dew ${Math.round(data.dewpoint)}°` : ""}`);
 
-  // Pressure trend
-  const tendEl = document.getElementById("hud-wx-ptend");
-  if (tendEl && data.pressure != null) {
-    const tend = _trackPressure(data.pressure);
-    if (tend != null) {
-      if (tend > 1.0) {
-        tendEl.textContent = "▲";
-        tendEl.style.color = "#52a86c";
-      } else if (tend > 0.3) {
-        tendEl.textContent = "↑";
-        tendEl.style.color = "rgba(240,236,226,0.5)";
-      } else if (tend < -1.0) {
-        tendEl.textContent = "▼";
-        tendEl.style.color = "#b05048";
-      } else if (tend < -0.3) {
-        tendEl.textContent = "↓";
-        tendEl.style.color = "rgba(240,236,226,0.5)";
-      } else {
-        tendEl.textContent = "→";
-        tendEl.style.color = "rgba(240,236,226,0.35)";
-      }
-    }
-  }
-
-  // Sunrise / sunset + daylight progress bar
+  // Sun: the next event is the value, the other one is the context.
   if (data.daily && data.daily.length > 0 && data.daily[0].sunrise) {
-    const fmtTime = (iso) => {
+    const fmt = (iso) => {
       const d = new Date(iso);
       return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     };
-    const srEl = document.getElementById("hud-wx-sunrise");
-    const ssEl = document.getElementById("hud-wx-sunset");
-    if (srEl)
-      srEl.innerHTML = `<span class="hud-wx-sun-icon">&#9788;</span> ${fmtTime(data.daily[0].sunrise)}`;
-    if (ssEl)
-      ssEl.innerHTML = `<span class="hud-wx-sun-icon">&#9790;</span> ${fmtTime(data.daily[0].sunset)}`;
-
-    // Daylight progress bar (fills left→right from sunrise to sunset, dot = now)
     const srT = new Date(data.daily[0].sunrise).getTime();
     const ssT = new Date(data.daily[0].sunset).getTime();
     const now = Date.now();
-    const pct = Math.max(0, Math.min(100, ((now - srT) / (ssT - srT)) * 100));
     const isDay = now >= srT && now <= ssT;
-    const sunRow = document.querySelector(".hud-wx-sun-row");
-    if (sunRow) {
-      let bar = sunRow.querySelector(".hud-wx-daybar");
-      if (!bar) {
-        bar = document.createElement("div");
-        bar.className = "hud-wx-daybar";
-        sunRow.appendChild(bar);
-      }
-      bar.innerHTML = isDay
-        ? `<div class="hud-wx-daybar-fill" style="width:${pct.toFixed(1)}%"></div><div class="hud-wx-daybar-dot" style="left:${pct.toFixed(1)}%"></div>`
-        : `<div class="hud-wx-daybar-fill" style="width:${now < srT ? "0" : "100"}%"></div>`;
-      // The reference ends every module with one plain line saying what its
-      // numbers mean — "Low for the rest of the day." Two clock times say when
-      // the sun does things and never say the thing a pilot actually wants
-      // from them, which is how much of it is left.
-      let note = sunRow.querySelector(".hud-wx-sun-note");
-      if (!note) {
-        note = document.createElement("div");
-        note.className = "hud-wx-sun-note";
-        sunRow.appendChild(note);
-      }
-      const span = (ms) => {
-        const m = Math.max(0, Math.round(ms / 60000));
-        const h = Math.floor(m / 60);
-        return h ? `${h}h ${m % 60}m` : `${m}m`;
-      };
-      note.textContent = isDay
-        ? `${span(ssT - now)} of daylight left`
-        : now < srT
-          ? `sunrise in ${span(srT - now)}`
-          : `night · sunrise in ${span(srT + 86400000 - now)}`;
-    }
+    set("wx-sun-k", isDay ? "sunset" : "sunrise");
+    set("wx-sun-v", fmt(isDay ? data.daily[0].sunset : data.daily[0].sunrise));
+    set("wx-sun-s", isDay ? `sunrise ${fmt(data.daily[0].sunrise)}` : `sunset ${fmt(data.daily[0].sunset)}`);
   }
 
-  // 24h hourly trend canvas
-  if (data.hourly && data.hourly.length > 0) {
-    _drawHourlyChart(data.hourly);
-  }
-
-  // 7-day daily forecast
-  if (data.daily && data.daily.length > 0) {
-    _renderDailyForecast(data.daily, data.temp);
-  }
-}
-
-// ── Wind Rose (canvas) ────────────────────────────────────────────────────────
-function _drawWindRose(windDir, windSpeedKt, windGustsKt) {
-  const canvas = document.getElementById("hud-wx-rose");
-  if (!canvas) return;
-  const SIZE = 52;
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = SIZE * dpr;
-  canvas.height = SIZE * dpr;
-  canvas.style.width = SIZE + "px";
-  canvas.style.height = SIZE + "px";
-  const ctx = canvas.getContext("2d");
-  ctx.scale(dpr, dpr);
-
-  const cx = SIZE / 2,
-    cy = SIZE / 2,
-    R = 22;
-
-  // Background
-  ctx.fillStyle = "rgba(4,6,16,0.65)";
-  ctx.beginPath();
-  ctx.arc(cx, cy, R + 3, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Outer ring
-  ctx.strokeStyle = "rgba(255,255,255,0.09)";
-  ctx.lineWidth = 0.75;
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Inner ring (calm zone)
-  ctx.strokeStyle = "rgba(255,255,255,0.04)";
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.arc(cx, cy, R * 0.35, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Cardinal labels
-  const MONO = "'JetBrains Mono',monospace";
-  ctx.font = `700 5.5px ${MONO}`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  const lblR = R - 5;
-  ctx.fillStyle = "rgba(196,160,88,0.80)";
-  ctx.fillText("N", cx, cy - lblR);
-  ctx.fillStyle = "rgba(240,236,226,0.28)";
-  ctx.fillText("S", cx, cy + lblR);
-  ctx.fillText("E", cx + lblR, cy);
-  ctx.fillText("W", cx - lblR, cy);
-
-  if (windDir == null || windSpeedKt == null) return;
-
-  // Wind arrow: FROM windDir toward center
-  // Meteorological convention: 270° wind blows from W, arrow tip points toward E
-  const fromRad = ((windDir - 90) * Math.PI) / 180;
-  const toRad = fromRad + Math.PI;
-  const arrowR = R - 8;
-  const tipX = cx + Math.cos(toRad) * arrowR;
-  const tipY = cy + Math.sin(toRad) * arrowR;
-  const tailX = cx + Math.cos(fromRad) * arrowR;
-  const tailY = cy + Math.sin(fromRad) * arrowR;
-
-  // Shaft
-  ctx.strokeStyle = "rgba(106,173,204,0.90)";
-  ctx.lineWidth = 1.5;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(tailX, tailY);
-  ctx.lineTo(tipX, tipY);
-  ctx.stroke();
-
-  // Arrowhead
-  const ang = Math.atan2(tipY - tailY, tipX - tailX);
-  const hLen = 5,
-    hAng = Math.PI / 5;
-  ctx.fillStyle = "rgba(106,173,204,0.90)";
-  ctx.beginPath();
-  ctx.moveTo(tipX, tipY);
-  ctx.lineTo(
-    tipX - hLen * Math.cos(ang - hAng),
-    tipY - hLen * Math.sin(ang - hAng),
-  );
-  ctx.lineTo(
-    tipX - hLen * Math.cos(ang + hAng),
-    tipY - hLen * Math.sin(ang + hAng),
-  );
-  ctx.closePath();
-  ctx.fill();
-
-  // Gust ring — outer semi-transparent arc proportional to gusts
-  if (windGustsKt != null && windGustsKt > windSpeedKt) {
-    const gustR = R - 2;
-    ctx.strokeStyle = "rgba(232,144,90,0.22)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, gustR, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  // Center dot
-  ctx.fillStyle = "rgba(106,173,204,0.85)";
-  ctx.beginPath();
-  ctx.arc(cx, cy, 2, 0, Math.PI * 2);
-  ctx.fill();
+  if (data.hourly && data.hourly.length > 0) _drawHourlyChart(data.hourly);
+  if (data.daily && data.daily.length > 0) _renderDailyForecast(data.daily, data.temp);
 }
 
 // ── Pressure Trend Tracker ────────────────────────────────────────────────────
@@ -4291,187 +3968,104 @@ function _drawHourlyChart(hourly) {
   if (!canvas) return;
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 280;
-  const h = canvas.clientHeight || 60;
+  const h = canvas.clientHeight || 56;
   canvas.width = w * dpr;
   canvas.height = h * dpr;
   const ctx = canvas.getContext("2d");
   ctx.scale(dpr, dpr);
 
+  // One line. The first version also drew wind, precipitation bars, a dot at
+  // every fourth hour with its temperature printed above it, and rain totals
+  // -- six things on a 60-pixel strip. The day's shape is the line; the
+  // extremes are the only numbers worth printing on it.
   const temps = hourly.map((e) => e.temp);
-  const winds = hourly.map((e) => e.wind || 0);
-  const precips = hourly.map((e) => e.precip || 0);
-  const tMin = Math.min(...temps) - 1;
-  const tMax = Math.max(...temps) + 1;
+  const tMin = Math.min(...temps), tMax = Math.max(...temps);
   const tRange = tMax - tMin || 1;
-  const pMax = Math.max(...precips, 0.5);
-  const wMax = Math.max(...winds, 10);
+  const padTop = 12, padBot = 12, padL = 4, padR = 4;
+  const plotW = w - padL - padR, plotH = h - padTop - padBot;
+  const n = hourly.length;
+  const xAt = (i) => padL + (i / (n - 1)) * plotW;
+  const yAt = (t) => padTop + plotH - ((t - tMin) / tRange) * plotH;
 
-  const padTop = 13,
-    padBot = 12,
-    padL = 2,
-    padR = 2;
-  const plotW = w - padL - padR;
-  const plotH = h - padTop - padBot;
-
-  const xAt = (i) => padL + (i / (hourly.length - 1)) * plotW;
-  const yAtTemp = (t) => padTop + plotH - ((t - tMin) / tRange) * plotH;
-
-  // Precipitation bars
-  ctx.fillStyle = "rgba(90,172,255,0.18)";
-  for (let i = 0; i < hourly.length; i++) {
-    if (precips[i] <= 0) continue;
-    const bh = (precips[i] / pMax) * plotH * 0.55;
-    const bw = Math.max(plotW / hourly.length - 1, 2);
-    ctx.fillRect(xAt(i) - bw / 2, padTop + plotH - bh, bw, bh);
-  }
-
-  // Wind speed line (subtle, lower portion)
   ctx.beginPath();
-  ctx.strokeStyle = "rgba(106,173,204,0.28)";
-  ctx.lineWidth = 1;
-  ctx.lineJoin = "round";
-  for (let i = 0; i < hourly.length; i++) {
-    const wy = padTop + plotH - (winds[i] / wMax) * (plotH * 0.4);
-    if (i === 0) ctx.moveTo(xAt(i), wy);
-    else ctx.lineTo(xAt(i), wy);
-  }
-  ctx.stroke();
-
-  // Temperature area + line
-  ctx.beginPath();
-  ctx.strokeStyle = "rgba(232,195,106,0.75)";
-  ctx.lineWidth = 1.5;
-  ctx.lineJoin = "round";
-  for (let i = 0; i < hourly.length; i++) {
-    const y = yAtTemp(temps[i]);
-    if (i === 0) ctx.moveTo(xAt(i), y);
-    else ctx.lineTo(xAt(i), y);
-  }
-  ctx.stroke();
-
-  // Temperature gradient fill
-  ctx.beginPath();
-  for (let i = 0; i < hourly.length; i++) {
-    const y = yAtTemp(temps[i]);
-    if (i === 0) ctx.moveTo(xAt(i), y);
-    else ctx.lineTo(xAt(i), y);
-  }
-  ctx.lineTo(xAt(hourly.length - 1), padTop + plotH);
+  for (let i = 0; i < n; i++) i === 0 ? ctx.moveTo(xAt(i), yAt(temps[i])) : ctx.lineTo(xAt(i), yAt(temps[i]));
+  ctx.lineTo(xAt(n - 1), padTop + plotH);
   ctx.lineTo(padL, padTop + plotH);
   ctx.closePath();
   const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
-  grad.addColorStop(0, "rgba(232,195,106,0.14)");
+  grad.addColorStop(0, "rgba(232,195,106,0.16)");
   grad.addColorStop(1, "rgba(232,195,106,0)");
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Current time marker
-  const nowHour = new Date().getHours();
-  const nowIdx = hourly.findIndex((e) => e.hour === nowHour);
+  ctx.beginPath();
+  ctx.strokeStyle = "rgba(232,195,106,0.8)";
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = "round";
+  for (let i = 0; i < n; i++) i === 0 ? ctx.moveTo(xAt(i), yAt(temps[i])) : ctx.lineTo(xAt(i), yAt(temps[i]));
+  ctx.stroke();
+
+  const nowIdx = hourly.findIndex((e) => e.hour === new Date().getHours());
   if (nowIdx >= 0) {
-    const nx = xAt(nowIdx);
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.lineWidth = 0.75;
+    const nx = xAt(nowIdx), ny = yAt(temps[nowIdx]);
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 1;
     ctx.setLineDash([2, 3]);
-    ctx.beginPath();
-    ctx.moveTo(nx, padTop);
-    ctx.lineTo(nx, padTop + plotH);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(nx, padTop); ctx.lineTo(nx, padTop + plotH); ctx.stroke();
     ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(nx, ny, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff"; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.stroke();
   }
 
-  // Dots + labels every 4h
+  ctx.font = "10px JetBrains Mono, ui-monospace, monospace";
   ctx.textAlign = "center";
-  for (let i = 0; i < hourly.length; i++) {
-    if (i % 4 !== 0 && i !== hourly.length - 1) continue;
-    const x = xAt(i),
-      y = yAtTemp(temps[i]);
-
-    // Dot
-    ctx.beginPath();
-    ctx.arc(x, y, 1.8, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(232,195,106,0.85)";
-    ctx.fill();
-
-    // Temp label
-    ctx.font = `7px monospace`;
-    ctx.fillStyle = "rgba(255,255,255,0.60)";
-    ctx.fillText(`${temps[i]}°`, x, y - 4);
-
-    // Hour label
-    ctx.fillStyle = "rgba(255,255,255,0.28)";
-    ctx.fillText(String(hourly[i].hour).padStart(2, "0"), x, h - 1);
-  }
-
-  // Rain label if significant
-  ctx.font = `6px monospace`;
-  for (let i = 0; i < hourly.length; i++) {
-    if (precips[i] < 0.5 || i % 3 !== 0) continue;
-    const bTop = padTop + plotH - (precips[i] / pMax) * plotH * 0.55;
-    ctx.fillStyle = "rgba(90,172,255,0.65)";
-    ctx.fillText(`${precips[i].toFixed(1)}`, xAt(i), bTop - 2);
+  const hiI = temps.indexOf(tMax), loI = temps.indexOf(tMin);
+  ctx.fillStyle = "rgba(240,236,226,0.7)";
+  ctx.fillText(`${Math.round(tMax)}°`, Math.min(w - 12, Math.max(12, xAt(hiI))), yAt(tMax) - 4);
+  // Above its point, like the high: below it shares a baseline with the hour
+  // labels and the two collide whenever the low falls at either end of the day.
+  ctx.fillStyle = "rgba(240,236,226,0.45)";
+  ctx.fillText(`${Math.round(tMin)}°`, Math.min(w - 12, Math.max(12, xAt(loI))), yAt(tMin) - 4);
+  ctx.fillStyle = "rgba(240,236,226,0.35)";
+  for (const i of [0, Math.floor((n - 1) / 2), n - 1]) {
+    ctx.textAlign = i === 0 ? "left" : i === n - 1 ? "right" : "center";
+    ctx.fillText(String(hourly[i].hour).padStart(2, "0"), xAt(i), h - 1);
   }
 }
 
 function _renderDailyForecast(daily, nowTemp) {
   const el = document.getElementById("hud-wx-daily");
   if (!el) return;
-
   const allMin = Math.min(...daily.map((d) => d.tempMin));
   const allMax = Math.max(...daily.map((d) => d.tempMax));
   const range = allMax - allMin || 1;
   const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-
   el.innerHTML = daily
     .map((d, i) => {
       const dt = new Date(d.date + "T00:00:00");
       const name = i === 0 ? "NOW" : dayNames[dt.getDay()];
-      const icon = weatherIcon(d.code);
       const left = ((d.tempMin - allMin) / range) * 100;
-      const width = ((d.tempMax - d.tempMin) / range) * 100;
-
-      // Precipitation: always show prob bar; show mm if ≥1mm, else prob% if ≥5
-      const prob = d.precipProb || 0;
-      const precipLabel =
-        d.precip >= 1
-          ? `${Math.round(d.precip)}mm`
-          : prob >= 5
-            ? `${prob}%`
-            : "";
-      // Rain bar opacity scales with probability
-      const rainOpacity = Math.min(0.8, 0.15 + prob * 0.006);
-      const rainBar =
-        prob > 0
-          ? `<div class="hud-wx-day-rain-bar" style="width:${prob}%;opacity:${rainOpacity.toFixed(2)}"></div>`
-          : "";
-
-      // Temp color: blue for cold, orange for hot
-      const hiC = d.tempMax;
-      const hiColor =
-        hiC <= 0 ? "color:#5aacff" : hiC >= 32 ? "color:#ee8833" : "";
-
-      // Every row's bar was the same blue, so seven days of weather looked
-      // like seven identical days at different offsets. Each bar is graded
-      // between the colour of its own low and the colour of its own high now,
-      // which is what makes a list of days readable without reading it: a
-      // cold week is a blue column and a hot one is an amber one.
+      const width = Math.max(((d.tempMax - d.tempMin) / range) * 100, 4);
+      // Every row's bar is graded from its own low to its own high, on the
+      // week's scale, so a cold week is a blue column and a hot one amber
+      // before a single number is read. Today also carries now, with the
+      // same marker as the tile.
       const grade = `background:linear-gradient(90deg, ${_tempHue(d.tempMin)}, ${_tempHue(d.tempMax)})`;
-      // Today also carries where the temperature is right now, on the same
-      // scale and with the same needle as the tile above.
       const nowMark =
         i === 0 && nowTemp != null && d.tempMax > d.tempMin
-          ? `<i class="hud-wx-day-now" style="left:${(Math.max(0, Math.min(1, (nowTemp - d.tempMin) / (d.tempMax - d.tempMin))) * 100).toFixed(1)}%"></i>`
+          ? `<i class="wx-now" style="left:${(Math.max(0, Math.min(1, (nowTemp - d.tempMin) / (d.tempMax - d.tempMin))) * 100).toFixed(1)}%"></i>`
           : "";
-
-      return `<div class="hud-wx-day${i === 0 ? " hud-wx-day-today" : ""}">
-      <span class="hud-wx-day-name">${name}</span>
-      <span class="hud-wx-day-icon">${icon}</span>
-      <span class="hud-wx-day-lo">${d.tempMin}°</span>
-      <div class="hud-wx-day-bar-track">
-        <div class="hud-wx-day-bar-fill" style="left:${left}%;width:${Math.max(width, 4)}%;${grade}">${nowMark}</div>
-      </div>
-      <span class="hud-wx-day-hi" style="${hiColor}">${d.tempMax}°</span>
-      <div class="hud-wx-day-rain">${rainBar}<span class="hud-wx-day-rain-lbl">${precipLabel}</span></div>
+      // Chance of rain, when there is one worth saying; the reference leaves
+      // the column blank below ten percent rather than printing a small number.
+      const prob = d.precipProb || 0;
+      const rain = prob >= 10 ? `${prob}%` : "";
+      return `<div class="wx-day${i === 0 ? " wx-day-today" : ""}">
+      <span class="wx-day-name">${name}</span>
+      <span class="wx-day-lo">${Math.round(d.tempMin)}°</span>
+      <div class="wx-day-track"><div class="wx-day-fill" style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%;${grade}">${nowMark}</div></div>
+      <span class="wx-day-hi">${Math.round(d.tempMax)}°</span>
+      <span class="wx-day-rain">${rain}</span>
     </div>`;
     })
     .join("");
@@ -9773,7 +9367,6 @@ async function init() {
     initToolbar();
     initMobileTouch();
     initWeatherPanel();
-    _startWxRotation();
     updateWeatherWidget();
 
     // Overlay close handlers
