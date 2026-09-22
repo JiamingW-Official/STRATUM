@@ -729,7 +729,10 @@
     </div>
   </div>
 
-  <!-- Airport Info Widget — shown when airport clicked on 3D map -->
+  <!-- Airport card — shown when an airport is clicked on the map. Label over
+       value everywhere, the way the HUD tiles read; sections separated by
+       space, not lines. The flight list and the wind table are built in JS
+       into the two containers at the end. -->
   <div id="airport-widget" class="airport-widget hidden" role="dialog">
     <div class="aw-header">
       <div class="aw-codes">
@@ -739,49 +742,21 @@
       <button type="button" id="aw-close" class="aw-close" aria-label="Close">&times;</button>
     </div>
     <div id="aw-name" class="aw-name">--</div>
-    <div class="aw-divider"></div>
-    <div class="aw-arr-dep">
-      <div class="aw-ad-col aw-ad-arr">
-        <div class="aw-ad-label">ARR</div>
-        <div id="aw-arrivals" class="aw-ad-val">0</div>
-      </div>
-      <div class="aw-ad-divider"></div>
-      <div class="aw-ad-col aw-ad-dep">
-        <div class="aw-ad-label">DEP</div>
-        <div id="aw-departures" class="aw-ad-val">0</div>
-      </div>
+    <div class="aw-grid aw-traffic">
+      <div class="aw-cell"><span class="hud-mod-label">arriving</span><span id="aw-arrivals" class="aw-big">0</span></div>
+      <div class="aw-cell"><span class="hud-mod-label">departing</span><span id="aw-departures" class="aw-big">0</span></div>
     </div>
-    <div class="aw-stats">
-      <div class="aw-stat">
-        <div id="aw-elev" class="aw-stat-val">--</div>
-        <div class="aw-stat-lbl">ELEV</div>
-      </div>
-      <div class="aw-stat">
-        <div id="aw-rwys" class="aw-stat-val">--</div>
-        <div class="aw-stat-lbl">RWYS</div>
-      </div>
-      <div class="aw-stat">
-        <div id="aw-pax" class="aw-stat-val">--</div>
-        <div class="aw-stat-lbl">PAX/YR</div>
-      </div>
-      <div class="aw-stat">
-        <div id="aw-hub" class="aw-stat-val">--</div>
-        <div class="aw-stat-lbl">HUB</div>
-      </div>
+    <div class="aw-grid aw-stats">
+      <div class="aw-cell"><span class="hud-mod-label">elevation</span><span id="aw-elev" class="aw-val">--</span></div>
+      <div class="aw-cell"><span class="hud-mod-label">runways</span><span id="aw-rwys" class="aw-val">--</span></div>
+      <div class="aw-cell"><span class="hud-mod-label">passengers</span><span id="aw-pax" class="aw-val">--</span></div>
+      <div class="aw-cell"><span class="hud-mod-label">hub</span><span id="aw-hub" class="aw-val">--</span></div>
     </div>
-    <div class="aw-divider"></div>
-    <div class="aw-meta">
-      <div class="aw-meta-row">
-        <span class="aw-meta-label">COORD</span>
-        <span id="aw-coord" class="aw-meta-val">--</span>
-      </div>
-      <div class="aw-meta-row">
-        <span class="aw-meta-label">FREQ</span>
-        <span id="aw-freq" class="aw-meta-val">--</span>
-      </div>
-    </div>
+    <div id="aw-coord" class="aw-coord">--</div>
     <div id="aw-fact" class="aw-fact hidden"></div>
-    <div id="aw-desc" class="aw-desc hidden"></div>
+    <div id="aw-flight-list" class="aw-flight-list"></div>
+    <div id="aw-seq-edu" class="aw-seq-edu" hidden></div>
+    <div id="aw-wind-advisor" class="aw-wind"></div>
   </div>
 
   <!-- Aircraft hover tooltip -->

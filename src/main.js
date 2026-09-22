@@ -724,19 +724,29 @@ let _navTooltipVisible = false;
 
 function _showNavaidTooltip(info, mx, my) {
   if (!_navTooltip) return;
-  let html = `<div><span class="nav-tooltip-ident">${info.ident}</span><span class="nav-tooltip-type">${info.type}</span></div>`;
+  let html = `<div class="nav-tooltip-head"><span class="nav-tooltip-ident">${info.ident}</span><span class="nav-tooltip-type">${info.type}</span></div>`;
   if (info.name) html += `<div class="nav-tooltip-name">${info.name}</div>`;
   const rows = [];
   if (info.freq) rows.push(["FREQ", info.freq]);
   rows.push(["POS", `${info.lat.toFixed(4)}, ${info.lon.toFixed(4)}`]);
-  for (const [label, val] of rows) {
-    html += `<div class="nav-tooltip-row"><span class="nav-tooltip-label">${label}</span><span class="nav-tooltip-val">${val}</span></div>`;
+  html += `<div class="nav-tooltip-rows">` + rows
+    .map(([label, val]) => `<div class="nav-tooltip-row"><span class="nav-tooltip-label">${label}</span><span class="nav-tooltip-val">${val}</span></div>`)
+    .join("") + `</div>`;
+  // The first sentence. The full description stays on the navaid for ground
+  // school; a hover card is not where a paragraph belongs.
+  if (info.desc) {
+    const first = String(info.desc).split(/(?<=\.)\s+/)[0];
+    html += `<div class="nav-tooltip-desc">${first}</div>`;
   }
-  if (info.desc) html += `<div class="nav-tooltip-desc">${info.desc}</div>`;
   _navTooltip.innerHTML = html;
-  _navTooltip.style.left = mx + 16 + "px";
-  _navTooltip.style.top = my - 10 + "px";
   _navTooltip.classList.remove("hidden");
+  // Clamped to the viewport: placed blindly at cursor + 16 it ran off the
+  // right and bottom edges for any navaid in that third of the screen.
+  const tw = _navTooltip.offsetWidth, th = _navTooltip.offsetHeight;
+  const left = Math.max(8, Math.min(mx + 16, window.innerWidth - tw - 8));
+  const top = Math.max(8, Math.min(my - 10, window.innerHeight - th - 8));
+  _navTooltip.style.left = left + "px";
+  _navTooltip.style.top = top + "px";
   _navTooltipVisible = true;
 }
 
@@ -1335,28 +1345,19 @@ function showAirportWidget(airport, arrivals, departures) {
   _awEl("aw-elev").textContent =
     meta?.elev != null ? `${meta.elev.toLocaleString()} ft` : "--";
   _awEl("aw-rwys").textContent = meta?.rwys ?? "--";
-
-  // Extended airport widget data
   const awHub = _awEl("aw-hub");
-  if (awHub) awHub.textContent = meta?.hub || "--";
+  if (awHub) awHub.textContent = meta?.hub ? meta.hub.replace(/\//g, " / ") : "--";
   const awPax = _awEl("aw-pax");
-  if (awPax) awPax.textContent = meta?.pax != null ? `${meta.pax}M` : "--";
+  if (awPax) awPax.innerHTML = meta?.pax != null ? `${meta.pax}M<small> / yr</small>` : "--";
 
-  const lat = airport.lat,
-    lon = airport.lon;
-  if (lat != null && lon != null) {
-    const la = `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? "N" : "S"}`;
-    const lo = `${Math.abs(lon).toFixed(2)}°${lon >= 0 ? "E" : "W"}`;
-    _awEl("aw-coord").textContent = `${la}  ${lo}`;
-  } else {
-    _awEl("aw-coord").textContent = "--";
-  }
+  const lat = airport.lat, lon = airport.lon;
+  _awEl("aw-coord").textContent =
+    lat != null && lon != null
+      ? `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? "N" : "S"}  ${Math.abs(lon).toFixed(2)}°${lon >= 0 ? "E" : "W"}`
+      : "";
 
-  // Tower frequency (approximate from airport data if available)
-  _awEl("aw-freq").textContent = meta?.icao
-    ? `${meta.icao} TWR`
-    : `${code} INFO`;
-
+  // The row that used to follow this said FREQ and showed "{ICAO} TWR". That
+  // is a label, not a frequency, and the data has no real one to put there.
   const factEl = _awEl("aw-fact");
   if (factEl) {
     if (meta?.fact) {
@@ -1365,89 +1366,43 @@ function showAirportWidget(airport, arrivals, departures) {
     } else factEl.classList.add("hidden");
   }
 
-  // The city blurb ("a vertical metropolis of Broadway theaters...") is travel
-  // copy, and it rendered truncated mid-sentence. It still belongs in the picker,
-  // where you are choosing where to go; over the live map it is filler. The
-  // aviation fact above it stays.
-  _awEl("aw-desc")?.classList.add("hidden");
-
-  // B-4: Arrival Sequencing Queue — sorted by distance to airport, with ETA
-  let flightListEl = document.getElementById("aw-flight-list");
-  if (!flightListEl) {
-    flightListEl = document.createElement("div");
-    flightListEl.id = "aw-flight-list";
-    flightListEl.className = "aw-flight-list";
-    w.appendChild(flightListEl);
-  }
-  const aptLat = airport.lat,
-    aptLon = airport.lon;
-  // Sort arrivals by distance to airport (closest = #1)
+  // Arrivals sorted by distance, with an ETA; departures with where they are
+  // going, from the route cache -- a departure row that is only a callsign
+  // says nothing the map is not already saying louder.
+  const flightListEl = _awEl("aw-flight-list");
+  const aptLat = airport.lat, aptLon = airport.lon;
   const arrWithDist = arrivals
     .map((ac) => {
       const distKm =
         aptLat != null && ac.data?.latitude != null
-          ? haversineDistance(
-              ac.data.latitude,
-              ac.data.longitude,
-              aptLat,
-              aptLon,
-            )
+          ? haversineDistance(ac.data.latitude, ac.data.longitude, aptLat, aptLon)
           : Infinity;
       const distNm = distKm < Infinity ? Math.round(distKm * 0.539957) : null;
-      const gsKts =
-        ac.data?.velocity != null
-          ? Math.round(ac.data.velocity * 1.94384)
-          : null;
-      const etaMin =
-        distNm != null && gsKts != null && gsKts > 30
-          ? Math.round((distNm / gsKts) * 60)
-          : null;
-      return { ac, distNm, etaMin, tag: "arr" };
+      const gsKts = ac.data?.velocity != null ? Math.round(ac.data.velocity * 1.94384) : null;
+      const etaMin = distNm != null && gsKts != null && gsKts > 30 ? Math.round((distNm / gsKts) * 60) : null;
+      return { ac, distNm, etaMin };
     })
-    .sort((a, b) => (a.distNm ?? Infinity) - (b.distNm ?? Infinity));
-
-  const depItems = departures.map((ac) => ({
-    ac,
-    distNm: null,
-    etaMin: null,
-    tag: "dep",
-  }));
-  const allItems = [...arrWithDist, ...depItems].slice(0, 20);
-
-  // Every row carried an ARR or DEP tag, but the list is already sorted with all
-  // arrivals first, so twenty rows repeated two words. Two headers say it once,
-  // and the list gains the name it never had.
-  const _row = (item, i) => {
-    const cs = item.ac.callsign || item.ac.icao24;
-    const rank = item.tag === "arr" ? `#${i + 1} ` : "";
-    const dist = item.distNm != null ? ` · ${item.distNm}nm` : "";
-    const eta = item.etaMin != null ? ` · ${item.etaMin}min` : "";
-    return `<div class="aw-flight-item" data-icao="${item.ac.icao24}"><span>${rank}${cs}</span><span class="aw-flight-meta">${(dist + eta).replace(/^ · /, "")}</span></div>`;
-  };
-  const _arr = allItems.filter((it) => it.tag === "arr");
-  const _dep = allItems.filter((it) => it.tag === "dep");
+    .sort((a, b) => (a.distNm ?? Infinity) - (b.distNm ?? Infinity))
+    .slice(0, 12);
+  const deps = departures.slice(0, 12);
+  const _cs = (ac) => ac.callsign || ac.icao24;
+  const arrRows = arrWithDist.map((it, i) => {
+    const meta = [it.distNm != null ? `${it.distNm} nm` : "", it.etaMin != null ? `${it.etaMin} min` : ""].filter(Boolean).join(" · ");
+    return `<div class="aw-flight-item" data-icao="${it.ac.icao24}"><span>#${i + 1} ${_cs(it.ac)}</span><span class="aw-flight-meta">${meta}</span></div>`;
+  });
+  const depRows = deps.map((ac) => {
+    const dest = (getRoute(ac.callsign)?.destination || "").toUpperCase();
+    return `<div class="aw-flight-item" data-icao="${ac.icao24}"><span>${_cs(ac)}</span><span class="aw-flight-meta">${dest ? `→ ${dest}` : ""}</span></div>`;
+  });
   flightListEl.innerHTML =
-    (_arr.length
-      ? `<div class="aw-flight-head">↓ Arriving</div>${_arr.map(_row).join("")}`
-      : "") +
-    (_dep.length
-      ? `<div class="aw-flight-head">↑ Departing</div>${_dep.map(_row).join("")}`
-      : "");
+    (arrRows.length ? `<div class="hud-mod-label aw-section-label">arriving</div>${arrRows.join("")}` : "") +
+    (depRows.length ? `<div class="hud-mod-label aw-section-label">departing</div>${depRows.join("")}` : "");
 
-  // ATC spacing education note
-  let seqEduEl = document.getElementById("aw-seq-edu");
-  if (!seqEduEl) {
-    seqEduEl = document.createElement("div");
-    seqEduEl.id = "aw-seq-edu";
-    seqEduEl.className = "aw-seq-edu";
-    flightListEl.insertAdjacentElement("afterend", seqEduEl);
-  }
-  if (arrivals.length >= 2) {
-    seqEduEl.textContent =
-      "ATC spacing: heavy/heavy 6nm · heavy/medium 5nm · medium/light 4nm (wake turbulence)";
-    seqEduEl.style.display = "";
-  } else {
-    seqEduEl.style.display = "none";
+  const seqEduEl = _awEl("aw-seq-edu");
+  if (seqEduEl) {
+    seqEduEl.hidden = arrivals.length < 2;
+    if (arrivals.length >= 2)
+      seqEduEl.textContent = "ATC spacing: heavy/heavy 6 nm · heavy/medium 5 nm · medium/light 4 nm";
   }
 
   flightListEl.querySelectorAll(".aw-flight-item").forEach((el) => {
@@ -1465,22 +1420,17 @@ function showAirportWidget(airport, arrivals, departures) {
 }
 
 // ── Runway Wind Advisor ──
-// Shows headwind/crosswind analysis for each runway strip at the selected airport.
+// Headwind and crosswind for each runway strip, and which one the wind
+// favours. One highlighted row instead of six colours: the preferred runway
+// takes the accent and full white, the rest are the reading colour, and the
+// only hue left is --danger on a crosswind of twenty knots or more, which is
+// the one number here with a safety meaning. No compass; the wind is a line
+// of text, and a dial drawn to show one number was the widget's only blue.
 function _renderWindAdvisor(airport, container) {
-  let el = document.getElementById("aw-wind-advisor");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "aw-wind-advisor";
-    el.style.cssText =
-      "margin-top:10px;padding:10px 16px 14px;border-top:1px solid rgba(255,255,255,0.04)";
-    container.appendChild(el);
-  }
-
+  const el = document.getElementById("aw-wind-advisor");
+  if (!el) return;
   const wx = window._cachedWeather;
-  if (!wx || wx.windSpeed == null || wx.windDir == null) {
-    el.innerHTML = "";
-    return;
-  }
+  if (!wx || wx.windSpeed == null || wx.windDir == null) { el.innerHTML = ""; return; }
 
   const data = getAirportData();
   const aptRunways = (data?.runways || []).filter((r) => {
@@ -1488,110 +1438,51 @@ function _renderWindAdvisor(airport, container) {
     const rlon = r.lon ?? (r.startLon + r.endLon) / 2;
     return Math.hypot(rlat - airport.lat, rlon - airport.lon) < 0.05;
   });
-  if (!aptRunways.length) {
-    el.innerHTML = "";
-    return;
-  }
+  if (!aptRunways.length) { el.innerHTML = ""; return; }
 
-  const windSpd = wx.windSpeed; // already in kt (converted in weather.js)
+  const windSpd = wx.windSpeed; // kt, converted in weather.js
   const windDir = wx.windDir;
-  const windCard = windDirToCardinal(windDir);
-
-  // For each runway strip: pick the better of the two directions
   const seen = new Set();
   const strips = aptRunways
     .map((rwy) => {
-      const refs = (rwy.ref || "")
-        .split("/")
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const refs = (rwy.ref || "").split("/").map((s) => s.trim()).filter(Boolean);
       const hdg1 = rwy.heading || 0;
-      const ang1 = ((windDir - hdg1 + 540) % 360) - 180; // [-180, 180]
+      const ang1 = ((windDir - hdg1 + 540) % 360) - 180;
       const hw1 = windSpd * Math.cos((ang1 * Math.PI) / 180);
       const xw = Math.abs(windSpd * Math.sin((ang1 * Math.PI) / 180));
       const hdg2 = (hdg1 + 180) % 360;
       return hw1 >= 0
-        ? {
-            ref: refs[0] || String(Math.round(hdg1 / 10)).padStart(2, "0"),
-            headwind: hw1,
-            crosswind: xw,
-          }
-        : {
-            ref:
-              refs[1] ||
-              refs[0] ||
-              String(Math.round(hdg2 / 10)).padStart(2, "0"),
-            headwind: -hw1,
-            crosswind: xw,
-          };
+        ? { ref: refs[0] || String(Math.round(hdg1 / 10)).padStart(2, "0"), headwind: hw1, crosswind: xw }
+        : { ref: refs[1] || refs[0] || String(Math.round(hdg2 / 10)).padStart(2, "0"), headwind: -hw1, crosswind: xw };
     })
-    .filter((s) => {
-      if (seen.has(s.ref)) return false;
-      seen.add(s.ref);
-      return true;
-    });
-
+    .filter((s) => (seen.has(s.ref) ? false : (seen.add(s.ref), true)));
   strips.sort((a, b) => b.headwind - a.headwind);
   const best = strips[0];
+  const r = (v) => Math.round(Math.abs(v));
 
   const rows = strips
     .map((s, i) => {
       const isBest = i === 0 && s.headwind > 1;
-      const hwColor =
-        s.headwind >= 5
-          ? "rgba(90,200,90,0.9)"
-          : s.headwind >= 0
-            ? "rgba(200,200,90,0.8)"
-            : "rgba(200,90,90,0.7)";
-      const xwColor =
-        s.crosswind < 10
-          ? "rgba(255,255,255,0.5)"
-          : s.crosswind < 20
-            ? "rgba(200,180,90,0.8)"
-            : "rgba(220,90,90,0.8)";
-      const mark = isBest
-        ? '<span class="aw-wind-mark aw-wind-mark--ok">✓</span>'
-        : '<span class="aw-wind-mark">·</span>';
-      const hwLabel = `${Math.round(Math.abs(s.headwind))}kt HW`;
-      return `<div class="aw-wind-row">
-      <span class="aw-wind-cell aw-wind-cell--mark">${mark}</span>
-      <span class="aw-wind-cell aw-wind-cell--ref">${s.ref}</span>
-      <span class="aw-wind-cell aw-wind-cell--hw" style="color:${hwColor}">${hwLabel}</span>
-      <span class="aw-wind-cell" style="color:${xwColor}">${Math.round(s.crosswind)}kt XW</span>
-    </div>`;
+      const hw = i === 0 ? `${r(s.headwind)} kt headwind` : `${r(s.headwind)} kt`;
+      const xw = i === 0 ? `${r(s.crosswind)} kt crosswind` : `${r(s.crosswind)} kt`;
+      return `<div class="aw-wind-row${isBest ? " is-best" : ""}">` +
+        `<span class="aw-wind-ref">${s.ref}</span>` +
+        `<span class="aw-wind-hw">${hw}</span>` +
+        `<span class="aw-wind-xw${s.crosswind >= 20 ? " is-high" : ""}">${xw}</span></div>`;
     })
     .join("");
 
+  // One line of context, and only the one that applies.
   const edu =
-    best.crosswind > 20
-      ? "High crosswind — pilots apply crosswind correction technique"
-      : best.headwind < 2
-        ? "Light winds — any runway usable; ATC optimizes traffic flow"
-        : `RWY ${best.ref} preferred — headwind reduces ground roll & improves control`;
+    best.crosswind > 20 ? `Crosswind ${r(best.crosswind)} kt on ${best.ref}`
+    : best.headwind < 2 ? "Light winds · any runway"
+    : `${best.ref} preferred · ${r(best.headwind)} kt headwind`;
 
-  // Wind direction compass (mini SVG arrow)
-  const rad = ((windDir - 90) * Math.PI) / 180;
-  const ax = (12 + Math.cos(rad) * 8).toFixed(1),
-    ay = (12 + Math.sin(rad) * 8).toFixed(1);
-  const bx = (12 - Math.cos(rad) * 8).toFixed(1),
-    by = (12 - Math.sin(rad) * 8).toFixed(1);
-
-  el.innerHTML = `
-    <div class="aw-wind-title">Wind advisor</div>
-    <div class="aw-wind-head">
-      <svg viewBox="0 0 24 24" width="22" height="22" style="flex-shrink:0">
-        <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="0.8"/>
-        <line x1="${bx}" y1="${by}" x2="${ax}" y2="${ay}" stroke="rgba(90,160,255,0.75)" stroke-width="2" stroke-linecap="round"/>
-        <circle cx="${ax}" cy="${ay}" r="2.5" fill="rgba(90,160,255,0.9)"/>
-      </svg>
-      <div>
-        <div class="aw-wind-val">${Math.round(windDir)}° ${windCard} · ${Math.round(windSpd)}kt</div>
-        <div class="aw-wind-sub">surface wind</div>
-      </div>
-    </div>
-    ${rows}
-    <div class="aw-wind-edu">${edu}</div>
-  `;
+  el.innerHTML =
+    `<div class="hud-mod-label aw-section-label">wind</div>` +
+    `<div class="aw-wind-val">${Math.round(windDir)}° ${windDirToCardinal(windDir)} · ${Math.round(windSpd)} kt</div>` +
+    `<div class="aw-wind-table">${rows}</div>` +
+    `<div class="aw-wind-edu">${edu}</div>`;
 }
 
 function hideAirportWidget() {

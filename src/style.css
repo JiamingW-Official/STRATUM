@@ -1303,141 +1303,6 @@ html, body {
 .detail-status.cruise { color: var(--text-3); }
 .detail-status.ground { color: rgba(100,200,100,0.6); }
 
-/* ── Airport Widget ── */
-.airport-widget {
-  position: fixed;
-  bottom: 76px; left: 50%;
-  transform: translateX(-50%);
-  width: 300px;
-  z-index: 25; pointer-events: auto; background: var(--surface); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); backdrop-filter: blur(var(--blur)) saturate(1.6) brightness(1.08); border: 1px solid var(--hairline); border-radius: var(--r);
-  overflow: hidden;
-  overflow-y: auto;
-  max-height: calc(100vh - 100px); box-shadow: inset 0 1px 0 var(--specular), var(--shadow);
-  animation: aw-in 0.35s cubic-bezier(0.22,1,0.36,1) both;
-  scrollbar-width: none;
-}
-.airport-widget::-webkit-scrollbar { display: none; }
-.airport-widget.hidden { display: none; }
-
-@keyframes aw-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.97); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-}
-
-.aw-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 16px 16px 4px;
-}
-.aw-codes { display: flex; align-items: baseline; gap: 9px; }
-.aw-iata { font-family: var(--font-display); font-size: var(--fs-hero); font-weight: 600; letter-spacing: 0; color: var(--accent); line-height: 1;
-  text-shadow: 0 0 40px rgba(var(--accent-rgb), 0.12);
-}
-.aw-icao { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-3); letter-spacing: 0;
-}
-.aw-close {
-  background: none; border: none;
-  color: rgba(var(--text-rgb), 0.18); font-size: var(--fs-value);
-  cursor: pointer; padding: 2px 4px; line-height: 1;
-  transition: color 0.2s, transform 0.2s var(--ease);
-  border-radius: var(--r-sm);
-}
-.aw-close:hover { color: rgba(var(--text-rgb), 0.7); transform: scale(1.15); }
-.aw-close:active { transform: scale(0.9); }
-
-.aw-name {
-  padding: 0 16px 12px; font-family: var(--font-sans); font-size: var(--fs-body); color: var(--text-2); line-height: 1.3; letter-spacing: 0;
-  font-weight: 500;
-}
-
-.aw-divider {
-  height: 1px; background: var(--hairline);
-  margin: 0 16px;
-}
-
-/* ── ARR / DEP traffic counts ── */
-.aw-arr-dep {
-  display: flex; align-items: stretch;
-  margin: 12px 16px 0; border-radius: 0;
-  overflow: hidden; border: none;
-  background: none;
-  box-shadow: none;
-}
-.aw-ad-col {
-  flex: 1; display: flex; flex-direction: column; align-items: center; padding: 12px 4px 10px;
-  transition: background 0.2s ease;
-  background: none;
-  border: none;
-  border-radius: 0;
-}
-.aw-ad-col:hover { background: none; }
-.aw-ad-arr { background: none; }
-.aw-ad-dep { background: none; }
-.aw-ad-label { font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: var(--track-label);
-  text-transform: uppercase; margin-bottom: 4px; opacity: 0.9;
-  font-weight: 500;
-}
-.aw-ad-label { color: var(--text-3); }
-/* Direction is carried by the arrow, not by a hue: green and red on two plain
-   counts read as good and bad, and green already means "live" everywhere else. */
-.aw-ad-label::before { content: ''; margin-right: 4px; opacity: 0.7; }
-.aw-ad-arr .aw-ad-label::before { content: '\2193'; }
-.aw-ad-dep .aw-ad-label::before { content: '\2191'; }
-.aw-ad-val { font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400; letter-spacing: -0.02em; line-height: 1;
-}
-.aw-ad-val { color: rgba(var(--text-rgb), 0.92); font-variant-numeric: tabular-nums; }
-.aw-ad-divider {
-  width: 1px; background: var(--hairline);
-  align-self: stretch; margin: 0;
-}
-
-/* ── Stats grid — 4 columns ── */
-.aw-stats {
-  display: grid; grid-template-columns: 0.75fr 0.7fr 1fr 1.55fr; padding: 10px 16px 4px; gap: 10px;
-  border-top: 1px solid var(--hairline);
-}
-.aw-stat {
-  display: flex; flex-direction: column; align-items: flex-start; padding: 4px 0; border-radius: 0; background: none; border: none;
-  transition: background 0.2s ease;
-  min-width: 0;
-  overflow: hidden;
-}
-.aw-stat:hover { background: none; }
-.aw-stat-val { font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500; color: var(--text);
-  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-.aw-stat-lbl { font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: var(--track-label); color: var(--text-3); text-transform: uppercase; margin-top: 2px;
-  white-space: nowrap;
-}
-
-/* ── Meta rows ── */
-.aw-meta {
-  padding: 10px 16px 6px; display: flex; flex-direction: column; gap: 4px;
-}
-.aw-meta-row {
-  display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--hairline);
-}
-.aw-meta-row:last-child { border-bottom: none; }
-.aw-meta-label { font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: var(--track-label); color: var(--text-3); text-transform: uppercase;
-}
-.aw-meta-val { font-family: var(--font-mono); font-size: var(--fs-body); color: var(--text); letter-spacing: 0;
-}
-
-/* ── Fact & description ── */
-.aw-fact { margin: 4px 16px 0; padding: 10px 0 0; background: none; border-radius: 0; font-family: var(--font-sans); font-size: var(--fs-body); line-height: 1.5; color: var(--text-2); font-style: italic; letter-spacing: 0;
-}
-.aw-fact.hidden { display: none; }
-
-.aw-desc { margin: 8px 16px 4px; padding: 0; background: none; border-radius: 0; border: none; font-family: var(--font-sans); font-size: var(--fs-body); line-height: 1.55; color: var(--text-3); letter-spacing: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.aw-desc.hidden { display: none; }
 
 /* ── Aircraft Hover Tooltip ── */
 .aircraft-tooltip {
@@ -3005,40 +2870,6 @@ html, body {
 }
 .bloom-label.hidden { display: none; }
 
-/* ── T2-12: Airport ARR/DEP list ── */
-.aw-flight-list {
-  max-height: 96px; overflow-y: auto; padding: 2px 16px 6px;
-  margin-top: 6px;
-  scrollbar-width: thin; scrollbar-color: rgba(var(--accent-rgb), 0.15) transparent;
-}
-.aw-flight-list::-webkit-scrollbar { width: 3px; }
-.aw-flight-list::-webkit-scrollbar-thumb { background: rgba(var(--accent-rgb), 0.15); border-radius: var(--r-sm); }
-.aw-flight-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 3px 4px; cursor: pointer; border-radius: var(--r-sm);
-  transition: background 0.15s; font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
-}
-.aw-flight-item:hover { background: var(--accent-dim); }
-.aw-flight-head {
-  font-family: var(--font-sans); font-size: var(--fs-label);
-  letter-spacing: var(--track-label); text-transform: uppercase;
-  color: var(--text-3); padding: 10px 0 4px;
-}
-.aw-flight-head:first-child { padding-top: 2px; }
-.aw-flight-meta {
-  font-family: var(--font-mono); font-size: var(--fs-label);
-  color: var(--text-3); letter-spacing: 0; font-variant-numeric: tabular-nums;
-}
-.aw-flight-tag {
-  font-size: var(--fs-label); padding: 1px 4px; border-radius: var(--r-sm);
-  letter-spacing: 0;
-}
-.aw-flight-tag.arr { color: var(--descend); background: rgba(122,173,204,0.12); }
-.aw-flight-tag.dep { color: var(--climb); background: rgba(var(--accent-rgb), 0.12); }
-.aw-seq-edu {
-  font-family: var(--font-mono); font-size: var(--fs-label); color: rgba(255,255,255,0.45);
-  padding: 4px 16px 6px; line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.03);
-}
 
 /* ── D-1: Vertical Profile HUD ── */
 .vert-profile-panel {
@@ -3864,7 +3695,6 @@ html, body {
 
   /* Tooltips — prevent overflow */
   .rwy-tooltip { min-width: auto; max-width: 85vw; }
-  .nav-tooltip { min-width: auto; max-width: 85vw; }
 
   /* Notes panel — narrower */
   .notes-panel { width: calc(100vw - 20px); max-width: 300px; }
@@ -3942,18 +3772,31 @@ html, body {
   border-radius: var(--r-sm);
 }
 
-/* ── Navaid Tooltip ── */
+/* ── Navaid tooltip ──
+   A hover card: ident, type, name, frequency, position, and one sentence.
+   The type was a teal outlined pill in a colour the token block does not
+   have, over a teal top border, inside a 1px border -- three edges and a
+   private accent for a card that is on screen for as long as the cursor
+   rests. The forty-word description under it was the card's dominant mass at
+   eleven pixels and forty percent; it shows its first sentence now, and the
+   rest stays in the data for ground school. */
 .nav-tooltip {
   position: fixed;
   z-index: 60;
-  pointer-events: none; background: var(--surface-float); -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4); backdrop-filter: blur(var(--blur-float)) saturate(1.4); border: 1px solid var(--hairline);
-  border-top: 2px solid rgba(96,208,208,0.5); border-radius: var(--r-sm);
-  padding: 10px 14px;
-  min-width: 200px;
-  max-width: 300px; box-shadow: var(--shadow-sm);
+  pointer-events: none;
+  background: var(--surface-float);
+  -webkit-backdrop-filter: blur(var(--blur-float)) saturate(1.4);
+  backdrop-filter: blur(var(--blur-float)) saturate(1.4);
+  border: 0;
+  border-radius: var(--r-sm);
+  padding: 10px 14px 11px;
+  min-width: 180px;
+  max-width: 280px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10), 0 10px 28px rgba(0, 0, 0, 0.4);
   transition: opacity 0.15s ease;
 }
 .nav-tooltip.hidden { display: none; }
+.nav-tooltip-head { display: flex; align-items: baseline; gap: 8px; }
 .nav-tooltip-ident {
   font-family: var(--font-mono);
   font-size: var(--fs-value); font-weight: 700;
@@ -3961,48 +3804,41 @@ html, body {
   letter-spacing: var(--track-label);
 }
 .nav-tooltip-type {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 6px;
-  font-family: var(--font-mono);
-  font-size: var(--fs-label); font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: var(--fs-label);
   letter-spacing: var(--track-label);
-  color: rgba(96,208,208,0.9);
-  background: rgba(96,208,208,0.08);
-  border: 1px solid rgba(96,208,208,0.15);
-  border-radius: var(--r-sm);
-  vertical-align: middle;
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 .nav-tooltip-name {
   font-family: var(--font-sans);
   font-size: var(--fs-label);
   color: var(--text-2);
-  margin-top: 4px;
+  margin-top: 3px;
   line-height: 1.3;
 }
+.nav-tooltip-rows { margin-top: 6px; }
 .nav-tooltip-row {
-  display: flex; justify-content: space-between;
+  display: flex; justify-content: space-between; gap: 14px;
   padding: 2px 0;
   font-family: var(--font-mono);
   font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
 }
-.nav-tooltip-label {
-  color: var(--text-3);
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-.nav-tooltip-val {
-  color: var(--text);
-  font-weight: 500;
-  letter-spacing: 0;
-}
+.nav-tooltip-label { color: var(--text-3); letter-spacing: 0; text-transform: uppercase; }
+.nav-tooltip-val { color: var(--text); font-weight: 500; letter-spacing: 0; }
 .nav-tooltip-desc {
-  margin-top: 6px;
+  margin-top: 7px;
   font-family: var(--font-sans);
   font-size: var(--fs-label);
   color: var(--text-3);
   line-height: 1.4;
-  font-style: italic;
+}
+/* After the base rule, so it can win: the earlier copy sat inside a media
+   block written above the base rule, at equal specificity, and never
+   applied. */
+@media (max-width: 768px) {
+  .nav-tooltip { min-width: auto; max-width: 85vw; }
 }
 
 /* ── Radio Panel ── */
@@ -4453,24 +4289,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .detail-cell { border-bottom: 1px solid var(--hairline); }
 .detail-cell:nth-child(odd) { border-right: 1px solid var(--hairline); }
 
-/* Airport widget — wind advisor. Previously inline-styled at 7-9px, which put
-   it outside both the type scale and the stylesheet. Colours for head/cross
-   wind stay inline: they are data-driven per runway. */
-.aw-wind-title { font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-3); margin-bottom: 6px; }
-.aw-wind-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.aw-wind-val { font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500; color: var(--text); }
-.aw-wind-sub { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); }
-.aw-wind-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-family: var(--font-mono); font-size: var(--fs-label); border-top: 1px solid var(--hairline); }
-.aw-wind-row:first-of-type { border-top: none; }
-.aw-wind-cell { color: var(--text-2); }
-.aw-wind-cell--mark { width: 12px; text-align: center; }
-.aw-wind-cell--ref { width: 34px; color: var(--text); font-weight: 500; }
-.aw-wind-cell--hw { width: 52px; }
-.aw-wind-mark { color: var(--text-3); opacity: 0.5; }
-.aw-wind-mark--ok { color: var(--success); opacity: 1; }
-.aw-wind-edu { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); margin-top: 8px; line-height: 1.45; }
-.aw-seq-edu { font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); line-height: 1.45; padding: 6px 16px 8px; }
-
 /* Zulu clock is a reading, not the headline count beside it. */
 /* The clock sits in the context line now, at context size. It kept a
    16px/500 rule from the retired hero row, which made it shout over the
@@ -4482,22 +4300,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   pointer-events: auto; font: inherit; color: inherit; letter-spacing: inherit;
 }
 .hud-clock:hover #hud-zulu, .hud-clock:hover #hud-clock-label { color: var(--text); }
-
-/* Flight list rows carry a hairline, not a resting tint. */
-.aw-flight-item { background: none; border-top: 1px solid var(--hairline); padding: 6px 0; }
-.aw-flight-item:first-child,
-.aw-flight-head + .aw-flight-item { border-top: none; }
-.aw-flight-head {
-  font-family: var(--font-sans); font-size: var(--fs-label);
-  letter-spacing: var(--track-label); text-transform: uppercase;
-  color: var(--text-3); padding: 10px 0 4px;
-}
-.aw-flight-head:first-child { padding-top: 2px; }
-.aw-flight-meta {
-  font-family: var(--font-mono); font-size: var(--fs-label);
-  color: var(--text-3); letter-spacing: 0; font-variant-numeric: tabular-nums;
-}
-.aw-flight-tag { font-size: var(--fs-label); font-weight: 600; letter-spacing: 0; border-radius: var(--r-sm); padding: 1px 6px; }
 
 /* A dossier open in the top-right corner takes that corner; the challenge
    card yields the way the spotter card already does. */
@@ -6915,3 +6717,133 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .wx-day-fill { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
 .wx-day-fill .wx-now { transition: none; }
 .wx-day-rain { text-align: right; }
+
+
+/* ── Airport card ──────────────────────────────────────────────────────────
+   Label over value, the way every HUD tile reads. The old card had two
+   directions -- stats put the label under the value, meta rows put it to
+   the left -- five kinds of line (two dividers, a vertical rule, a border on
+   the stats, a border on every row), one white at six opacities, a 1px
+   border plus an inner highlight plus a drop shadow on the box itself, and a
+   FREQ row whose value was the string "{ICAO} TWR", which is not a frequency.
+
+   Now: three whites (--text, --text-2, --text-3), the accent on the IATA code
+   and the preferred runway, --danger on a crosswind of twenty knots or more,
+   and nothing else coloured. Sections are separated by space. The only lines
+   left are the ones between runway rows, because that is a table. The box
+   takes the same edge as the dossier panel: a lit top, a dark bottom, one
+   slab shadow, no border. */
+.airport-widget {
+  position: fixed;
+  bottom: 76px; left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  z-index: 25; pointer-events: auto;
+  padding: 14px 16px 16px;
+  background: rgba(255, 255, 255, 0.045);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.5);
+  backdrop-filter: blur(var(--blur)) saturate(1.5);
+  border: 0;
+  border-radius: var(--r);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 18px 48px rgba(0, 0, 0, 0.42);
+  overflow: hidden auto;
+  max-height: calc(100vh - 100px);
+  animation: aw-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  scrollbar-width: none;
+}
+.airport-widget::-webkit-scrollbar { display: none; }
+.airport-widget.hidden { display: none; }
+@keyframes aw-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+.aw-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.aw-codes { display: flex; align-items: baseline; gap: 8px; }
+.aw-iata {
+  font-family: var(--font-display); font-size: var(--fs-hero); font-weight: 600;
+  letter-spacing: 0; color: var(--accent); line-height: 1;
+}
+.aw-icao { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-3); letter-spacing: 0; }
+.aw-close {
+  background: none; border: 0; padding: 2px 6px; margin: -4px -6px 0 0;
+  color: var(--text-3); font-size: var(--fs-value); line-height: 1; cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: color 0.15s var(--ease);
+}
+.aw-close:hover { color: var(--text); }
+.aw-name {
+  margin-top: 4px;
+  font-family: var(--font-sans); font-size: var(--fs-body); font-weight: 500;
+  color: var(--text-2); line-height: 1.3; letter-spacing: 0;
+}
+
+.aw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.aw-traffic { margin-top: 16px; }
+.aw-stats { margin-top: 14px; }
+.aw-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.aw-cell .hud-mod-label { display: block; }
+.aw-big {
+  font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400;
+  letter-spacing: -0.02em; line-height: 1; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.aw-val {
+  font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500;
+  color: var(--text); letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.aw-val small { font-size: var(--fs-label); font-weight: 400; color: var(--text-3); letter-spacing: 0; }
+.aw-coord {
+  margin-top: 10px;
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-3);
+  font-variant-numeric: tabular-nums; letter-spacing: 0;
+}
+.aw-fact {
+  margin-top: 12px;
+  font-family: var(--font-sans); font-size: var(--fs-body); font-style: italic;
+  color: var(--text-2); line-height: 1.5; letter-spacing: 0;
+}
+.aw-fact.hidden { display: none; }
+
+/* Sections below the identity block: a label, then rows. */
+.aw-section-label { display: block; margin: 16px 0 4px; }
+.aw-flight-list { max-height: 148px; overflow-y: auto; scrollbar-width: none; }
+.aw-flight-list::-webkit-scrollbar { display: none; }
+.aw-flight-list:empty { display: none; }
+.aw-flight-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 5px 0; cursor: pointer;
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
+  transition: color 0.15s var(--ease);
+}
+.aw-flight-item:hover { color: var(--text); }
+.aw-flight-meta { color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.aw-seq-edu {
+  margin-top: 6px;
+  font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); line-height: 1.45;
+}
+.aw-seq-edu[hidden] { display: none; }
+
+.aw-wind:empty { display: none; }
+.aw-wind-val { font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500; color: var(--text); }
+.aw-wind-table { margin-top: 6px; }
+.aw-wind-row {
+  display: grid; grid-template-columns: 40px 1fr 1fr; gap: 8px; align-items: baseline;
+  padding: 5px 0;
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--hairline);
+}
+.aw-wind-row:first-child { border-top: 0; }
+.aw-wind-row.is-best { color: var(--text); }
+.aw-wind-ref { font-weight: 500; }
+.aw-wind-row.is-best .aw-wind-ref { color: var(--accent); }
+.aw-wind-xw.is-high { color: var(--danger); }
+.aw-wind-edu {
+  margin-top: 8px;
+  font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); line-height: 1.45;
+}
