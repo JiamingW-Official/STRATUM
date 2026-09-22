@@ -542,11 +542,11 @@ html, body {
   border-radius: var(--r-sm);
   pointer-events: none;
 }
-.rc-high     { color: var(--ok); background: rgba(20,100,50,0.22); border: 1px solid rgba(40,160,80,0.20); }
-.rc-medium   { color: var(--warn); background: rgba(90,70,10,0.22);  border: 1px solid rgba(180,140,20,0.20); }
-.rc-low      { color: var(--warn); background: rgba(90,50,10,0.22);  border: 1px solid rgba(180,100,20,0.20); }
-.rc-inferred { color: var(--info); background: rgba(30,40,70,0.22);  border: 1px solid rgba(80,100,160,0.20); }
-.rc-invalid  { color: var(--danger); background: rgba(80,10,10,0.22);  border: 1px solid rgba(160,20,20,0.20); }
+.rc-high     { color: var(--ok); background: rgba(var(--ok-rgb), 0.14); border: 0; }
+.rc-medium   { color: var(--warn); background: rgba(var(--warn-rgb), 0.14); border: 0; }
+.rc-low      { color: var(--warn); background: rgba(var(--warn-rgb), 0.10); border: 0; }
+.rc-inferred { color: var(--info); background: rgba(var(--info-rgb), 0.14); border: 0; }
+.rc-invalid  { color: var(--danger); background: rgba(var(--danger-rgb), 0.14); border: 0; }
 
 /* Route progress bar */
 .detail-progress {
@@ -644,7 +644,7 @@ html, body {
 /* C-2: Flight Phase Education Card */
 
 /* C-4: Mach Education Strip */
-.mach-strip { padding: 6px 16px 8px; border-top: 1px solid rgba(255,255,255,0.04); }
+.mach-strip { padding: 8px 16px 8px; }
 .mach-strip-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .mach-strip-regime { font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label); color: var(--accent); }
 .mach-strip-val { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-3); }
@@ -659,7 +659,7 @@ html, body {
 .mach-strip-edu { font-family: var(--font-sans); font-size: var(--fs-label); color: rgba(255,255,255,0.45); }
 
 /* A-4: Wind Triangle */
-.wind-tri-wrap { padding: 6px 16px 8px; border-top: 1px solid rgba(255,255,255,0.04); }
+.wind-tri-wrap { padding: 8px 16px 8px; }
 .wind-tri-inner { display: flex; align-items: center; gap: 12px; }
 .wind-tri-svg { flex-shrink: 0; }
 .wind-tri-legend { flex: 1; }
@@ -680,8 +680,6 @@ html, body {
   padding: 6px 16px 8px;
   gap: 0;
   background: rgba(var(--accent-rgb), 0.03);
-  border-top: 1px solid rgba(var(--accent-rgb), 0.08);
-  border-bottom: 1px solid rgba(var(--accent-rgb), 0.08);
 }
 .detail-eta-cell { flex: 1; text-align: center; }
 .detail-eta-val {
@@ -752,12 +750,12 @@ html, body {
 
 /* Status pill — colored by flight phase */
 .detail-status-badge { font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 600; letter-spacing: 0; text-transform: uppercase; border-radius: var(--r-sm); padding: 2px 7px;
-  border: 1px solid transparent;
+  border: 0;
   display: none;
 }
-.detail-status-badge.climb   { color: #d0f0d8; border-color: rgba(var(--climb-rgb),0.3); background: rgba(var(--climb-rgb),0.14); display: inline-block; }
-.detail-status-badge.cruise  { color: rgba(255,240,200,0.92); border-color: rgba(var(--accent-rgb), 0.3); background: rgba(var(--accent-rgb), 0.12); display: inline-block; }
-.detail-status-badge.descent { color: var(--descend); border-color: rgba(var(--descend-rgb),0.3); background: rgba(var(--descend-rgb),0.14); display: inline-block; }
+.detail-status-badge.climb   { color: var(--climb); background: rgba(var(--climb-rgb),0.14); display: inline-block; }
+.detail-status-badge.cruise  { color: rgba(255,240,200,0.92); background: rgba(var(--accent-rgb), 0.12); display: inline-block; }
+.detail-status-badge.descent { color: var(--descend); background: rgba(var(--descend-rgb),0.14); display: inline-block; }
 
 /* Section header labels */
 /* Collapsible sections */
@@ -830,7 +828,7 @@ html, body {
   border-radius: var(--r);
   object-fit: contain;
   background: rgba(255,255,255,0.9);
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 0;
   padding: 2px;
   flex-shrink: 0;
 }
@@ -1304,7 +1302,7 @@ html, body {
   font-size: var(--fs-label); padding: 3px 7px;
   border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255,255,255,0.04);
+  border: 0;
   color: var(--text-3); white-space: nowrap;
   letter-spacing: 0;
 }
@@ -3413,28 +3411,23 @@ html, body {
 }
 .detail-indicator--ok {
   color: var(--ok);
-  background: rgba(var(--ok-rgb), 0.1);
-  border: 1px solid rgba(var(--ok-rgb), 0.2);
+  background: rgba(var(--ok-rgb), 0.14);
 }
 .detail-indicator--warn {
   color: var(--warn);
-  background: rgba(var(--warn-rgb), 0.1);
-  border: 1px solid rgba(var(--warn-rgb), 0.2);
+  background: rgba(var(--warn-rgb), 0.14);
 }
 .detail-indicator--danger {
   color: var(--danger);
-  background: rgba(var(--danger-rgb),0.1);
-  border: 1px solid rgba(var(--danger-rgb),0.2);
+  background: rgba(var(--danger-rgb),0.14);
 }
 .detail-indicator--critical {
   color: var(--danger);
-  background: rgba(var(--danger-rgb), 0.1);
-  border: 1px solid rgba(var(--danger-rgb), 0.25);
+  background: rgba(var(--danger-rgb), 0.14);
 }
 .detail-indicator--info {
   color: var(--info);
   background: rgba(var(--info-rgb), 0.08);
-  border: 1px solid rgba(var(--info-rgb), 0.2);
 }
 
 

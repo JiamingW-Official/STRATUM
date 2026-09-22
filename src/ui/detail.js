@@ -2531,7 +2531,7 @@ function _renderWindTriangle(d) {
         <line x1="${tasEx.toFixed(1)}" y1="${tasEy.toFixed(1)}" x2="${gsEx.toFixed(1)}" y2="${gsEy.toFixed(1)}" stroke="#e8836a" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="3 2"/>
         <line x1="${cx}" y1="${cy}" x2="${gsEx.toFixed(1)}" y2="${gsEy.toFixed(1)}" stroke="#c9a45c" stroke-width="2" stroke-linecap="round"/>
         <circle cx="${gsEx.toFixed(1)}" cy="${gsEy.toFixed(1)}" r="2.5" fill="#c9a45c"/>
-        <text x="${cx}" y="${(cy - SIZE*0.4).toFixed(1)}" text-anchor="middle" fill="rgba(255,255,255,0.2)" font-size="5" font-family="monospace">N</text>
+        <text x="${cx}" y="${(cy - SIZE*0.4).toFixed(1)}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="7" font-family="monospace">N</text>
       </svg>
       <div class="wind-tri-legend">
         <div class="wind-tri-row"><span class="wind-tri-dot" style="background:#5aacff"></span><span>TAS ${tasKts} kt</span></div>
