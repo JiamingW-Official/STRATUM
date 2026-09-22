@@ -59,8 +59,8 @@ export function updateHUD(aircraftCount, lat, lon) {
 
   if (isDemo()) {
     hudLiveText.textContent = 'DEMO';
-    hudLiveDot.style.background = '#f59e0b';
-    hudLiveDot.style.boxShadow = '0 0 6px #f59e0b';
+    hudLiveDot.style.background = 'var(--warn)';
+    hudLiveDot.style.boxShadow = '0 0 6px var(--warn)';
   } else {
     hudLiveText.textContent = 'LIVE';
     hudLiveDot.style.background = '';
