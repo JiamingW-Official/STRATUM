@@ -12,8 +12,9 @@ which is what this cabin had before any of these existed.
     games.webp    Games
     chat.webp     Seat messages
 
-Square, full bleed: the artwork goes edge to edge and the rounding is applied
-in CSS, so the tile's corners cannot disagree with the panel's radius.
+Square, 512, transparent. The object floats in the square rather than filling
+it; the rounding lives in CSS, so a tile's corners cannot disagree with the
+panel's radius.
 
 To install one:
 
@@ -23,6 +24,35 @@ To install one:
 That trims the white the generator photographs it on, takes the largest
 centred square and writes a WebP. Check afterwards: exactly square, well
 under 100 KB at 512, and no pale strip along any edge.
+
+**Then normalise it against the others, or it is not part of a set.**
+
+The first four went in one at a time and were measured afterwards: ink
+coverage ran from 21% of the square to 78%, and mean luminance from 91 to
+166. So the globe had four times the mass of the clef and the controller was
+nearly twice the globe's brightness, and a rail of them read as four pictures
+collected rather than one family made. That is what "cheap" looks like, and
+it is not the colour behind them.
+
+Two numbers hold the set together. Both are measured over opaque pixels only:
+
+    optical mass   sqrt(ink coverage) = 6.0, i.e. 36% of the square
+    value          mean luminance = 135
+
+Mass is normalised by scaling the object inside its square, never by growing
+it past the edge — a treble clef is a thin glyph that is already full height,
+so 21% is what a clef is and it is left alone. Value is corrected with a
+gamma curve over RGB rather than a multiply, so neither end clips, and the
+alpha channel is untouched.
+
+The card boxes are sized for the result: 240px for a mark, 210 for a drawn
+icon standing in for one.
+
+**One material, or it will not hold.** Sizing and value can be fixed here;
+material cannot. Ask for every object in the same family — the same metal,
+the same single soft key light from the upper left, the same neutral studio,
+no ground shadow, no reflected colour — and photographic texture on one
+object while the rest are rendered will show however well the numbers match.
 
 **What may be here.** These are icons, and an icon is obviously a drawing.
 Nothing in this folder may sit where the interface presents evidence — no

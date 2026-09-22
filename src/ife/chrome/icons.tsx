@@ -24,9 +24,16 @@ const line = (size: number) => ({
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
-  // One weight for the whole set. Heavier than an icon library's default,
-  // because a cabin is dark and a seat-back screen is at arm's length.
-  strokeWidth: 2.1,
+  // One ink weight, not one number.
+  //
+  // 2.1 in a 24 grid is proportional: 3.3px of ink at a menu row's 38, and
+  // 10.3px on a card at 118. That was right while 118 was the largest this
+  // set was ever drawn. At 180, next to a photographed reel and a cast
+  // clef, the same number draws a 15.8px slab — the glyph grew and its ink
+  // grew with it, so it reads heavier rather than larger. Above 140 the
+  // stroke is pinned to the 11px the 118 icons already had, and the only
+  // thing that gets bigger is the drawing.
+  strokeWidth: size >= 140 ? (11 * 24) / size : 2.1,
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
   "aria-hidden": true as const,
@@ -91,6 +98,30 @@ export const IconVolume = ({ size = 24 }: P) => (
   </svg>
 );
 
+/**
+ * Cabin sound: moving air.
+ *
+ * It was a window with the volume key's arcs coming off it, and beside the
+ * volume key that is what it looked like — a speaker with the cone filed off.
+ * Two marks in one row that both say "sound" leave you reading the labels,
+ * which is the one thing a placard is for avoiding.
+ *
+ * So it says the sound instead of saying sound. The loudest thing in a cabin
+ * above ten thousand feet is air going past the skin at eight miles a minute,
+ * and three bars leaning into the wind is that and nothing else. Unequal
+ * lengths and off-square on purpose: three level bars of one length is the
+ * hamburger in the strip above.
+ */
+export const IconCabin = ({ size = 24 }: P) => (
+  <svg {...fill(size)}>
+    <g transform="rotate(-6 12 12)">
+      <rect x="3.6" y="6.1" width="14.4" height="2.3" rx="1.15" />
+      <rect x="2.4" y="10.85" width="19.2" height="2.3" rx="1.15" />
+      <rect x="6.2" y="15.6" width="10.6" height="2.3" rx="1.15" />
+    </g>
+  </svg>
+);
+
 /** The reading light: a bulb, the ordinary kind, and nothing else. */
 export const IconLight = ({ size = 24 }: P) => (
   <svg {...fill(size)}>
@@ -112,6 +143,21 @@ export const IconCall = ({ size = 24 }: P) => (
 export const IconMenu = ({ size = 24 }: P) => (
   <svg {...fill(size)}>
     <path d="M3.4 5.4h17.2v2.1H3.4zM3.4 10.9h17.2V13H3.4zM3.4 16.4h17.2v2.1H3.4z" />
+  </svg>
+);
+
+/**
+ * Dining: a tray with a cover on it.
+ *
+ * Not a knife and fork. Cutlery crossed on a panel is the mark for a
+ * restaurant, and what comes down this aisle is a tray — the cloche is the
+ * one shape that says "this arrives at your seat" rather than "you go to
+ * it", and it is what is actually on the trolley.
+ */
+export const IconDining = ({ size = 24 }: P) => (
+  <svg {...fill(size)}>
+    <path d="M12 3.4a1.2 1.2 0 0 1 1.2 1.2v.55a7.1 7.1 0 0 1 5.9 6.99H4.9a7.1 7.1 0 0 1 5.9-6.99V4.6A1.2 1.2 0 0 1 12 3.4z" />
+    <path d="M2.6 13.4h18.8v2.1H2.6zM5.3 17.6h13.4v2.1H5.3z" />
   </svg>
 );
 
@@ -298,5 +344,92 @@ export const IconSky = ({ size = 24 }: P) => (
   <svg {...line(size)}>
     <path d="M12 3.6 12.8 9l5.4 3v1.4l-5.4-1.5-.3 3.4 2 1.4v1l-2.5-.8-2.5.8v-1l2-1.4-.3-3.4L5.8 13.4V12l5.4-3z" />
     <path d="M3.4 18.6c2.4 1.5 5.4 2.3 8.6 2.3s6.2-.8 8.6-2.3" strokeDasharray="3 3" />
+  </svg>
+);
+
+/* ── Weather ────────────────────────────────────────────────────────────── */
+
+/**
+ * The sky at the other end, drawn.
+ *
+ * One glyph per band of the WMO code the same way `conditionKey` collapses
+ * them, so the picture and the words underneath it can never disagree: both
+ * are switched by the same number. Stroked rather than solid — these sit
+ * beside a reading, and a solid disc at this size reads as a button.
+ */
+export const IconWeather = ({ code, size = 24 }: P & { code: number }) => {
+  const sun = (
+    <>
+      <circle cx="12" cy="12" r="4.2" />
+      <path d="M12 3.2v2.1M12 18.7v2.1M3.2 12h2.1M18.7 12h2.1M5.8 5.8l1.5 1.5M16.7 16.7l1.5 1.5M18.2 5.8l-1.5 1.5M7.3 16.7l-1.5 1.5" />
+    </>
+  );
+  // One cloud, in one place, so every cloudy state is the same cloud.
+  const cloud = (
+    <path d="M7.4 18.4a3.9 3.9 0 0 1-.3-7.8 5.2 5.2 0 0 1 10-1.2 3.6 3.6 0 0 1-.6 7.2z" />
+  );
+  const drops = (d: string) => <path d={d} strokeLinecap="round" />;
+
+  return (
+    <svg {...line(size)}>
+      {code === 0 && sun}
+      {code > 0 && code <= 2 && (
+        <>
+          <circle cx="9" cy="8.6" r="3.2" />
+          <path d="M9 2.6v1.4M3 8.6h1.4M4.8 4.4l1 1M13.2 4.4l-1 1" />
+          {cloud}
+        </>
+      )}
+      {code === 3 && cloud}
+      {code > 3 && code <= 48 && (
+        <path d="M3.4 8.6h17.2M3.4 12.4h17.2M5.4 16.2h13.2M7.4 20h9.2" strokeLinecap="round" />
+      )}
+      {code > 48 && code <= 57 && (
+        <>
+          {cloud}
+          {drops("M9.4 20.4v1.2M14.6 20.4v1.2")}
+        </>
+      )}
+      {code > 57 && code <= 67 && (
+        <>
+          {cloud}
+          {drops("M8.8 19.9l-.8 2.1M12 19.9l-.8 2.1M15.2 19.9l-.8 2.1")}
+        </>
+      )}
+      {code > 67 && code <= 77 && (
+        <>
+          {cloud}
+          {drops("M9 21h.01M12 21.4h.01M15 21h.01M9 21l.01 0M12 21.4l.01 0M15 21l.01 0")}
+          <path d="M8.2 20.4h1.6M11.2 20.8h1.6M14.2 20.4h1.6M9 19.6v1.6M12 20v1.6M15 19.6v1.6" strokeLinecap="round" />
+        </>
+      )}
+      {code > 77 && code <= 82 && (
+        <>
+          {cloud}
+          {drops("M8.8 19.9l-1.2 2.4M13 19.9l-1.2 2.4")}
+          <path d="M16.6 19.4l-.9 1.8" strokeLinecap="round" />
+        </>
+      )}
+      {code > 82 && code <= 86 && (
+        <>
+          {cloud}
+          <path d="M8.6 20.6h1.8M12.1 21h1.8M9.5 19.7v1.8M13 20.1v1.8" strokeLinecap="round" />
+        </>
+      )}
+      {code > 86 && (
+        <>
+          {cloud}
+          <path d="M12.8 18.6l-3 3.4h3l-1.2 2.4" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      )}
+    </svg>
+  );
+};
+
+/** The trolley's contents, as one bag with a handle. */
+export const IconBag = ({ size = 24 }: P) => (
+  <svg {...line(size)}>
+    <path d="M4.6 8.4h14.8l-1.1 12.1a1.6 1.6 0 0 1-1.6 1.5H7.3a1.6 1.6 0 0 1-1.6-1.5z" />
+    <path d="M8.9 10.6V6.9a3.1 3.1 0 0 1 6.2 0v3.7" />
   </svg>
 );

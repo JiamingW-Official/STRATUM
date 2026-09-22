@@ -181,7 +181,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 4000,
+    // Four thousand unless something has been given the port to use. Nothing
+    // dials in here — the /api routes are all outbound — so there is no reason
+    // to hold one number, and holding it meant a second copy of this workshop
+    // could not be opened beside the first.
+    port: Number(process.env.PORT) || 4000,
     proxy: apiProxy,
   },
   // The built bundle is the one that ships, and it was the one that could not

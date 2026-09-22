@@ -19,7 +19,9 @@ import {
   IconPower,
   IconPlan,
   IconVolume,
+  IconCabin,
 } from "./icons";
+import { useAmbience } from "../ambience";
 
 /**
  * The rail a passenger reaches for without looking.
@@ -78,6 +80,9 @@ export function BottomRail({
   // The list already knows how long every track is, measured off the file, so
   // the bar can say so before the audio element has loaded enough to agree.
   const trackSeconds = STATIONS[stationIdx]?.lengths?.[trackIdx] ?? 0;
+
+  const cabin = useAmbience((s) => s.on);
+  const toggleCabin = useAmbience((s) => s.toggle);
 
   const [pop, setPop] = useState<null | "volume">(null);
 
@@ -278,6 +283,26 @@ export function BottomRail({
         )}
       </div>
 
+      {/* The cabin itself, on or off.
+
+          A switch, so it is on the rail: this row already carries the reading
+          light and the attendant call for exactly that reason, and the drawer
+          two inches above is doors. It sits against the volume key because
+          the two of them are the only controls here about sound, and it is
+          the one that says what there is to be loud.
+
+          Off until somebody asks. A browser will not make a sound before it
+          has been touched anyway, and an aeroplane that started roaring at a
+          stranger because they had picked a language would be a worse first
+          impression than a placard they have to find. */}
+      <RailButton
+        label={t("cabinSound")}
+        icon={<IconCabin size={48} />}
+        on={cabin}
+        pressed={cabin}
+        onClick={toggleCabin}
+      />
+
       <RailButton
         label={t("readingLight")}
         icon={<IconLight size={48} />}
@@ -353,11 +378,7 @@ function RailButton({
 
 
 /**
- * A bare vertical bar, directly above its button.
- *
- * It had been a panel with a title and a readout, which is three pieces of
- * furniture around one quantity. The bar is the readout: its height is the
- * value, so a number beside it says the same thing twice.
+ * A bare vertical bar.
  *
  * It reads the pointer's offset inside its own track, never a bounding rect —
  * the rule the film's scrub bar follows and for the same reason: under the CSS

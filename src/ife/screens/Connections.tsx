@@ -20,6 +20,10 @@ import { pick, useT } from "../i18n";
 export function Connections() {
   const { t, lang } = useT();
   const { connections, route } = useFlight();
+  // The one row on this board that belongs to the seat reading it. Which row
+  // that is came off the boarding pass and is in SeatPrivate, so the board
+  // can mark it without the rest of the cabin learning whose it is.
+  const mine = useSelf((s) => s.booking?.onward?.flightNo);
   const setScreen = useSelf((s) => s.setScreen);
 
   const statusKey = {
@@ -60,6 +64,7 @@ export function Connections() {
               <div
                 key={c.flightNo}
                 className="ife-conns-row"
+                data-mine={c.flightNo === mine}
                 role="row"
                 data-confirmed={c.confirmed}
                 data-status={c.status}
@@ -70,7 +75,12 @@ export function Connections() {
                 <span className="ife-mono">
                   {localTime(c.departsUtc, route.to)}
                 </span>
-                <span className="ife-mono">{c.flightNo}</span>
+                <span className="ife-mono">
+                  {c.flightNo}
+                  {c.flightNo === mine && (
+                    <span className="ife-conns-mine ife-cap">{t("yourConnection")}</span>
+                  )}
+                </span>
                 {/* A gate nobody has been given is a dash, not a guess. */}
                 <span className="ife-mono">{c.gate ?? "—"}</span>
                 <span className="ife-mono">{c.terminal ?? "—"}</span>

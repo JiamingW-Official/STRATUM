@@ -1,4 +1,4 @@
-import type { Lang } from "../i18n";
+import type { Lang, Named } from "../i18n";
 
 /**
  * A quiz about the sky the aircraft is in.
@@ -12,10 +12,10 @@ import type { Lang } from "../i18n";
  * The last question is the argument rather than a fact, and it says so.
  */
 export type Question = {
-  q: { en: string; zh: string };
-  options: Array<{ en: string; zh: string }>;
+  q: Named;
+  options: Named[];
   answer: number;
-  why: { en: string; zh: string };
+  why: Named;
   source: string;
 };
 
@@ -123,5 +123,5 @@ export const QUESTIONS: Question[] = [
   },
 ];
 
-export const pickQ = (q: { en: string; zh: string }, lang: Lang) =>
-  lang === "zh" ? q.zh : q.en;
+export const pickQ = (q: Named, lang: Lang) =>
+  q[lang] || q.en;

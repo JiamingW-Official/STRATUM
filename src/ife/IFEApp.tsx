@@ -1,12 +1,29 @@
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useCabin, useFlight, useSelf } from "../flight-state/store";
 import type { IFEBridge } from "../flight-state/types";
+/**
+ * The map arrives after the cabin does.
+ *
+ * MapLibre is 272KB gzipped and the city list is another 90, and a static
+ * import puts both in front of the first paint — the idle screen was waiting
+ * on a globe nobody had asked for yet. So the module is split off and
+ * fetched on the first idle frame instead: the cabin paints, and a moment
+ * later the map is in memory, built, and holding its tiles for whenever
+ * Flight map is pressed. Same "no buffering", one screen later in the queue.
+ */
+const MapScreen = lazy(() =>
+  import("./screens/MapScreen").then((m) => ({ default: m.MapScreen })),
+);
+
+const warmMap = () => import("./screens/MapScreen");
+
 import { JourneyStrip } from "./chrome/JourneyStrip";
 import { BottomRail } from "./chrome/BottomRail";
 import { MenuDrawer } from "./chrome/MenuDrawer";
+import { Dining } from "./screens/Dining";
+import { Shop } from "./screens/Shop";
 import { Idle } from "./screens/Idle";
 import { Home } from "./screens/Home";
-import { MapScreen } from "./screens/MapScreen";
 import { FlightInfo } from "./screens/FlightInfo";
 import { Music } from "./screens/Music";
 import { Movies } from "./screens/Movies";
@@ -20,6 +37,7 @@ import { Screening } from "./screens/Screening";
 import { PAOverlay } from "./screens/PAOverlay";
 import { usePlayer } from "./player";
 import { useNav } from "./nav";
+import { useCabinSound } from "./ambience";
 import "./ife.css";
 
 /** Idle after this long without a touch, like every seat-back screen. */
@@ -41,6 +59,41 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
   const menuOpen = useNav((s) => s.menuOpen);
   const started = useSelf((s) => s.started);
   const setStarted = useSelf((s) => s.setStarted);
+
+  // The aeroplane, as a sound. Mounted here and nowhere else: it outlives
+  // every screen below, including the one that is switched off — a passenger
+  // who puts their panel out to sleep has turned off a light, not an engine.
+  useCabinSound();
+
+  // Whether the map has drawn a complete frame yet. Until it has, it is
+  // kept painted-but-invisible rather than hidden: a canvas nobody can see
+  // is a canvas the browser does not draw, and the first draw is shader
+  // compilation and texture upload — 3.4 seconds of frozen main thread,
+  // measured, starting 43ms after Flight map was pressed. Paying it while
+  // somebody is still reading the idle screen is free; paying it under
+  // their finger is not.
+  // The language the cabin is in, on every root, so the stylesheet can tune
+  // what Latin tracking does to Chinese. The display face has no CJK glyphs,
+  // so those words are set in whatever the panel has — and the negative
+  // letter-spacing drawn for Bricolage squeezes them.
+  const lang = useSelf((st) => st.lang);
+
+  const [mapDrawn, setMapDrawn] = useState(false);
+
+  // Fetch the map's module once the cabin has painted, not before it. On the
+  // first idle frame, so it is never in front of anything a finger is
+  // waiting on — and once it is in, the map mounts, builds and starts its
+  // tiles while the passenger is still reading the home screen.
+  useEffect(() => {
+    const ric =
+      (window as any).requestIdleCallback ??
+      ((fn: () => void) => window.setTimeout(fn, 400));
+    const id = ric(() => void warmMap());
+    return () => {
+      const cancel = (window as any).cancelIdleCallback ?? window.clearTimeout;
+      cancel(id);
+    };
+  }, []);
 
   // The screen follows whichever seat it is mounted for.
   useEffect(() => {
@@ -103,6 +156,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
     return (
       <div
         className="ife-root ife-off"
+        lang={lang}
         data-screen="off"
         onPointerDown={() => setScreen("idle")}
       />
@@ -111,7 +165,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
 
   if (screen === "idle") {
     return (
-      <div className="ife-root" data-screen="idle">
+      <div className="ife-root" lang={lang} data-screen="idle">
         <Idle seat={seat} />
         <PAOverlay />
       </div>
@@ -123,7 +177,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
   // language it is in has no business drawing placards at somebody.
   if (screen === "language" || screen === "start") {
     return (
-      <div className="ife-root" data-screen={screen}>
+      <div className="ife-root" lang={lang} data-screen={screen}>
         {screen === "language" ? (
           <Language
             onDone={() => setScreen(started ? "home" : "start")}
@@ -144,7 +198,9 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
                     ? "music"
                     : mode === "look"
                       ? "map"
-                      : "home",
+                      : mode === "drink"
+                        ? "dining"
+                        : "home",
               );
             }}
           />
@@ -159,7 +215,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
   // one screen the journey strip and the rail stand down for.
   if (screen === "film") {
     return (
-      <div className="ife-root" data-screen="film">
+      <div className="ife-root" lang={lang} data-screen="film">
         <Screening />
         <PAOverlay />
       </div>
@@ -167,7 +223,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
   }
 
   return (
-    <div className="ife-root" data-screen={screen}>
+    <div className="ife-root" lang={lang} data-screen={screen}>
       <JourneyStrip
         menuOpen={menuOpen}
         onMenu={() => setMenuOpen(!menuOpen)}
@@ -185,14 +241,22 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
             still reading the home screen, and every visit after that is
             instant. Hidden it costs one idle context: MapLibre does not draw
             when nothing has changed. */}
-        <div className="ife-stage-map" data-show={screen === "map"}>
-          <MapScreen />
+        <div
+          className="ife-stage-map"
+          data-show={screen === "map"}
+          data-warming={!mapDrawn}
+        >
+          <Suspense fallback={null}>
+            <MapScreen onFirstRender={() => setMapDrawn(true)} />
+          </Suspense>
         </div>
         {screen === "flightInfo" && <FlightInfo />}
         {screen === "music" && <Music />}
         {screen === "movies" && <Movies />}
         {screen === "games" && <Games />}
         {screen === "chat" && <Chat seat={seat} bridge={bridge} />}
+        {screen === "dining" && <Dining />}
+        {screen === "shop" && <Shop />}
         {screen === "overview" && <Overview />}
         {screen === "connections" && <Connections />}
       </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useNav } from "../nav";
 import { useT } from "../i18n";
 import { STATIONS, splitTrack, trackLength } from "../stations";
 import { Sleeve } from "../chrome/Sleeve";
@@ -19,7 +19,8 @@ export function Music() {
   const { stationIdx, trackIdx, playing } = usePlayer();
   const select = usePlayer((s) => s.select);
   // Which station the right pane is showing. Null is the shelf.
-  const [open, setOpen] = useState<number | null>(null);
+  const open = useNav((s) => s.station);
+  const setOpen = useNav((s) => s.openStation);
 
   return (
     <div className="ife-music">
@@ -73,7 +74,7 @@ export function Music() {
             <h2 className="ife-head-title">{t("music")}</h2>
             <span className="ife-head-meta ife-cap">
               {STATIONS.reduce((n, s) => n + s.tracks.length, 0)}{" "}
-              {lang === "zh" ? "首 · 机上曲库" : "tracks on board"}
+              {t("tracksOnBoard")}
             </span>
           </header>
 
@@ -121,7 +122,7 @@ export function Music() {
               {STATIONS[open].name}
             </h2>
             <div className="ife-head-meta ife-cap">
-              {STATIONS[open].tracks.length} {lang === "zh" ? "首" : "tracks"}
+              {STATIONS[open].tracks.length} {t("tracksShort")}
             </div>
           </header>
 

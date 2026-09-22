@@ -127,9 +127,6 @@ export function Chat({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
         >
           {t("newMessage")}
         </button>
-        {others.length === 0 && address === null && (
-          <p className="ife-chat-empty">{t("noThreads")}</p>
-        )}
         {others.map((other) => {
           const n = unread(other);
           const last = [...messages]
@@ -170,8 +167,19 @@ export function Chat({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
             }}
           />
         ) : withSeat === null ? (
+          /* The same header every other screen has, at the top where they
+             all put it, and one line under it rather than a paragraph.
+             
+             This was a title and a three-clause explanation floating in the
+             middle of the panel — the only vertically centred screen in the
+             cabin — and the column beside it said "Nothing yet. Write to a
+             seat and it will appear here." at the same time. Two empty
+             states, in different words, about the same emptiness. */
           <div className="ife-chat-blank">
-            <h2 className="ife-chat-blank-title">{t("chat")}</h2>
+            <header className="ife-head">
+              <h2 className="ife-head-title">{t("chat")}</h2>
+              <span className="ife-head-meta ife-cap">{t("noMessages")}</span>
+            </header>
             <p>{t("pickASeat")}</p>
           </div>
         ) : (

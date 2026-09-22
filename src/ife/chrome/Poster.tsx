@@ -9,18 +9,22 @@ import { stillUrl, type Film } from "../films";
  * cover is the frame, cropped to portrait, with the label across the bottom —
  * which is the object, not a poster invented for it.
  *
- * The frames the archive serves are 180px wide, and at a poster's size that is
- * soft. The scanlines are the answer and they are not a trick: half this shelf
- * is kinescope — a film camera pointed at a television — so a scanline is what
- * the material actually is. It makes the softness read as the source rather
- * than as a mistake.
+ * An img rather than a background-image, and that is not a tidy-up: a
+ * background cannot be lazy. The shelf is twenty-eight frames fetched from
+ * an archive on the other side of a satellite link and eight of them are on
+ * the glass, so twenty were being pulled down for a row nobody had scrolled
+ * to yet. The browser knows which ones are visible; this lets it act on it.
  */
 export function Poster({ film }: { film: Film }) {
   return (
     <span className="ife-poster">
-      <span
+      <img
         className="ife-poster-frame"
-        style={{ backgroundImage: `url(${stillUrl(film)})` }}
+        src={stillUrl(film)}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        decoding="async"
       />
       <span className="ife-poster-lines" />
       {film.creator ? (

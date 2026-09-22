@@ -1,8 +1,8 @@
-import { useFlight } from "../../flight-state/store";
+import { useFlight, useSelf } from "../../flight-state/store";
 import { duration, fmtInt, localTime } from "../format";
 import { pick, useT, type Key } from "../i18n";
 import { Profile } from "../chrome/Profile";
-import { useDestination } from "../destination";
+import { useDestination } from "../../flight-state/destination";
 
 function Figure({
   label,
@@ -30,6 +30,7 @@ export function FlightInfo() {
   const { route, position, departureUtc, etaUtc, etaInferred, phase } =
     useFlight();
   const { t, lang } = useT();
+  const booking = useSelf((s) => s.booking);
   const dest = useDestination(route.to);
   const now = Date.now();
   const elapsed = now - Date.parse(departureUtc);
@@ -78,6 +79,41 @@ export function FlightInfo() {
           a watermark over the one image on the screen was the wrong place for
           it, and this is a page of facts about the flight, which is what a
           credit is. */}
+      {/* What the seat knows about its own occupant, which is only ever what
+          the pass they scanned carried. One line, because it is a fact about
+          a contract rather than a figure about the flight — and it is here
+          rather than on the home screen because this is the page you come to
+          when you want to check something. */}
+      {booking && (
+        <div className="ife-fi-booking ife-cap">
+          {t("booking")} · <span className="ife-mono">{booking.pnr}</span> ·{" "}
+          {t(
+            booking.cabinClass === "first"
+              ? "firstClass"
+              : booking.cabinClass === "business"
+              ? "businessClass"
+              : booking.cabinClass === "premium"
+                ? "premiumClass"
+                : "economyClass",
+          )}{" "}
+          · {t("checkedBags")} <span className="ife-mono">{booking.bags}</span>
+          {booking.tier && (
+            <>
+              {" "}
+              · {t("card")} <span className="ife-mono">{booking.tier}</span>
+            </>
+          )}
+          {booking.onward && (
+            <>
+              {" "}
+              · {t("changingTo")}{" "}
+              <span className="ife-mono">{booking.onward.flightNo}</span> →{" "}
+              <span className="ife-mono">{booking.onward.toIata}</span>
+            </>
+          )}
+        </div>
+      )}
+
       {dest?.credit && (
         <div className="ife-fi-credit ife-cap">
           {t("photograph")} · Wikimedia Commons · {dest.credit}

@@ -1,6 +1,5 @@
 import { useSelf } from "../../flight-state/store";
-import type { Lang } from "../i18n";
-import { useT } from "../i18n";
+import { LANGUAGES, useT } from "../i18n";
 
 /**
  * The language, on its own screen.
@@ -12,13 +11,13 @@ import { useT } from "../i18n";
  * find the control that would let them read it.
  *
  * Each option is written in its own language and nothing else. "Chinese" is
- * only useful to somebody who already reads English.
+ * only useful to somebody who already reads English — which this file said
+ * and then rendered anyway: every card carried its own name a second time in
+ * grey caps, and the English one carried the word "English" twice.
+ *
+ * The list itself lives in i18n beside the dictionaries it selects between,
+ * so a language is added in one place.
  */
-const LANGUAGES: Array<{ code: Lang; name: string; note: string }> = [
-  { code: "en", name: "English", note: "English" },
-  { code: "zh", name: "中文", note: "Chinese" },
-];
-
 export function Language({ onDone }: { onDone?: () => void }) {
   const lang = useSelf((s) => s.lang);
   const setLang = useSelf((s) => s.setLang);
@@ -39,14 +38,15 @@ export function Language({ onDone }: { onDone?: () => void }) {
             }}
           >
             <span className="ife-lang-name">{l.name}</span>
-            <span className="ife-lang-note ife-cap">{l.note}</span>
           </button>
         ))}
       </div>
       {onDone && (
-        <button className="ife-btn ife-lang-skip" onClick={onDone}>
-          {t("continue")}
-        </button>
+        <div className="ife-lang-foot">
+          <button className="ife-btn" onClick={onDone}>
+            {t("continue")}
+          </button>
+        </div>
       )}
     </div>
   );

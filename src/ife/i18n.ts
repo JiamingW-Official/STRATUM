@@ -1,18 +1,36 @@
 import { useSelf } from "../flight-state/store";
-
-export type Lang = "en" | "zh";
+import TABLE from "./translations";
+import type { Lang, Named } from "../flight-state/types";
 
 /**
- * Two languages, chosen per seat. Language belongs to SeatPrivate because it
- * is nobody else's business what you read the cabin in — the same reason the
- * screen you are on is private and the reading light above your head is not.
+ * The languages this cabin is written in.
+ *
+ * Chosen per seat: language belongs to SeatPrivate because it is nobody
+ * else's business what you read the cabin in — the same reason the screen you
+ * are on is private and the reading light above your head is not.
  */
+export type { Lang };
+
+/** In the order the first screen offers them. */
+export const LANGUAGES: Array<{ code: Lang; name: string }> = [
+  { code: "en", name: "English" },
+  { code: "zh", name: "简体中文" },
+  { code: "zh-Hant", name: "繁體中文" },
+  { code: "ja", name: "日本語" },
+  { code: "es", name: "Español" },
+  { code: "fr", name: "Français" },
+  { code: "ru", name: "Русский" },
+];
 const DICT = {
   seat: ["Seat", "座位"],
   flight: ["Flight", "航班"],
+  first: ["First", "头等舱"],
   business: ["Business", "公务舱"],
+  premium: ["Premium", "超级经济舱"],
   economy: ["Economy", "经济舱"],
+  firstClass: ["First class", "头等舱"],
   businessClass: ["Business class", "公务舱"],
+  premiumClass: ["Premium Economy", "超级经济舱"],
   economyClass: ["Economy class", "经济舱"],
   arriving: ["Arriving", "抵达"],
   welcome: [
@@ -21,6 +39,18 @@ const DICT = {
   ],
   touchToBegin: ["Touch anywhere to begin", "轻触屏幕开始"],
   localTime: ["local time", "当地时间"],
+  utc: ["UTC", "协调世界时"],
+  // Written here rather than inline in the screens. Fifteen of these lived as
+  // `lang === "zh" ? … : …` in the middle of JSX, which was fine while there
+  // were two languages and is a dead end at seven: a string that is not in
+  // the dictionary cannot be translated, only rewritten.
+  nowShowing: ["Now showing", "正在放映"],
+  filmsOnBoard: ["films on board", "部 · 机上片库"],
+  tracksOnBoard: ["tracks on board", "首 · 机上曲库"],
+  tracksShort: ["tracks", "首"],
+  questionsCited: ["questions · each one cited", "题 · 每题标出处"],
+  framesFrom: ["films on board", "部影片的画格"],
+  toPlace: ["to", "到"],
   home: ["Home", "主页"],
   map: ["Map", "航图"],
   flightMap: ["Flight map", "航图"],
@@ -101,7 +131,14 @@ const DICT = {
   profile: ["Flight profile", "飞行剖面"],
   onThisAircraft: ["On this aircraft", "本机装载"],
   films: ["films", "部"],
-  publicDomain: ["Public domain · Prelinger Archives", "公有领域 · Prelinger 档案"],
+  // Not "· Prelinger Archives": the creator is named directly above this
+  // line, and it is Encyclopaedia Britannica Films or the U.S. Army Air
+  // Forces as often as it is Prelinger.
+  publicDomain: ["Public domain", "公有领域"],
+  freeToShow: [
+    "Free to show · Prelinger Archives",
+    "可自由放映 · Prelinger 档案",
+  ],
   playFilm: ["Play", "播放"],
   resume: ["Resume", "继续播放"],
   stop: ["Stop", "停止"],
@@ -151,9 +188,16 @@ const DICT = {
   pause: ["Pause", "暂停"],
   next: ["Next", "下一首"],
   volume: ["Volume", "音量"],
+  cabinSound: ["Cabin sound", "客舱环境音"],
   language: ["Language", "语言"],
   close: ["Close", "关闭"],
   photograph: ["Photograph", "照片"],
+  booking: ["Booking", "订座"],
+  checkedBags: ["Checked bags", "托运行李"],
+  bagsCount: ["bags", "件"],
+  card: ["Card", "会员"],
+  yourConnection: ["Yours", "您的航班"],
+  changingTo: ["Changing to", "转乘"],
   elapsed: ["elapsed", "已飞"],
   menu: ["Menu", "菜单"],
   screenOff: ["Screen off", "关闭屏幕"],
@@ -174,21 +218,26 @@ const DICT = {
     "这趟飞行你想怎么过？",
   ],
   modeWatch: ["Watch something", "看点什么"],
+  // Counted, not remembered: the shelf runs 1940 to 2016, and only twenty of
+  // the twenty-six dated films are in the three decades this line used to
+  // claim. "Public-domain" stopped being true when the shelf took in the
+  // Creative Commons material as well.
+  modeWatchSub: ["From the archive, 1940 to 2016", "档案里的片子，1940 到 2016"],
+  modeListenSub: ["Four records, playing now", "四张唱片，现在就在放"],
+  modeDrink: ["A drink first", "先来一杯"],
+  modeDrinkSub: [
+    "Before the doors close, while you settle in",
+    "舱门还没关，先坐下来喝点",
+  ],
   modeListen: ["Listen to something", "听点什么"],
   modeLook: ["Look out of the window", "看看窗外"],
-  modeLookSub: [
-    "The flight on a globe, and everything else the receivers can hear",
-    "地球上的这趟航班，以及接收机还能听到的一切",
-  ],
+  // One line each, and each one carries the fact its card's picture does not.
+  // The route is already drawn on this card; the traffic is not.
+  modeLookSub: ["And who else is up there", "还有天上别的飞机"],
   modeRest: ["Rest", "休息"],
-  modeRestSub: [
-    "The light goes off and the screen goes dark. One touch brings it back.",
-    "关掉阅读灯，屏幕熄掉。碰一下就回来。",
-  ],
-  changeLater: [
-    "You can change this at any point, and nothing else on this screen depends on it.",
-    "随时可以改，这块屏幕上没有别的东西取决于它。",
-  ],
+  // One clause. The second sentence explained how to undo the thing before
+  // anybody had done it, which is a manual, not a choice.
+  modeRestSub: ["Screen and reading light off", "屏幕和阅读灯一起关"],
   skip: ["Skip", "跳过"],
   overview: ["This flight", "本次飞行"],
   depart: ["Depart", "起飞"],
@@ -230,9 +279,12 @@ const DICT = {
   writeToSeat: ["Which seat?", "写给哪个座位？"],
   openThread: ["Write", "开始写"],
   noMessages: ["No messages", "还没有消息"],
+  // One clause. The other two explained that a seat need not answer and an
+  // empty one never will, which is the kind of thing a screen says when it
+  // is nervous about being empty.
   pickASeat: [
-    "Messages go to a seat, not to a name — nobody in this cabin has one. A seat you write to does not have to answer, and an empty one never will.",
-    "消息发给座位，不是发给名字——这个客舱里没有人有名字。你写给的座位不一定会回，空座位永远不会。",
+    "Messages go to a seat, not to a name",
+    "消息发给座位，不是发给名字",
   ],
   heldByAircraft: [
     "Held by the aircraft, not by your seat",
@@ -267,6 +319,8 @@ const DICT = {
   catAtomic: ["The atomic age", "原子时代"],
   catTomorrow: ["Tomorrow", "明日世界"],
   catAmateur: ["Home movies", "家庭电影"],
+  catTravel: ["Going somewhere", "在路上"],
+  catCity: ["Cities", "城市"],
   catShort: ["Under 15 min", "15 分钟内"],
   views: ["Views", "视角"],
   zoom: ["Zoom", "缩放"],
@@ -278,6 +332,27 @@ const DICT = {
   feet: ["feet", "英尺"],
   verticalSpeed: ["V/S ft/min · derived", "垂直速度 ft/min · 推算"],
   horizon: ["HORIZON", "地平线"],
+  dining: ["Dining", "餐食"],
+  dutyFree: ["Duty free", "免税购物"],
+  shopNote: [
+    "List prices, in euros. Nothing is bought from this screen — the trolley comes through the cabin after the first service.",
+    "欧元标价。这块屏幕不能下单——第一轮餐食之后手推车会过来。",
+  ],
+  drinks: ["Drinks", "饮品"],
+  anyTime: ["Any time", "全程"],
+  withTheMeal: ["With the meal", "随餐"],
+  beforeDeparture: ["Before departure", "起飞前"],
+  timetable: ["Timetable", "时刻安排"],
+  planned: ["planned", "计划"],
+  // One line. Two ran 13px past the foot of the Dining screen, and the second
+  // sentence was the first one again: "a plan, marked as one" says nothing
+  // that the dashed rules beside every time have not already said.
+  plannedNote: [
+    "Offsets from departure and arrival — nothing has told this seat the real times.",
+    "从起飞和落地推算，没有系统告诉过这个座位真正的时刻。",
+  ],
+  served: ["Served", "供应"],
+  onTheMenu: ["On the menu", "菜单"],
   groupFlight: ["Flight", "航班"],
   groupEntertainment: ["Entertainment", "娱乐"],
   groupCabin: ["Cabin", "客舱"],
@@ -302,8 +377,39 @@ const DICT = {
 
 export type Key = keyof typeof DICT;
 
+/**
+ * The languages added after the first two, as overlays.
+ *
+ * The two-entry tuples above are the cabin's own record of what it says in
+ * the language it was written in and the one it was written alongside; they
+ * are not touched. Everything since is a partial dictionary laid over them,
+ * so a language is one object, a string that has not been translated falls
+ * back to English rather than to a key or an empty box, and adding a
+ * language cannot break the two that exist.
+ *
+ * English rather than the nearest relative on purpose: a passenger who has
+ * chosen Français and meets a line of English knows it has not been
+ * translated. One who meets Spanish does not.
+ */
+const OVERLAY: Partial<Record<Lang, Partial<Record<Key, string>>>> = TABLE;
+
+/**
+ * Where a language looks when it has no word of its own.
+ *
+ * English for everything except Traditional Chinese, which looks at
+ * Simplified first: they are one language in two scripts, and a reader of
+ * one can read the other. Falling back to English there would hand somebody
+ * who has just chosen 繁體中文 a screen of English while the Chinese for it
+ * was sitting in the next column.
+ */
+const FALLBACK: Partial<Record<Lang, Lang>> = { "zh-Hant": "zh" };
+
 export function t(key: Key, lang: Lang): string {
-  return DICT[key][lang === "zh" ? 1 : 0];
+  const own = OVERLAY[lang]?.[key];
+  if (own) return own;
+  const near = FALLBACK[lang];
+  if (near) return t(key, near);
+  return DICT[key][lang === "zh" ? 1 : 0] || DICT[key][0];
 }
 
 /** The translator for this seat, and the language it is set to. */
@@ -317,7 +423,16 @@ export function phrase(key: Key, lang: Lang, value: string) {
   return t(key, lang).replace("{}", value);
 }
 
-/** City and airport names carry their own pair. */
-export function pick(pair: { en: string; zh: string }, lang: Lang) {
-  return lang === "zh" && pair.zh ? pair.zh : pair.en;
+/**
+ * A name that carries its own translations: a city, an airport, a dish.
+ *
+ * Same rule as the dictionary — whatever the pair has for this language, or
+ * English. These are content rather than interface, and a dish nobody has
+ * written in Russian is better read in English than guessed at.
+ */
+export type { Named };
+
+export function pick(pair: Named, lang: Lang) {
+  const near = FALLBACK[lang];
+  return pair[lang] || (near && pair[near]) || pair.en;
 }

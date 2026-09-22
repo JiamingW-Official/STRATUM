@@ -7,11 +7,34 @@
     <meta name="robots" content="noindex" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Same three faces as the sky view, proxied the same way, so the cabin
-         and the sky are set in one voice. -->
+         and the sky are set in one voice.
+
+         Loaded without blocking the first paint, which is the whole of the
+         boot time: measured on the production build, every script and
+         stylesheet the cabin needs had finished at 106ms and then nothing
+         happened until 1426ms, because this one request took 1418ms on its
+         own and the browser will not paint until a stylesheet in the head
+         has answered. First paint landed at 1444ms — eighteen milliseconds
+         after it.
+
+         `media="print"` is not a print stylesheet; it is the one way to tell
+         the browser this sheet is not needed for this medium, so fetch it
+         without holding the page. The onload flips it back. The faces
+         already ask for `display=swap`, so the type renders in system-ui and
+         swaps when they arrive — which is what that parameter was for and
+         what it never got the chance to do. -->
     <link
       href="/fonts/css/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Instrument+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="/fonts/css/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Instrument+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
   </head>
   <body>
     <div id="bench"></div>

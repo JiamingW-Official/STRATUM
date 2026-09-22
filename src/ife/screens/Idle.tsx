@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { CityPhoto } from "../chrome/CityPhoto";
 import { useCabin, useFlight, useSelf } from "../../flight-state/store";
 import { localDay, localTime } from "../format";
 import { pick, useT } from "../i18n";
-import { useDestination } from "../destination";
+import { useDestination } from "../../flight-state/destination";
 
 /**
  * What the screen shows to an empty seat. The seat number is the protagonist:
@@ -43,12 +44,7 @@ export function Idle({ seat }: { seat: string }) {
         if (e.key === "Enter" || e.key === " ") onWake();
       }}
     >
-      {dest?.image && (
-        <div
-          className="ife-photo"
-          style={{ backgroundImage: `url(${dest.image})` }}
-        />
-      )}
+      <CityPhoto dest={dest} />
       <div className="ife-photo-scrim" />
 
       <div className="ife-idle-grid">
@@ -66,7 +62,15 @@ export function Idle({ seat }: { seat: string }) {
               {flightNo}
             </div>
             <div className="ife-cap" style={{ marginTop: 18 }}>
-              {t(cabinClass === "business" ? "business" : "economy")}
+              {t(
+                cabinClass === "first"
+                  ? "first"
+                  : cabinClass === "business"
+                  ? "business"
+                  : cabinClass === "premium"
+                    ? "premium"
+                    : "economy",
+              )}
             </div>
           </div>
         </div>

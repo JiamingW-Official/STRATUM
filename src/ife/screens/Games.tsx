@@ -99,7 +99,7 @@ function Menu({ onOpen }: { onOpen: (g: GameName) => void }) {
           <span className="ife-gamecard-name">{t("overhead")}</span>
           <span className="ife-gamecard-sub">{t("overheadSub")}</span>
           <span className="ife-gamecard-note ife-cap">
-            {QUESTIONS.length} {lang === "zh" ? "题 · 每题标出处" : "questions · each one cited"}
+            {QUESTIONS.length} {t("questionsCited")}
           </span>
           </span>
         </button>
@@ -135,7 +135,7 @@ function Menu({ onOpen }: { onOpen: (g: GameName) => void }) {
           <span className="ife-gamecard-name">{t("pairs")}</span>
           <span className="ife-gamecard-sub">{t("pairsSub")}</span>
           <span className="ife-gamecard-note ife-cap">
-            {FILMS.length} {lang === "zh" ? "部影片的画格" : "films on board"}
+            {FILMS.length} {t("framesFrom")}
           </span>
           </span>
         </button>

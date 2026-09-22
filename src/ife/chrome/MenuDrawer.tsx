@@ -3,16 +3,6 @@ import { useSelf } from "../../flight-state/store";
 import type { ScreenName } from "../../flight-state/types";
 import { useT, type Key } from "../i18n";
 import { useNav } from "../nav";
-import { Mark, markFor } from "./Mark";
-import {
-  IconChat,
-  IconFilm,
-  IconGames,
-  IconGauge,
-  IconMap,
-  IconMusic,
-  IconSky,
-} from "./icons";
 
 /**
  * Everything on board, in a panel that comes in from the left edge.
@@ -58,7 +48,6 @@ export function MenuDrawer() {
     key: Key;
     items: Array<{
       key: string;
-      icon: React.ReactNode;
       label: string;
       onPress?: () => void;
       href?: string;
@@ -75,21 +64,18 @@ export function MenuDrawer() {
         // buys the other ten rows the air they were missing.
         {
           key: "map",
-          icon: <IconMap size={38} />,
           label: t("flightMap"),
           onPress: go("map"),
           current: screen === "map",
         },
         {
           key: "info",
-          icon: <IconGauge size={38} />,
           label: t("flightInformation"),
           onPress: go("flightInfo"),
           current: screen === "flightInfo",
         },
         {
           key: "sky",
-          icon: <IconSky size={38} />,
           label: t("theSky"),
           href: "/",
         },
@@ -100,21 +86,18 @@ export function MenuDrawer() {
       items: [
         {
           key: "movies",
-          icon: <IconFilm size={38} />,
           label: t("movies"),
           onPress: go("movies"),
           current: screen === "movies",
         },
         {
           key: "music",
-          icon: <IconMusic size={38} />,
           label: t("music"),
           onPress: go("music"),
           current: screen === "music",
         },
         {
           key: "games",
-          icon: <IconGames size={38} />,
           label: t("games"),
           onPress: go("games"),
           current: screen === "games",
@@ -125,8 +108,19 @@ export function MenuDrawer() {
       key: "groupCabin",
       items: [
         {
+          key: "dining",
+          label: t("dining"),
+          onPress: go("dining"),
+          current: screen === "dining",
+        },
+        {
+          key: "shop",
+          label: t("dutyFree"),
+          onPress: go("shop"),
+          current: screen === "shop",
+        },
+        {
           key: "chat",
-          icon: <IconChat size={38} />,
           label: t("chat"),
           onPress: go("chat"),
           current: screen === "chat",
@@ -157,6 +151,14 @@ export function MenuDrawer() {
         role="navigation"
         aria-label={t("menu")}
       >
+        {/* Words, not pictures.
+ 
+            Every row carried a 60px mark, and four of them were photographed
+            objects while the other four were drawn glyphs — a list where half
+            the entries are one kind of thing and half are another is a list
+            you have to read anyway. Reading is what a menu is for; the marks
+            stayed on the cards, where a card has room to be a picture of
+            something. */}
         {/* No title bar. It said "Menu · 12K · STR 001" — the seat is on the
             rail, the flight is in the strip above, and the word Menu was a
             caption on a panel that had just slid out from under a hamburger.
@@ -178,7 +180,7 @@ export function MenuDrawer() {
                     href={it.href}
                     tabIndex={open ? 0 : -1}
                   >
-                    <Row id={it.key} icon={it.icon} label={it.label} />
+                    {it.label}
                   </a>
                 ) : (
                   <button
@@ -188,7 +190,7 @@ export function MenuDrawer() {
                     tabIndex={open ? 0 : -1}
                     onClick={it.onPress}
                   >
-                    <Row id={it.key} icon={it.icon} label={it.label} />
+                    {it.label}
                   </button>
                 ),
               )}
@@ -200,24 +202,3 @@ export function MenuDrawer() {
   );
 }
 
-function Row({
-  id,
-  icon,
-  label,
-}: {
-  id: string;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  // A made mark brings its own body, so the lens under it comes off: a tile
-  // sitting inside a second tile is two icons deep.
-  const art = !!markFor(id);
-  return (
-    <>
-      <span className="ife-drawer-row-icon" data-art={art}>
-        <Mark id={id} drawn={icon} />
-      </span>
-      <span className="ife-drawer-row-label">{label}</span>
-    </>
-  );
-}

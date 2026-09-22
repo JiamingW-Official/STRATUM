@@ -1,3 +1,23 @@
+/**
+ * What a cabin can be read in.
+ *
+ * Here rather than in the dictionary because the language is part of a
+ * seat's own state — the dictionary is one of the things that reads it,
+ * not the thing that owns it, and putting it there made every file that
+ * touches SeatPrivate import the whole of i18n to name a two-letter code.
+ */
+export type Lang = "en" | "zh" | "zh-Hant" | "ja" | "es" | "fr" | "ru";
+
+/**
+ * A name with its own translations: a city, an airport, a country, a dish.
+ *
+ * English is the only one required, and whatever else is there is used when
+ * the seat is set to it. These are content rather than interface — a city
+ * nobody has written in Russian is better read in English than guessed at,
+ * and the fallback says so by simply being English.
+ */
+export type Named = { en: string } & Partial<Record<Lang, string>>;
+
 // The three layers every surface in the cabin reads from. What decides which
 // layer a new field belongs to is who can see it:
 //
@@ -21,8 +41,12 @@ export type Airport = {
   iata: string;
   icao: string;
   /** City name, not airport name — this is what a passenger reads. */
-  city: { en: string; zh: string };
-  name: { en: string; zh: string };
+  city: Named;
+  name: Named;
+  /** The country a passenger would say it is in, for a list of cities. */
+  country: Named;
+  /** ISO 3166-1 alpha-2, which is what a departure tax is charged by. */
+  cc: string;
   lat: number;
   lon: number;
   /** IANA zone, so local time survives DST without a table of offsets. */
@@ -84,7 +108,15 @@ export type FlightState = {
   paOverride: null | "safety" | "captain";
 };
 
-export type CabinClass = "business" | "economy";
+/**
+ * Three cabins, front to back.
+ *
+ * Premium economy is a cabin, not a fare: its own rows, its own seat, its own
+ * bag allowance and its own compartment code on the pass. An airline that
+ * sells one and an app that models it as "economy with extra legroom" will
+ * disagree about what is on the boarding pass.
+ */
+export type CabinClass = "first" | "business" | "premium" | "economy";
 
 /** This seat, as the rest of the cabin sees it. */
 export type SeatPublic = {
@@ -105,6 +137,8 @@ export type ScreenName =
   | "music"
   | "games"
   | "chat"
+  | "dining"
+  | "shop"
   /** The three screens a seat shows before it shows anything else. */
   | "language"
   | "start"
@@ -149,7 +183,9 @@ export type CabinMessage = {
  * a mode that quietly reorders everything is a system that has decided who
  * you are.
  */
-export type SeatMode = "watch" | "listen" | "look" | "rest";
+/** "drink" is business only: it is the one answer that is not true in both
+ *  cabins, because a glass before the doors close only happens in one. */
+export type SeatMode = "watch" | "listen" | "look" | "drink" | "rest";
 
 /**
  * A flight leaving the airport this one is landing at.
@@ -162,13 +198,38 @@ export type SeatMode = "watch" | "listen" | "look" | "rest";
 export type Connection = {
   flightNo: string;
   carrier: string;
-  to: { city: { en: string; zh: string }; iata: string };
+  to: { city: Named; iata: string };
   /** ISO 8601, UTC. */
   departsUtc: string;
   gate: string | null;
   terminal: string | null;
   status: "onTime" | "delayed" | "cancelled";
   confirmed: boolean;
+};
+
+/**
+ * The booking this seat is occupied under.
+ *
+ * It belongs in SeatPrivate and nowhere else: a record locator is a handle on
+ * one person's contract with the airline, and how many bags are in the hold
+ * under their name is the kind of thing a seat-back screen may show its
+ * occupant and must never show the cabin. It arrives with the boarding pass
+ * that was scanned at the seat and it carries no name, which is the rule the
+ * rest of this cabin already runs on.
+ */
+export type SeatBooking = {
+  pnr: string;
+  cabinClass: CabinClass;
+  /** Checked bags, including the one the fare already came with. */
+  bags: number;
+  /** The card this passenger is flying on, if they carry one. */
+  tier?: string;
+  /**
+   * The flight they are changing onto, when this aeroplane is the first half
+   * of a journey. It is the one row on the departure board that is theirs, and
+   * the cabin can say so without telling anybody else which one it is.
+   */
+  onward?: { flightNo: string; toIata: string; departsUtc: string };
 };
 
 /** This seat, as only its occupant sees it. */
@@ -178,7 +239,7 @@ export type SeatPrivate = {
   started: boolean;
   mode: SeatMode | null;
   /** Nobody else's business what you read the cabin in. */
-  lang: "en" | "zh";
+  lang: Lang;
   /**
    * What is loaded and where it had got to. The position is state, not a
    * detail of the player: an announcement has to give the screen back exactly
@@ -187,6 +248,8 @@ export type SeatPrivate = {
   media?: { id: string; positionSec: number };
   /** 0–1. */
   volume: number;
+  /** Set when a boarding pass was scanned at this seat. */
+  booking?: SeatBooking;
 };
 
 /**

@@ -84,13 +84,19 @@ export function SimPanel() {
         <div className="bench-row">
           <label>Cabin</label>
           <div className="bench-seg">
-            {(["business", "economy"] as const).map((c) => (
+            {(["first", "business", "premium", "economy"] as const).map((c) => (
               <button
                 key={c}
                 data-on={b.cabinClass === c}
                 onClick={() => b.set({ cabinClass: c })}
               >
-                {c === "business" ? "Business" : "Economy"}
+                {c === "first"
+                  ? "First"
+                  : c === "business"
+                    ? "Business"
+                    : c === "premium"
+                      ? "Premium"
+                      : "Economy"}
               </button>
             ))}
           </div>

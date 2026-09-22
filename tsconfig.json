@@ -18,5 +18,5 @@
   // being retyped as part of this work.
   // tests/ is left out until @types/node can be installed; Playwright runs
   // those files through its own transpiler either way.
-  "include": ["src/ife", "src/dev", "src/flight-state", "src/types"]
+  "include": ["src/ife", "src/booking", "src/dev", "src/flight-state", "src/types"]
 }

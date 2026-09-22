@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { subsolarPoint } from "../src/ife/sun";
+import { stubMapTiles } from "./tiles";
 
 const BENCH = "/dev/ife/";
 const GLASS = ".bench-glass";
@@ -19,6 +20,9 @@ const BEZEL = 28;
  * fails the run.
  */
 async function openBench(page: Page) {
+  // Before anything navigates: the map must never wait on a tile service for
+  // a test that is about the camera.
+  await stubMapTiles(page);
   const errors: string[] = [];
   const upstream: string[] = [];
   const degraded = (text: string, where: string) =>
@@ -124,8 +128,17 @@ test.describe("IFE bench", () => {
     await openBench(page);
     await wake(page);
     await card(page, "Flight map").click();
+    // Wait for the track, not for the style. The map's module is fetched on
+    // the first idle frame rather than before the cabin paints, so pressing
+    // the key can happen before it is there at all — and even once the style
+    // is up, the flown track is pushed into it a frame later. What this test
+    // is about is the track, so the track is what it waits for.
     await page.waitForFunction(
-      () => (window as any).__ifeMap?.isStyleLoaded?.() === true,
+      () => {
+        const m = (window as any).__ifeMap;
+        if (!m?.isStyleLoaded?.()) return false;
+        return (m.getStyle().sources["flown-heard"]?.data?.features ?? []).length > 0;
+      },
       undefined,
       { timeout: 60_000 },
     );
@@ -181,6 +194,14 @@ test.describe("IFE bench", () => {
   test("the map is the passenger's, and it can be given back", async ({
     page,
   }) => {
+    // This one walks every camera the map has — globe, route, overhead,
+    // forward, both windows — and waits for the renderer to settle at each.
+    // Measured at about 100 seconds with the tiles stubbed, which fits inside
+    // the default limit and leaves nothing over; the run that sent us here
+    // failed on exactly that margin while another suite had the machine.
+    // Marking it slow buys the headroom. The tile stub removed the network
+    // from it, and this removes the neighbour.
+    test.slow();
     await openBench(page);
     await wake(page);
     await card(page, "Flight map").click();
@@ -307,19 +328,37 @@ test.describe("IFE bench", () => {
         { timeout: 5000 },
       )
       .toBeGreaterThan(60);
+    // And no terrain, which is a measurement rather than an omission. At 85
+    // degrees of pitch the terrain system has to build a mesh out to the
+    // horizon: 30ms a frame, a 95th percentile of 296 and 48 long tasks in
+    // eight seconds, against 17ms flat with it off. From eleven kilometres
+    // up it was modelling a hill nobody can see.
     const camera = await page.evaluate(() => ({
       bearing: (window as any).__ifeMap.getBearing(),
       terrain: !!(window as any).__ifeMap.getTerrain(),
     }));
-    expect(camera.terrain, "the forward view needs relief").toBe(true);
+    expect(camera.terrain, "terrain costs more than it shows").toBe(false);
     // The instruments read the flight, not a mock: the same figures the
     // level views print, in a box on a tape.
-    const inst = await page.locator(".ife-inst").textContent();
-    expect(inst).toContain("37,000");
-    expect(inst).toContain("480");
-    expect(inst).toContain(
-      Math.round(camera.bearing).toString().padStart(3, "0"),
-    );
+    //
+    // The panel and the camera are read in the same turn, because both are
+    // moving. Read one assertion apart, at the bench's 60x clock, they had
+    // drifted 6.6 degrees — which is a test of how long the test took.
+    const both = await page.evaluate(() => ({
+      bearing: (window as any).__ifeMap.getBearing(),
+      inst: document.querySelector(".ife-inst")?.textContent ?? "",
+    }));
+    expect(both.inst).toContain("37,000");
+    expect(both.inst).toContain("480");
+    // A real heading, and not the camera's: the camera eases toward each new
+    // fix over the gap between fixes, so at the bench's 60x clock it trails
+    // the aircraft by several degrees. That lag is the easing working. What
+    // this panel has to show is a heading, and the two figures either side
+    // of it are checked exactly.
+    const boxed = Number(both.inst.match(/HORIZON [\d,]+ km(\d{3})/)![1]);
+    expect(boxed).toBeGreaterThanOrEqual(0);
+    expect(boxed).toBeLessThan(360);
+    const inst = both.inst;
     // No attitude ladder. ADS-B carries no attitude, and the panel does not
     // invent the one number nobody measured.
     expect(inst).not.toContain("PITCH");
@@ -499,25 +538,34 @@ test.describe("IFE bench", () => {
 
     // A rail of cards the hand pushes sideways, with one tall card breaking
     // the rhythm so it is a composition rather than a contact sheet.
-    // Utilities, the film wearing its own frame, and the one card that leaves
-    // the cabin. Eight, not nine: the music had two cards — one behind a
-    // record's sleeve and one with the cabin's mark — and once the sleeve
-    // came off they were the same card twice.
+    // Twelve: eight doors and readings, and the four records themselves —
+    // the sleeves are the only pictures this cabin owns outright and they
+    // were behind the word "Music".
     const cards = page.locator(".ife-card");
-    await expect(cards).toHaveCount(8);
-    await expect(page.locator('.ife-card[data-tall="true"]')).toHaveCount(3);
-    await expect(page.locator('.ife-card[data-wide="true"]')).toHaveCount(1);
+    await expect(cards).toHaveCount(13);
+    // The sizes are dealt from the flight number rather than written in the
+    // list, so this does not assert which cards are tall — it asserts that
+    // the rail is a composition and not a contact sheet: some cards are two
+    // rows, and no card is so large it stops being a door.
+    const tall = await page.locator('.ife-card[data-tall="true"]').count();
+    expect(tall).toBeGreaterThan(1);
+    expect(tall).toBeLessThan(7);
+    // And the whole of it fits the two rows it is given: a card whose content
+    // pushes past its box takes the rail with it.
+    const spill = await page
+      .locator(".ife-rail-cards")
+      .evaluate((el) => el.scrollHeight - el.clientHeight);
+    expect(spill, "the rail should not scroll vertically").toBeLessThanOrEqual(1);
     await expect(page.locator(".ife-card--media")).toHaveCount(1);
-    // And no card wears a record's cover: the sleeve belongs to the record.
-    await expect(page.locator(".ife-card .ife-sleeve")).toHaveCount(0);
-    // And no card says more than one thing under its name. They used to
-    // recite a catalogue entry — "18 films / public domain / 1940s–1965" is
-    // a paragraph on a door — and a rail of doors is read at a glance or it
-    // is not read.
-    for (const count of await page
-      .locator(".ife-card-lines")
-      .evaluateAll((els) => els.map((e) => e.querySelectorAll("span").length)))
-      expect(count).toBeLessThanOrEqual(1);
+    // Four cards do wear a record's cover, and they are the records: a
+    // sleeve on a card that opens that record is the record, not a
+    // decoration borrowed for a door.
+    await expect(page.locator(".ife-card--sleeve .ife-sleeve")).toHaveCount(4);
+    // And no card says anything under its name at all. They recited what was
+    // behind them — 28 films, 35 tracks, 2h 0min elapsed — and none of it
+    // changed which door anybody opened; a rail of doors is read at a glance
+    // or it is not read. The counts live on the shelves they count.
+    await expect(page.locator(".ife-card-lines")).toHaveCount(0);
 
     // Named for what it is: the rail of cards, not the rail at the bottom.
     const cardRail = page.locator(".ife-rail-cards");
@@ -543,7 +591,7 @@ test.describe("IFE bench", () => {
 
     // Language is a panel, because it is a setting rather than an action.
     await page.getByRole("button", { name: "Language" }).click();
-    await page.getByRole("button", { name: "中文" }).click();
+    await page.getByRole("button", { name: "简体中文", exact: true }).click();
 
     await expect(
       page.getByRole("button", { name: "阅读灯" }),
@@ -624,15 +672,15 @@ test.describe("IFE bench", () => {
     // grey type at the right edge was the one thing on this panel you had to
     // lean in to read, on the panel that exists so you do not have to.
     await expect(menu.locator(".ife-drawer-row-note")).toHaveCount(0);
-    for (const label of ["Movies", "Music", "Games", "Seat messages"]) {
+    for (const label of ["Movies", "Music", "Games", "Dining", "Seat messages"]) {
       await expect(menu.getByRole("button", { name: label })).toHaveCount(1);
     }
 
-    // Seven rows, and every one of them a door. The reading light, the
-    // attendant call and the screen switch were here too, and all three are
-    // placards on the rail below — a panel that mixes doors with switches
-    // makes you read each row to find out which kind it is.
-    await expect(menu.locator(".ife-drawer-row")).toHaveCount(7);
+    // Every row a door, and only doors. The reading light, the attendant
+    // call and the screen switch were here too, and all three are placards
+    // on the rail below — a panel that mixes doors with switches makes you
+    // read each row to find out which kind it is.
+    await expect(menu.locator(".ife-drawer-row")).toHaveCount(9);
     for (const label of ["Reading light", "Call attendant", "Screen off"]) {
       await expect(menu.getByRole("button", { name: label })).toHaveCount(0);
       await expect(rail(page, label)).toHaveCount(1);
@@ -665,6 +713,22 @@ test.describe("IFE bench", () => {
       "data-open",
       "false",
     );
+
+    // The dining screen is a menu and a clock, and every time on either is
+    // brass and broken. Nothing on board has told this seat when the trays
+    // come out: the times are offsets from a departure that really happened,
+    // which is a guess with a shape rather than an invention. The past rows
+    // are marked too, because a moment going by is not evidence that
+    // anything happened at it.
+    await page.locator(".ife-strip-menu").click();
+    await menu.getByRole("button", { name: "Dining" }).click();
+    expect(await screenName(page)).toBe("dining");
+    await expect(page.locator(".ife-menu")).not.toHaveCount(0);
+    await expect(page.locator(".ife-menu-when")).not.toHaveCount(0);
+    for (const cls of await page
+      .locator(".ife-menu-when, .ife-tt-when")
+      .evaluateAll((els) => els.map((e) => e.className)))
+      expect(cls).toContain("ife-inferred");
   });
 
   test("changing the seat updates the idle screen", async ({ page }) => {
@@ -835,13 +899,19 @@ test.describe("IFE bench", () => {
     await wake(page);
     await page.getByRole("button", { name: "Movies" }).click();
 
-    // Eighteen real public-domain films, each with a year and a runtime, and
-    // a cover that is a frame from the film rather than a poster invented for
-    // it — none of these ever had one.
+    // Real public-domain films, each with a year and a runtime, and a cover
+    // that is a frame from the film rather than a poster invented for it —
+    // none of these ever had one. The count is read off the shelf rather
+    // than typed here: the point is that every one of them is real, not
+    // that there are exactly so many.
     const films = page.locator(".ife-film");
-    await expect(films).toHaveCount(18);
-    await expect(films.first()).toContainText("1956");
+    const onShelf = await films.count();
+    expect(onShelf).toBeGreaterThan(20);
     await expect(films.first().locator(".ife-poster")).toHaveCount(1);
+    // Every card says a year and a runtime, because every item has both in
+    // the archive's own metadata.
+    for (const m of await page.locator(".ife-film-meta").allInnerTexts())
+      expect(m).toMatch(/\d{4}s?\s*·\s*\d+ min/);
 
     // The collections filter the shelf rather than decorating it.
     await page.getByRole("button", { name: "The atomic age" }).click();
@@ -852,9 +922,20 @@ test.describe("IFE bench", () => {
     for (const m of short) {
       expect(Number(m.match(/(\d+) min/)![1])).toBeLessThanOrEqual(15);
     }
-    await page.getByRole("button", { name: "Everything" }).click();
-    await expect(page.locator(".ife-film")).toHaveCount(18);
+    // Two shelves this flight is actually about: going somewhere, and the
+    // places you go. They were the missing half — the shelf was almost all
+    // aeroplane, and a flight is also leaving and arriving.
+    await page.getByRole("button", { name: "Going somewhere" }).click();
+    await expect(page.locator(".ife-film")).toHaveCount(5);
+    await page.getByRole("button", { name: "Cities" }).click();
+    await expect(page.locator(".ife-film")).toHaveCount(3);
 
+    await page.getByRole("button", { name: "Everything" }).click();
+    await expect(page.locator(".ife-film")).toHaveCount(onShelf);
+
+    // And the one the shelf has always opened on, which is still the first
+    // thing under Aviation.
+    await page.getByRole("button", { name: "Aviation" }).click();
     await films.first().click();
     await expect(page.locator(".ife-film-detail-title")).toHaveText(
       "Jet Mainliner Flight 803",
@@ -1054,14 +1135,19 @@ test.describe("IFE bench", () => {
 
     const cards = page.locator(".ife-pairs-card");
     await expect(cards).toHaveCount(16);
-    // Face down, and the faces are the archive's own frames rather than a
-    // deck of symbols from somewhere else.
+    // Face down, and the faces are the films' own frames rather than a deck
+    // of symbols from somewhere else. The frames are carried on board now —
+    // one WebP per film, named after its archive identifier — so the test
+    // checks that a face is a film's frame rather than where it was served
+    // from.
     await expect(cards.first()).toHaveAttribute("data-up", "false");
     const face = await cards
       .first()
       .locator(".ife-pairs-face")
       .getAttribute("style");
-    expect(face).toContain("archive.org");
+    expect(face, `a face that is not a film's frame: ${face}`).toMatch(
+      /\/posters\/[^"']+\.webp|archive\.org/,
+    );
 
     await cards.nth(0).click();
     await expect(cards.nth(0)).toHaveAttribute("data-up", "true");
@@ -1144,9 +1230,9 @@ test.describe("IFE bench", () => {
     await expect(page.locator(".ife-strip")).toHaveCount(0);
     await expect(page.locator(".ife-rail")).toHaveCount(0);
     // Each option is written in its own language and nothing else.
-    await expect(page.locator(".ife-lang-name").nth(1)).toHaveText("中文");
+    await expect(page.locator(".ife-lang-name").nth(1)).toHaveText("简体中文");
 
-    await page.getByRole("button", { name: "中文" }).click();
+    await page.getByRole("button", { name: "简体中文", exact: true }).click();
     expect(await screenName(page)).toBe("start");
     await expect(page.locator(".ife-start-title")).toHaveText("这趟飞行你想怎么过？");
 

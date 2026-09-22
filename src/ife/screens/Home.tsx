@@ -1,18 +1,23 @@
+import { useEffect, useState } from "react";
 import { useFlight, useSelf } from "../../flight-state/store";
 import type { ScreenName } from "../../flight-state/types";
-import { duration, fmtInt, localTime } from "../format";
+import { durationParts, localTime, utcTime } from "../format";
 import { phrase, pick, useT } from "../i18n";
-import { useDestination } from "../destination";
-import { conditionKey, useWeather } from "../weather";
+import { useDestination } from "../../flight-state/destination";
+import { compass, conditionKey, useWeather } from "../weather";
+import { usePlayer } from "../player";
+import { FILMS, stillUrl } from "../films";
 import { STATIONS } from "../stations";
-import { FILMS, runtime, stillUrl } from "../films";
+import { Sleeve } from "../chrome/Sleeve";
 import { useNav } from "../nav";
-import { currentTrack, usePlayer } from "../player";
-import { RouteMini } from "../chrome/RouteMini";
+import { CityPhoto } from "../chrome/CityPhoto";
+import { Mark } from "../chrome/Mark";
 import {
   IconFilm,
-  IconGames,
+  IconWeather,
   IconGauge,
+  IconBag,
+  IconGames,
   IconMap,
   IconMusic,
   IconSky,
@@ -35,22 +40,24 @@ export function Home() {
   const setScreen = useSelf((s) => s.setScreen);
   const {
     route,
-    position,
     connections,
     etaUtc,
     etaInferred,
     phase,
     flightNo,
-    departureUtc,
   } = useFlight();
   const { t, lang } = useT();
   const dest = useDestination(route.to);
   const wx = useWeather(route.to);
   const seat = useSelf((s) => s.seat);
-  const { stationIdx, trackIdx, playing } = usePlayer();
-  const now = currentTrack(stationIdx, trackIdx);
   const openFilm = useNav((s) => s.openFilm);
-  // The aviation film, which is the one this cabin would put on its home rail.
+  const openStation = useNav((s) => s.openStation);
+  const { stationIdx, playing } = usePlayer();
+  // Whatever leads the shelf leads the rail: one film is featured and it is
+  // the first one, so the order in films.ts is the decision rather than a
+  // second list here. It used to be an airline selling its first jets;
+  // it is a road trip assembled from nine thousand home movies, which is a
+  // better thing to put in front of somebody who is on a journey.
   const feature = FILMS[0];
   const remaining = Date.parse(etaUtc) - Date.now();
   const landed = phase === "landed";
@@ -76,9 +83,19 @@ export function Home() {
    * "flight information" leading a home screen is a filing cabinet's idea of
    * a first row.
    *
-   * Every card carries what it knows rather than a category name, and the
-   * two-row ones carry a small table of it — an icon with three words under it
-   * in a 300×460 box is mostly empty box.
+   * A door carries its name and nothing else.
+   *
+   * These cards used to recite what was behind them — 28 films, 35 tracks,
+   * 2h 0min elapsed, live ADS-B overhead, and a caption over each one saying
+   * what kind of thing it was. Read as a row that is eight numbers and eight
+   * captions in front of somebody looking for a word, and not one of the
+   * numbers changes which door they open. The counts are on the shelves they
+   * count, a touch away and accurate there.
+   *
+   * Two exceptions, and both are the same exception: they are not doors.
+   * The film is the film, so it says it is showing and gives its title; the
+   * weather is a reading, so it gives the reading. Neither is a category
+   * with a room behind it.
    */
   const cards: Array<{
     key: string;
@@ -93,7 +110,9 @@ export function Home() {
     stats?: Array<[string, string]>;
     tall?: boolean;
     wide?: boolean;
-    media?: "film";
+    media?: "film" | "sleeve";
+    /** Which record's sleeve, for the media cards that carry one. */
+    station?: number;
     /** Brass for the flight, cool for the world outside it. Nothing else. */
     tint?: "brass" | "cool";
   }> = [
@@ -102,11 +121,7 @@ export function Home() {
           {
             key: "connections",
             screen: "connections" as ScreenName,
-            cap: `${route.to.iata} · ${t("colDeparture")}`,
             title: t("connections"),
-            lines: [
-              `${connections.filter((c) => c.confirmed).length}/${connections.length} ${t("confirmed")}`,
-            ],
             tint: "brass" as const,
           },
         ]
@@ -117,54 +132,67 @@ export function Home() {
         openFilm(feature.id);
         setScreen("movies");
       },
-      cap: lang === "zh" ? "正在放映" : "Now showing",
+      cap: t("nowShowing"),
       title: pick(feature.title, lang),
-      // A year and a runtime. The director was the third line on a card that
-      // is already a picture of the film.
-      lines: [`${feature.year} · ${runtime(feature, lang)}`],
       tall: true,
       media: "film",
     },
     {
+      // One row, and a picture rather than a table.
+      //
+      // It was two rows carrying altitude, ground speed and heading and a
+      // small drawing of the route — a card doing the job of the screen
+      // behind it. The numbers are on Flight information and on the map
+      // itself, both one touch away, and reading them here meant the door
+      // to the map was the only card on the rail you did not open.
+      //
+      // The route drawing went with them. It was the real track, and that
+      // is exactly why it could not stay next to a globe with a painted
+      // dashed line on it: two lines, one true, at the same size. The globe
+      // is a sign now, the size of the film reel and the music note, and
+      // nothing on this card pretends to be a reading.
       key: "map",
       screen: "map",
-      cap: `${route.from.iata} → ${route.to.iata}`,
       title: t("flightMap"),
-      stats: [
-        [t("altitude"), `${fmtInt(position.altFt)} ft`],
-        [t("groundSpeed"), `${fmtInt(position.gsKt)} kt`],
-        [
-          t("heading"),
-          `${Math.round(position.headingDeg).toString().padStart(3, "0")}°`,
-        ],
-      ],
-      tall: true,
+      icon: <Mark id="map" drawn={<IconMap size={210} />} />,
       tint: "brass",
     },
     {
       key: "movies",
       screen: "movies",
       title: t("movies"),
-      icon: <IconFilm size={118} />,
-      // One line. Three was a card reciting its own catalogue entry —
-      // "18 films / public domain / 1940s–1965" is a paragraph on a door.
-      lines: [`${FILMS.length} ${lang === "zh" ? "部" : "films"}`],
+      icon: <Mark id="movies" drawn={<IconFilm size={210} />} />,
     },
     {
       key: "weather",
       screen: "flightInfo",
       cap: pick(route.to.city, lang),
+      // The sky, drawn, switched by the same code that picks the words — so
+      // the picture and "Overcast" can never disagree.
+      icon: wx ? <IconWeather code={wx.code} size={132} /> : undefined,
       title: wx
-        ? `${Math.round(wx.tempC)}° ${conditionKey(wx.code)[lang === "zh" ? 1 : 0]}`
+        ? `${Math.round(wx.tempC)}° ${pick(conditionKey(wx.code), lang)}`
         : "--°",
+      // Two columns, not three. The third was the destination clock, which
+      // the left of this same screen sets at 92px; replacing it with the
+      // bearing gave "FEELS LIKE" and "WIND" 207px each to sit in and they
+      // ran into each other. The bearing belongs to the wind anyway — a
+      // direction is not a second reading, it is half of the one above it.
       stats: wx
         ? [
             [t("feelsLike"), `${Math.round(wx.feelsC)}°`],
-            [t("wind"), `${Math.round(wx.windKph)} km/h`],
-            [t("localTime"), localTime(new Date().toISOString(), route.to)],
+            [
+              t("wind"),
+              `${pick(compass(wx.windDeg), lang)} ${Math.round(wx.windKph)} km/h`,
+            ],
           ]
         : undefined,
-      wide: true,
+      // Two rows, because this is the one card with a table on it. At one row
+      // the two readings ran 92px past the bottom of the card — measured —
+      // and "WIND SW 19 km/h" simply was not there. A card that carries a
+      // table is the card that gets the room; the doors around it do not
+      // need it.
+      tall: true,
       tint: "cool",
     },
     {
@@ -180,70 +208,154 @@ export function Home() {
       // there is a picture made for this card.
       key: "music",
       screen: "music",
-      cap: playing ? t("nowPlaying") : lang === "zh" ? "电台" : "Radio",
       title: t("music"),
-      icon: <IconMusic size={118} />,
-      // What it knows, in one line: the track if there is one, the size of
-      // the shelf if there is not.
-      lines: [
-        playing
-          ? now.title
-          : `${STATIONS.reduce((n, st) => n + st.tracks.length, 0)} ${
-              lang === "zh" ? "首" : "tracks"
-            }`,
-      ],
+      icon: <Mark id="music" drawn={<IconMusic size={210} />} />,
+    },
+    /**
+     * The records themselves, not only the door to them.
+     *
+     * Four sleeves are the only pictures this cabin owns outright — drawn for
+     * these four records, in their own colours — and they were behind a word.
+     * A rail of doors with one photograph on it is a list; a rail with the
+     * things themselves on it is a shelf, which is what a passenger is
+     * looking at.
+     */
+    ...STATIONS.map((st, i) => ({
+      key: `station-${st.id}`,
+      onPress: () => {
+        openStation(i);
+        setScreen("music");
+      },
+      // No genre. "ELECTRONIC" over a sleeve that is already electronic
+      // is a label on a picture, and four of them across the rail read as
+      // a taxonomy nobody asked for. The cap only says something when
+      // there is something to say: this one is playing.
+      cap: playing && stationIdx === i ? t("nowPlaying") : undefined,
+      title: st.name,
+      media: "sleeve" as const,
+      station: i,
+    })),
+    {
+      key: "shop",
+      screen: "shop",
+      title: t("dutyFree"),
+      icon: <Mark id="shop" drawn={<IconBag size={210} />} />,
     },
     {
       key: "games",
       screen: "games",
       title: t("games"),
-      icon: <IconGames size={118} />,
+      icon: <Mark id="games" drawn={<IconGames size={210} />} />,
     },
     {
       key: "sky",
-      cap: lang === "zh" ? "机外" : "Outside",
       title: t("theSky"),
-      icon: <IconSky size={118} />,
-      lines: [t("liveAdsb")],
+      icon: <Mark id="sky" drawn={<IconSky size={210} />} />,
       tall: true,
       tint: "cool",
     },
     {
       key: "info",
       screen: "flightInfo",
-      cap: flightNo,
       title: t("flightInformation"),
-      // How long you have been up. What is left is the largest number on
-      // this screen already, and the strip says it again at the top.
-      lines: [
-        landed
-          ? t("arrived")
-          : `${duration(Date.now() - Date.parse(departureUtc), lang)} ${t("elapsed")}`,
-      ],
+      icon: <Mark id="info" drawn={<IconGauge size={210} />} />,
       tint: "brass",
     },
   ];
 
-  /** Under the countdown: aligned rows, because a list is not a paragraph. */
-  const facts: Array<[string, string]> = [
-    [t("arrival"), `${localTime(etaUtc, route.to)} ${route.to.iata}`],
-    [t("localTime"), localTime(new Date().toISOString(), route.to)],
+  /**
+   * The rows under the hero, and none of them is anything already on screen.
+   *
+   * The arrival clock was here, in the hero on the ground, and in the top
+   * strip on every screen — the same 20:49 three times over. A screen that
+   * prints a number in three places is not emphasising it, it is failing to
+   * decide where it lives. It lives in the strip, which is the one band that
+   * never leaves.
+   *
+   * What the strip does not carry is the clock where you are going, so that
+   * is the hero once there is no journey left to count — and then it is not
+   * a row as well. The weather was a row here too, one card away from the
+   * card that gives the same reading three ways round.
+   */
+  /**
+   * One clock at a time, turning over.
+   *
+   * There are three worth having and only room for one: the time where you
+   * are going, the time where you left, and the time the flight deck works
+   * in. A cabin that shows all three has a table of clocks; a cabin that
+   * shows only the destination's has thrown away the one a passenger
+   * actually asks for first, which is what time it is at home. So the row
+   * turns over every fifteen seconds, the way a departure board does.
+   */
+  const CLOCKS: Array<[string, () => string]> = [
+    // Named by the place, not by "local time" three times over — the label is
+    // the only thing that distinguishes them, and "LOCAL TIME · LHR" is two
+    // lines of a 260px column where "LONDON" is one.
+    [pick(route.to.city, lang), () => localTime(new Date().toISOString(), route.to)],
+    [pick(route.from.city, lang), () => localTime(new Date().toISOString(), route.from)],
+    [t("utc"), () => utcTime(new Date().toISOString())],
   ];
-  if (wx) {
-    facts.push([
-      t("weather"),
-      `${Math.round(wx.tempC)}° ${conditionKey(wx.code)[lang === "zh" ? 1 : 0]}`,
-    ]);
-  }
+  const [clock, setClock] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setClock((n) => (n + 1) % CLOCKS.length),
+      15_000,
+    );
+    return () => window.clearInterval(id);
+  }, [CLOCKS.length]);
+
+  const facts: Array<[string, string]> = landed
+    ? []
+    : [[CLOCKS[clock][0], CLOCKS[clock][1]()]];
+
+  /**
+   * The shape of the rail, decided by the flight it is on.
+   *
+   * A fixed grid of identical tiles is a contact sheet, and a fixed grid of
+   * *mixed* tiles is still fixed: the same card is tall on every flight
+   * because of the order somebody typed the list in. So the sizes and the
+   * order of the doors come out of the flight number — the same aircraft on
+   * the same rotation always looks the same, and two different flights do
+   * not. It is not random per load: a door that moves while you are reaching
+   * for it is a door you have to find twice, and a screen that reshuffles
+   * itself cannot be checked against a picture either.
+   *
+   * The two cards that are not doors keep their places. The film leads
+   * because it is the thing you could start now, and the record sleeves stay
+   * together because four covers in a row is a shelf and four covers spread
+   * through a rail is clutter.
+   */
+  const seed = [...flightNo].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const rand = (n: number) => {
+    // xorshift, so the same flight number always deals the same rail.
+    let x = seed + n * 2654435761;
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    return ((x >>> 0) % 1000) / 1000;
+  };
+  // The connecting board is not in the deal. It only appears while the
+  // aircraft is coming down, and at that point it is the one card anybody is
+  // looking for — a card that is first for a reason does not get shuffled
+  // with the ones that are in any order at all.
+  const doors = cards.filter(
+    (c) => !c.media && c.key !== "weather" && c.key !== "connections",
+  );
+  doors.forEach((c, i) => {
+    const r = rand(i);
+    // One in four is two rows, one in six is two columns, and never both:
+    // a card four times the size of its neighbours is a poster, not a door.
+    if (r < 0.25) c.tall = true;
+    else if (r < 0.42) c.wide = true;
+  });
+  // Order the doors among themselves, leaving everything else where it is.
+  const shuffled = [...doors].sort((a, b) => rand(doors.indexOf(a) + 40) - rand(doors.indexOf(b) + 40));
+  let d = 0;
+  const laid = cards.map((c) => (doors.includes(c) ? shuffled[d++] : c));
 
   return (
     <div className="ife-home">
-      {dest?.image && (
-        <div
-          className="ife-photo"
-          style={{ backgroundImage: `url(${dest.image})` }}
-        />
-      )}
+      <CityPhoto dest={dest} />
       <div className="ife-photo-scrim" />
 
       <div className="ife-home-place">
@@ -262,11 +374,16 @@ export function Home() {
         {/* One fact at the size of a fact, then the rest of them as a table.
             Three blocks each with their own type sizes and their own left
             edge read as three unrelated notices; one hero and one aligned
-            list reads as a column. */}
+            list reads as a column.
+
+            In the air the big figure is how long is left. On the ground it
+            is the clock where you have landed — the arrival time it used to
+            show was the same number as the strip's right-hand end, and it
+            was in the future by a minute or two while claiming to be past. */}
         <div className="ife-home-count">
           <div className="ife-cap">
             {landed
-              ? t("arrived")
+              ? t("localTime")
               : phrase("timeToPlace", lang, pick(route.to.city, lang))}
           </div>
           <div
@@ -274,11 +391,21 @@ export function Home() {
               etaInferred && !landed ? " ife-inferred" : ""
             }`}
           >
-            {landed ? localTime(etaUtc, route.to) : duration(remaining, lang)}
+            {landed
+              ? localTime(new Date().toISOString(), route.to)
+              : /* Figures at full size, units at half. Set as one string the
+                 Chinese ran 606px wide in a 500px column and broke 分 onto a
+                 line by itself. */
+                durationParts(remaining, lang).map((p) => (
+                  <span key={p.u} className="ife-home-count-part">
+                    {p.n}
+                    <span className="ife-home-count-unit">{p.u}</span>
+                  </span>
+                ))}
           </div>
         </div>
 
-        <dl className="ife-home-facts">
+        <dl className="ife-home-facts" hidden={facts.length === 0}>
           {facts.map(([label, value]) => (
             <div key={label} className="ife-home-fact">
               <dt className="ife-cap">{label}</dt>
@@ -289,7 +416,7 @@ export function Home() {
       </div>
 
       <div className="ife-rail-cards" role="navigation">
-        {cards.map((c) => {
+        {laid.map((c) => {
           const body = (
             <>
               {c.media === "film" && (
@@ -298,11 +425,12 @@ export function Home() {
                   style={{ backgroundImage: `url(${stillUrl(feature)})` }}
                 />
               )}
+              {c.media === "sleeve" && c.station !== undefined && (
+                <span className="ife-card-sleeve">
+                  <Sleeve station={STATIONS[c.station]} />
+                </span>
+              )}
               {c.icon && <span className="ife-card-icon">{c.icon}</span>}
-              {/* The map card carries the route itself. Losing it in a
-                  refactor left the tallest card on the screen as an icon and
-                  three numbers with a hole between them. */}
-              {c.key === "map" && <RouteMini />}
               {c.cap && <span className="ife-card-cap ife-cap">{c.cap}</span>}
               <span className="ife-card-name">{c.title}</span>
               {c.lines && (
@@ -332,7 +460,7 @@ export function Home() {
             "data-wide": !!c.wide,
             "data-tint": c.tint,
           };
-          const cls = `ife-card${c.media ? " ife-card--media" : ""}`;
+          const cls = `ife-card${c.media === "film" ? " ife-card--media" : ""}${c.media === "sleeve" ? " ife-card--sleeve" : ""}`;
           // The one card that leaves the cabin is a link, and says so.
           if (c.key === "sky") {
             return (

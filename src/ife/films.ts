@@ -1,13 +1,20 @@
-import type { Lang } from "./i18n";
+import type { Lang, Named } from "./i18n";
 
 /**
  * What this aircraft carries, and why it carries this.
  *
- * Every title here is a real film in the public domain, held by the Prelinger
- * Archives: amateur home movies and mid-century industrial and educational
- * shorts — what Rick Prelinger calls ephemeral film, made to sell something or
- * teach something and then thrown away. Nothing on this shelf is invented, and
- * nothing on it is a placeholder standing in for a licence we do not have.
+ * Every title here is a real film held by the Prelinger Archives, and every
+ * one of them is free to show: most are in the public domain, and four are
+ * Rick Prelinger's own later films under a Creative Commons licence, which
+ * is named on the card the way the licence asks. Nothing on this shelf is
+ * invented, and nothing on it is a placeholder standing in for a licence we
+ * do not have.
+ *
+ * The shelf used to say "public domain" and mean it, which cost it the last
+ * fifty years: the archive's newer material — the city films, the road-trip
+ * films, the ones actually about going somewhere — is licensed rather than
+ * released, and shutting them out to keep one word true on a caption was
+ * the wrong trade. The caption changed instead.
  *
  * It is also the right shelf for this work rather than a convenient one. A
  * piece about who gets recorded from the sky and who does not should carry the
@@ -28,24 +35,229 @@ import type { Lang } from "./i18n";
  * seen from the middle of the last century: flying, being watched, the bomb,
  * and the future that was being sold at the same time.
  */
-export type Subject = "aviation" | "radio" | "atomic" | "tomorrow" | "amateur";
+export type Subject =
+  | "travel"
+  | "city"
+  | "aviation"
+  | "radio"
+  | "atomic"
+  | "tomorrow"
+  | "amateur";
 
 export type Film = {
   /** Internet Archive item identifier. */
   id: string;
   /** The MP4 derivative inside that item. */
   file: string;
-  title: { en: string; zh: string };
+  title: Named;
   year: string;
   creator: string;
   seconds: number;
   /** Size of the file this seat would have to hold. */
   megabytes: number;
   subject: Subject;
-  synopsis: { en: string; zh: string };
+  /**
+   * The archive's own licence, where the film carries one. Absent means
+   * public domain, which is most of this shelf. A licence that asks to be
+   * named is named, beside the creator, on the film's own card.
+   */
+  licence?: { label: string; url: string };
+  synopsis: Named;
+};
+
+const BY_NC_SA_4 = {
+  label: "CC BY-NC-SA 4.0",
+  url: "creativecommons.org/licenses/by-nc-sa/4.0",
+};
+const BY_NC_SA_3 = {
+  label: "CC BY-NC-SA 3.0",
+  url: "creativecommons.org/licenses/by-nc-sa/3.0",
+};
+const BY_NC_3 = {
+  label: "CC BY-NC 3.0",
+  url: "creativecommons.org/licenses/by-nc/3.0",
+};
+const BY_NC_ND_4 = {
+  label: "CC BY-NC-ND 4.0",
+  url: "creativecommons.org/licenses/by-nc-nd/4.0",
 };
 
 export const FILMS: Film[] = [
+  /**
+   * The four this shelf could not carry while its caption said public
+   * domain, and the reason the caption changed.
+   *
+   * They are Rick Prelinger's own films, made out of the same archive the
+   * rest of this shelf comes from, and they are the only recent things in it
+   * — 2004 to 2016, against a shelf that otherwise stops in 1985. They are
+   * also the closest any of this gets to what the passenger watching them is
+   * doing: a road trip assembled from nine thousand home movies, a city
+   * remembered by the people who lived in it, and the ordinary afternoons
+   * that survive only because somebody had a camera.
+   */
+  {
+    id: "NMRT201306256Mbps",
+    subject: "travel",
+    file: "NMRT_20130625_6Mbps.mp4",
+    title: { en: "No More Road Trips?", zh: "再没有公路旅行了吗？" },
+    year: "2013",
+    creator: "Rick Prelinger",
+    seconds: 4763,
+    megabytes: 396,
+    licence: BY_NC_SA_3,
+    synopsis: {
+      en: "A dream ride through 20th-century America made entirely from home movies, asking whether we have come to the end of the open road. Have we reached peak travel? Are we nomads or stay-at-homes? A journey from the Atlantic coast to California, assembled from a collection of nine thousand home movies.",
+      zh: "一场穿过二十世纪美国的梦游式旅程，全部由家庭电影剪成，问的是：开阔的公路是不是已经走到头了。我们到达「旅行的顶点」了吗？我们是游牧的人，还是待在家里的人？这是一段从大西洋岸到加州的旅途，取自九千卷家庭电影。",
+    },
+  },
+  {
+    id: "AllIsWellH264",
+    subject: "amateur",
+    file: "All_Is-Well_h264.mp4",
+    title: { en: "All-Is-Well", zh: "一切安好" },
+    year: "2016",
+    creator: "Rick Prelinger",
+    seconds: 853,
+    megabytes: 83,
+    licence: BY_NC_ND_4,
+    synopsis: {
+      en: "Ordinary adventures remembered only because they survive in home movies. Against a backdrop of distant news events, kids stampede for Easter eggs; horses run together; families read pulps and shoot craps; cooks fry; tin-can tourists work hard at leisure; people pose, clown and drink, pull back the husks of sweet corn.",
+      zh: "一些平常的小事，只因为被家庭电影拍下来才留了下来。远处是新闻里的大事，这边孩子们冲去抢复活节彩蛋；马群一起奔跑；一家人读廉价小说、掷骰子；厨子在煎东西；开着房车的人努力地休闲；人们摆姿势、扮鬼脸、喝酒，把玉米的苞叶一层层剥开。",
+    },
+  },
+  {
+    id: "panorama_ephemera2004",
+    subject: "travel",
+    file: "panorama_ephemera2004_512kb.mp4",
+    title: { en: "Panorama Ephemera", zh: "浮世全景" },
+    year: "2004",
+    creator: "Rick Prelinger",
+    seconds: 5375,
+    megabytes: 372,
+    licence: BY_NC_SA_4,
+    synopsis: {
+      en: "A collage of sequences drawn from a wide variety of ephemeral films — industrial, advertising, educational and amateur — touring the conflicted landscapes of twentieth-century America. The films' often-skewed visions construct an American history filled with horror and hope, unreeling in familiar and unexpected ways.",
+      zh: "一部拼贴：素材取自各种「用完就扔」的影片——工业片、广告片、教育片、业余片——巡游二十世纪美国那些自相矛盾的风景。这些片子常常偏斜的目光拼出一段美国史，既有恐怖也有希望，以熟悉又意外的方式放映出来。",
+    },
+  },
+  {
+    id: "LostLandscapesOfDetroitYear32012",
+    subject: "city",
+    file: "LLDetroit2012_20120922.ia.mp4",
+    title: { en: "Lost Landscapes of Detroit", zh: "底特律失落的风景" },
+    year: "2012",
+    creator: "Rick Prelinger",
+    seconds: 4175,
+    megabytes: 365,
+    licence: BY_NC_3,
+    synopsis: {
+      en: "The third annual Lost Landscapes of Detroit compilation, premiered in Detroit's Eastern Market. The film is mostly silent: it is designed to be screened before a live audience whose comments, questions and conversation become the soundtrack.",
+      zh: "第三届《底特律失落的风景》合集，在底特律东部市场首映。影片大部分没有声音——它本来就是放给现场观众看的，观众的评论、提问和交谈就是它的配乐。",
+    },
+  },
+  /**
+   * Six the shelf was missing, and what they are here for.
+   *
+   * This aeroplane is going from one city to another, and until now the
+   * shelf was almost entirely about the aeroplane: radar, the bomb, an
+   * airline selling its first jets. These are the other half of what a
+   * flight is — leaving somewhere, arriving somewhere, and the hours in
+   * between when what you are actually thinking about is the place. Three
+   * of them are somebody's own footage of a trip, which is the closest
+   * thing the archive has to what a passenger is doing while they watch.
+   *
+   * They also bring the shelf forward. It ran 1945 to 1965; the Hudson
+   * River excursion is 1985. That is as recent as this shelf can honestly
+   * go — Prelinger's own later city films are CC BY-NC-SA rather than
+   * public domain, and this shelf says public domain.
+   */
+  {
+    id: "0405_HM_Postwar_London_Paris_Washington_00_00_52_00",
+    subject: "travel",
+    file: "0405_HM_Postwar_London_Paris_Washington_00_00_52_00_3mb.mp4",
+    title: {
+      en: "Postwar London, Paris, Washington",
+      zh: "战后的伦敦、巴黎、华盛顿",
+    },
+    year: "1940s",
+    creator: "Unattributed",
+    seconds: 935,
+    megabytes: 362,
+    synopsis: {
+      en: "Kodachrome and black and white, alternating. Piccadilly Circus; post-bombing London scenes; Nelson's Pillar; war memorials; Big Ben; a military parade; a car driving past the camera with, possibly, George VI in the back seat saluting; Paris street scenes; American MPs on a Paris pavement; soldiers sitting in a sidewalk cafe; Cafe de la Paix; Galeries Lafayette.",
+      zh: "柯达彩色与黑白交替。皮卡迪利广场；轰炸后的伦敦街景；纳尔逊纪念柱；战争纪念碑；大本钟；阅兵；一辆车从镜头前驶过，后座敬礼的可能是乔治六世；巴黎街景；站在人行道上的美国宪兵；坐在露天咖啡座的士兵；和平咖啡馆；老佛爷百货。",
+    },
+  },
+  {
+    id: "6263_HM_1971_San_Francisco_Vacation_01_23_17_26",
+    subject: "travel",
+    file: "6263_HM_1971_San_Francisco_Vacation_01_23_17_26.mp4",
+    title: { en: "1971 San Francisco Vacation", zh: "1971 年的旧金山假期" },
+    year: "1971",
+    creator: "Unattributed",
+    seconds: 1411,
+    megabytes: 139,
+    synopsis: {
+      en: "A pan around the State Line Hotel and Casino at West Wendover, Nevada; an unfocused shot of \"Wendover Will\", the hand-waving cowboy billed as the world's largest mechanised man; a Greyhound Scenicruiser; a shaky pan of a western town along the highway past the Mobil, Conoco and Husky stations; the Conservatory of Flowers in Golden Gate Park, inside and out.",
+      zh: "内华达西温多弗州界酒店赌场的横摇；失焦的「温多弗威尔」——那个招手的牛仔，号称世界上最大的机械人；一辆灰狗 Scenicruiser；沿公路一座西部小镇的晃动横摇，经过美孚、康菲和 Husky 加油站；金门公园花房的内外。",
+    },
+  },
+  {
+    id: "6335HMHudsonRiverStreamliner01481526",
+    subject: "travel",
+    file: "6335_HM_Hudson_River_Streamliner_01_48_15_26.mp4",
+    title: { en: "Hudson River Streamliner", zh: "哈德逊河快车" },
+    year: "1985",
+    creator: "Fleischer, Henry Charles",
+    seconds: 790,
+    megabytes: 78,
+    synopsis: {
+      en: "A railway excursion in 1985, organised by the Tri-State Railway Historical Society with New Jersey Transit and Conrail. It leaves Newark and crosses Hell Gate Bridge with Queens and Manhattan behind it; much of it is shot out of the window.",
+      zh: "1985 年的一次铁路远足，由三州铁路历史学会与新泽西运输、康瑞尔铁路合办。列车驶离纽瓦克，跨过地狱门大桥，身后是皇后区和曼哈顿；大半镜头是从车窗里拍的。",
+    },
+  },
+  {
+    id: "6313_My_City_01_15_27_00",
+    subject: "city",
+    file: "6313_My_City_01_15_27_00_3mb.mp4",
+    title: { en: "My City", zh: "我的城市" },
+    year: "1968",
+    creator: "Artemis Films Inc.",
+    seconds: 1025,
+    megabytes: 101,
+    synopsis: {
+      en: "Children talk about their cities — Atlanta, New York, Detroit.",
+      zh: "孩子们讲自己的城市——亚特兰大、纽约、底特律。",
+    },
+  },
+  {
+    id: "201768_The_Green_City",
+    subject: "city",
+    file: "201768_The_Green_City_master.intros.mp4",
+    title: { en: "The Green City", zh: "绿色城市" },
+    year: "1963",
+    creator: "Stuart Finley",
+    seconds: 1393,
+    megabytes: 127,
+    synopsis: {
+      en: "\"Shows how green space and open space is being thoughtlessly gobbled up by the urbanizing process. Demonstrates how development can take place without excessive destruction and illustrates various situations in different parts of the country.\" — Library of Congress",
+      zh: "「展示城市化如何不假思索地吞掉绿地与开阔地，说明开发未必要伴随过度破坏，并列举全国各地的不同情形。」——美国国会图书馆",
+    },
+  },
+  {
+    id: "Farewell1940",
+    subject: "tomorrow",
+    file: "Farewell1940.mp4",
+    title: { en: "Farewell to Treasure Island", zh: "再见，宝岛" },
+    year: "1940",
+    creator: "Allen (Ken)",
+    seconds: 174,
+    megabytes: 17,
+    synopsis: {
+      en: "The conclusion of the Golden Gate International Exposition on Treasure Island in San Francisco Bay.",
+      zh: "旧金山湾宝岛上的金门国际博览会闭幕。",
+    },
+  },
   {
     id: "0317_Jet_Mainliner_Flight_803_18_21_09_20",
     subject: "aviation",
@@ -320,8 +532,31 @@ export const streamUrl = (f: Film) =>
   `https://archive.org/download/${f.id}/${f.file}`;
 
 /** The archive's own still for the item. */
-export const stillUrl = (f: Film) =>
-  `https://archive.org/services/img/${f.id}`;
+/**
+ * The frame on the cover, carried rather than fetched.
+ *
+ * The shelf used to ask archive.org for twenty-eight thumbnails the moment
+ * you opened Movies. Measured: the median request took 8.6 seconds and the
+ * slowest 10.8, the first poster landed 5.2 seconds in and the last at 9.3 —
+ * for 180px pictures. The endpoint is a redirect to a thumbnailer and it is
+ * simply slow, and no amount of lazy-loading fixes a slow first screen.
+ *
+ * So they are on board: one WebP per film in src/posters, found by a glob
+ * the same way the sleeves and the marks are, 166KB for the whole shelf. A
+ * film with no file falls back to the archive, so dropping the folder costs
+ * nothing but the wait. This is also what the rest of this file says a cabin
+ * does — it knows its own manifest before pushback.
+ */
+const FRAMES = import.meta.glob("../posters/*.webp", {
+  eager: true,
+  query: "?url",
+  import: "default",
+}) as Record<string, string>;
+
+export const stillUrl = (f: Film) => {
+  const key = Object.keys(FRAMES).find((k) => k.endsWith(`/${f.id}.webp`));
+  return key ? FRAMES[key] : `https://archive.org/services/img/${f.id}`;
+};
 
 export const itemUrl = (f: Film) => `https://archive.org/details/${f.id}`;
 
@@ -331,11 +566,13 @@ export const itemUrl = (f: Film) => `https://archive.org/details/${f.id}`;
  * about an airline the archive never names.
  */
 export function synopsis(f: Film, lang: Lang): string | null {
-  const t = lang === "zh" ? f.synopsis.zh : f.synopsis.en;
+  // The archive's own words, quoted. A language with no translation of a
+  // quotation reads the quotation.
+  const t = f.synopsis[lang] || f.synopsis.en;
   return t.trim() ? t : null;
 }
 
 export function runtime(f: Film, lang: Lang) {
   const m = Math.round(f.seconds / 60);
-  return lang === "zh" ? `${m} 分钟` : `${m} min`;
+  return `${m}${lang === "zh" || lang === "zh-Hant" ? " 分钟" : lang === "ja" ? "分" : " min"}`;
 }

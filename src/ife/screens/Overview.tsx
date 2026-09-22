@@ -1,23 +1,27 @@
 import { useFlight, useSelf } from "../../flight-state/store";
 import { progressAlong } from "../../flight-state/geo";
-import { useDestination } from "../destination";
+import { useDestination } from "../../flight-state/destination";
 import { duration, localTime } from "../format";
 import { pick, useT } from "../i18n";
+import { Timetable } from "../chrome/Timetable";
+import { CityPhoto } from "../chrome/CityPhoto";
 
 /**
  * The flight, end to end, on one strip.
  *
- * The cabin this is drawn from puts meal service on this strip — "within 30
- * minutes", "within 6 hours" — and that is the one thing here that could not
- * be carried over. Nobody has told this aircraft when the trays come out, and
- * a card that says they are half an hour away would be the only invented
- * sentence in the cabin.
- *
- * So the milestones are the ones the flight actually knows: it left at a real
+ * The cards are the milestones the flight actually knows: it left at a real
  * time, it is somewhere real now, and it arrives at a time that is either
  * reported or computed. The descent card is the interesting one — it is a
  * guess, thirty minutes back from the arrival, and it is drawn the way every
  * other guess in this work is drawn rather than being quietly left out.
+ *
+ * Under them is the rest of the plan. This screen used to stop at the cards,
+ * on the argument that nobody had told the aircraft when the trays come out
+ * and a card saying they were half an hour away would be the only invented
+ * sentence in the cabin. That argument was half right: leaving it out is one
+ * honest option, and putting it in and marking it is the other — which is
+ * exactly what the descent card beside it has always done. The timetable
+ * takes the second option, and every row of it is brass and broken.
  */
 const DESCENT_BEFORE_MS = 30 * 60_000;
 
@@ -44,7 +48,7 @@ export function Overview() {
         <h2 className="ife-head-title">
           {landed
             ? t("arrived")
-            : `${duration(eta - now, lang)} ${lang === "zh" ? "到" : "to"} ${pick(
+            : `${duration(eta - now, lang)} ${t("toPlace")} ${pick(
                 route.to.city,
                 lang,
               )}`}
@@ -61,12 +65,7 @@ export function Overview() {
         {/* Where it left from. A real photograph of a real place, credited on
             the flight-information page like every other one in here. */}
         <div className="ife-ov-card ife-ov-card--photo">
-          {from?.image && (
-            <span
-              className="ife-ov-photo"
-              style={{ backgroundImage: `url(${from.image})` }}
-            />
-          )}
+          <CityPhoto dest={from} className="ife-ov-photo" />
           <span className="ife-ov-card-body">
             <span className="ife-ov-name">
               {t("depart")} {route.from.iata}
@@ -106,12 +105,7 @@ export function Overview() {
         </div>
 
         <div className="ife-ov-card ife-ov-card--photo">
-          {to?.image && (
-            <span
-              className="ife-ov-photo"
-              style={{ backgroundImage: `url(${to.image})` }}
-            />
-          )}
+          <CityPhoto dest={to} className="ife-ov-photo" />
           <span className="ife-ov-card-body">
             <span className="ife-ov-name">
               {t("arrive")} {route.to.iata}
@@ -153,6 +147,12 @@ export function Overview() {
           {route.to.iata}
         </span>
       </div>
+
+      {/* Compact here. The whole plan with its courses and its paragraph
+          lives on the dining screen; this screen already has four cards and
+          a rule saying the shape of the flight, and a second full list under
+          them is the same screen twice. */}
+      <Timetable compact />
     </div>
   );
 }

@@ -24,6 +24,13 @@ const ENTRIES: Array<{
     note: "One seat-back screen at 1920×1080 in a moulded surround, with the flight simulated beside it.",
   },
   {
+    href: "/dev/book/",
+    name: "Booking",
+    zh: "订票",
+    status: "ready",
+    note: "STRATUM on a handset: fare, seat, check-in, and a boarding pass whose code opens the seat-back screen it was issued for.",
+  },
+  {
     href: "",
     name: "Terminal",
     zh: "候机楼",

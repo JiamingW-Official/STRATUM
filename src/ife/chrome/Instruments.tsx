@@ -56,6 +56,9 @@ function useSize(ref: React.RefObject<SVGSVGElement | null>) {
   return size;
 }
 
+/** One grouping for every figure on the glass. */
+const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
+
 export function Instruments({
   position,
   bearingToDest,
@@ -97,9 +100,13 @@ export function Instruments({
         labelEvery={20}
         pxPer={4}
         digits={0}
+        // Grouped, like the figure on the tape above them. The tape ran a
+        // number through toLocaleString and the conversions under it did not,
+        // so one instrument printed the same quantity two ways: 37,000 on the
+        // tape and 11278 underneath it.
         under={[
-          `${Math.round(position.gsKt * 1.852)} km/h`,
-          `${Math.round(position.gsKt * 1.15078)} mph`,
+          `${fmt(position.gsKt * 1.852)} km/h`,
+          `${fmt(position.gsKt * 1.15078)} mph`,
         ]}
       />
       <Tape
@@ -119,7 +126,7 @@ export function Instruments({
         labelEvery={100}
         pxPer={2.4}
         digits={0}
-        under={[`${Math.round(position.altFt * 0.3048)} m`]}
+        under={[`${fmt(position.altFt * 0.3048)} m`]}
         extra={{ label: t("verticalSpeed"), value: vs }}
       />
       {/* The horizon, where the horizon is.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Airport } from "../flight-state/types";
+import type { Airport } from "./types";
 
 /**
  * Photographs of the city you are flying to.
@@ -16,6 +16,16 @@ export type Destination = {
   title: string;
   /** Full-width image, or null when the city has no lead photograph. */
   image: string | null;
+  /**
+   * The 330px render, for a caller that is drawing a header rather than a
+   * whole screen.
+   *
+   * The seat-back screen wants the biggest file there is because it fills a
+   * thirteen-inch display with it; a phone drawing a 200pt band behind two
+   * lines of type does not, and the raw upload for a city is routinely several
+   * megabytes. Soft is fine at that size — it is dimmed ground behind type.
+   */
+  thumb: string | null;
   /** Commons file name, for the credit line. */
   credit: string | null;
   creditHref: string | null;
@@ -41,6 +51,7 @@ async function fetchDestination(title: string): Promise<Destination | null> {
   return {
     title: d.title ?? title,
     image: big ?? thumb ?? null,
+    thumb: thumb ?? big ?? null,
     credit: file ? decodeURIComponent(file) : null,
     creditHref: file
       ? `https://commons.wikimedia.org/wiki/File:${file.split("?")[0]}`
@@ -49,10 +60,18 @@ async function fetchDestination(title: string): Promise<Destination | null> {
   };
 }
 
-export function useDestination(airport: Airport) {
+/**
+ * Null is allowed, because a caller may not know yet where it is going.
+ *
+ * The booking app asks for this at the top of its component, before it has
+ * worked out whether there is a flight today at all — and a hook that cannot
+ * be called until the answer is known is a hook that has to be called after a
+ * conditional return, which React does not allow.
+ */
+export function useDestination(airport: Airport | null) {
   // An airport may name the article to use. It matters: asking Wikipedia for
   // "Singapore" returns the national flag, and a flag is not a city.
-  const city = airport.photoTitle ?? airport.city.en;
+  const city = airport ? (airport.photoTitle ?? airport.city.en) : null;
   const [data, setData] = useState<Destination | null>(null);
 
   useEffect(() => {

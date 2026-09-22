@@ -60,6 +60,15 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (url.protocol !== "http:" && url.protocol !== "https:") return;
 
+  // On a dev server this worker does nothing at all. The list below tried
+  // to name every path Vite serves, and missed two: the React refresh runtime
+  // and the font proxy. Both fell into the network-first branch at the bottom,
+  // whose fallback is a 503 that says "Offline" — so the booking bench, which
+  // shares this worker's scope, opened as a blank page while the server was
+  // answering every request it was asked. There is no production on
+  // localhost, and there is nothing here worth caching on it.
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return;
+
   // ── Not ours: the developer pages and anything a dev server serves ──────
   //
   // This worker is registered from the sky view at scope "/", which means it
@@ -77,9 +86,7 @@ self.addEventListener("fetch", (e) => {
   if (
     url.pathname.startsWith("/dev/") ||
     url.pathname.startsWith("/src/") ||
-    url.pathname.startsWith("/@vite") ||
-    url.pathname.startsWith("/@id") ||
-    url.pathname.startsWith("/@fs") ||
+    url.pathname.startsWith("/@") ||
     url.pathname.startsWith("/node_modules/")
   )
     return;

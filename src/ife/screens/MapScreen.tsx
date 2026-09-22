@@ -27,16 +27,25 @@ import { IconChevron } from "../chrome/icons";
  *            to go over imagery. Esri ships the ground and the names as
  *            separate services; drawing only the ground leaves a passenger
  *            looking at unnamed shapes.
- *   dem      Terrarium elevation tiles from the AWS Open Data registry, used
- *            only in the forward view, where the ground has to have relief
- *            for the view to mean anything.
+ *
+ * There is no elevation layer, and that is a measurement rather than an
+ * omission. The window views carried terrarium DEM tiles so the ground would
+ * have shape, and at 85 degrees of pitch — which is what looking at the
+ * horizon costs — the terrain system has to build a mesh for everything out
+ * to 379km. Measured in the forward view: 30ms a frame, a 95th percentile of
+ * 296ms and 48 long tasks in eight seconds, against 17ms flat and two long
+ * tasks with it off. The same camera at 70 degrees was fine, which is the
+ * tell: it is the area, not the tiles.
+ *
+ * It was also buying very little. From eleven kilometres up the ground is a
+ * photograph, and the shape you can see out of a window at that height is
+ * the curve of the earth — which comes from the globe projection. Six frames
+ * a second to model a hill nobody can see is the wrong trade.
  */
 const IMAGERY =
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const PLACES =
   "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
-const DEM =
-  "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 
 const FLOWN_HEARD = "flown-heard";
 const FLOWN_UNHEARD = "flown-unheard";
@@ -71,7 +80,21 @@ const WINDOW: View[] = ["forward", "left", "right"];
 /** How often a new position arrives. The follow move is exactly this long. */
 const TICK_MS = 500;
 
-export function MapScreen() {
+export function MapScreen({
+  /**
+   * Called once, after the map has drawn a complete frame.
+   *
+   * The map is built and holding its tiles long before anybody presses
+   * Flight map, but a canvas nobody can see does not get drawn — and the
+   * first real draw is shader compilation and texture upload, which
+   * measured 3.4 seconds of frozen main thread starting 43ms after the
+   * press. So the container keeps it painted-but-invisible until this
+   * fires, and only then puts it away properly.
+   */
+  onFirstRender,
+}: {
+  onFirstRender?: () => void;
+} = {}) {
   const ref = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MLMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
@@ -152,16 +175,6 @@ export function MapScreen() {
               tileSize: 256,
               maxzoom: 16,
             },
-            dem: {
-              type: "raster-dem",
-              tiles: [DEM],
-              tileSize: 256,
-              // 11, not 13. Eleven kilometres up you cannot see a metre of
-              // relief, and the deeper zooms were four times the tiles from a
-              // courtesy service that answers 429 when it has had enough.
-              maxzoom: 11,
-              encoding: "terrarium",
-            },
           },
           layers: [
             {
@@ -210,6 +223,7 @@ export function MapScreen() {
     if (import.meta.env.DEV) (window as any).__ifeMap = map;
 
     map.on("error", () => setFailed(true));
+    map.once("idle", () => onFirstRender?.());
     map.on("load", () => {
       const empty = { type: "FeatureCollection", features: [] } as const;
       for (const id of [NIGHT, TERMINATOR, AHEAD, FLOWN_UNHEARD, FLOWN_HEARD]) {
@@ -441,8 +455,21 @@ export function MapScreen() {
    * marker the planet has come between, so a city over the edge of the world
    * goes away by itself.
    */
+  /**
+   * Rounded, all four of them.
+   *
+   * Latitude and longitude were rounded to half a degree so this list would
+   * not be rebuilt for every fix; heading and altitude were not, and both of
+   * them are floats that move on every tick — so the guard was doing nothing
+   * and ten DOM markers were destroyed and made again twice a second. The
+   * labels you are looking at do not change when the aircraft turns a
+   * quarter of a degree, and a name that is torn down and put back is a name
+   * that flickers.
+   */
   const near = Math.round(position.lat * 2) / 2;
   const nearLon = Math.round(position.lon * 2) / 2;
+  const nearHeading = Math.round(position.headingDeg / 2) * 2;
+  const nearAlt = Math.round(position.altFt / 500) * 500;
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
@@ -453,10 +480,10 @@ export function MapScreen() {
     // The geometric horizon: sqrt(2Rh), in kilometres, for the altitude we
     // are given. At 37,000 ft that is 379 km, which is why the forward view
     // looks like the window and a guessed zoom did not.
-    const altM = Math.max(1, position.altFt * 0.3048);
+    const altM = Math.max(1, nearAlt * 0.3048);
     const horizonKm = Math.sqrt(2 * 6371 * (altM / 1000));
     const look =
-      (position.headingDeg + (view === "left" ? -90 : view === "right" ? 90 : 0) + 360) % 360;
+      (nearHeading + (view === "left" ? -90 : view === "right" ? 90 : 0) + 360) % 360;
 
     const shown = (CITIES as Array<{ name: string; code: string; lat: number; lon: number }>)
       .map((c) => ({
@@ -474,11 +501,13 @@ export function MapScreen() {
       node.innerHTML =
         `<span class="ife-city-name"></span><span class="ife-city-stalk"></span>`;
       node.querySelector(".ife-city-name")!.textContent = c.name;
-      return new Marker({ element: node, anchor: "bottom" })
+      // Anchored at its dot, which is on the left of the name — the same
+      // anchoring the airport markers use, and what the reference does.
+      return new Marker({ element: node, anchor: "left" })
         .setLngLat([c.lon, c.lat])
         .addTo(map);
     });
-  }, [view, ready, near, nearLon, position.headingDeg, position.altFt]);
+  }, [view, ready, near, nearLon, nearHeading, nearAlt]);
 
   /**
    * Where the earth stops.
@@ -533,10 +562,30 @@ export function MapScreen() {
       last = y;
       setHorizonY(y);
     };
+    /**
+     * Once a frame at most, and only when the camera has actually moved.
+     *
+     * This used to run on every render event, and every run is twenty
+     * unproject/project round trips: measured, the forward view was drawing
+     * a frame every 161ms with 44 long tasks in eight seconds. The line it
+     * finds cannot move unless the camera does, and when the camera does
+     * move one answer per frame is all a line can use.
+     */
+    let queued = false;
+    const schedule = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        find();
+      });
+    };
     find();
-    map.on("render", find);
+    map.on("move", schedule);
+    map.on("moveend", schedule);
     return () => {
-      map.off("render", find);
+      map.off("move", schedule);
+      map.off("moveend", schedule);
     };
   }, [view, ready]);
 
@@ -565,22 +614,6 @@ export function MapScreen() {
       duration: 900,
     });
   }, [route.from, route.to]);
-
-  /**
-   * Terrain costs tiles and it only earns them in the forward view, where the
-   * ground has to have shape. Everywhere else it is a flat globe, which is
-   * also what the reference cabin shows.
-   */
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    if (WINDOW.includes(view)) {
-      if (!map.getTerrain())
-        map.setTerrain({ source: "dem", exaggeration: 1.3 });
-    } else if (map.getTerrain()) {
-      map.setTerrain(null);
-    }
-  }, [view, ready]);
 
   /**
    * A window does not pan.
@@ -626,7 +659,11 @@ export function MapScreen() {
     const chase = moved
       ? { duration: TICK_MS, easing: (t: number) => t }
       : undefined;
-    if (view === "route") fitRoute();
+    // Only when you arrive at it. The whole route is two airports and a
+    // great circle between them; none of that changes when the aircraft
+    // moves, so re-fitting the bounds on every position fix was a 900ms
+    // camera animation restarted twice a second for no new information.
+    if (view === "route" && !moved) fitRoute();
     if (view === "globe") {
       // Not a flat disc of a planet in the middle of the frame: the camera
       // stands off and looks down at it, so the limb curves across the top

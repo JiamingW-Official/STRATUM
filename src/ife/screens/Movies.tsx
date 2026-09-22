@@ -62,6 +62,8 @@ type Collection = { key: Key; match: (f: Film) => boolean };
 
 const COLLECTIONS: Collection[] = [
   { key: "catAll", match: () => true },
+  { key: "catTravel", match: (f) => f.subject === "travel" },
+  { key: "catCity", match: (f) => f.subject === "city" },
   { key: "catAviation", match: (f) => f.subject === "aviation" },
   { key: "catRadio", match: (f) => f.subject === "radio" },
   { key: "catAtomic", match: (f) => f.subject === "atomic" },
@@ -81,7 +83,6 @@ function Shelf({ onOpen }: { onOpen: (f: Film) => void }) {
     <div className="ife-films">
       <div className="ife-catalog">
         <nav className="ife-catalog-cats" aria-label={t("movies")}>
-          <h2 className="ife-catalog-title">{t("movies")}</h2>
           {COLLECTIONS.map((c) => (
             <button
               key={c.key}
@@ -92,21 +93,33 @@ function Shelf({ onOpen }: { onOpen: (f: Film) => void }) {
               {t(c.key)}
             </button>
           ))}
-          <div className="ife-catalog-note ife-cap">
-            {FILMS.length} {t("films")} · {t("publicDomain")}
-          </div>
         </nav>
 
-        <div className="ife-catalog-grid">
-          {shown.map((f) => (
-            <button key={f.id} className="ife-film" onClick={() => onOpen(f)}>
-              <Poster film={f} />
-              <span className="ife-film-title">{pick(f.title, lang)}</span>
-              <span className="ife-film-meta ife-mono">
-                {f.year} · {runtime(f, lang)}
-              </span>
-            </button>
-          ))}
+        {/* The same header the music shelf has, in the same place: at the top
+            of the column the shelf is in, not inside the list of ways to
+            filter it. It was the nav's heading and it read as one — a title
+            with no count beside it while every other screen in the cabin
+            carries one, and a list of collections underneath it that looked
+            like what the word "Movies" was introducing. */}
+        <div className="ife-catalog-main">
+          <header className="ife-head">
+            <h2 className="ife-head-title">{t("movies")}</h2>
+            <span className="ife-head-meta ife-cap">
+              {FILMS.length} {t("filmsOnBoard")}
+            </span>
+          </header>
+
+          <div className="ife-catalog-grid">
+            {shown.map((f) => (
+              <button key={f.id} className="ife-film" onClick={() => onOpen(f)}>
+                <Poster film={f} />
+                <span className="ife-film-title">{pick(f.title, lang)}</span>
+                <span className="ife-film-meta ife-mono">
+                  {f.year} · {runtime(f, lang)}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -148,7 +161,15 @@ function Detail({
         <div className="ife-film-detail-meta ife-mono">
           {film.year} · {runtime(film, lang)} · {film.megabytes} MB
         </div>
-        <div className="ife-film-detail-creator">{film.creator}</div>
+        <div className="ife-film-detail-creator">
+          {film.creator}
+          {/* Named because the licence asks to be. */}
+          {film.licence && (
+            <span className="ife-film-licence ife-mono">
+              {film.licence.label}
+            </span>
+          )}
+        </div>
         {synopsis(film, lang) ? (
           <p className="ife-film-detail-synopsis">{synopsis(film, lang)}</p>
         ) : (
@@ -161,7 +182,14 @@ function Detail({
           <button className="ife-btn ife-btn--go" onClick={onPlay}>
             {t("playFilm")}
           </button>
-          <span className="ife-cap">{t("publicDomain")}</span>
+          {/* Only where it is true. This line said "Public domain · Prelinger
+              Archives" under every film on the shelf, including the four that
+              carry a Creative Commons licence — so this screen printed "CC
+              BY-NC-SA 3.0" beside the creator and "public domain" under the
+              Play key, about the same film, at the same time. A licensed work
+              is not in the public domain; where there is a licence it is
+              named above and nothing more needs saying. */}
+          {!film.licence && <span className="ife-cap">{t("publicDomain")}</span>}
         </div>
           </div>
         </div>

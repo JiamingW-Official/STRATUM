@@ -6,6 +6,8 @@ import type {
   SeatPublic,
   ScreenName,
   CabinClass,
+  SeatBooking,
+  Lang,
 } from "./types";
 
 // Three stores rather than three slices of one: a screen that only draws the
@@ -41,6 +43,8 @@ function EMPTY_AIRPORT() {
     icao: "————",
     city: { en: "", zh: "" },
     name: { en: "", zh: "" },
+    country: { en: "", zh: "" },
+    cc: "",
     lat: 0,
     lon: 0,
     tz: "UTC",
@@ -128,9 +132,10 @@ type SelfStore = SeatPrivate & {
   seat: string;
   setSeat: (seat: string) => void;
   setScreen: (screen: ScreenName) => void;
-  setLang: (lang: "en" | "zh") => void;
+  setLang: (lang: Lang) => void;
   setVolume: (v: number) => void;
   setMedia: (m: SeatPrivate["media"]) => void;
+  setBooking: (b: SeatBooking | undefined) => void;
 };
 
 export const useSelf = create<SelfStore>((set) => ({
@@ -148,4 +153,6 @@ export const useSelf = create<SelfStore>((set) => ({
   setLang: (lang) => set({ lang }),
   setVolume: (volume) => set({ volume }),
   setMedia: (media) => set({ media }),
+  booking: undefined,
+  setBooking: (booking) => set({ booking }),
 }));

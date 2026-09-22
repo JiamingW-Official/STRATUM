@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { FlightPhase } from "../flight-state/types";
+import type { CabinClass, FlightPhase } from "../flight-state/types";
 
 /**
  * Everything the simulation panel can reach. Kept separate from flight-state
@@ -9,7 +9,7 @@ import type { FlightPhase } from "../flight-state/types";
  */
 export type BenchState = {
   seat: string;
-  cabinClass: "business" | "economy";
+  cabinClass: CabinClass;
   fromIata: string;
   toIata: string;
   flightNo: string;

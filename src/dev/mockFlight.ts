@@ -11,74 +11,7 @@ import { greatCircleKm, interpolate } from "../flight-state/geo";
 // is the shape of the data — the same fields, with the same `heard` flag, that
 // packages/adsb will hand over once the IFE is wired to a real aircraft.
 
-export const AIRPORTS: Record<string, Airport> = {
-  JFK: {
-    iata: "JFK",
-    photoTitle: "Manhattan",
-    icao: "KJFK",
-    city: { en: "New York", zh: "纽约" },
-    name: { en: "John F. Kennedy Intl", zh: "肯尼迪国际机场" },
-    lat: 40.6413,
-    lon: -73.7781,
-    tz: "America/New_York",
-  },
-  LHR: {
-    iata: "LHR",
-    icao: "EGLL",
-    city: { en: "London", zh: "伦敦" },
-    name: { en: "Heathrow", zh: "希思罗机场" },
-    lat: 51.47,
-    lon: -0.4543,
-    tz: "Europe/London",
-  },
-  PVG: {
-    iata: "PVG",
-    icao: "ZSPD",
-    city: { en: "Shanghai", zh: "上海" },
-    name: { en: "Pudong Intl", zh: "浦东国际机场" },
-    lat: 31.1443,
-    lon: 121.8083,
-    tz: "Asia/Shanghai",
-  },
-  HND: {
-    iata: "HND",
-    icao: "RJTT",
-    city: { en: "Tokyo", zh: "东京" },
-    name: { en: "Haneda", zh: "羽田机场" },
-    lat: 35.5533,
-    lon: 139.7811,
-    tz: "Asia/Tokyo",
-  },
-  LAX: {
-    iata: "LAX",
-    photoTitle: "Downtown Los Angeles",
-    icao: "KLAX",
-    city: { en: "Los Angeles", zh: "洛杉矶" },
-    name: { en: "Los Angeles Intl", zh: "洛杉矶国际机场" },
-    lat: 33.9416,
-    lon: -118.4085,
-    tz: "America/Los_Angeles",
-  },
-  CDG: {
-    iata: "CDG",
-    icao: "LFPG",
-    city: { en: "Paris", zh: "巴黎" },
-    name: { en: "Charles de Gaulle", zh: "戴高乐机场" },
-    lat: 49.0097,
-    lon: 2.5479,
-    tz: "Europe/Paris",
-  },
-  SIN: {
-    iata: "SIN",
-    photoTitle: "Marina Bay Sands",
-    icao: "WSSS",
-    city: { en: "Singapore", zh: "新加坡" },
-    name: { en: "Changi", zh: "樟宜机场" },
-    lat: 1.3644,
-    lon: 103.9915,
-    tz: "Asia/Singapore",
-  },
-};
+export { AIRPORTS } from "../flight-state/airports";
 
 // Fractions of the flight each phase occupies. Rough, but ordered and
 // monotonic, which is all the screens need.
