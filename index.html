@@ -536,21 +536,15 @@
           <div class="city-globe-hint">drag · click to select</div>
           <!-- Airport info card — shown on hover -->
           <div id="airport-info-card" class="airport-info-card hidden">
+            <!-- The hover card on the globe: the same airport the detail pane and the
+                 map card describe, in the same order -- code, name, one line of
+                 context, one line of position. No labels: a coordinate and "UTC-8"
+                 say what they are. -->
             <div class="aic-iata" id="aic-iata">---</div>
             <div class="aic-name" id="aic-name">--</div>
-            <div class="aic-country" id="aic-country">--</div>
-            <div class="aic-divider"></div>
-            <div class="aic-meta">
-              <div class="aic-meta-row">
-                <span class="aic-meta-label">COORD</span>
-                <span id="aic-coord" class="aic-meta-value">--</span>
-              </div>
-              <div class="aic-meta-row">
-                <span class="aic-meta-label">UTC</span>
-                <span id="aic-utc" class="aic-meta-value">--</span>
-              </div>
-            </div>
-            <div id="aic-tier" class="aic-tier-badge">--</div>
+            <div class="aic-context" id="aic-context"></div>
+            <div class="aic-pos" id="aic-pos"></div>
+          </div>
           </div>
         </div>
         <div class="city-list-pane">

@@ -2336,54 +2336,32 @@ html, body {
 .airport-info-card {
   position: absolute;
   bottom: 44px; left: 50%; transform: translateX(-50%);
-  min-width: 230px; background: var(--surface-float); border: 1px solid var(--hairline); border-radius: var(--r-sm);
-  padding: 15px 22px 13px;
+  min-width: 230px; background: var(--surface-float); border-radius: var(--r-sm);
   text-align: center;
   pointer-events: none; box-shadow: var(--shadow-sm);
   opacity: 1;
   transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
   z-index: 10;
+  padding: 12px 14px 11px;
+  border: 0;
 }
 .airport-info-card.hidden { opacity: 0; pointer-events: none; }
 
 .aic-iata {
-  font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 600;
-  letter-spacing: var(--track-label); color: var(--accent-bright);
-  line-height: 1;
+  font-family: var(--font-display); font-size: var(--fs-hero); font-weight: 600;
+  letter-spacing: 0; line-height: 1; color: var(--accent);
 }
 .aic-name {
-  font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 500;
-  color: rgba(var(--text-rgb), 0.76); margin-top: 5px;
-  letter-spacing: 0; line-height: 1.3;
+  margin-top: 4px;
+  font-family: var(--font-sans); font-size: var(--fs-body); font-weight: 500;
+  color: var(--text-2); line-height: 1.3;
 }
-.aic-country {
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
-  color: rgba(var(--accent-rgb), 0.50); text-transform: uppercase; margin-top: 3px;
+.aic-context { margin-top: 2px; font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); }
+.aic-pos {
+  margin-top: 8px;
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-3);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.aic-divider {
-  height: 1px; background: rgba(var(--accent-rgb), 0.12);
-  margin: 11px 0 9px;
-}
-.aic-meta { display: flex; flex-direction: column; gap: 5px; }
-.aic-meta-row {
-  display: flex; justify-content: space-between; align-items: center; gap: 14px;
-}
-.aic-meta-label {
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
-  color: rgba(var(--accent-rgb), 0.42); text-transform: uppercase;
-}
-.aic-meta-value {
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0;
-  color: rgba(var(--text-rgb), 0.58);
-}
-.aic-tier-badge {
-  display: inline-block; margin-top: 10px;
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
-  text-transform: uppercase; padding: 2px 8px; border-radius: var(--r-sm);
-}
-.aic-tier-mega-hub  { background: rgba(var(--accent-rgb), 0.18); color: rgba(var(--accent-rgb), 0.9); border: 0; }
-.aic-tier-major     { background: rgba(var(--text-rgb), 0.08); color: var(--text-2); border: 0; }
-.aic-tier-regional  { background: rgba(var(--text-rgb), 0.05); color: var(--text-3); border: 0; }
 
 /* ── List pane ── */
 .city-list-pane {

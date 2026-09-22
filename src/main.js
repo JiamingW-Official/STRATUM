@@ -8293,16 +8293,15 @@ function initCityPicker() {
       return;
     }
     const c = CITIES[idx];
-    document.getElementById("aic-iata").textContent = c.code;
-    document.getElementById("aic-name").textContent = c.name;
-    document.getElementById("aic-country").textContent = c.country || "";
-    document.getElementById("aic-coord").textContent = fmtCoord(c.lat, c.lon);
-    document.getElementById("aic-utc").textContent = getUtcOffset(c.lon);
     const tier = getHubTier(c);
-    const tierEl = document.getElementById("aic-tier");
-    tierEl.textContent = tier;
-    tierEl.className =
-      "aic-tier-badge aic-tier-" + tier.replace(" ", "-").toLowerCase();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = v;
+    };
+    set("aic-iata", c.code);
+    set("aic-name", c.name);
+    set("aic-context", [c.country, tier ? tier.charAt(0) + tier.slice(1).toLowerCase() : ""].filter(Boolean).join(" · "));
+    set("aic-pos", `${fmtCoord(c.lat, c.lon)} · ${getUtcOffset(c.lon)}`);
     infoCard.classList.remove("hidden");
   }
 
