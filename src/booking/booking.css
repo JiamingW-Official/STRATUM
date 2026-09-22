@@ -1,0 +1,5609 @@
+/* STRATUM Air on a 390x844 surface, scaled from outside — the same contract
+   the seat-back screen has. No rule here reads the viewport.
+
+   This is a daylight interface, and that is the one decision the rest follow
+   from. The cabin next door is dark because a cabin at night is dark: that is
+   a reason, and it does not travel. A booking is made at a desk, on a train,
+   in a taxi, at a gate with sun coming through the glass — so this is paper
+   grey with white cards on it, the way every airline a passenger already has
+   on their phone does it, and the way the American and Delta apps this was
+   measured against do it. A booking flow rendered in near-black reads as a
+   concept rather than as something you would give a card number to.
+
+   The palette is not United's and is not anybody's: a deep navy for the
+   airline's own voice, one working blue for what is yours and what happens
+   next, and the cabin's brass kept for exactly one job — a seat that costs
+   more. Three colours with three meanings, and no fourth. */
+
+.bk-root {
+  /* Ground and surfaces. The page is never white: white is the card, and if
+     the ground is white too there is nothing for a card to be. */
+  /* A little deeper than it was. A card has to read as a surface laid on the
+     page, and at #eceff4 against white the step was small enough that the two
+     ran together. */
+  --page: #e7eaf0;
+  /* The ground the paper lies on: a step darker than the paper, so a sheet
+     is a sheet and not a shadow drawn round nothing. Every surface — card,
+     key, capsule, bar — is --page; only the root is --ground. */
+  --ground: #dde2ea;
+  --card: #ffffff;
+  --sunk: #e3e7ee;
+  /* A taken seat needs to be darker than a recessed field, not the same
+     grey. On the dark version "pressed in" carried the whole meaning on its
+     own; in daylight a shallow dent reads as an empty seat, and a deck that
+     is half sold looked half empty. */
+  --seat-taken: #c8d0dc;
+
+  --ink: #0e1622;
+  --ink-2: #545f70;
+  /* The label grey. It was #8a93a2, which is 3.0:1 on white — and every label
+     on the app is set in it at nine or eleven points, so the headings of the
+     cards, the keys on the pass and the field names all sat just under the
+     threshold where a label stops being read and starts being texture. This
+     clears 4.5:1 on card white and still reads as quieter than the value it
+     introduces, which is the only job it has. */
+  --ink-3: #6b7486;
+  --rule: #e2e6ed;
+  --rule-strong: #cfd5df;
+
+  /* The airline's own colours, and they are the cabin's. The first light
+     version reached for a corporate navy and a corporate blue, which is the
+     palette every airline app on the store already has and belongs to none of
+     them — next to the seat-back screen it read as a different company.
+     STRATUM has had two colours since the sky view: a near-black with a blue
+     cast, and brass. They work in daylight too.
+
+       ink      the airline speaking: mastheads, the primary key
+       accent   brass, and it means one thing — this is yours
+       cool     the sky view's own, and here it means extra room */
+  --ink-brand: #11151d;
+  --ink-brand-2: #1e242f;
+  /* Brass says one thing: this is yours — the seat you chose, the card in
+     your name, the day you picked — or the thing you would pay to make
+     yours. It is not a highlighter, and anything that is merely happening
+     (boarding, a gate moving, a step finishing) takes green, red or ink
+     instead. */
+  --accent: #8a6a28;
+  --accent-fill: #c9a45c;
+  --accent-fill-2: #b18f45;
+  --accent-wash: #f8f2e3;
+  --accent-line: #e2d2ab;
+  /* The other face of the same metal.
+     It was a middle blue — the blue every interface reaches for when it
+     needs a second colour, which is why it reads as a default rather than a
+     decision. Verdigris is what brass does when it is left outside: the same
+     copper, further along. Against the brass it is a material relationship
+     rather than two hues that happen to be in the same file, and it is dark
+     enough to hold its own against black. */
+  --cool: #1d5f63;
+  --cool-wash: #e3efed;
+  --cool-line: #b4d3cf;
+  --green: #1a7347;
+  --red: #b23a30;
+
+  /* Moulded, not outlined. Everything a finger presses is a key raised out of
+     the page: white along the top lip where the light falls, a soft shadow
+     under it, and no border anywhere. One light source, from above, and it
+     never moves. Only pressable things get it — extruding every row is how
+     this look turns a screen into a sheet of bubble wrap and takes the
+     hierarchy down with it. */
+  /* Two lights, one low and to the right, one high and to the left, and
+     everything in the app is shaped by them and by nothing else. A panel is
+     the page pushed out; a reading is the page pushed in; a key is pushed out
+     until it is pressed. There are no borders anywhere, because a border is a
+     third way of saying edge and two is already the limit. */
+  /* Tightened by a pixel or two so the whole of the shadow fits inside the
+     gutter: at seven and sixteen the low light ran past the edge of the
+     glass and was cut off flat, which reads as a card lying on a tray. */
+  --lift: inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    6px 6px 14px rgba(160, 170, 186, 0.6),
+    -5px -5px 11px rgba(255, 255, 255, 0.95);
+  --lift-sm: inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    4px 4px 10px rgba(160, 170, 186, 0.55),
+    -3px -3px 8px rgba(255, 255, 255, 0.92);
+  /* The airline's own black, at one angle. It was written out eight times at
+     160, 165 and 180 degrees, which is eight blacks that nearly match — the
+     kind of thing nobody can name and everybody can see. Panels take this;
+     pressable things take it with a lip along the top, which is what makes a
+     key look like a key. */
+  --face: linear-gradient(165deg, var(--ink-brand-2) 0%, var(--ink-brand) 100%);
+  /* The one thing on a screen that is the next thing to do.
+     Black was doing two jobs — the airline's surfaces and the airline's
+     buttons — so the most important control looked exactly like the
+     decorative panel above it. The answer was not to recolour the key: a
+     gold button on a white card is a gift voucher, not an airline. The
+     surfaces gave way instead. Black is the key, everywhere, and a panel
+     that is only telling you something is drawn on paper. */
+  --go: linear-gradient(180deg, var(--ink-brand-2) 0%, var(--ink-brand) 100%);
+  --go-ink: #ffffff;
+  --go-lift: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    6px 6px 15px rgba(11, 15, 22, 0.38), -4px -4px 11px rgba(255, 255, 255, 0.5);
+  --key: var(--page);
+  /* The face of a raised key, a step up from the paper it stands on. */
+  --key-face: #eef1f6;
+  --key-raise: 5px 5px 11px rgba(160, 170, 186, 0.55),
+    -4px -4px 9px rgba(255, 255, 255, 0.95);
+  /* Pushed in: the same two lights, the other way round. */
+  --key-press: inset 4px 4px 9px rgba(160, 170, 186, 0.55),
+    inset -4px -4px 8px rgba(255, 255, 255, 0.95);
+  /* The airline's own black, under the same two lights. A dark surface
+     catches almost none of the high one, so the white side is a sixteenth of
+     what it is on paper; without it the object goes flat, with any more of it
+     the black looks dusty. */
+  --lift-dark: 6px 6px 14px rgba(11, 15, 22, 0.45),
+    -4px -4px 10px rgba(255, 255, 255, 0.055);
+  /* And the same light again at the size of a seat. A blur of seven at an
+     offset of five is an edge on a panel and fog on a thirty-pixel square;
+     ninety of them in a cabin is weather. Everything below about forty
+     pixels takes these. */
+  --key-raise-sm: 2px 2px 5px rgba(160, 170, 186, 0.5),
+    -2px -2px 4px rgba(255, 255, 255, 0.95);
+  --key-press-sm: inset 2px 2px 4px rgba(160, 170, 186, 0.55),
+    inset -1.5px -1.5px 3px rgba(255, 255, 255, 0.92);
+
+  --font-display: "Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+  --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Four sizes, measured for a phone at arm's length rather than for a
+     seat-back panel across a dark cabin. */
+  /* Nine sizes, and the smallest of them is twelve.
+     There were twenty-one, four of which were under eleven pixels and three
+     of which were halves — 9, 10, 11, 11.5, 12, 12.5 — and the effect of a
+     screen built out of them is not delicacy. It is a screen where every
+     label has been shrunk until it stops competing with something, which is
+     what you do instead of deciding what matters. Nothing here is set below
+     the cap now: if a thing is too unimportant to read at twelve pixels it
+     is too unimportant to draw. */
+  --t-hero: 46px;
+  --t-2xl: 32px;
+  --t-xl: 26px;
+  --t-lg: 22px;
+  --t-md: 17px;
+  --t-base: 15px;
+  --t-sm: 13px;
+  --t-cap: 12px;
+
+  /* How far the cards are from the glass. It was 16, and with a card's own
+     16 inside it every line of type on the screen started 32 pixels in on a
+     390-pixel phone — a sixth of the width given to nothing, and the cards
+     narrow enough that a fare bar inside one looked like it had been parked
+     in the middle of a field. */
+  --gutter: 14px;
+  /* What a card puts between its edge and its text. Everything that is not in
+     a card uses it too, so the whole app has one left edge rather than two
+     twelve pixels apart — which is the untidiness you see before you can name
+     it. */
+  --inset: 14px;
+  --bar-h: 52px;
+  /* The safe area on a phone with an island in it. Everything below hangs off
+     this number, so it is a token rather than a constant in three files. */
+  --status-h: 54px;
+
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--t-md);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  display: grid;
+  grid-template-rows: var(--status-h) var(--bar-h) 1fr auto;
+}
+
+.bk-root::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 0'/></filter><rect width='160' height='160' filter='url(%23g)'/></svg>");
+  background-size: 160px 160px;
+}
+
+.bk-root * {
+  box-sizing: border-box;
+}
+
+/* ── The top of the phone ────────────────────────────────────────────────── */
+
+.bk-status {
+  position: relative;
+  z-index: 4;
+  background: var(--page);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Eighteen, not twenty-six. The compact activity is 202 wide and centred,
+     so the clock and the icons have to live outside 94..296 — at the old
+     padding the signal bars started at 294 and the island was drawn over
+     them. */
+  padding: 14px 18px 0;
+  color: var(--ink);
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.bk-status-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The island. One object in three sizes, which is the whole idea of it: the
+   pill grows, it is not replaced by a panel. The curve is Apple's own feel —
+   fast out, a little overshoot, settled — and the width and the radius move
+   together so the corners stay the same physical roundness at every size. */
+.bk-island {
+  position: absolute;
+  top: 11px;
+  left: 50%;
+  z-index: 6;
+  transform: translateX(-50%);
+  background: #000;
+  color: #fff;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 125px;
+  height: 36px;
+  border-radius: 19px;
+  padding: 0;
+  transition:
+    width 420ms cubic-bezier(0.2, 0.9, 0.22, 1),
+    height 420ms cubic-bezier(0.2, 0.9, 0.22, 1),
+    border-radius 420ms cubic-bezier(0.2, 0.9, 0.22, 1),
+    padding 420ms cubic-bezier(0.2, 0.9, 0.22, 1);
+}
+
+.bk-island[data-state="live"] {
+  width: 202px;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+.bk-island[data-state="open"] {
+  width: 358px;
+  height: 132px;
+  border-radius: 34px;
+  padding: 14px 18px 16px;
+  cursor: pointer;
+  align-items: stretch;
+}
+
+.bk-island-lead {
+  color: #7cc8a4;
+  display: grid;
+  place-items: center;
+}
+
+.bk-island-trail {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #7cc8a4;
+}
+
+/* The activity itself. It is on black, so it is the one place in this app
+   that looks like the cabin — which is right: it is the airline talking, not
+   the shop. */
+.bk-la {
+  display: grid;
+  align-content: space-between;
+  width: 100%;
+  font-size: var(--t-cap);
+}
+
+.bk-la-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.bk-la-flight {
+  font-family: var(--font-mono);
+  font-size: var(--t-cap);
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.bk-la-status {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: #5fcf94;
+}
+
+.bk-la-status[data-boarding="true"] {
+  color: #7cc8a4;
+}
+
+/* An activity with something wrong in it. Amber on black, which is what a
+   departure board does and what everything at an airport has always done. */
+.bk-la-status[data-kind="delayed"] {
+  color: #f0a94a;
+}
+
+.bk-la-status[data-kind="cancelled"] {
+  color: #e8695c;
+}
+
+.bk-la-ports i[data-slipped="true"] {
+  color: #f0a94a;
+}
+
+.bk-la-facts span[data-changed="true"],
+.bk-la-facts span[data-changed="true"] b {
+  color: #f0a94a;
+}
+
+.bk-island-trail[data-kind="delayed"] {
+  color: #f0a94a;
+}
+
+.bk-island-trail[data-kind="cancelled"] {
+  color: #e8695c;
+}
+
+/* What puts the expanded activity away. It is nothing to look at and it is
+   under the island, not over it. */
+.bk-island-off {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+
+/* Lit, not ringed.
+   The pill is black, so it cannot take the two lights everything else here is
+   moulded by — but a ring drawn round it is the one line this app does not
+   use anywhere. What a dark object does when it has something to say is glow,
+   which is also what the bead on a status capsule does at a smaller size. */
+.bk-island[data-alert="true"] {
+  box-shadow:
+    0 0 0 2px rgba(240, 169, 74, 0.1),
+    0 3px 12px rgba(240, 169, 74, 0.22);
+}
+
+.bk-la-ports {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0 2px;
+}
+
+.bk-la-ports b {
+  font-family: var(--font-display);
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  display: block;
+}
+
+.bk-la-ports i {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: var(--t-cap);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.bk-la-to {
+  text-align: right;
+}
+
+.bk-la-track {
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.16);
+  position: relative;
+  overflow: hidden;
+}
+
+.bk-la-track-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #7cc8a4;
+  border-radius: 1px;
+}
+
+.bk-la-facts {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: var(--t-cap);
+}
+
+.bk-la-facts b {
+  color: #fff;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.bk-la-count {
+  margin-left: auto;
+  color: #7cc8a4;
+  font-weight: 600;
+}
+
+/* ── Bar ─────────────────────────────────────────────────────────────────── */
+
+.bk-bar {
+  display: grid;
+  grid-template-columns: 52px 1fr 52px;
+  align-items: center;
+  background: var(--page);
+  box-shadow: inset 0 -1px 0 rgba(160, 170, 186, 0.3), 0 1px 0 rgba(255, 255, 255, 0.8);
+  position: relative;
+  z-index: 2;
+}
+
+.bk-bar-back,
+.bk-bar-end {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--t-base);
+  font-weight: 600;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.bk-bar-end[data-text="true"] {
+  font-size: var(--t-base);
+  font-weight: 600;
+}
+
+.bk-bar-back:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bk-bar-title {
+  text-align: center;
+  font-size: var(--t-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* ── Body ────────────────────────────────────────────────────────────────── */
+
+.bk-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--gutter) var(--gutter) 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bk-body::-webkit-scrollbar {
+  width: 0;
+}
+
+/* A column flex container with a definite height shrinks its children to fit
+   before it agrees to scroll, and that is not a detail: the moment this screen
+   grew a live strip and a second card, the boarding pass was squeezed to
+   164 pixels and rendered as a navy band with the code sliced off the bottom.
+   Nothing here may be shorter than what is in it. */
+.bk-body > * {
+  flex: none;
+}
+
+/* The one container. A card is a thing on the page, so it has an edge made of
+   light and shadow rather than a drawn line. */
+.bk-card {
+  background: var(--page);
+  border-radius: 18px;
+  box-shadow: var(--lift);
+  padding: var(--inset);
+}
+
+.bk-card[data-flush="true"] {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Read, not done. No card, no shadow — the page itself, with the rows on it
+   and a rule where a card edge would have been. */
+/* A band across the top of a card, naming what is in it. An airline's review
+   screen puts "Flights" and "Price" on a tint rather than in grey type on the
+   page, so the card starts where the heading starts. */
+.bk-sec {
+  /* Part of the card, not a gap in front of it. It was drawn in --sunk, which
+     is within two per cent of the page — so the band read as background and
+     the card looked as though it began at the first row, with its own
+     heading floating outside it. */
+  padding: 12px var(--inset) 10px;
+  box-shadow:
+    inset 0 -1px 0 rgba(160, 170, 186, 0.34),
+    0 1px 0 rgba(255, 255, 255, 0.85);
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.bk-pad {
+  padding: 10px var(--inset) 14px;
+}
+
+/* The fare, named once, with what it comes with underneath. */
+.bk-fare-foot {
+  display: grid;
+  gap: 4px;
+  padding: 12px var(--inset) 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.bk-fare-foot-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.bk-fare-foot-h b {
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.bk-card-h {
+  /* The same heading as `.bk-sec`, one step in from the edge. Two section
+     headings at two sizes and two weights is the app not having decided what
+     a section heading is. */
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-bottom: 12px;
+}
+
+/* Two small types, and only two.
+ *
+ * `.bk-cap` is a quiet line — a flight number and a date, what a figure is
+ * made of, who a seat belongs to. `.bk-label` is a label: the word that names
+ * the block under it. They were one class being asked to be both, plus
+ * `.bk-leg-head` and `.bk-trip-head .bk-cap` with their own sizes and
+ * tracking — four sets of numbers doing the work of two, which is what makes
+ * a screen look assembled rather than designed. */
+.bk-cap {
+  font-size: var(--t-cap);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.bk-label {
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.bk-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.bk-hero {
+  font-family: var(--font-display);
+  font-size: var(--t-hero);
+  line-height: 1;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+}
+
+.bk-dim {
+  color: var(--ink-2);
+}
+
+.bk-note {
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+  line-height: 1.5;
+  padding: 0 var(--inset);
+}
+
+/* ── What the call sites used to invent ──────────────────────────────────── */
+
+/* Every rule below replaces a `style={{ … }}` that was written at the place it
+   was needed. Twenty of them is twenty spacing decisions taken twenty times,
+   which is why nothing on the screen lines up with anything else: the numbers
+   were never compared to each other, only to the gap they were fixing. */
+
+/* A key that is a link, not a button: the same object every time it is used. */
+a.bk-btn {
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+}
+
+/* The name, with the mark in front of it. */
+.bk-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+}
+
+/* The mark is the airline's device, not the thing to press. On the one
+   screen that carries both, the brass belongs to the key at the bottom. */
+.bk-wordmark svg {
+  color: var(--ink);
+}
+
+/* A notice that can be dismissed is a button, and a button centres its text
+   unless it is told that it is a paragraph. */
+.bk-notice {
+  text-align: left;
+}
+
+/* The segmented control against what follows and what precedes it. */
+.bk-seg + .bk-stack,
+.bk-row + .bk-seg {
+  margin-top: 12px;
+}
+
+.bk-banned + .bk-choice {
+  margin-top: 14px;
+}
+
+/* The line that says where the document is kept, under the fields it is
+   about: not a row — it has no value on the right and no rule under it. */
+.bk-docnote {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+/* Which traveller a pair of name fields belongs to. */
+.bk-paxlabel {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 2px 2px 6px;
+}
+
+/* A field that holds three digits does not need the width of one that holds
+   sixteen. */
+.bk-field[data-narrow="true"] {
+  max-width: 160px;
+}
+
+/* A link that undoes something, kept quieter than the thing it undoes. */
+.bk-link[data-quiet="true"] {
+  padding-top: 10px;
+  font-size: var(--t-cap);
+}
+
+/* A link inside a notice sits under the sentence it acts on. */
+.bk-notice .bk-link {
+  justify-self: start;
+  margin-top: 6px;
+}
+
+/* A link in the action bar is the way back, under the way forward. */
+.bk-act .bk-link {
+  justify-self: center;
+  font-size: var(--t-sm);
+}
+
+/* A key at the end of a card, rather than the end of the screen. */
+.bk-card > .bk-btn {
+  margin-top: 14px;
+}
+
+.bk-card .bk-empty {
+  padding: 6px 0 2px;
+}
+
+/* A note on the page is indented to the app's one left edge; a note inside a
+   card is already there, and every one of them used to undo the padding with
+   an inline style of its own invention. */
+.bk-card .bk-note,
+.bk-sheet-inner .bk-note {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.bk-card .bk-note:not(:first-child) {
+  padding-top: 10px;
+}
+
+/* A note that introduces the thing under it rather than qualifying the thing
+   above it. */
+.bk-card .bk-note[data-lead="true"] {
+  padding: 0 0 10px;
+}
+
+/* ── Action bar ──────────────────────────────────────────────────────────── */
+
+.bk-act {
+  /* Lifted, not ruled off. A hairline across the bottom of the screen is a
+     table edge; what is actually happening is that a surface is sitting in
+     front of the page, so it casts upwards and rounds its own corners. */
+  background: var(--page);
+  border-radius: 20px 20px 0 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 -3px 8px rgba(160, 170, 186, 0.3),
+    0 -10px 26px rgba(14, 22, 34, 0.07);
+  padding: 14px var(--gutter) 30px;
+  display: grid;
+  gap: 10px;
+}
+
+/* ── The three places ────────────────────────────────────────────────────── */
+
+/* A capsule lifted off the bottom edge with the screen running under it,
+   which is what the current iOS does and what this glass needs: 844 pixels
+   tall with an action bar already at the bottom, a second opaque bar welded
+   under the first would take a fifth of the height and give the navigation
+   the same weight as the thing being done. */
+.bk-tabs {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  /* Four places on a 390pt phone, and the fourth one only appears on the day
+     you fly — so the capsule has to fit both a three-place bar and a
+     four-place one without either being cramped or running off the glass. */
+  max-width: calc(100% - 2 * var(--gutter));
+  border-radius: 999px;
+  /* Paper under the same two lights as every other key on the glass — the
+     row of quick actions directly above it in particular, which it has to
+     read as the same object as. It was frosted glass with a hairline ring:
+     a blur over a page that is opaque paper blurs nothing, and the ring is
+     the one line nothing else here is drawn with. */
+  background: var(--page);
+  box-shadow: var(--key-raise);
+}
+
+.bk-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 10px 16px;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.bk-tab svg {
+  width: 20px;
+  height: 20px;
+}
+
+.bk-tab[data-on="true"] {
+  color: #f4f0e7;
+}
+
+/* The one object that moves. */
+.bk-tab-ind {
+  position: absolute;
+  top: 7px;
+  left: 0;
+  bottom: 7px;
+  border-radius: 999px;
+  background: var(--face);
+  box-shadow: 0 1px 2px rgba(17, 21, 29, 0.25);
+  transition:
+    transform 340ms cubic-bezier(0.34, 1.32, 0.5, 1),
+    width 340ms cubic-bezier(0.34, 1.32, 0.5, 1);
+}
+
+.bk-tab {
+  position: relative;
+  z-index: 1;
+}
+
+.bk-tab:disabled {
+  color: var(--ink-3);
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Four places on a phone: the names stay, and the type comes down to fit. */
+.bk-tabs[data-wide="true"] .bk-tab {
+  padding: 9px 11px;
+  gap: 6px;
+  font-size: var(--t-cap);
+}
+
+.bk-tabs[data-wide="true"] .bk-tab svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* The screens that carry the capsule leave room for it to float over. */
+.bk-root[data-tabs="true"] .bk-body {
+  padding-bottom: 88px;
+}
+
+.bk-root[data-tabs="true"] .bk-act {
+  padding-bottom: 86px;
+}
+
+/* A short list of what something gets you, as chips rather than as a
+   paragraph of commas. */
+/* The line that names the fields under it, with the brand the number turns
+   out to be. */
+.bk-payhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--t-base);
+  font-weight: 600;
+}
+
+/* The network from here, priced, as keys you push sideways. */
+.bk-board {
+  display: grid;
+  gap: 8px;
+}
+
+.bk-board-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 var(--inset);
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.bk-board-h i {
+  font-style: normal;
+  font-size: var(--t-cap);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.bk-board-rail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* A horizontal scroller clips on every side, so the cards' light needs
+     room inside it: padding for the shadow, and a negative margin so the
+     row still sits where it did. Out to the glass edge as well, so the
+     first card's shadow is not cut on the left. */
+  padding: 14px var(--gutter);
+  margin: -14px calc(-1 * var(--gutter));
+}
+
+.bk-board-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.bk-dest {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 1px;
+  min-width: 128px;
+  padding: 12px 14px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--page);
+  box-shadow: var(--lift-sm);
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.bk-dest:active {
+  box-shadow: var(--key-press);
+}
+
+.bk-dest-city {
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.bk-dest-code {
+  font-family: var(--font-mono);
+  font-size: var(--t-cap);
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.bk-dest-p {
+  padding-top: 4px;
+  font-size: var(--t-cap);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* The trip, as one thing you can push. A card that is a button gets the
+   button's affordances and none of a card's: the whole panel presses, and the
+   mark at the bottom right says where it goes. */
+.bk-panel {
+  display: block;
+  width: 100%;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Who is on it and on what, and where it has got to — the foot of a panel
+   in the Trips list. */
+.bk-panel-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+}
+
+.bk-panel-foot svg {
+  flex: none;
+  color: var(--ink-3);
+}
+
+/* Three things rather than one line joined by middots. */
+.bk-panel-who {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+}
+
+.bk-panel-who b {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.bk-panel-seat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.bk-panel-seat svg {
+  color: var(--accent);
+}
+
+/* The one line that changes between booking it and boarding it. */
+.bk-panel-state {
+  display: block;
+  padding-top: 4px;
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.bk-panel-state[data-on="true"] {
+  color: var(--green);
+}
+
+.bk-panel:active {
+  box-shadow: var(--lift-sm);
+  transform: translateY(1px);
+}
+
+/* Who is on it and on what, as three things rather than as one line joined
+   by middots. */
+
+/* Where the trip has got to, in the one line that changes between booking it
+   and boarding it. */
+
+/* A price that is an offer rather than a charge. */
+.bk-upsell {
+  font-weight: 600;
+}
+
+/* Why nothing can still be done to this one: a sentence, not two dead rows
+   with a chevron each. */
+.bk-panel-note {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* What can still be done to one flight, on that flight's own panel. */
+.bk-panel-acts {
+  margin-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+
+.bk-panel-acts .bk-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* A row that cannot be opened does not point at anything. */
+.bk-row:disabled {
+  cursor: default;
+}
+
+.bk-row:disabled .bk-row-v {
+  visibility: hidden;
+}
+
+/* A step of a procedure: the numeral is the design, the words are the label.
+   "1 · WHO IS FLYING" in eleven-point caps made the number the same size as
+   the middot beside it. */
+.bk-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+
+.bk-step b {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--key);
+  box-shadow: var(--key-raise-sm);
+  font-family: var(--font-display);
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--ink);
+  transition:
+    background 220ms ease,
+    box-shadow 220ms ease,
+    color 220ms ease;
+}
+
+.bk-step[data-done="true"] b {
+  background: var(--green);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.bk-step span {
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* What may not fly, as a list of objects rather than as a paragraph with
+   dots down the side. */
+.bk-banned {
+  display: grid;
+  gap: 1px;
+}
+
+.bk-banned-i {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+
+.bk-banned-i:last-child {
+  border-bottom: 0;
+}
+
+.bk-banned-i svg {
+  color: var(--red);
+}
+
+/* One count against its own scale. A bar with no numbers on it says "some of
+   the way", which is not a fact about anything. */
+.bk-meter {
+  padding: 10px 0 4px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.bk-meter:last-of-type {
+  border-bottom: 0;
+}
+
+.bk-meter-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: none;
+  box-shadow: var(--key-press-sm);
+  overflow: hidden;
+  margin: 8px 0 6px;
+}
+
+.bk-meter-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-fill-2), var(--accent-fill));
+}
+
+/* The flights behind the balance, as a statement rather than as a list of
+   cards: a date, what it was, and what it added. */
+.bk-hist {
+  padding: 2px var(--inset) 6px;
+}
+
+.bk-hist-row {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.bk-hist-row:last-child {
+  border-bottom: 0;
+}
+
+.bk-hist-when {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.bk-hist-what {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bk-hist-what b {
+  font-size: var(--t-base);
+  font-weight: 600;
+}
+
+.bk-hist-what span {
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+}
+
+/* A flight still ahead is dimmer than one already flown: the miles are
+   credited, the aeroplane has not gone. */
+.bk-hist-row[data-flown="false"] .bk-hist-what b {
+  color: var(--ink-2);
+}
+
+.bk-hist-miles {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* A sheet lays itself out: the rows, then the figure, then the sentence that
+   qualifies it, then the key. Every sheet did this with three inline paddings
+   and a margin, which is four numbers invented at the call site. */
+.bk-sheet-list .bk-total {
+  margin-top: 14px;
+}
+
+.bk-sheet-list .bk-note {
+  padding: 14px var(--inset) 0;
+}
+
+.bk-sheet-list .bk-btn {
+  margin-top: 18px;
+}
+
+/* A choice whose options carry their own fields.
+ *
+ * One group, with the rows separated by an inset rule rather than by air, and
+ * the chosen row raised out of it the way every pressable thing in this app is
+ * raised. It replaced two boxed radios in an amber wash with the security code
+ * floating underneath both of them — the one field on the screen that belonged
+ * to a particular card, attached to neither. */
+.bk-pick {
+  display: grid;
+  border-radius: 14px;
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+  overflow: hidden;
+  /* The chosen row is a raised key inside a clipped groove; without this
+     its shadow was cut on three sides. */
+  padding: 4px;
+}
+
+.bk-pick-b {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.bk-pick-b + .bk-pick-b {
+  box-shadow: inset 0 1px 0 var(--rule-strong);
+}
+
+/* Chosen: lifted out of the tray, in the app's own key. No fill of a colour
+   that means something else elsewhere. */
+.bk-pick {
+  position: relative;
+}
+
+.bk-pick .bk-thumb {
+  border-radius: 13px;
+}
+
+.bk-pick-b {
+  position: relative;
+  z-index: 1;
+}
+
+.bk-pick-b[data-on="true"] {
+  color: var(--ink);
+}
+
+.bk-pick-b svg {
+  flex: none;
+  color: var(--accent-fill-2);
+}
+
+.bk-pick-k {
+  display: grid;
+  gap: 1px;
+}
+
+.bk-pick-k b {
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.bk-pick-k i {
+  font-style: normal;
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+}
+
+/* What the chosen option needs, inside the tray and indented to its text. */
+.bk-pick-body {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px 14px;
+}
+
+.bk-pick-body .bk-field {
+  background: var(--card);
+}
+
+.bk-pick-body .bk-note {
+  padding: 0;
+}
+
+.bk-pick-body .bk-link {
+  justify-self: start;
+}
+
+/* The chosen option's mark: the same tick the payment picker uses, brass. A
+   radio circle here and a tick there was two answers to one question. */
+.bk-choice-b svg {
+  color: var(--accent-fill-2);
+}
+
+/* The bill. A fare, the tax that rides on it, and what the seats cost — in
+   that order and in that hierarchy, because that is the order somebody checks
+   them in and the tax is never the thing being decided. */
+.bk-bill {
+  display: grid;
+}
+
+.bk-bill-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 0 10px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.bk-bill-row:last-child {
+  border-bottom: 0;
+}
+
+.bk-bill-k {
+  display: grid;
+  gap: 2px;
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.bk-bill-k i {
+  font-style: normal;
+  font-size: var(--t-cap);
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.bk-bill-row b {
+  font-size: var(--t-base);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The tax is part of the line above it and is drawn as part of it: smaller,
+   quieter, and without a rule of its own to sit on. */
+.bk-bill-row[data-sub="true"] {
+  padding: 0 0 12px;
+}
+
+.bk-bill-row[data-sub="true"] .bk-bill-k,
+.bk-bill-row[data-sub="true"] b {
+  font-size: var(--t-cap);
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* The one figure the screen exists to state. */
+.bk-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px 14px 14px;
+  border-radius: 14px;
+  /* Sunk into the paper, like every other figure that is read rather than
+     pressed. It was a brass wash inside a brass hairline — a tinted box with
+     a drawn edge, which nothing else on this glass is. The figure in it is
+     already the largest thing in the row; it does not also need a colour. */
+  background: var(--page);
+  box-shadow: var(--key-press-sm);
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.bk-total b {
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Miles are not money, so they are not in the column of it. */
+.bk-earnbar {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--sunk);
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.bk-earnbar i {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* What a flight added to the card. */
+
+/* A row whose key needs a sentence under it. */
+.bk-row-sub {
+  display: block;
+  padding-top: 4px;
+  font-size: var(--t-cap);
+  font-weight: 400;
+  color: var(--ink-3);
+  line-height: 1.4;
+}
+
+.bk-act-sum {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bk-act-sum-v {
+  font-size: var(--t-xl);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bk-btn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  font-size: var(--t-md);
+  color: var(--go-ink);
+  background: var(--go);
+  box-shadow: var(--go-lift);
+  height: 50px;
+  width: 100%;
+  padding: 0 24px;
+  border-radius: 14px;
+  transition: box-shadow 90ms ease, transform 90ms ease;
+}
+
+.bk-btn:active:not(:disabled) {
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+  transform: translateY(1px);
+}
+
+/* Nothing to push: the key is flush with the panel it sits in. */
+.bk-btn:disabled {
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+  color: var(--ink-3);
+  cursor: default;
+}
+
+/* ── Rows ────────────────────────────────────────────────────────────────── */
+
+.bk-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  font-size: var(--t-base);
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bk-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.bk-row:first-child {
+  padding-top: 0;
+}
+
+.bk-row[data-static="true"] {
+  cursor: default;
+}
+
+.bk-row:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* A row whose value is a sentence rather than a figure. Right-aligning a
+   clause makes it wrap to a ragged left edge under its own label, which is
+   what "1 cabin bag, 7 kg · 1 checked bag," / "23 kg" looked like. */
+.bk-row[data-stack="true"] {
+  grid-template-columns: 1fr;
+  gap: 1px;
+}
+
+.bk-row[data-stack="true"] .bk-row-v {
+  font-weight: 400;
+  text-align: left;
+}
+
+.bk-row-k {
+  color: var(--ink-2);
+}
+
+.bk-row-v {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  text-align: right;
+}
+
+/* A link is a control, and controls are ink here. It was brass, which is
+   the one colour in this app that already means something else. */
+.bk-link {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--rule-strong);
+  font-weight: 600;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── The day you fly ─────────────────────────────────────────────────────── */
+
+/* The airline's own strip at the top of the day: the reference the booking
+   answers to, and the aeroplanes it is made of. Full-bleed and dark, so the
+   cards below it read as laid on the page rather than as more of the same. */
+.bk-body[data-day="true"] {
+  padding-top: 0;
+  gap: 8px;
+  /* The tabs float over the foot, and the opaque row of keys sits just above
+     them: the column has to end above both, or its last line is behind the
+     thing that is meant to be in front. */
+  padding-bottom: 96px;
+}
+
+/* The airline speaking, once, at the top: its own black, with the light at
+   the two ends of the flight along the foot of it. */
+.bk-day-hero {
+  position: relative;
+  width: calc(100% + 2 * var(--gutter));
+  margin: 0 calc(-1 * var(--gutter));
+  padding: 16px var(--inset) 0;
+  background: var(--face);
+  color: #fff;
+}
+
+.bk-day-hero-txt {
+  padding-bottom: 14px;
+}
+
+.bk-day-hero-txt .bk-label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.bk-day-hero-txt h2 {
+  margin: 5px 0 0;
+  font-family: var(--font-display);
+  font-size: var(--t-2xl);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
+  /* Two lines of headline, because "Boarding has started, board with group 5"
+     is the sentence and cutting it to fit is cutting the answer. */
+  text-wrap: balance;
+}
+
+.bk-day-hero-txt p {
+  margin: 6px 0 0;
+  font-size: var(--t-sm);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* The three parts a day of flying has. Stuck to the top of the page, because
+   the control that switches between them is no use once it has scrolled off:
+   the whole point of it is that it is reachable from the fourth card down. */
+.bk-segwrap {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  width: calc(100% + 2 * var(--gutter));
+  /* Up by the column's own gap, so the photograph above it and this run
+     straight into each other instead of showing a stripe of page between. */
+  margin: calc(-1 * var(--gutter) + 4px) calc(-1 * var(--gutter)) 0;
+  padding: 9px 0 10px;
+  background: var(--face);
+  /* It is over the cards once it sticks, so it throws a shadow onto them. */
+  box-shadow: 0 6px 14px rgba(17, 21, 29, 0.16);
+}
+
+/* One groove with one thumb in it, which is what a segmented control is.
+   It was four separate capsules, each turning its own background on and off
+   — four things happening where one should move — and the one turning on
+   traded an inset shadow for an outset one, which cannot be interpolated, so
+   it arrived as a white flash on every switch. */
+.bk-segbar {
+  position: relative;
+  display: flex;
+  gap: 0;
+  margin: 0 var(--inset);
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.34);
+  box-shadow:
+    inset 2px 2px 6px rgba(0, 0, 0, 0.6),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.07);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+/* A raised key inside the groove, not a white slab.
+   The thumb was the page colour, which is the brightest thing in the app
+   dropped onto the darkest bar in it — and worse, it put light type on a
+   light ground for the whole of a drag, because a label cannot be two colours
+   at once while something slides across it. A dark thumb under the same two
+   lights as every other key here leaves every name legible from end to end,
+   and the name the day is on is the white one. */
+.bk-segbar-ind {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.17) 0%,
+    rgba(255, 255, 255, 0.09) 100%
+  );
+  /* Short shadows: the thumb lives inside a groove three pixels deep that
+     clips everything past its rim, so anything longer was drawn and then
+     cut off. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.bk-segbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Moulded on the airline's own black, which is the same two lights with the
+   high one turned almost all the way down: a dark surface catches barely any
+   of it. Waiting is a groove; the one you are on is a key sitting proud. */
+.bk-segbar-b {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.52);
+  padding: 9px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  /* The ink turns as the thumb passes the middle of the name, which is the
+     one moment the change is underneath it. */
+  transition: color 160ms ease;
+}
+
+/* Set by the scroll rather than by a render: which name the deck is nearest
+   to is a fact about a pixel offset, and putting it through React means every
+   page of the day re-renders on every frame of a drag. */
+.bk-segbar-b[data-near="true"] {
+  color: #ffffff;
+}
+
+/* Where the day actually is, whichever one is being looked at. */
+.bk-segbar-b[data-live="true"]::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 7px;
+  vertical-align: 0.15em;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+/* The journey, side by side. One page per aeroplane, snapped, and the
+   control at the top drives the same scroller a finger does. */
+.bk-swipe {
+  display: flex;
+  align-items: start;
+  gap: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  /* Out to the edges, so a page arrives at the edge of the glass rather than
+     inside a margin, and its cards keep the page's own gutter. */
+  width: calc(100% + 2 * var(--gutter));
+  /* Up by the room the pages keep for their first card's light. */
+  margin: -12px calc(-1 * var(--gutter)) 0;
+}
+
+.bk-swipe::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* The page is the snap target and nothing else: no transform, ever.
+   A scroller snaps to an element's *transformed* box, so when the settling
+   animation lived here the browser snapped to the edge of a page still at
+   92% of its size — sixteen pixels in from where the page actually starts.
+   The motion goes on the layer inside it. */
+.bk-page {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  /* Four to six of these are alive at once in a horizontal scroller, each a
+     stack of moulded panels with large soft shadows, so each page is given
+     its own layout and style scope rather than letting the browser treat the
+     whole track as one. Not `paint`: that clips, and the row of keys at the
+     foot of a page is sticky — clipped to the page, it would stick to the
+     bottom of a column taller than the screen and never be seen. */
+  contain: layout style;
+}
+
+.bk-page-in {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  /* The foot clears the bar of keys, which floats over the column: putting
+     the room on the page rather than on the scroller means it is the same
+     room whichever page is the tall one. */
+  padding: 14px var(--gutter) 106px;
+}
+
+/* One panel to a page, and the rest on the page itself.
+   Four cards of identical weight, each under a grey uppercase caption, is
+   four things of equal importance — which is never what a page is. The first
+   card is what is happening; everything under it is detail, and detail does
+   not need a box, it needs a heading and some air. */
+.bk-page-in .bk-card[data-bare="true"] {
+  background: none;
+  box-shadow: none;
+  padding: 0 4px;
+  margin-top: 8px;
+}
+
+.bk-sect {
+  margin: 0 0 4px;
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-2);
+}
+
+/* The page you are swiping towards settles into place rather than sliding in
+   flat: it comes up out of the one behind it as it arrives and drops back as
+   it leaves. Driven by the scroller itself, so it follows a finger exactly —
+   halfway across is halfway through — and there is no timer to get out of
+   step with. Browsers without scroll-driven animation get the plain snap,
+   which was never broken. */
+@supports (animation-timeline: view(inline)) {
+  .bk-page-in {
+    animation: bk-page-settle linear both;
+    animation-timeline: view(inline);
+    /* The whole time the page is visible at all. `entry 10% exit 90%` looks
+       tighter and is wrong here: a page is exactly as wide as the scroller,
+       so the `contain` phase has zero length and that range collapses — every
+       page sat at the far end of it and stayed shrunk, which is why they all
+       drew at 93% and sat off-centre. Across `cover`, dead centre is 50%. */
+    animation-range: cover;
+  }
+
+  @keyframes bk-page-settle {
+    0%,
+    100% {
+      opacity: 0.25;
+      transform: scale(0.92);
+    }
+    46%,
+    54% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-page-in {
+    animation: none;
+  }
+}
+
+/* The flight itself, in the type an airport uses for it: two codes with their
+   clocks under them and the block time on the line between. */
+.bk-clocks {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 2px 8px;
+  border-top: 1px solid var(--rule);
+}
+
+.bk-clocks > div {
+  display: grid;
+  gap: 1px;
+}
+
+.bk-clocks > div[data-align="end"] {
+  justify-items: end;
+  text-align: right;
+}
+
+.bk-clocks b {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+
+.bk-clocks i {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-xl);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.bk-clocks span {
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+}
+
+.bk-clocks-mid {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  color: var(--ink-3);
+  font-size: var(--t-cap);
+}
+
+.bk-clocks-mid b {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.bk-clocks-line {
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--rule-strong);
+}
+
+/* A tile that has gone live: a gate that moved, a door about to shut. */
+
+/* A card's first line, with something at the right end of it. */
+.bk-card-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* Whose turn it is at the door. Quiet while the queue is somebody else's,
+   and the loudest line on the card the moment it is yours. */
+.bk-call {
+  margin: 10px 0 0;
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+
+.bk-call b {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.bk-call[data-mine="true"] {
+  background: var(--face);
+  box-shadow: var(--lift-dark);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.bk-call[data-mine="true"] b {
+  color: #fff;
+}
+
+/* What is happening, in the sentence the gate would use. */
+.bk-hap {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  color: var(--ink);
+}
+
+.bk-hap[data-tone="urgent"],
+.bk-hap[data-tone="bad"] {
+  color: var(--red);
+}
+
+.bk-hap[data-tone="go"],
+.bk-hap[data-tone="air"] {
+  color: var(--green);
+}
+
+.bk-hap-sub {
+  margin: 6px 0 0;
+  font-size: var(--t-base);
+  color: var(--ink-2);
+}
+
+/* The count that belongs to the bar above it, so it sits at the end of it. */
+.bk-hap-sub[data-count="true"] {
+  margin-top: 8px;
+  text-align: right;
+}
+
+/* How much of the aeroplane is already on it. */
+.bk-meter[data-kind="boarding"] {
+  padding: 0;
+  margin-top: 16px;
+  height: 6px;
+  border-radius: 3px;
+  border-bottom: 0;
+  background: var(--sunk);
+  overflow: hidden;
+}
+
+.bk-meter[data-kind="boarding"] span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ink-brand);
+  transition: width 600ms cubic-bezier(0.2, 0.9, 0.22, 1);
+}
+
+/* The three a gate asks for, each in a recessed tile — which is what makes
+   them read as things to be read off rather than as more sentence. */
+/* Three readings in three equal boxes, at one size.
+   A gate number, a seat number and a boarding group are the same kind of
+   thing — three numbers off the same pass — and so are three deadlines, and
+   so are a carousel and a terminal. Setting the first of them larger says it
+   is a different sort of fact from its neighbours, which it is not. What
+   ranks them is the order they are in and the headline above them; the type
+   does not need to join in. */
+.bk-facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: 12px 0 0;
+}
+
+.bk-facts div {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 8px 11px 9px;
+  border-radius: 12px;
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+}
+
+/* Two lines' worth of room whether the label needs it or not: "Gate" and
+   "Departure gate" are in the same row of tiles, and without this the short
+   one sets its number a line higher than the long one. */
+.bk-facts dt {
+  font-size: var(--t-cap);
+  line-height: 1.25;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.bk-facts dd {
+  margin: 0;
+  font-size: var(--t-md);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+/* A gate that has moved, or a change too tight to walk, is the one fact on
+   the day worth a colour. */
+.bk-facts div[data-lit="true"] dt {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* A reading that is about where you are going rather than what you must do:
+   the sky view's blue, which is what that means everywhere else here. */
+.bk-facts div[data-tint="cool"] dt {
+  color: var(--cool);
+}
+
+.bk-facts div[data-tint="cool"] dd {
+  color: var(--cool);
+}
+
+/* Brass, and only here: the seat is the one fact on the card that is yours
+   rather than the airline's, which is the whole of what brass says in this
+   app. The label stays a label. */
+.bk-facts div[data-tint="own"] dd {
+  color: var(--accent);
+}
+
+/* Three, because a row of six icons is a menu and a menu is what this screen
+   exists to avoid. */
+/* A tinted band across the top of the card rather than a heading floating in
+   it: it is the label of a group of controls, and the band is what makes the
+   three circles below read as belonging to it. */
+
+/* A heading, not a bar. It was a grey band across the top of the card, which
+   gives a label the weight of a title bar and boxes in three buttons that are
+   already inside a box. */
+
+/* A ring, not a plinth. Three discs with a light source on them is three
+   objects competing with the one key on the screen that is actually raised. */
+
+/* And the way to everything that is not one of the three. */
+
+/* ── The day, moulded ────────────────────────────────────────────────────── */
+
+/* Soft UI, properly: a panel is the page with light on it, not a white card
+   laid over it. There is no border and no fill — the whole of the edge is one
+   shadow below right and one highlight above left, which is what it looks
+   like when a surface is pressed out of the material rather than placed on
+   top of it. It only holds if everything obeys the same light, so on this
+   screen everything does: panels rise, readings sink, keys rise until they
+   are pressed. */
+.bk-page .bk-card {
+  border-radius: 20px;
+  padding: 13px 14px;
+}
+
+/* Readings are pressed into it: the tiles, the bag steps, the tool keys when
+   they are held. The same two lights, the other way round. */
+.bk-page .bk-facts div {
+  background: none;
+  box-shadow: var(--key-press);
+}
+
+/* A gate that has moved. Ringed in the airline's own black rather than
+   washed in brass: brass means "this is yours" — your seat, your card — and
+   a gate change is not a thing you own, it is a thing that happened. */
+/* The one that changed stands up out of the page. It had a dark ring round
+   it, which on a row of three pressed tiles is the only drawn line on the
+   screen; lifting it says the same thing in the material the rest is made
+   of. */
+.bk-page .bk-facts div[data-lit="true"] {
+  background: var(--page);
+  box-shadow: var(--key-raise-sm);
+}
+
+.bk-page 
+.bk-page 
+.bk-page .bk-meter[data-kind="boarding"] {
+  background: none;
+  box-shadow:
+    inset 2px 2px 5px rgba(160, 170, 186, 0.6),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.9);
+}
+
+.bk-page .bk-call {
+  background: none;
+  box-shadow: var(--key-press);
+}
+
+.bk-page .bk-clocks {
+  border-top: 0;
+  box-shadow: inset 0 1px 0 rgba(160, 170, 186, 0.34), 0 -1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* Things to have with you, as sentences with a mark beside each. A label
+   column against a value column is a departure board, and a departure board
+   is for facts that are all the same kind; these are four different kinds of
+   thing and each one is a sentence. */
+.bk-notes {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.bk-notes li {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: start;
+  gap: 12px;
+  padding: 9px 0;
+}
+
+.bk-notes li + li {
+  box-shadow: inset 0 1px 0 rgba(160, 170, 186, 0.3), 0 -1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.bk-notes svg {
+  margin-top: 1px;
+  color: var(--ink-3);
+}
+
+.bk-notes p {
+  margin: 0;
+  font-size: var(--t-base);
+  color: var(--ink-2);
+}
+
+.bk-notes b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bk-notes li[data-lit="true"] svg,
+.bk-notes li[data-lit="true"] p,
+.bk-notes li[data-lit="true"] b {
+  color: var(--red);
+}
+
+/* And four things that happen in an order, drawn as the order. The mark sits
+   on a line that runs down through all of them; the one you are up to is the
+   only one that is filled. */
+.bk-queue {
+  list-style: none;
+  margin: 10px 0 2px;
+  padding: 0;
+}
+
+.bk-queue li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: start;
+  gap: 12px;
+  padding: 7px 0;
+}
+
+/* The line between one mark and the next. */
+.bk-queue li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 12.5px;
+  top: 27px;
+  bottom: -7px;
+  width: 2px;
+  border-radius: 1px;
+  background: rgba(160, 170, 186, 0.42);
+}
+
+.bk-queue li[data-done="true"]::before {
+  background: var(--ink-brand);
+}
+
+.bk-queue-dot {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--ink-3);
+  box-shadow: var(--key-press-sm);
+}
+
+.bk-queue li[data-done="true"] .bk-queue-dot {
+  background: var(--ink-brand);
+  color: #fff;
+  box-shadow: none;
+}
+
+.bk-queue li[data-now="true"] .bk-queue-dot {
+  background: var(--ink-brand);
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--sunk), 2px 2px 6px rgba(17, 21, 29, 0.28);
+}
+
+.bk-queue p {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+}
+
+.bk-queue b {
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bk-queue i {
+  font-style: normal;
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+}
+
+.bk-queue em {
+  font-style: normal;
+  font-size: var(--t-base);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  /* Level with the step's name, whatever the line under it does. */
+  padding-top: 1px;
+}
+
+.bk-queue li[data-now="true"] b,
+.bk-queue li[data-now="true"] em {
+  color: var(--ink);
+}
+
+/* And the row it is on is sunk into the panel, so the eye finds the step
+   before it reads it — the same groove every reading on this screen sits in,
+   not a colour. */
+.bk-queue li[data-now="true"] {
+  margin: 0 -9px;
+  padding: 7px 9px;
+  border-radius: 13px;
+  box-shadow: var(--key-press-sm);
+}
+
+.bk-queue li[data-now="true"]:not(:last-child)::before {
+  left: 21.5px;
+}
+
+/* Done with: the step is behind you, so it stops asking to be read. */
+.bk-queue li[data-done="true"] i,
+.bk-queue li[data-done="true"] em {
+  opacity: 0.5;
+}
+
+/* Five tools, raised out of the panel, and no captions: the marks are the
+   ones the rest of the app already reads. */
+/* Where the bags are, said once and large. The tag number is a caption,
+   because it matters exactly once — when a bag has not arrived. */
+.bk-tagno {
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.bk-bagstate {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.bk-bagstate-i {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  color: var(--ink-3);
+  box-shadow: var(--key-press-sm);
+}
+
+/* With the airline, on the aeroplane, on the belt: the mark fills as the bag
+   gets further from you, which is the one thing the card is for. */
+.bk-bagstate-i[data-at="1"],
+.bk-bagstate-i[data-at="2"] {
+  background: var(--ink-brand);
+  color: #fff;
+  box-shadow: none;
+}
+
+.bk-bagstate-i[data-at="3"] {
+  background: var(--cool);
+  color: #fff;
+  box-shadow: none;
+}
+
+.bk-bagstate p {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+}
+
+.bk-bagstate b {
+  font-size: var(--t-md);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bk-bagstate i {
+  font-style: normal;
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+}
+
+/* Marks with their names under them, in one bar rather than four keys.
+   Four separate keys meant four gaps, and the page scrolled up through the
+   gaps; a slab of flat colour behind them to stop that is a rectangle with
+   nothing in it. One object solves both: it is raised out of the page by the
+   same two lights as everything else, so it is a thing rather than a fill,
+   and it has no holes for the page to show through. */
+.bk-tools {
+  position: absolute;
+  left: var(--gutter);
+  right: var(--gutter);
+  /* Clear of the tabs, which float below it — and the same shape as them.
+     A twenty-pixel rectangle sitting two pixels above a capsule is two
+     different ideas of what a floating control is, stacked. */
+  bottom: 90px;
+  z-index: 4;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border-radius: 999px;
+  background: var(--page);
+  box-shadow: var(--key-raise);
+  overflow: hidden;
+  /* It arrives with the screen rather than being there before it. */
+  animation: bk-tools-in 420ms cubic-bezier(0.2, 0.9, 0.22, 1) both;
+}
+
+@keyframes bk-tools-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-tools {
+    animation: none;
+  }
+}
+
+.bk-tools button {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 6px;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+/* Parted by a groove, not by a gap. */
+.bk-tools button + button {
+  box-shadow: inset 1px 0 0 rgba(160, 170, 186, 0.32);
+}
+
+.bk-tools svg {
+  color: var(--ink);
+}
+
+.bk-tools button:active {
+  background: var(--sunk);
+  color: var(--ink-3);
+}
+
+.bk-tools button:active svg {
+  color: var(--ink-2);
+}
+
+/* The one key in the bar: the thing anybody has the phone out for. */
+.bk-tools button[data-key="true"] {
+  background: var(--face);
+  color: #fff;
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+.bk-tools button[data-key="true"] svg {
+  color: #fff;
+}
+
+.bk-tools button[data-key="true"]:active {
+  background: var(--ink-brand);
+}
+
+/* A grey key for the one thing that cannot be done today, rather than a
+   key that opens a screen which then refuses. */
+.bk-tools button:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.bk-tools button:disabled svg {
+  color: rgba(107, 116, 134, 0.55);
+}
+
+.bk-tools button[data-key="true"]:disabled {
+  background: var(--sunk);
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.bk-tools button[data-key="true"]:disabled svg {
+  color: var(--ink-3);
+}
+
+/* ── Search ──────────────────────────────────────────────────────────────── */
+
+/* Where you are going, at the top of the first screen.
+   This was the airline's black, and it was the largest, darkest, most raised
+   thing on the home screen — so the eye landed on a pair of codes that are
+   already correct, and the button that actually starts the booking came
+   second. It is a field, not a poster. Paper, like the fields under it, and
+   the codes carry it on size alone. */
+.bk-masthead {
+  background: var(--page);
+  color: var(--ink);
+  border-radius: 16px;
+  padding: 18px 18px 18px;
+  box-shadow: var(--lift-sm);
+}
+
+/* What was looked for last. Rows on the page, not a card: it is a list you
+   glance past on the way to the button, and giving it a card would give it the
+   weight of the thing it sits under. */
+.bk-recent {
+  padding: 2px var(--inset) 0;
+}
+
+.bk-recent-row {
+  appearance: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 0;
+  text-align: left;
+  color: var(--ink);
+}
+
+.bk-recent-row:last-child {
+  border-bottom: 0;
+}
+
+.bk-recent-route {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--t-base);
+  font-weight: 500;
+}
+
+.bk-recent-route i {
+  font-style: normal;
+  color: var(--ink-3);
+  font-size: var(--t-cap);
+}
+
+.bk-recent-when {
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.bk-recent-go {
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+
+/* The card. Brass on the airline's black, because it is the one thing in the
+   app that belongs to the person rather than to the journey — and because a
+   loyalty tier drawn in the same grey as everything else is a loyalty tier
+   nobody feels. */
+.bk-member {
+  background: var(--face);
+  color: #f4f0e7;
+  border-radius: 16px;
+  padding: 14px 18px 16px;
+  display: grid;
+  gap: 2px;
+  box-shadow: var(--lift-dark);
+}
+
+.bk-member .bk-label {
+  color: rgba(244, 240, 231, 0.55);
+}
+
+.bk-member-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.bk-member-tier {
+  font-family: var(--font-display);
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent-fill);
+}
+
+/* Platinum is the only tier that is not brass, because it is the only one
+   that is not meant to look like the others. */
+.bk-member[data-tier="Silver"] {
+  background: linear-gradient(165deg, #5b6474 0%, #3a4252 100%);
+}
+
+.bk-member[data-tier="Silver"] .bk-member-tier {
+  color: #e6ebf2;
+}
+
+.bk-member[data-tier="Gold"] {
+  background: linear-gradient(165deg, #c9a45c 0%, #9a7a33 100%);
+  color: #221a06;
+  box-shadow: 0 1px 2px rgba(107, 82, 24, 0.35), 0 10px 26px rgba(107, 82, 24, 0.3);
+}
+
+.bk-member[data-tier="Gold"] .bk-member-tier,
+.bk-member[data-tier="Gold"] .bk-cap,
+.bk-member[data-tier="Gold"] .bk-label,
+.bk-member[data-tier="Gold"] .bk-member-foot,
+.bk-member[data-tier="Gold"] .bk-member-miles i {
+  color: rgba(34, 26, 6, 0.62);
+}
+
+.bk-member[data-tier="Platinum"] {
+  background: linear-gradient(165deg, #2a2f3a 0%, #0b0d12 100%);
+}
+
+.bk-member[data-tier="Platinum"] .bk-member-tier {
+  color: #dfe5ee;
+}
+
+.bk-member-miles {
+  font-family: var(--font-display);
+  font-size: var(--t-2xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.bk-member-miles i {
+  font-style: normal;
+  font-family: var(--font-sans);
+  font-size: var(--t-cap);
+  font-weight: 500;
+  color: rgba(244, 240, 231, 0.5);
+}
+
+.bk-member-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--t-cap);
+  color: rgba(244, 240, 231, 0.55);
+  padding-top: 4px;
+}
+
+/* The search form is the whole of the Book screen, so it is drawn as the
+   loudest thing on it. There used to be a second state here, for a home
+   screen that carried the trip you already had above the form — the trip has
+   its own tab now, and a booking screen that is half a booking screen was the
+   reason the form ever needed to step back. */
+
+.bk-route {
+  display: grid;
+  grid-template-columns: 1fr 40px 1fr;
+  align-items: center;
+  padding-top: 14px;
+}
+
+.bk-port {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.bk-port[data-side="to"] {
+  text-align: right;
+}
+
+/* A step darker than the rest of the app's secondary type, because this card
+   is no longer white: at the night end of the wash --ink-3 falls to 3.4:1,
+   and the one place the paper is tinted is the one place the type has to be
+   able to afford it. --ink-2 holds 4.7:1 against the deepest the card gets. */
+.bk-port-city {
+  display: block;
+  font-size: var(--t-cap);
+  color: var(--ink-2);
+  margin-top: 6px;
+}
+
+/* The mark at the width of the card. Squashed vertically on purpose — the
+   proportions are the mark's in x, and in y it is a band, not a logo sitting
+   in a corner. */
+.bk-skyrule {
+  display: block;
+  width: 100%;
+}
+
+.bk-swap {
+  appearance: none;
+  background: var(--sunk);
+  box-shadow: var(--key-press-sm);
+  border: 0;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.bk-swap:active {
+  box-shadow: inset 0 2px 5px rgba(14, 22, 34, 0.22);
+}
+
+.bk-masthead .bk-label {
+  color: var(--ink-2);
+}
+
+/* The airport list covers the body rather than pushing it: picking a city is
+   a detour, and a detour that moves the page loses the page. */
+/* Above the floating tabs, not under them. A sheet is a modal: while one is
+   open the three places are not reachable, and a navigation bar drawn over a
+   calendar is both wrong to look at and tappable through it. */
+.bk-sheet {
+  position: absolute;
+  inset: calc(var(--status-h) + var(--bar-h)) 0 0;
+  background: var(--page);
+  z-index: 6;
+  /* A column, not two fixed rows. The sheet had `grid-template-rows: auto 1fr`
+     and gained a third child when the picker got a search field — so the
+     field landed in the 1fr row and grew to fill whatever the list left over,
+     which on a two-result search was half the screen. */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.bk-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px var(--gutter) 8px;
+  font-weight: 600;
+}
+
+.bk-sheet-list {
+  flex: 1;
+  overflow-y: auto;
+  /* Room at the top for the first card's light: a scroller clips at its
+     own edge, and the card sat four pixels under it with a shadow that
+     reaches eleven. */
+  padding: 14px var(--gutter) 24px;
+}
+
+.bk-sheet-list::-webkit-scrollbar {
+  width: 0;
+}
+
+.bk-sheet-inner {
+  background: var(--page);
+  border-radius: 16px;
+  box-shadow: var(--lift);
+  padding: 4px 16px;
+}
+
+/* A city, the way every airline's own list writes one: a mark, the place and
+   the country under it, the code on the right where the eye can run down it.
+   The list was a 20px code in a 52px column with the city beside it, which is
+   a table of codes — and a code is the thing people look up last. */
+.bk-port-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bk-port-row:last-child {
+  border-bottom: 0;
+}
+
+.bk-port-row svg {
+  color: var(--ink-3);
+}
+
+.bk-port-row-city {
+  display: grid;
+  gap: 1px;
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  min-width: 0;
+}
+
+.bk-port-row-city i {
+  font-style: normal;
+  font-size: var(--t-cap);
+  font-weight: 400;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bk-port-row-code {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+.bk-port-row[data-on="true"] svg,
+.bk-port-row[data-on="true"] .bk-port-row-code {
+  color: var(--accent);
+}
+
+/* The field the list is searched with, pressed into the sheet. */
+.bk-find {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin: 2px var(--gutter) 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+  color: var(--ink-3);
+}
+
+.bk-find input {
+  border: 0;
+  background: none;
+  outline: none;
+  font: inherit;
+  font-size: var(--t-md);
+  color: var(--ink);
+  min-width: 0;
+}
+
+.bk-find input::placeholder {
+  color: var(--ink-3);
+}
+
+.bk-find button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Which part of the world the cities under it are in. */
+.bk-find-h {
+  padding: 14px 0 8px;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.bk-find-h:first-child {
+  padding-top: 2px;
+}
+
+/* ── The calendar ────────────────────────────────────────────────────────── */
+
+.bk-cal {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  min-height: 0;
+}
+
+.bk-cal-bar {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 var(--gutter) 12px;
+  border-radius: 16px;
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+}
+
+.bk-cal-bar .bk-thumb {
+  border-radius: 12px;
+}
+
+/* Which half is being chosen, and what the other one currently says. Two tabs
+   rather than two fields: the dates are one decision with two ends. */
+.bk-cal-tab {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  display: grid;
+  gap: 1px;
+  position: relative;
+  z-index: 1;
+  background: none;
+  box-shadow: none;
+  border-radius: 12px;
+  padding: 10px 12px 10px;
+  font: inherit;
+  color: var(--ink-2);
+}
+
+.bk-cal-tab b {
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bk-cal-tab[data-on="true"] {
+  color: var(--ink);
+}
+
+.bk-cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 var(--gutter) 6px;
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+.bk-cal-scroll {
+  overflow-y: auto;
+  padding: 0 var(--gutter) 30px;
+  min-height: 0;
+}
+
+.bk-cal-scroll::-webkit-scrollbar {
+  width: 0;
+}
+
+.bk-cal-month h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 2px 8px;
+  font-size: var(--t-cap);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  position: sticky;
+  top: 0;
+  background: var(--page);
+}
+
+/* What the month is worth, on the line that names it: four months of numbers
+   with nothing to compare them against is a table, and the question a
+   calendar is asked is which month to fly in. */
+.bk-cal-month h3 b {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: var(--t-cap);
+  color: var(--green);
+}
+
+.bk-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+/* A day is its number and what it costs. The price is the whole reason this
+   is a calendar and not a text field — nobody picks a date, they pick the
+   cheapest day they can live with. */
+.bk-cal-day {
+  appearance: none;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  display: grid;
+  gap: 0;
+  align-content: center;
+  justify-items: center;
+  min-height: 46px;
+  padding: 6px 0;
+  border-radius: 12px;
+  color: var(--ink);
+}
+
+.bk-cal-day:disabled {
+  color: var(--ink-3);
+  opacity: 0.35;
+  cursor: default;
+}
+
+.bk-cal-n {
+  font-size: var(--t-base);
+  font-variant-numeric: tabular-nums;
+}
+
+.bk-cal-p {
+  font-size: var(--t-cap);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  min-height: 13px;
+}
+
+/* The cheapest days in view. At ten pixels a colour on its own is not a
+   signal, so the cheap ones are also the only prices on the grid that are not
+   grey — weight and colour together, or the mark is decoration. */
+.bk-cal-day[data-cheap="true"] .bk-cal-p {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.bk-cal-day[data-cheap="true"] .bk-cal-n {
+  color: var(--green);
+}
+
+/* The span between the two ends, drawn as a span: square in the middle,
+   rounded at the two days a finger actually chose. */
+.bk-cal-day[data-span="true"] {
+  background: var(--accent-wash);
+  border-radius: 0;
+}
+
+.bk-cal-day[data-on="true"] {
+  background: linear-gradient(180deg, var(--accent-fill) 0%, var(--accent-fill-2) 100%);
+  color: #1c1608;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(138, 106, 40, 0.35);
+}
+
+.bk-cal-day[data-on="true"] .bk-cal-p {
+  color: rgba(28, 22, 8, 0.72);
+  font-weight: 600;
+}
+
+.bk-cal-day[data-edge="start"] {
+  border-radius: 12px 0 0 12px;
+}
+
+.bk-cal-day[data-edge="end"] {
+  border-radius: 0 12px 12px 0;
+}
+
+/* A day with nothing flying on it, and the days already gone. They stay in
+   the grid because a month with holes in it is harder to read than a month
+   with quiet days in it. */
+.bk-cal-day:disabled {
+  color: var(--ink-3);
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Today, marked the way a calendar marks it. */
+.bk-cal-day[data-today="true"] .bk-cal-n::after {
+  content: "";
+  display: block;
+  width: 3px;
+  height: 3px;
+  margin: 1px auto 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Why the whole month is grey. */
+.bk-cal-none {
+  margin: 0 var(--gutter) 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--page);
+  box-shadow: var(--key-press-sm);
+  font-size: var(--t-cap);
+  line-height: 1.5;
+  color: var(--ink-brand);
+}
+
+/* What the two colours on the grid mean, said once, at the bottom, where a
+   key belongs. */
+.bk-cal-key {
+  margin: 18px 2px 0;
+  font-size: var(--t-cap);
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* ── Segmented control ───────────────────────────────────────────────────── */
+
+/* A groove with one thumb in it — the same object as the tab bar and the
+   day's four pages. The chosen key used to raise itself and the others
+   stayed flat, which is four keys each doing their own thing; now nothing
+   on the keys changes but the ink, and the one raised thing slides. */
+.bk-seg {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+/* The thumb. One element, one rule, every groove: it is placed by the
+   chosen key's own offsets, so it needs to know nothing about the groove it
+   is in except the radius, which the groove sets. Its face is a step
+   brighter than the paper around it — a raised thing catches more light —
+   which is what keeps a chosen key from blending into its own groove. */
+.bk-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-radius: 9px;
+  background: var(--key-face);
+  box-shadow: var(--key-raise-sm);
+  transition:
+    transform 340ms cubic-bezier(0.34, 1.32, 0.5, 1),
+    width 340ms cubic-bezier(0.34, 1.32, 0.5, 1),
+    height 340ms cubic-bezier(0.34, 1.32, 0.5, 1);
+}
+
+/* The second control in a stack of two. It sits under the cabin, it is a
+   narrower decision, and it says so by being smaller rather than by being
+   another size of the same thing. */
+.bk-seg[data-tight="true"] {
+  padding: 4px;
+}
+
+.bk-seg[data-tight="true"] .bk-seg-b {
+  font-size: var(--t-sm);
+  padding: 6px 0;
+}
+
+.bk-seg-b {
+  position: relative;
+  z-index: 1;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: 9px;
+  padding: 10px 0;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--t-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+
+/* A price under a label, inside a key. Two lines in a segment is the one
+   place this control earns a second line: the choice is not "one bag or two",
+   it is "one bag at a hundred dollars or two". */
+.bk-seg-sub {
+  display: block;
+  font-size: var(--t-cap);
+  font-weight: 500;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.bk-seg-b[data-on="true"] .bk-seg-sub {
+  color: var(--accent);
+}
+
+.bk-seg-b[data-on="true"] {
+  color: var(--ink);
+}
+
+/* The one typographic event on a screen. A list of flights introduced by a
+   line of grey eight-point type is not introduced at all — it has a footnote
+   where its title should be. One of these per screen, never two. */
+.bk-head {
+  padding: 4px var(--inset) 2px;
+}
+
+/* A size down from the trip's own name. This heads a list of flights, or a
+   map of seats, and at thirty-two point it was the largest thing on a screen
+   whose subject is the list — a pair of codes the reader chose two screens
+   ago, outranking the clocks they came to compare. */
+.bk-head h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.bk-head h1 i {
+  font-style: normal;
+  font-size: var(--t-md);
+  color: var(--ink-3);
+}
+
+.bk-head p {
+  margin: 2px 0 0;
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+}
+
+/* Four answers, each with the mark of the thing it is about. A row of
+   label-over-value pairs made a passenger read four columns to find the one
+   they cared about; a chip with a bag on it is found without reading. The
+   ones the fare does not include are drawn as the absence they are, rather
+   than in the same ink as the ones it does. */
+
+/* What a fare comes with, as four answers rather than one sentence. The line
+   it replaced — "1 cabin bag, 7 kg · 1 checked bag, 23 kg · Change for a fee ·
+   Non-refundable" — was four facts joined by middots, wrapped onto two lines,
+   which is the shape prose takes when it is really a table. */
+
+/* ── Fare calendar ───────────────────────────────────────────────────────── */
+
+/* Five days and what each costs. The bars that used to stand under the prices
+   are gone: a chart needs a scale to be read against and there is no room for
+   one here, so all five were doing was drawing the same information twice at
+   a size too small to compare. The cheapest day is green and the chosen one is
+   filled, which is what every airline's strip does and all this one needs. */
+/* Five days as five keys, not five cells of a table.
+   The grid it replaced drew hairlines between the days and squared every
+   corner, so a strip whose job is "tap the cheap one" read as a spreadsheet
+   with one row. Rounded keys on the page, the chosen one filled, the cheapest
+   one green — the same two marks the rest of the app already uses. */
+/* The five days are the same control as the cabins above them: a groove,
+   one thumb. They were five raised tiles with the chosen one filled black —
+   a second black object on a screen whose black is the key at the foot, and
+   a second idea of how a choice is shown, an inch under the first. */
+.bk-dates {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+}
+
+.bk-dates .bk-thumb {
+  border-radius: 13px;
+}
+
+.bk-date {
+  position: relative;
+  z-index: 1;
+  appearance: none;
+  border: 0;
+  border-radius: 13px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 1px;
+  padding: 10px 4px 10px;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.bk-date-w {
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.bk-date-d {
+  font-family: var(--font-display);
+  font-size: var(--t-md);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.bk-date-p {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.bk-date[data-cheap="true"] .bk-date-p {
+  color: var(--green);
+}
+
+.bk-date[data-on="true"] .bk-date-d,
+.bk-date[data-on="true"] .bk-date-p {
+  color: var(--ink);
+}
+
+.bk-date:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+  background: transparent;
+  cursor: default;
+}
+
+/* ── The route line ──────────────────────────────────────────────────────── */
+
+/* Three columns: where you leave from, how long it takes, where you arrive.
+   Inside each end the order is the airline's — code, time, city — because the
+   route is what you check first and the clock is what you read second. */
+.bk-route-line {
+  display: grid;
+  grid-template-columns: auto minmax(74px, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.bk-rl-end {
+  display: grid;
+  gap: 0;
+}
+
+.bk-rl-end[data-align="end"] {
+  justify-items: end;
+  text-align: right;
+}
+
+.bk-rl-code {
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+
+.bk-rl-end b {
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+
+.bk-rl-end sup {
+  font-size: var(--t-cap);
+  font-weight: 700;
+  color: var(--red);
+  margin-left: 1px;
+  top: -0.6em;
+}
+
+/* The time it was meant to leave at, kept on the screen. */
+.bk-rl-was {
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+  text-decoration-thickness: 1px;
+}
+
+.bk-rl-city {
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+  padding-top: 1px;
+}
+
+.bk-route-line[data-late="true"] .bk-rl-end b {
+  color: #a8651a;
+}
+
+.bk-rl-mid {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding-top: 14px;
+}
+
+.bk-rl-dur {
+  font-size: var(--t-cap);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The line, with a dot at each end, an aeroplane in the middle and one dot at
+   every airport changed at. It is the only drawing in the app and it draws the
+   one thing a passenger is buying: how many times they have to get off. */
+.bk-rl-track {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 12px;
+  color: var(--ink-3);
+}
+
+/* The rule, with a hole in it where the aeroplane is.
+   The aeroplane used to carry a white square to punch that hole itself, which
+   is a white square on a card that is not white — visible on every route line
+   in the app. The gap is cut in the line instead, so the glyph has nothing
+   behind it at all. */
+.bk-rl-track::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 5.5px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    var(--rule-strong) 0 calc(50% - 10px),
+    transparent calc(50% - 10px) calc(50% + 10px),
+    var(--rule-strong) calc(50% + 10px) 100%
+  );
+}
+
+.bk-rl-track::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 3.5px;
+  height: 5px;
+  background:
+    radial-gradient(circle at left 2.5px top 2.5px, var(--ink-3) 2.5px, transparent 2.5px),
+    radial-gradient(circle at right 2.5px top 2.5px, var(--ink-3) 2.5px, transparent 2.5px);
+  background-repeat: no-repeat;
+}
+
+.bk-rl-plane {
+  position: relative;
+  z-index: 2;
+  width: 12px;
+  height: 12px;
+  transform: rotate(90deg);
+}
+
+/* The path, where the journey is the subject: a shallow arc with the
+   aeroplane at the top of it and the two dots at its feet. The flat rule and
+   the hole cut in it for the glyph are not drawn here. */
+.bk-rl-track[data-arc="true"] {
+  height: 20px;
+}
+
+.bk-rl-track[data-arc="true"]::before {
+  display: none;
+}
+
+.bk-rl-track[data-arc="true"]::after {
+  top: 14px;
+}
+
+.bk-rl-track[data-arc="true"] .bk-rl-plane {
+  width: 14px;
+  height: 14px;
+  margin-top: -9px;
+  color: var(--ink-2);
+  /* It flies in. The card settles into the screen; the aeroplane on it
+     arrives a beat later along the arc it sits on, once, and then it is a
+     drawing again. Motion that is the thing it is about, not a flourish. */
+  animation: bk-fly 460ms cubic-bezier(0.2, 0.8, 0.25, 1) 120ms both;
+}
+
+@keyframes bk-fly {
+  from {
+    opacity: 0;
+    transform: rotate(90deg) translate(-4px, 22px);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(90deg) translate(0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-rl-track[data-arc="true"] .bk-rl-plane {
+    animation: none;
+  }
+}
+
+.bk-rl-arc {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--rule-strong);
+}
+
+.bk-rl-track i {
+  position: relative;
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  margin: 0 4px;
+  border-radius: 50%;
+  /* The one drawn ring left in the app, and it is a symbol rather than a
+     border: a hollow dot is what a map puts where a line passes through
+     somewhere. It is filled with the paper it sits on, not with white. */
+  background: var(--page);
+  box-shadow: inset 0 0 0 2px var(--rule-strong);
+}
+
+.bk-rl-stops {
+  font-size: var(--t-cap);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.bk-rl-stops[data-direct="true"] {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+/* The same object, bigger, where a journey is the subject of the screen
+   rather than one row of a list. */
+.bk-route-line[data-size="lead"] .bk-rl-end b {
+  font-size: var(--t-xl);
+}
+
+.bk-route-line[data-size="lead"] .bk-rl-mid {
+  padding-top: 18px;
+}
+
+/* ── Flight list ─────────────────────────────────────────────────────────── */
+
+/* How the list is ordered, as one line. A row of tabs here would weigh as
+   much as the cabin and the day, and it is read once a trip. */
+.bk-sort {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 2px var(--inset) 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bk-sort b {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* One flight, one panel.
+   Every departure used to be a row inside a single long card, divided by
+   hairlines — which is a table, and a table makes fifteen departures one
+   object to be scanned rather than fifteen things to be chosen between. The
+   Delta list this was measured against gives each flight its own card on the
+   page, with its badges sitting on the top edge and its fare bar filled in the
+   cabin's own colour, and the whole list reads as a stack of offers because
+   that is what it is. */
+.bk-flights {
+  display: grid;
+  gap: 12px;
+}
+
+.bk-flight-item {
+  border-radius: 16px;
+  background: var(--page);
+  box-shadow: var(--lift);
+  overflow: hidden;
+}
+
+/* What is true about this flight before you have read anything about it: it is
+   the cheapest on the list, and it does or does not put you on a second
+   aeroplane. Two badges, two colours, and no third. */
+.bk-flight {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 14px var(--inset) 14px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+/* Which aeroplane, at the top of its own panel, in the size a reference
+   number is read at. */
+/* Which aeroplane, at the top of its own panel — and on the right, the only
+   thing that sets this panel apart from the one under it. It was two capsules
+   stacked above the card: a mint "NONSTOP", which the route line below
+   already draws, and an amber "LOWEST FARE", which is worth saying and is not
+   worth a chip. */
+.bk-flight-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+}
+
+.bk-flight-top b {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.bk-flight-top i {
+  font-style: normal;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+/* Ink, not brass. Brass says "yours", and a fare being the cheapest is a
+   fact about the list; the word is loud enough set in capitals on a row that
+   has nothing else in that position. */
+.bk-flight-top em {
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+/* The absence of news, said quietly. */
+/* On time is a state, so it is drawn as one: a pressed capsule with the
+   green in it rather than a green word. Twelve pixels of coloured type on a
+   grey card is a colour nobody sees. */
+/* A status lamp.
+   These were tinted pills with a hairline ring — mint for on time, peach for
+   late — which is the one shape every generated interface reaches for, and
+   the only thing on the card drawn in a flat wash on a surface where
+   everything else is moulded. A status is read, not pressed, so it is a
+   capsule sunk into the paper like the fact tiles, and the colour is not a
+   fill but a small lit bead at the front of it: the indicator light an
+   aeroplane cabin is full of, and the same bead the boarding pass already
+   uses for the same fact. */
+.bk-flag,
+.bk-ontime {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px 4px 9px;
+  border-radius: 999px;
+  background: var(--page);
+  box-shadow: var(--key-press-sm);
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.bk-flag {
+  justify-self: start;
+}
+
+/* The bead: a sphere the size of a full stop, lit from above, with a faint
+   halo of its own colour on the paper around it. */
+.bk-flag::before,
+.bk-ontime::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lamp);
+  box-shadow:
+    inset 0 -1.5px 1.5px rgba(0, 0, 0, 0.28),
+    inset 0 1px 1px rgba(255, 255, 255, 0.55),
+    0 0 0 2.5px var(--lamp-halo),
+    0 1px 2px rgba(17, 21, 29, 0.25);
+}
+
+.bk-ontime,
+.bk-flag[data-kind="onTime"] {
+  --lamp: var(--green);
+  --lamp-halo: rgba(26, 115, 71, 0.14);
+}
+
+/* Late and cancelled keep their colour on the words as well: those are the
+   two the eye has to catch from across a room. */
+.bk-flag[data-kind="delayed"] {
+  --lamp: #c47f1c;
+  --lamp-halo: rgba(196, 127, 28, 0.16);
+  color: #8a5a17;
+}
+
+.bk-flag[data-kind="cancelled"] {
+  --lamp: var(--red);
+  --lamp-halo: rgba(178, 58, 48, 0.16);
+  color: #7d2a22;
+}
+
+/* What a card gets you, as statements rather than as a cluster of capsules. */
+.bk-perks {
+  display: grid;
+  gap: 4px;
+}
+
+/* Scarcity, and only when it is real: the seat count comes from the same
+   inventory the price is derived from. */
+.bk-scarce {
+  margin: 0;
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--red);
+  text-align: right;
+}
+
+/* The fare bar: the cabin, what it costs to get into it, and the fact that
+   there is more underneath. Filled, because it is the one thing on the panel
+   that is being sold. */
+.bk-farebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  font: inherit;
+  text-align: left;
+  color: #f6f2ea;
+  background: linear-gradient(100deg, var(--ink-brand) 0%, #33405a 100%);
+  cursor: pointer;
+}
+
+/* Four cabins, four materials, front to back: the airline's own black for
+   First, brass for Business, verdigris for Premium, and slate for Economy.
+   Economy had the black — and then First arrived and there was nothing left
+   that outranked it. */
+.bk-farebar[data-cabin="economy"] {
+  background: linear-gradient(100deg, #4a5468 0%, #6b7588 100%);
+}
+
+.bk-farebar[data-cabin="premium"] {
+  background: linear-gradient(100deg, #0f3e41 0%, var(--cool) 100%);
+}
+
+.bk-farebar[data-cabin="business"] {
+  background: linear-gradient(100deg, #6b5216 0%, var(--accent-fill-2) 100%);
+}
+
+.bk-farebar[data-cabin="first"] {
+  background: var(--face);
+}
+
+/* An aeroplane that does not carry the cabin says so on the bar, in the
+   bar's own colour gone quiet. */
+.bk-farebar[data-absent="true"] {
+  background: var(--sunk);
+  color: var(--ink-3);
+  box-shadow: var(--key-press-sm);
+  cursor: default;
+}
+
+.bk-farebar-k {
+  display: grid;
+  gap: 1px;
+}
+
+.bk-farebar-k b {
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.bk-farebar-k i {
+  font-style: normal;
+  font-size: var(--t-cap);
+  color: rgba(246, 242, 234, 0.72);
+}
+
+.bk-farebar-p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+}
+
+.bk-farebar .bk-chev {
+  border-color: rgba(246, 242, 234, 0.85);
+}
+
+/* The mark that says a panel has an inside. Two borders and a rotation,
+   because a chevron is a shape and not an image. */
+.bk-chev {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--ink-3);
+  border-bottom: 1.5px solid var(--ink-3);
+  margin-top: -4px;
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+
+.bk-chev[data-open="true"] {
+  margin-top: 4px;
+  transform: rotate(-135deg);
+}
+
+/* What the cabin sells on this aeroplane, as cards you move through one at a
+   time. Three fares side by side at 358 pixels is three columns of nine-point
+   type; one card at a time with the next one showing at the edge is how every
+   airline app that sells three fares on a phone does it. */
+.bk-deal {
+  background: var(--sunk);
+  padding: 12px 0 10px;
+}
+
+.bk-flight-meta {
+  display: flex;
+  align-items: start;
+  gap: 18px;
+  margin: 0 0 14px;
+  padding: 2px var(--inset) 0;
+}
+
+/* The three figures take the width their values need rather than a third
+   each: "82%" and "488 kg" are short and "Breakfast and dinner" is not, and
+   a row of equal columns just means the long one spills over the next. */
+.bk-flight-meta span {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.bk-flight-meta span:has(b[data-word="true"]) {
+  flex: 1;
+}
+
+.bk-flight-meta i {
+  font-style: normal;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* The one figure in the row that is a word rather than a number takes the
+   proportional face — but not a smaller size. On time, Service and Carbon
+   are three readings of the same kind, and setting one of them a size down
+   because its value happens to be spelled says it counts for less. */
+.bk-flight-meta b[data-word="true"] {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.bk-flight-meta b {
+  font-family: var(--font-mono);
+  font-size: var(--t-base);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  line-height: 1.15;
+}
+
+.bk-flight-meta span[data-kind="good"] b {
+  color: var(--green);
+}
+
+.bk-rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  /* Room for the cards' shadow inside the scroll box; see .bk-board-rail. */
+  padding: 12px var(--inset);
+  margin: -12px 0;
+  scrollbar-width: none;
+}
+
+.bk-rail::-webkit-scrollbar {
+  display: none;
+}
+
+/* One fare on offer is not a carousel: the card takes the width it has. */
+.bk-rail[data-single="true"] .bk-fare {
+  flex: 1 1 auto;
+}
+
+.bk-fare {
+  flex: 0 0 262px;
+  scroll-snap-align: center;
+  display: grid;
+  align-content: start;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--page);
+  box-shadow: var(--lift-sm);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+}
+
+/* The brand, on a band of its own, which is how a fare family is sold: three
+   cards that are three products rather than three paragraphs of the same
+   colour. The ladder is one hue getting warmer as the fare buys more — a
+   grey for the one with nothing in it, the airline's black for the ordinary
+   one, brass for the one that can be moved. */
+.bk-fare-brand {
+  padding: 10px 16px 10px;
+  font-family: var(--font-display);
+  font-size: var(--t-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #f6f2ea;
+  background: linear-gradient(180deg, #6f7889 0%, #5b6474 100%);
+}
+
+/* Each fare wears its cabin's metal, a step apart: the ordinary fare is the
+   metal as it is, the one that can be moved is the same metal caught in more
+   light. The cards were black-and-brass whatever cabin they sat under, so a
+   Premium bar in verdigris opened onto two cards that looked like they had
+   been borrowed from Business. */
+.bk-fare[data-rank="standard"] .bk-fare-brand {
+  background: linear-gradient(180deg, #5b6474 0%, #4a5468 100%);
+}
+
+.bk-fare[data-rank="flex"] .bk-fare-brand {
+  background: linear-gradient(180deg, #7b8598 0%, #66708a 100%);
+}
+
+.bk-rail[data-cabin="premium"] .bk-fare[data-rank="standard"] .bk-fare-brand {
+  background: linear-gradient(180deg, #1d5f63 0%, #154b4e 100%);
+}
+
+.bk-rail[data-cabin="premium"] .bk-fare[data-rank="flex"] .bk-fare-brand {
+  background: linear-gradient(180deg, #2f7f83 0%, #1d5f63 100%);
+}
+
+.bk-rail[data-cabin="business"] .bk-fare[data-rank="standard"] .bk-fare-brand {
+  background: linear-gradient(180deg, #8a6a28 0%, #6b5216 100%);
+}
+
+.bk-rail[data-cabin="business"] .bk-fare[data-rank="flex"] .bk-fare-brand {
+  background: linear-gradient(180deg, var(--accent-fill) 0%, var(--accent-fill-2) 100%);
+  color: #241b06;
+}
+
+.bk-rail[data-cabin="first"] .bk-fare[data-rank="flex"] .bk-fare-brand {
+  background: var(--face);
+}
+
+/* What it costs, under the brand it buys. */
+.bk-fare-h {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px 14px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.bk-fare-p {
+  font-family: var(--font-display);
+  font-size: var(--t-2xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.bk-fare-h i {
+  font-style: normal;
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+}
+
+.bk-fare-terms {
+  display: grid;
+  gap: 2px;
+  padding: 12px 16px 4px;
+}
+
+/* Included or not, said by a mark rather than by the absence of a line. A
+   fare list that only prints what you get makes a passenger work out what is
+   missing by comparing three cards word by word. */
+.bk-fare-l {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: start;
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.bk-fare-l svg {
+  margin-top: 4px;
+  color: #c0555c;
+}
+
+.bk-fare-l[data-state="yes"] {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.bk-fare-l[data-state="yes"] svg {
+  color: var(--green);
+}
+
+/* Not a tick and not a cross: it can be done, and it costs money. */
+.bk-fare-l[data-state="fee"] {
+  color: var(--ink-2);
+}
+
+.bk-fare-l[data-state="fee"] svg {
+  color: var(--accent-fill-2);
+}
+
+/* What the fare is worth to the card, as two facts rather than one line with
+   a middot holding them together. */
+.bk-fare-earn {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 10px 16px 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+}
+
+.bk-fare-sel {
+  margin: 14px 16px 16px;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px;
+  font: inherit;
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--go-ink);
+  background: var(--go);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    0 1px 2px rgba(107, 82, 24, 0.35),
+    0 5px 12px rgba(107, 82, 24, 0.22);
+  cursor: pointer;
+}
+
+.bk-fare-sel:active {
+  box-shadow: inset 0 2px 6px rgba(74, 56, 16, 0.45);
+  transform: translateY(1px);
+}
+
+/* Five short answers on a baseline, each under its own word. This replaced a
+   line of middot-joined prose that had to be read from the left to find any
+   one of them. */
+/* Five short answers, each under its own word. This replaced a line of
+   middot-joined prose that had to be read from the left to find any one of
+   them. It wraps rather than clips: a connection carries two flight numbers
+   and two aircraft types, and five fixed columns across 326 pixels cannot
+   hold them — the first attempt cut "11" in half at the card's edge. */
+
+/* The bit of a connection a passenger is actually weighing. */
+/* What the clock does between the two ends. */
+.bk-leg-clock {
+  margin: 8px 0 0;
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+}
+
+/* The bit of a connection a passenger is actually weighing, on the line
+   rather than in a capsule: the route line above already says "via LHR", and
+   this says how long you are on the ground for it. */
+.bk-flight-stop {
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+  justify-self: start;
+}
+
+.bk-flight-stop b {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* A flight that is not going. It stays on the list, because a departure
+   vanishing is how a passenger loses track of what happened to it. */
+.bk-flight[data-off="true"] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.bk-flight[data-off="true"] .bk-rl-end b,
+.bk-flight[data-off="true"] .bk-farebar-p {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  color: var(--ink-3);
+}
+
+/* What the airline is saying about a particular aeroplane today.
+   Named `bk-flag` and not `bk-status`: the status bar at the top of the phone
+   already had that class, this rule came later in the file, and for a while
+   the clock and the battery were being laid out as a delay chip. */
+
+.bk-empty {
+  padding: 30px 16px;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* ── The trip ────────────────────────────────────────────────────────────── */
+
+/* The date and the status, on one line above the place. */
+.bk-trip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* The reference, on its own tinted row, at the size it is read out loud. */
+.bk-pnr {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0 10px;
+  padding: 10px 14px 12px;
+  border-radius: 12px;
+  background: var(--sunk);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.bk-pnr b {
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+/* Where you are going, in words. The title of a trip is a place, not a pair
+   of three-letter codes — the codes are on the route line underneath. */
+.bk-trip-title {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.bk-trip-why {
+  margin: 6px 0 0;
+  font-size: var(--t-cap);
+  color: #8a5a17;
+  line-height: 1.45;
+}
+
+.bk-card .bk-route-line {
+  padding-top: 14px;
+}
+
+/* The trip's own name, above the flights it is made of.
+   It is the biggest thing on the screen and it is not in a card, because it
+   is not one more item in the list — it is what the list is of. */
+.bk-tripmast {
+  padding: 8px 4px 0;
+}
+
+.bk-tripmast-t {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-2xl);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+/* The arrow carries the shape of the trip — one way, or out and back — and it
+   is the only thing on the line that is not a place, so it is drawn as
+   punctuation rather than as a word. */
+.bk-tripmast-t i {
+  font-style: normal;
+  font-size: var(--t-lg);
+  color: var(--ink-3);
+}
+
+.bk-tripmast-d {
+  margin: 7px 0 0;
+  font-size: var(--t-base);
+  color: var(--ink-2);
+}
+
+.bk-tripmast .bk-pnr {
+  margin: 14px 0 0;
+}
+
+/* The pass, as the slot it comes out of.
+   It was a black button the width of the card, which put the one document in
+   the app in the same clothes as "Pay" and "Check in" — a thing you submit
+   rather than a thing you hold. It is the card's own foot now: full bleed,
+   the airline's black, with the card's bottom corners. */
+.bk-passkey {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 11px;
+  width: calc(100% + var(--inset) * 2);
+  margin: 14px calc(var(--inset) * -1) calc(var(--inset) * -1);
+  padding: 16px var(--inset);
+  border: 0;
+  border-radius: 0 0 18px 18px;
+  background: var(--face);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  color: #f4f0e7;
+  font: inherit;
+  font-size: var(--t-md);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bk-passkey svg {
+  color: rgba(244, 240, 231, 0.55);
+}
+
+.bk-passkey:active {
+  filter: brightness(1.3);
+}
+
+/* ── Legs ────────────────────────────────────────────────────────────────── */
+
+/* One journey inside a list of them.
+   The rail down the side is gone. It carried one bit — out or back — that the
+   words "Departing" and "Returning" two centimetres above it already carried,
+   and a coloured bar whose only job is to repeat a word is the definition of
+   decoration. What separates them now is a rule and the space around them,
+   which is what separates paragraphs. */
+.bk-leg {
+  padding: 14px 0 14px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.bk-leg:last-of-type {
+  border-bottom: 0;
+}
+
+.bk-leg-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-bottom: 8px;
+}
+
+/* Each aeroplane of the journey, four columns wide, every line aligned on the
+   same four places so the eye can run down one of them. It replaced
+   "CDG → LHR · STR 897 · A320 · seat" with the seat number stranded on the
+   far right — five facts in a sentence and one of them somewhere else. */
+.bk-leg-meta {
+  display: grid;
+  /* Three things without a hop number, four with one. It was two columns for
+     three children, so the seat — the last of them — wrapped onto a row of
+     its own under the flight number. */
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  font-size: var(--t-cap);
+  color: var(--ink-2);
+  padding-top: 8px;
+}
+
+.bk-leg-meta[data-numbered="true"] {
+  grid-template-columns: 16px auto 1fr auto;
+}
+
+.bk-leg-meta:first-of-type {
+  padding-top: 10px;
+  border-top: 1px dashed var(--rule);
+  margin-top: 10px;
+}
+
+.bk-leg-hop {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--sunk);
+  color: var(--ink-2);
+  font-size: var(--t-cap);
+  font-weight: 700;
+}
+
+.bk-leg-seg {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.bk-leg-plane {
+  color: var(--ink-3);
+  font-size: var(--t-cap);
+  white-space: nowrap;
+}
+
+.bk-leg-seat {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The time on the ground, on its own line under the flight it follows, with
+   no leading middot dangling off the front of it. */
+.bk-leg-wait {
+  margin: 6px 0 0 24px;
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+  justify-self: start;
+}
+
+/* Between two fact strips rather than under one: the time on the ground
+   belongs to the gap, so it is drawn in it. */
+.bk-facts + .bk-leg-wait {
+  margin: 8px 0 0;
+  text-align: center;
+  justify-self: stretch;
+}
+
+.bk-leg-wait b {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* What has already been chosen, kept at the top while the other half is
+   chosen. Trip.com's idea and the right one: without it the second list is a
+   list of flights from a city you never said you were in. */
+.bk-leg-pin {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 4px 12px;
+  background: var(--face);
+  color: #f4f0e7;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(17, 21, 29, 0.3), 0 8px 20px rgba(17, 21, 29, 0.2);
+}
+
+.bk-leg-pin .bk-label {
+  color: rgba(244, 240, 231, 0.55);
+}
+
+.bk-leg-pin-v {
+  font-size: var(--t-sm);
+  color: rgba(244, 240, 231, 0.78);
+}
+
+.bk-leg-pin-v b {
+  color: #f4f0e7;
+  font-weight: 600;
+}
+
+/* The price sits beside the label, and the flight runs the full width under
+   both. Spanning the price down two rows squeezed a two-word label into two
+   lines to make room for it. */
+.bk-leg-pin-p {
+  font-size: var(--t-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.bk-leg-pin-v {
+  grid-column: 1 / -1;
+}
+
+/* On the way back the list quotes differences, not fares: by then a trip
+   total is being built, and the total is on the bar at the bottom. */
+
+/* ── Seat map ────────────────────────────────────────────────────────────── */
+
+/* A key, on the page rather than in a card of its own: four swatches are not
+   the equal of the aeroplane they are a key to. */
+.bk-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 0 var(--inset);
+}
+
+.bk-legend-i {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-cap);
+  color: var(--ink-2);
+}
+
+.bk-legend-i b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.bk-chip {
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  flex: none;
+}
+
+/* Each swatch is the seat it stands for, drawn the same way — so when the
+   seats stopped wearing rings, these did too. */
+.bk-chip[data-kind="standard"],
+.bk-chip[data-kind="suite"] {
+  background: var(--key);
+  box-shadow: var(--lift-sm);
+}
+
+.bk-chip[data-kind="forward"] {
+  background: var(--accent-wash);
+  box-shadow: var(--key-raise-sm);
+}
+
+.bk-chip[data-kind="first"] {
+  background: var(--accent-wash);
+  box-shadow: var(--key-raise-sm);
+}
+
+.bk-chip[data-kind="legroom"],
+.bk-chip[data-kind="premium"] {
+  background: var(--cool-wash);
+  box-shadow: var(--key-raise-sm);
+}
+
+.bk-chip[data-kind="taken"] {
+  background: var(--seat-taken);
+  box-shadow: inset 0 2px 4px rgba(14, 22, 34, 0.22);
+}
+
+/* The hull: two walls with light on their inner edge, closed at both ends.
+   The wall is 3px because at 1px it is a table border, and the whole point of
+   it is that the rows are inside something. */
+.bk-hull {
+  position: relative;
+  padding: 0 16px;
+}
+
+.bk-hull::before,
+.bk-hull::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--rule-strong) 0%,
+    var(--rule) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+.bk-hull::before {
+  left: 2px;
+}
+
+.bk-hull::after {
+  right: 2px;
+  transform: scaleX(-1);
+}
+
+/* Where the cabin ends and the aeroplane carries on: a galley, lavatories,
+   and the rows this map does not show. Naming them is the cheapest way to say
+   that row 20 is not the front of the aircraft. */
+.bk-service {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  font-size: var(--t-cap);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+/* The galleys and the lavatories, drawn across the blocks they sit behind.
+   They are the reason two window seats eleven rows apart are not the same
+   seat: one of them is beside a door that opens all night. */
+.bk-band {
+  display: grid;
+  align-items: stretch;
+  padding: 4px 0 4px;
+}
+
+.bk-band-b {
+  display: grid;
+  place-items: center;
+  height: 22px;
+  border-radius: 7px;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--sunk);
+}
+
+/* A galley is a wall of metal boxes, and it is drawn as one. */
+.bk-band-b[data-kind="galley"] {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--sunk) 0 5px,
+    #dbe0e9 5px 10px
+  );
+}
+
+.bk-service-line {
+  flex: 1;
+  height: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--rule-strong) 0 4px,
+    transparent 4px 9px
+  );
+}
+
+.bk-deck {
+  display: grid;
+  gap: 6px;
+}
+
+/* A door, on both walls, at the row it belongs to. It is a mark on the hull
+   rather than a word: at this size the word EXIT set vertically in a sixteen
+   pixel margin is a blue smudge, and a door drawn where a door is reads
+   without being read. */
+.bk-deck-row[data-exit="true"]::before,
+.bk-deck-row[data-exit="true"]::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 5px;
+  border-radius: 3px;
+  background: var(--cool);
+}
+
+.bk-deck-row[data-exit="true"]::before {
+  left: -15px;
+}
+
+.bk-deck-row[data-exit="true"]::after {
+  right: -15px;
+}
+
+/* Under the floor from here to there. Drawn as ground rather than as a
+   highlight — it is the absence of a window, not a feature — but drawn
+   strongly enough to be seen, which the first attempt at it was not. */
+.bk-deck-row[data-wing="true"] {
+  background: rgba(14, 22, 34, 0.062);
+}
+
+/* Said once, where it starts. A passenger who wants a window cares about this
+   more than about anything else on the map. */
+.bk-deck-row[data-wing-start="true"] {
+  border-radius: 9px 9px 0 0;
+  margin-top: 16px;
+}
+
+/* Once, over the centre of the row, and only where the row is not already
+   carrying a pair of doors. Hung off the row rather than off an aisle: a
+   wide-body has two aisles and the label was appearing over both of them. */
+.bk-deck-row[data-wing-start="true"]:not([data-exit="true"])::after {
+  content: "WING";
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  background: none;
+  border-radius: 0;
+  font-size: var(--t-cap);
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+}
+
+/* A business deck has floor between its rows, and drawing it at economy pitch
+   is drawing the wrong aeroplane. */
+.bk-deck[data-suite="true"] {
+  gap: 12px;
+}
+
+.bk-deck-row {
+  position: relative;
+  display: grid;
+  justify-content: center;
+  align-items: center;
+}
+
+/* The row number lives in the aisle, which is where it is painted on a real
+   aeroplane and the only place it does not steal width from a seat. */
+.bk-aisle {
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A seat is the one thing here that is unarguably a moulded key, so it is what
+   the material was written for: free seats stand proud of the page, a taken
+   seat is pressed flush into it, and the seat that is yours is solid blue. */
+.bk-seat {
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  background: var(--page);
+  box-shadow: var(--key-raise-sm);
+  color: transparent;
+  font: inherit;
+  font-size: var(--t-cap);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  transition: box-shadow 90ms ease;
+}
+
+.bk-seat:active:not(:disabled) {
+  box-shadow: var(--key-press-sm);
+}
+
+/* Taken is a seat pushed into the page: there is nothing left to press, and
+   that reads before any label does. The first pass drew a cross in it, and at
+   thirty pixels a cross is a smudge. */
+.bk-seat[data-taken="true"] {
+  background: var(--seat-taken);
+  box-shadow: var(--key-press-sm);
+  color: transparent;
+  cursor: default;
+}
+
+/* The front of the cabin costs more than the middle of it and used to look
+   identical to it — a map that charges two prices for one drawing. It is a
+   wash now rather than the hairline ring it had: the ring was there to stay
+   clear of the solid fill that means "yours", and a wash at a twentieth of
+   that fill's weight is nowhere near it. Depth still carries the only other
+   question a seat answers — proud is free, pressed is gone. */
+.bk-seat[data-zone="forward"]:not([data-taken="true"]):not([data-mine="true"]):not([data-party="true"]) {
+  background: var(--accent-wash);
+  box-shadow: var(--key-raise-sm);
+}
+
+.bk-seat[data-zone="first"]:not([data-taken="true"]):not([data-mine="true"]):not([data-party="true"]) {
+  background: var(--accent-wash);
+  box-shadow: var(--key-raise-sm);
+}
+
+.bk-seat[data-zone="legroom"]:not([data-taken="true"]):not([data-mine="true"]):not([data-party="true"]),
+.bk-seat[data-zone="premium"]:not([data-taken="true"]):not([data-mine="true"]):not([data-party="true"]) {
+  background: var(--cool-wash);
+  box-shadow: var(--key-raise-sm);
+}
+
+.bk-seat[data-mine="true"] {
+  /* Brass, and its shadow is brass. It was throwing a blue one, left behind
+     from a palette this app stopped using two rewrites ago. */
+  background: var(--accent-fill-2);
+  box-shadow: 2px 2px 6px rgba(120, 93, 30, 0.45),
+    -2px -2px 4px rgba(255, 255, 255, 0.55);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Who a screen is talking about. One chip per traveller, each carrying the
+   seat it has — the strip is the only place a party of three can see at a
+   glance that they are not sitting together. */
+/* The travellers, or the two aeroplanes of a change: a groove that scrolls
+   when there are more of them than fit, with the thumb on whoever is being
+   chosen for. */
+.bk-pax {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 5px;
+  border-radius: 15px;
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+  scrollbar-width: none;
+}
+
+.bk-pax .bk-thumb {
+  border-radius: 11px;
+}
+
+.bk-pax::-webkit-scrollbar {
+  height: 0;
+}
+
+.bk-pax-b {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--ink);
+  flex: 1 1 0;
+  min-width: 82px;
+  display: grid;
+  gap: 1px;
+  justify-items: start;
+  position: relative;
+  z-index: 1;
+  background: none;
+  box-shadow: none;
+  border-radius: 11px;
+  padding: 8px 12px 8px;
+  font: inherit;
+  text-align: left;
+}
+
+.bk-pax-b b {
+  font-size: var(--t-base);
+  font-weight: 600;
+}
+
+/* The one being chosen for stands up; the rest stay in the page. It was a
+   two-pixel brass ring, which is the same ring the calendar and the seat map
+   were each drawing in their own width. */
+.bk-pax-b[data-on="true"] {
+  color: var(--ink);
+}
+
+/* Somebody else on this booking has it. Not yours, not free, not taken by a
+   stranger — the one state a seat map with a party on it needs and a seat map
+   with one passenger never did. */
+.bk-seat[data-party="true"]:not([data-taken="true"]) {
+  /* Pressed, because it is occupied — the same thing depth says about a seat
+     a stranger has — and brass, because the person in it is one of yours. It
+     is the only pressed seat that keeps its number. */
+  background: var(--accent-wash);
+  box-shadow: var(--key-press-sm);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* The column letters, once, above the aeroplane. They used to be printed
+   inside every seat of every row, which is forty rows of the same nine
+   letters and the reason a seat number was hard to find. */
+/* A clipping ancestor breaks `position: sticky`, and the flush card has one.
+   The header rounds its own top corners instead, so the card can stop
+   clipping and the letters can stay with the deck they label. */
+.bk-card[data-sticky="true"] {
+  overflow: visible;
+}
+
+.bk-cols {
+  border-radius: 16px 16px 0 0;
+  display: grid;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 16px 8px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--page);
+  box-shadow: inset 0 -1px 0 rgba(160, 170, 186, 0.34), 0 1px 0 rgba(255, 255, 255, 0.85);
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* What the seat under your finger is. It sits above the action bar, where a
+   thumb already is, and it carries the one figure the map would not say. */
+.bk-seatcard {
+  background: var(--page);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(14, 22, 34, 0.08), 0 -2px 24px rgba(14, 22, 34, 0.1);
+  margin: 0 var(--gutter) 8px;
+  padding: 12px 14px 12px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  align-items: center;
+}
+
+.bk-seatcard-no {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  min-width: 56px;
+  padding: 8px 8px 10px;
+  border-radius: 12px;
+  background: var(--sunk);
+  color: var(--ink);
+}
+
+/* A seat that costs more is brass, and a seat with the legroom is the sky
+   view's blue — but as washes, not fills. Solid brass on this screen is the
+   key at the bottom, and a seat number is a label, not the next thing to do. */
+.bk-seatcard[data-zone="legroom"] .bk-seatcard-no {
+  background: var(--cool-wash);
+  color: var(--cool);
+}
+
+.bk-seatcard[data-paid="true"] .bk-seatcard-no {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.bk-seatcard-no b {
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.bk-seatcard-facts {
+  display: flex;
+  gap: 0 16px;
+  margin: 0;
+}
+
+.bk-seatcard-facts div {
+  display: grid;
+  gap: 0;
+}
+
+.bk-seatcard-facts dt {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.bk-seatcard-facts dd {
+  margin: 0;
+  font-size: var(--t-cap);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.bk-seatcard-note {
+  font-size: var(--t-cap);
+  color: var(--ink-3);
+  line-height: 1.35;
+}
+
+/* What is fitted to the seat, as a row of short facts. */
+.bk-seatcard-fit {
+  display: flex;
+  gap: 10px;
+  padding-top: 6px;
+  font-size: var(--t-cap);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.bk-seatcard-fit span + span::before {
+  content: "·";
+  padding-right: 10px;
+  color: var(--ink-3);
+}
+
+/* ── Fields ──────────────────────────────────────────────────────────────── */
+
+/* A field is a slot cut into the card, not a box drawn on it — which is the
+   one place this material and a text input agree completely. */
+.bk-field {
+  display: grid;
+  gap: 2px;
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+  border-radius: 12px;
+  padding: 8px 14px 10px;
+}
+
+.bk-field-k {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+.bk-field input,
+.bk-field select {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-md);
+  width: 100%;
+  outline: none;
+}
+
+/* A field that opens something instead of taking typing. Same slot, so the
+   form reads as one row of the same material. */
+.bk-field[data-press="true"] {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+}
+
+.bk-field-v {
+  font-size: var(--t-md);
+  color: var(--ink);
+}
+
+.bk-field-v i {
+  font-style: normal;
+  color: var(--ink-3);
+}
+
+.bk-field input::placeholder {
+  color: var(--ink-3);
+}
+
+.bk-field[data-mono="true"] input {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.bk-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.bk-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* ── Choices: a payment method, an answer at check-in ────────────────────── */
+
+/* Two answers stacked, one groove, the thumb sliding down and up. */
+.bk-choice {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--sunk);
+  box-shadow: var(--key-press);
+}
+
+.bk-choice .bk-thumb {
+  border-radius: 12px;
+}
+
+.bk-choice-b {
+  appearance: none;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  /* Pressed in when it is not the choice, lifted when it is: the one pair
+     of states every key on this glass has. It was a hairline ring for the
+     unchosen ones, which is a line drawn nowhere else here — and a shadow
+     that went from inset to outset was "transitioned", which it cannot be,
+     so the swap arrived as a flicker. */
+  position: relative;
+  z-index: 1;
+  background: none;
+  box-shadow: none;
+  border: 0;
+  border-radius: 12px;
+  padding: 14px 14px;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--t-base);
+  cursor: pointer;
+}
+
+.bk-choice-b[data-on="true"] {
+  color: var(--ink);
+}
+
+.bk-brand {
+  font-family: var(--font-mono);
+  font-size: var(--t-cap);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  background: var(--sunk);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+/* A checkbox that looks like the switch it is. */
+.bk-check {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 4px 0 0;
+  font: inherit;
+  font-size: var(--t-cap);
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.45;
+}
+
+.bk-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  /* A small well, the way every other empty slot on this glass is drawn. A
+     two-pixel outlined square is the one control here that looked like a form
+     on a website. */
+  background: var(--page);
+  box-shadow: var(--key-press-sm);
+  display: grid;
+  place-items: center;
+  color: transparent;
+  font-size: var(--t-sm);
+  font-weight: 700;
+}
+
+.bk-check[data-on="true"] .bk-box {
+  background: var(--accent-fill-2);
+  box-shadow: none;
+  color: #fff;
+}
+
+/* ── The pass ────────────────────────────────────────────────────────────── */
+
+/* One object, in the airline's own black, with the code inset on white.
+   It used to be a navy band on a white card — a card with a header, not a
+   pass. Delta's, Emirates' and Qantas' are each a single coloured thing with
+   the code set into it, and the reason is not taste: a pass is held up, and
+   a thing you hold up has one surface. */
+.bk-pass {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 16px var(--inset) 14px;
+  background: var(--face);
+  color: #f4f0e7;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), var(--lift-dark);
+  animation: bk-pass-in 460ms cubic-bezier(0.2, 0.9, 0.22, 1) both;
+}
+
+.bk-pass > * {
+  position: relative;
+}
+
+.bk-pass-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bk-pass-mark {
+  color: rgba(244, 240, 231, 0.75);
+}
+
+.bk-pass-no {
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+
+.bk-pass-no b {
+  font-size: var(--t-base);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.bk-pass-no i {
+  font-style: normal;
+  font-size: var(--t-cap);
+  color: rgba(244, 240, 231, 0.55);
+}
+
+/* Where you are going, at the size a pass says it. */
+.bk-pass-ports {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0 0;
+}
+
+.bk-pass-port {
+  display: grid;
+  gap: 2px;
+}
+
+.bk-pass-port b {
+  font-family: var(--font-display);
+  font-size: var(--t-2xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.bk-pass-port i {
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: var(--t-cap);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: rgba(244, 240, 231, 0.55);
+}
+
+.bk-pass-port[data-align="end"] {
+  text-align: right;
+}
+
+.bk-pass-line {
+  display: block;
+  margin-bottom: 14px;
+}
+
+/* Between two codes there is no room for a logo, so the band is laid down
+   flat: the same three layers, at half the height. The height itself comes
+   off the drawing, not off a rule here — a stylesheet that shortens an SVG
+   its author sized in real pixels only clips it. */
+
+.bk-pass-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  font-size: var(--t-cap);
+  color: rgba(244, 240, 231, 0.72);
+}
+
+.bk-pass-cabin {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* The four a gate reads, across the pass in the order it reads them. */
+.bk-pass-facts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(244, 240, 231, 0.16);
+}
+
+.bk-pass-facts dt,
+.bk-pass-foot dt {
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(244, 240, 231, 0.5);
+}
+
+.bk-pass-facts dd {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-lg);
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.bk-pass-facts dd[data-brass="true"] {
+  color: var(--accent-fill);
+}
+
+.bk-pass-facts dd[data-changed="true"] {
+  color: #f0a94a;
+}
+
+/* Paper-white behind the code, because that is what a reader wants and what
+   every airline settled on for the same reason. */
+.bk-plate {
+  margin: 14px 0 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  animation: bk-pass-in 460ms cubic-bezier(0.2, 0.9, 0.22, 1) 90ms both;
+}
+
+.bk-plate svg {
+  display: block;
+  width: 216px;
+  height: 216px;
+  shape-rendering: crispEdges;
+}
+
+.bk-pass-foot {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(244, 240, 231, 0.16);
+}
+
+.bk-pass-foot dd {
+  margin: 2px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-cap);
+  color: rgba(244, 240, 231, 0.82);
+}
+
+.bk-pass-foot div[data-wide="true"] {
+  grid-column: 1 / -1;
+}
+
+.bk-pass-foot div[data-wide="true"] dd {
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+}
+
+/* ── Booked and the pass ─────────────────────────────────────────────────── */
+
+.bk-plate svg {
+  display: block;
+  width: 216px;
+  height: 216px;
+  shape-rendering: crispEdges;
+}
+
+/* The three a gate asks for, as boxes rather than as four columns of equal
+   figures. A pass where the seat, the gate and the group are the same size as
+   the check-in sequence number makes a person read all seven to find three. */
+/* Brass, because the group is what the fare bought — the same colour it was
+   quoted in on the fare card two screens ago. */
+/* The cabin, beside the name, where a printed pass has it. */
+/* ── The shape of the flight ─────────────────────────────────────────────── */
+
+.bk-arc-line {
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.bk-arc-end {
+  fill: currentColor;
+}
+
+/* On the pass it is a watermark: the band's own brass, faint enough to be
+   noticed second and never read instead of the ports. */
+/* At check-in it draws itself, and the aeroplane is the head of the line. */
+.bk-issue-arc {
+  width: 100%;
+  height: 120px;
+  /* A pass being issued is something happening, not something owned. */
+  color: var(--green);
+}
+
+.bk-issue-arc .bk-arc-line {
+  stroke-width: 2;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  /* Path length is unknown here, so the dash is expressed in the path's own
+     units by way of pathLength, set below. */
+  animation: bk-arc-draw 1400ms cubic-bezier(0.45, 0, 0.2, 1) both;
+}
+
+.bk-issue-arc .bk-arc-end {
+  opacity: 0;
+  animation: bk-arc-dot 300ms ease both;
+}
+
+.bk-issue-arc .bk-arc-end:first-of-type {
+  animation-delay: 120ms;
+}
+
+.bk-issue-arc .bk-arc-end:last-of-type {
+  animation-delay: 1350ms;
+}
+
+@keyframes bk-arc-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes bk-arc-dot {
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── How things arrive ───────────────────────────────────────────────────── */
+
+/* A screen rises into place. Each step of the flow mounts a new body, so the
+   animation plays once per screen and never on a re-render inside one — the
+   node has to be new for it to fire, which is exactly the rule we want. */
+.bk-body {
+  animation: bk-screen 320ms cubic-bezier(0.2, 0.9, 0.22, 1) both;
+}
+
+.bk-act {
+  animation: bk-act-in 340ms cubic-bezier(0.2, 0.9, 0.22, 1) both;
+}
+
+@keyframes bk-screen {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes bk-act-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* The fares unfold out of the bar that was tapped: the tray fades up and the
+   cards come with it, a beat behind, so the movement reads as one thing
+   opening rather than two things appearing. */
+.bk-deal {
+  animation: bk-deal 300ms cubic-bezier(0.2, 0.9, 0.22, 1) both;
+  transform-origin: top center;
+}
+
+.bk-deal .bk-fare {
+  animation: bk-fare-in 340ms cubic-bezier(0.2, 0.9, 0.22, 1) both;
+}
+
+.bk-deal .bk-fare:nth-child(2) {
+  animation-delay: 45ms;
+}
+
+.bk-deal .bk-fare:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+@keyframes bk-deal {
+  from {
+    opacity: 0;
+    transform: scaleY(0.94);
+  }
+}
+
+@keyframes bk-fare-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* The seat panel slides up from under the aeroplane, because that is where it
+   comes from: you touched a seat and the seat answered. */
+.bk-seatcard {
+  animation: bk-seatcard 280ms cubic-bezier(0.2, 0.9, 0.22, 1) both;
+}
+
+@keyframes bk-seatcard {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+/* ── Being checked in ────────────────────────────────────────────────────── */
+
+/* The aeroplane crosses the glass, the line fills behind it, and the words
+   arrive after it has gone. Fifteen hundred milliseconds, which is about as
+   long as a person will happily watch something and about as short as a
+   moment can be and still be one. */
+.bk-issue {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: grid;
+  align-content: center;
+  gap: 24px;
+  padding: 0 30px;
+  background: linear-gradient(165deg, var(--ink-brand-2) 0%, #05070b 75%);
+  color: #f4f0e7;
+  animation: bk-issue-in 420ms cubic-bezier(0.2, 0.9, 0.22, 1) both;
+}
+
+.bk-issue-said {
+  display: grid;
+  gap: 6px;
+  animation: bk-issue-said 500ms cubic-bezier(0.2, 0.9, 0.22, 1) 900ms both;
+}
+
+.bk-issue-said b {
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.bk-issue-said span {
+  font-size: var(--t-sm);
+  color: rgba(244, 240, 231, 0.6);
+}
+
+.bk-issue-said i {
+  font-style: normal;
+  font-size: var(--t-sm);
+  color: #7cc8a4;
+}
+
+/* What the sky does on the way. Said only when it does something. */
+.bk-issue-said em {
+  font-style: normal;
+  font-size: var(--t-cap);
+  color: rgba(244, 240, 231, 0.42);
+  padding-top: 2px;
+}
+
+@keyframes bk-issue-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes bk-issue-said {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* The pass itself arrives rather than appears. */
+@keyframes bk-pass-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-tab-ind {
+    transition-duration: 1ms;
+  }
+
+  .bk-body,
+  .bk-act,
+  .bk-deal,
+  .bk-deal .bk-fare,
+  .bk-seatcard,
+  .bk-issue-arc .bk-arc-line,
+  .bk-issue-arc .bk-arc-end,
+  .bk-issue,
+  .bk-issue-said,
+  .bk-pass,
+  .bk-plate {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+}
+
+/* A cancelled flight's pass. The code still scans — it is a real BCBP string
+   and pretending otherwise would be a lie about the data — but nothing about
+   the card should look like something to hold up at a door. */
+.bk-void {
+  padding: 10px var(--inset);
+  background: #b23a30;
+  color: #fff;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.bk-pass[data-void="true"] .bk-plate,
+.bk-pass[data-void="true"] .bk-pass-facts {
+  opacity: 0.4;
+}
+
+/* The live line. It is the airline's own black because it is the airline
+   talking, and it is the same fact the island is carrying — one number, in
+   two places, never disagreeing. */
+.bk-live {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 8px;
+  background: var(--face);
+  color: #f4f0e7;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: var(--t-sm);
+  box-shadow: 0 1px 2px rgba(17, 21, 29, 0.3), 0 8px 20px rgba(17, 21, 29, 0.22);
+}
+
+.bk-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5fcf94;
+}
+
+.bk-live-dot[data-boarding="true"] {
+  background: #7cc8a4;
+}
+
+.bk-live-dot[data-kind="delayed"] {
+  background: #f0a94a;
+}
+
+.bk-live-dot[data-kind="cancelled"] {
+  background: #e8695c;
+}
+
+.bk-live-v b[data-changed="true"] {
+  color: #f0a94a;
+}
+
+/* A figure on the pass that is no longer the one it was printed with. */
+.bk-live-k {
+  font-weight: 600;
+}
+
+.bk-live-v {
+  text-align: right;
+  color: rgba(244, 240, 231, 0.6);
+  font-size: var(--t-cap);
+}
+
+.bk-live-v b {
+  color: #f4f0e7;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+/* The code, filling the glass. White ground and nothing else on it: a reader
+   at a gate wants contrast and a big target, and every pixel of chrome left on
+   this screen is a pixel not being scanned. */
+.bk-full {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  background: #fff;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 24px;
+  cursor: pointer;
+  padding: 0 24px;
+}
+
+.bk-full svg {
+  display: block;
+  width: 300px;
+  height: 300px;
+  shape-rendering: crispEdges;
+}
+
+.bk-full-cap {
+  font-family: var(--font-mono);
+  font-size: var(--t-base);
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+/* ── Notices ─────────────────────────────────────────────────────────────── */
+
+/* Something the airline is telling you. Sunk into the page rather than
+   washed in brass: a notice is not a possession, and the one colour that
+   means "yours" was being spent on every aside in the app. */
+.bk-notice {
+  display: grid;
+  gap: 4px;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: var(--t-cap);
+  line-height: 1.5;
+  box-shadow: var(--key-press-sm);
+  color: var(--ink-2);
+}
+
+.bk-notice[data-tone="warn"] {
+  background: #fdf1e3;
+  color: #7a5214;
+}
+
+.bk-notice .bk-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.bk-notice b {
+  font-weight: 600;
+}
+

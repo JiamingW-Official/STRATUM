@@ -1,0 +1,91 @@
+/* The workshop around the phone. Plain on purpose, like the IFE bench: nothing
+   here may be mistaken for the work inside it. */
+
+/* Light, because the thing inside the phone is. This was still set to dark
+   from the first version of this bench, and it was not cosmetic: a button
+   that does not set its own colour inherits the UA's `buttontext`, which
+   under a dark scheme is white — so the seat numbers on the traveller chips
+   were white on a white card. */
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#book {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #d8dce2;
+  color: #3b424c;
+  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+.bookbench {
+  height: 100%;
+}
+
+/* Daylight, because the thing on the phone is a daylight interface. The IFE
+   bench next door is lit like a cabin at night for the same reason in
+   reverse: a screen has to be judged under the light it will be read in, and
+   a light interface photographed on black always looks brighter and cleaner
+   than it is. */
+.bookbench-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 24px;
+  background: radial-gradient(120% 90% at 50% 35%, #e7eaee 0%, #cdd2d9 75%);
+}
+
+.bench-back {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  color: #6b7280;
+  text-decoration: none;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.bench-back:hover {
+  color: #1c222b;
+}
+
+.bookbench-fit {
+  position: relative;
+}
+
+/* 11 mm of shell and a 55px corner: a phone, not a browser window with round
+   corners. The glass inside has a smaller radius than the shell, which is the
+   one detail that stops a drawn phone looking like a sticker. */
+/* The handset itself stays dark, because handsets are. The glass inside has a
+   smaller radius than the shell, which is the one detail that stops a drawn
+   phone looking like a sticker. */
+.bookbench-shell {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 412px;
+  height: 866px;
+  box-sizing: border-box;
+  padding: 11px;
+  background: linear-gradient(160deg, #2b2f36 0%, #15171b 60%);
+  border-radius: 55px;
+  box-shadow: 0 2px 4px rgba(20, 26, 35, 0.25), 0 30px 60px rgba(20, 26, 35, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transform-origin: top left;
+}
+
+.bookbench-glass {
+  position: relative;
+  width: 390px;
+  height: 844px;
+  overflow: hidden;
+  border-radius: 45px;
+  background: #eceff4;
+}
