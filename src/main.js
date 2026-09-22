@@ -4498,7 +4498,7 @@ function _toggleSessionReplay() {
     bar = document.createElement("div");
     bar.id = "session-replay-bar";
     bar.style.cssText =
-      "position:fixed;bottom:40px;left:50%;transform:translateX(-50%);z-index:2000;display:flex;align-items:center;gap:10px;padding:8px 16px;background:rgba(10,12,18,0.85);border:1px solid rgba(196,160,88,0.15);border-radius:8px;font-family:var(--font-mono);font-size:11px;color:rgba(238,233,220,0.7);backdrop-filter:blur(8px)";
+      "position:fixed;bottom:40px;left:50%;transform:translateX(-50%);z-index:2000;display:flex;align-items:center;gap:10px;padding:8px 16px;background:rgba(10,12,18,0.85);border:1px solid rgba(196,160,88,0.15);border-radius:8px;font-family:var(--font-mono);font-size:var(--fs-label);color:rgba(238,233,220,0.7);backdrop-filter:blur(8px)";
     document.body.appendChild(bar);
   }
   const totalDur = Math.round(
@@ -4510,10 +4510,10 @@ function _toggleSessionReplay() {
   const durSec = totalDur % 60;
   const durStr =
     durMin > 0 ? `${durMin}m${String(durSec).padStart(2, "0")}s` : `${durSec}s`;
-  bar.innerHTML = `<span style="color:rgba(196,160,88,0.5);letter-spacing:1px;font-size:8px">REPLAY</span>
+  bar.innerHTML = `<span style="color:rgba(196,160,88,0.5);letter-spacing:var(--track-label);font-size:var(--fs-micro)">REPLAY</span>
     <input type="range" id="session-replay-slider" min="0" max="${_sessionSnapshots.length - 1}" value="0" style="width:min(400px,50vw);accent-color:#c4a058">
     <span id="session-replay-time" style="min-width:80px">-- / ${durStr}</span>
-    <button id="session-replay-close" style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:14px">&times;</button>`;
+    <button id="session-replay-close" style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:var(--fs-body)">&times;</button>`;
   bar.classList.remove("hidden");
   const closeBtn = document.getElementById("session-replay-close");
   const slider = document.getElementById("session-replay-slider");
@@ -8372,58 +8372,36 @@ function initCityPicker() {
     if (!detailPane) return;
     const c = CITIES[idx];
     const meta = AIRPORT_DATA[c.code] || {};
-    const tier = getHubTier(c);
-    const tierClass = "cdp-tier-" + tier.replace(" ", "-").toLowerCase();
-    document.getElementById("cdp-iata").textContent = c.code;
-    document.getElementById("cdp-name").textContent = c.name;
-    document.getElementById("cdp-country-region").textContent =
-      `${c.country || ""}  ·  ${c.region}`;
-    const tierEl = document.getElementById("cdp-tier");
-    tierEl.textContent = tier;
-    tierEl.className = "cdp-tier " + tierClass;
-    document.getElementById("cdp-icao").textContent = meta.icao || "—";
-    document.getElementById("cdp-elev").textContent =
-      meta.elev != null ? `${meta.elev.toLocaleString()} ft` : "—";
-    document.getElementById("cdp-rwys").textContent =
-      meta.rwys != null ? meta.rwys : "—";
-    document.getElementById("cdp-tz").textContent =
-      meta.tz || getUtcOffset(c.lon);
-    document.getElementById("cdp-coord").textContent = fmtCoord(c.lat, c.lon);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = v;
+    };
+    const title = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1).toLowerCase() : "");
+    set("cdp-iata", c.code);
+    set("cdp-icao", meta.icao || "");
+    set("cdp-name", c.name);
+    // One line of context, the tier a word in it. A badge was a third colour
+    // on a pane that has one.
+    set("cdp-context", [c.country, title(c.region), title(getHubTier(c))].filter(Boolean).join(" · "));
+    set("cdp-elev", meta.elev != null ? `${meta.elev.toLocaleString()} ft` : "—");
+    set("cdp-rwys", meta.rwys != null ? String(meta.rwys) : "—");
     const paxEl = document.getElementById("cdp-pax");
-    if (paxEl) paxEl.textContent = meta.pax != null ? `${meta.pax}M/yr` : "—";
-    const hubEl = document.getElementById("cdp-hub");
-    if (hubEl) hubEl.textContent = meta.hub || "—";
-    const termEl = document.getElementById("cdp-terminals");
-    if (termEl)
-      termEl.textContent = meta.terminals != null ? meta.terminals : "—";
-    const rwyLenEl = document.getElementById("cdp-rwylen");
-    if (rwyLenEl) rwyLenEl.textContent = meta.rwyLen || "—";
+    if (paxEl) paxEl.innerHTML = meta.pax != null ? `${meta.pax}M<small> / yr</small>` : "—";
+    set("cdp-hub", meta.hub ? String(meta.hub).replace(/\//g, " / ") : "—");
+    set("cdp-rwylen", meta.rwyLen || "—");
+    set("cdp-tz", meta.tz || getUtcOffset(c.lon));
     const factEl = document.getElementById("cdp-fact");
-    if (meta.fact) {
-      factEl.textContent = `"${meta.fact}"`;
-      factEl.classList.remove("hidden");
-    } else {
-      factEl.classList.add("hidden");
-    }
-    const descEl = document.getElementById("cdp-desc");
-    if (descEl) {
-      if (meta.desc) {
-        descEl.textContent = meta.desc;
-        descEl.classList.remove("hidden");
-      } else {
-        descEl.classList.add("hidden");
-      }
+    if (factEl) {
+      if (meta.fact) {
+        factEl.textContent = meta.fact;
+        factEl.classList.remove("hidden");
+      } else factEl.classList.add("hidden");
     }
     const nearbyEl = document.getElementById("cdp-nearby");
-    const nearby = getNearby(idx, 4);
-    nearbyEl.innerHTML = nearby
+    nearbyEl.innerHTML = getNearby(idx, 4)
       .map(
         ({ c: nc, i, d }) =>
-          `<div class="cdp-nearby-item" data-idx="${i}">
-        <span class="cdp-nearby-code">${nc.code}</span>
-        <span class="cdp-nearby-name">${nc.name}</span>
-        <span class="cdp-nearby-dist">${Math.round(d)} km</span>
-      </div>`,
+          `<div class="cdp-nearby-item" data-idx="${i}"><span class="cdp-nearby-code">${nc.code}</span><span class="cdp-nearby-name">${nc.name}</span><span class="cdp-nearby-dist">${Math.round(d)} km</span></div>`,
       )
       .join("");
     nearbyEl.querySelectorAll(".cdp-nearby-item").forEach((el) => {
@@ -8588,12 +8566,9 @@ function initCityPicker() {
     // more as a length: a bar scaled to annual passengers, against the busiest
     // airport in the world, so every row differs from the one above it.
     let paxStr = e.pax > 0 ? `${e.pax}M` : "";
-    let paxPct = e.pax > 0 ? Math.min(100, Math.round((e.pax / 105) * 100)) : 0;
     if (showMode === "unseen") {
-      // The bar becomes the share that asked not to be seen, on a 0-20% scale.
       const v = _visShareCached(e.i);
       paxStr = v ? `${Math.round(v.share * 100)}%` : "";
-      paxPct = v ? Math.min(100, Math.round((v.share / 0.2) * 100)) : 0;
     }
     return `<div class="city-list-item${e.i === _selectedIdx ? " active" : ""}" data-idx="${e.i}">
       <span class="cli-code">${c.code}</span>
@@ -8601,10 +8576,7 @@ function initCityPicker() {
         <span class="cli-name">${c.name}</span>
         <span class="cli-sub">${c.country || ""}${icao ? " · " + icao : ""}</span>
       </div>
-      <span class="cli-load" title="${showMode === "unseen" ? (paxStr ? paxStr + " of aircraft here asked not to be seen" : "not measured yet") : (paxStr ? paxStr + " passengers a year" : "no traffic figure")}">
-        <span class="cli-load-bar"><i style="width:${paxPct}%"></i></span>
-        <span class="cli-pax">${paxStr}</span>
-      </span>
+      <span class="cli-pax" title="${showMode === "unseen" ? (paxStr ? paxStr + " of aircraft here asked not to be seen" : "not measured yet") : (paxStr ? paxStr + " passengers a year" : "no traffic figure")}">${paxStr}</span>
       <span class="cli-chevron">›</span>
     </div>`;
   }

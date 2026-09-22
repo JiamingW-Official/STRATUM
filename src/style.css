@@ -45,7 +45,17 @@
   --fs-body: 13px;
   --fs-value: 16px;
   --fs-hero: 28px;
+  /* The tier under the label: the HUD's own module labels have been 8.5px
+     since the tiles were built and the size had no name, so five other
+     places wrote 8, 9 or 8.5 by hand for the same job. */
+  --fs-micro: 8.5px;
+  /* One display size, for the one moment that has one: the route code that
+     fills the screen during a scene change. */
+  --fs-display: 80px;
   --track-label: 0.08em;
+  /* Big numerals tighten; the same amount everywhere, or a 28px value in one
+     tile sits differently from the same value in the next. */
+  --track-tight: -0.02em;
 
   --r: 10px;
   --r-sm: 6px;
@@ -292,7 +302,7 @@ html, body {
 .hud-hero-value {
   font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400;
   color: var(--accent); font-variant-numeric: tabular-nums;
-  line-height: 1; letter-spacing: -0.02em;
+  line-height: 1; letter-spacing: var(--track-tight);
   text-shadow: 0 2px 24px rgba(0, 0, 0, 0.9);
   transition: color 0.3s;
 }
@@ -926,7 +936,7 @@ html, body {
 }
 .adp-stat:hover { background: rgba(var(--accent-rgb), 0.04); }
 .adp-stat-val {
-  font-family: var(--font-mono); font-size: 20px; font-weight: 700;
+  font-family: var(--font-mono); font-size: var(--fs-value); font-weight: 700;
   color: var(--text); line-height: 1;
   text-shadow: 0 0 16px rgba(var(--accent-rgb), 0.1);
 }
@@ -1150,7 +1160,7 @@ html, body {
 .detail-value { font-family: var(--font-mono); font-size: var(--fs-value); font-weight: 500; color: var(--text);
   font-variant-numeric: tabular-nums; line-height: 1.1;
   text-shadow: 0 0 16px rgba(var(--accent-rgb), 0.1);
-  transition: color 0.3s ease; letter-spacing: -0.01em;
+  transition: color 0.3s ease; letter-spacing: var(--track-tight);
 }
 
 /* V/S color coding */
@@ -1167,7 +1177,7 @@ html, body {
 }
 .detail-grid-ext .detail-value {
   font-size: var(--fs-label); font-weight: 500; color: var(--text-2);
-  letter-spacing: -0.2px;
+  letter-spacing: var(--track-tight);
 }
 .detail-grid-ext .detail-label {
   font-size: var(--fs-label); color: var(--text-3);
@@ -1533,7 +1543,7 @@ html, body {
   text-align: center;
 }
 .search-no-results-icon {
-  font-size: 26px; color: var(--text-3);
+  font-size: var(--fs-hero); color: var(--text-3);
   margin-bottom: 8px; opacity: 0.35;
 }
 .search-no-results-text {
@@ -1586,7 +1596,7 @@ html, body {
 }
 
 .signal-lost-icon {
-  font-size: 22px; color: var(--danger);
+  font-size: var(--fs-hero); color: var(--danger);
   margin-bottom: 16px;
   animation: blink 2s ease-in-out infinite;
 }
@@ -1669,7 +1679,7 @@ html, body {
 .spotter-score-value {
   font-size: var(--fs-value); font-weight: 400;
   color: var(--text); font-variant-numeric: tabular-nums;
-  letter-spacing: -0.5px; margin-left: auto;
+  letter-spacing: var(--track-tight); margin-left: auto;
 }
 
 .spotter-xp-label {
@@ -1710,7 +1720,7 @@ html, body {
 .spotter-stat-value {
   font-size: var(--fs-body); font-weight: 400;
   color: var(--text); font-variant-numeric: tabular-nums;
-  letter-spacing: -0.3px;
+  letter-spacing: var(--track-tight);
 }
 
 .spotter-stat-label {
@@ -1814,12 +1824,12 @@ html, body {
 }
 .fir-hover-widget .fir-code {
   color: rgba(var(--accent-rgb), 0.85);
-  font: 700 10px/1 'JetBrains Mono', monospace;
+  font: 700 var(--fs-label)/1 'JetBrains Mono', monospace;
   letter-spacing: var(--track-label);
 }
 .fir-hover-widget .fir-name {
   color: rgba(var(--text-rgb), 0.45);
-  font: 400 8.5px/1 'Inter', system-ui, sans-serif;
+  font: 400 var(--fs-micro)/1 'Inter', system-ui, sans-serif;
   letter-spacing: 0;
 }
 .fir-hover-widget.fade-out { opacity: 0 !important; }
@@ -2043,7 +2053,7 @@ html, body {
 
 .scene-trans-code {
   font-family: var(--font-mono);
-  font-size: 80px; font-weight: 200;
+  font-size: var(--fs-display); font-weight: 200;
   color: rgba(var(--accent-rgb), 0.08);
   letter-spacing: var(--track-label); text-indent: 16px;
   line-height: 1;
@@ -2229,138 +2239,58 @@ html, body {
 
 /* ── City detail pane ── */
 .city-detail-pane {
-  display: flex; flex-direction: column;
-  height: 100%; overflow-y: auto; overflow-x: hidden;
-  scrollbar-width: thin; scrollbar-color: rgba(var(--accent-rgb), 0.2) transparent;
+  display: flex; flex-direction: column; height: 100%;
+  overflow-y: auto; scrollbar-width: none;
 }
-.city-detail-pane.hidden { display: none; }
-
-/* Four type sizes for the whole pane: 30 / 12 / 10 / 7.5. Hierarchy comes from
-   size and contrast, not from boxing every value in its own bordered card. */
-
-.cdp-topbar {
-  padding: 10px 18px 8px; flex-shrink: 0;
-}
+.city-detail-pane::-webkit-scrollbar { display: none; }
+.cdp-topbar { padding: 10px 18px 4px; }
 .cdp-back-btn {
-  background: none; border: none; cursor: pointer; padding: 0;
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
-  color: rgba(var(--accent-rgb), 0.5); text-transform: uppercase;
-  transition: color 0.15s;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--text-3);
+  transition: color 0.15s var(--ease);
 }
-.cdp-back-btn:hover { color: rgba(var(--accent-rgb), 0.9); }
-
-.cdp-hero {
-  padding: 4px 18px 12px; flex-shrink: 0;
-  display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: baseline;
-}
+.cdp-back-btn:hover { color: var(--text); }
+.cdp-hero { padding: 8px 18px 0; }
+.cdp-codes { display: flex; align-items: baseline; gap: 8px; }
 .cdp-iata {
-  grid-row: 1 / span 2;
-  font-family: var(--font-mono); font-size: 30px; font-weight: 500;
-  letter-spacing: var(--track-label); color: var(--amber); line-height: 1;
+  font-family: var(--font-display); font-size: var(--fs-hero); font-weight: 600;
+  letter-spacing: 0; line-height: 1; color: var(--accent);
 }
+.cdp-icao { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-3); }
 .cdp-name {
+  margin-top: 4px;
   font-family: var(--font-sans); font-size: var(--fs-body); font-weight: 500;
-  color: rgba(var(--text-rgb), 0.85); line-height: 1.2;
+  color: var(--text-2); line-height: 1.3;
 }
-.cdp-country-region {
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
-  color: rgba(var(--accent-rgb), 0.45); text-transform: uppercase; margin-top: 3px;
-}
-.cdp-tier {
-  grid-column: 1 / -1; justify-self: start; margin-top: 8px;
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
-  text-transform: uppercase; padding: 2px 7px; border-radius: var(--r-sm);
-}
-.cdp-tier-mega-hub { background: rgba(var(--accent-rgb), 0.16); color: rgba(var(--accent-rgb), 0.95); }
-.cdp-tier-major    { background: rgba(100,160,200,0.12); color: rgba(140,200,230,0.8); }
-.cdp-tier-regional { background: rgba(var(--text-rgb), 0.06); color: rgba(var(--text-rgb), 0.45); }
-
-/* One continuous 4x2 grid. Rows are separated by a hairline, columns by
-   nothing — the values are set in a fixed-width face and align on their own. */
-.cdp-stats-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  padding: 8px 18px; gap: 0; flex-shrink: 0;
-  border-top: 1px solid rgba(255,255,255,0.05); column-gap: 10px;
-  row-gap: 6px;
-}
-.cdp-stats-ext { padding-top: 8px; }
-.cdp-stats-ext .cdp-stat-val { font-size: var(--fs-body); color: rgba(var(--text-rgb), 0.6); }
-.cdp-stat {
-  display: flex; flex-direction: column; align-items: flex-start;
-  padding: 2px 6px 2px 0;
-  min-width: 0; overflow: visible;
-}
-.cdp-stat-val {
+.cdp-context { margin-top: 3px; font-family: var(--font-sans); font-size: var(--fs-label); color: var(--text-3); }
+.cdp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; padding: 16px 18px 0; }
+.cdp-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cdp-cell .hud-mod-label { display: block; }
+.cdp-val {
   font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500;
-  color: rgba(var(--text-rgb), 0.85); white-space: nowrap; overflow: visible; text-overflow: clip;
+  color: var(--text); letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
-.cdp-stat-lbl {
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0;
-  color: rgba(var(--accent-rgb), 0.4); text-transform: uppercase; margin-top: 2px; white-space: nowrap; overflow: visible; text-overflow: clip;
-}
-
-.cdp-coord-row { display: none; align-items: center; gap: 8px;
-  padding: 6px 18px; flex-shrink: 0;
-  border-top: 1px solid rgba(255,255,255,0.05);
-}
-.cdp-coord-label {
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
-  color: rgba(var(--accent-rgb), 0.4); text-transform: uppercase;
-}
-.cdp-coord-val {
-  font-family: var(--font-mono); font-size: var(--fs-label);
-  color: rgba(var(--text-rgb), 0.55); letter-spacing: 0;
-}
-
+.cdp-val small { font-size: var(--fs-label); font-weight: 400; color: var(--text-3); letter-spacing: 0; }
 .cdp-fact {
-  margin: 2px 18px 0; padding: 4px 0 4px 10px;
-  font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.45;
-  color: rgba(var(--text-rgb), 0.55); font-style: italic;
-  flex-shrink: 0;
+  margin: 12px 18px 0;
+  font-family: var(--font-sans); font-size: var(--fs-body); font-style: italic;
+  color: var(--text-2); line-height: 1.5;
 }
 .cdp-fact.hidden { display: none; }
-
-/* The city blurb is the single tallest thing here and the pane exists to pick
-   an airspace, not to read about a city. Three lines, then it stops. */
-.cdp-desc {
-  margin: 8px 18px 4px; padding: 0;
-  font-family: var(--font-sans); font-size: var(--fs-label); line-height: 1.5;
-  color: rgba(var(--text-rgb), 0.4);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden; flex-shrink: 0;
-}
-.cdp-desc.hidden { display: none; }
-
-.cdp-nearby-title {
-  padding: 8px 18px 3px;
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--track-label);
-  color: rgba(var(--accent-rgb), 0.4); text-transform: uppercase; flex-shrink: 0;
-}
-.cdp-nearby {
-  padding: 0 18px; flex-shrink: 0;
-}
+.cdp-section-label { display: block; margin: 16px 18px 4px; }
+.cdp-nearby { padding: 0 18px 8px; }
 .cdp-nearby-item {
-  display: flex; align-items: baseline; gap: 8px;
+  display: flex; align-items: center; gap: 10px;
   padding: 5px 0; cursor: pointer;
-  border-top: 1px solid rgba(255,255,255,0.04);
-  transition: color 0.12s;
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-2);
+  transition: color 0.15s var(--ease);
 }
-.cdp-nearby-item:first-child { border-top: none; }
-.cdp-nearby-item:hover .cdp-nearby-code { color: rgba(var(--accent-rgb), 1); }
-.cdp-nearby-item:hover .cdp-nearby-name { color: rgba(var(--text-rgb), 0.8); }
-.cdp-nearby-code {
-  font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 500;
-  color: rgba(var(--accent-rgb), 0.8); min-width: 30px;
-}
-.cdp-nearby-name {
-  font-family: var(--font-sans); font-size: var(--fs-label);
-  color: rgba(var(--text-rgb), 0.5); flex: 1;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.cdp-nearby-dist {
-  font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: 0;
-  color: rgba(var(--text-rgb), 0.3); flex-shrink: 0;
-}
+.cdp-nearby-item:hover { color: var(--text); }
+.cdp-nearby-code { min-width: 40px; font-weight: 500; }
+.cdp-nearby-name { flex: 1; min-width: 0; font-family: var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cdp-nearby-dist { color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Pinned to the bottom of the pane whatever the content above does, so the
    one action this pane exists for is never the thing you have to scroll to. */
@@ -2409,7 +2339,7 @@ html, body {
 .airport-info-card.hidden { opacity: 0; pointer-events: none; }
 
 .aic-iata {
-  font-family: var(--font-mono); font-size: 30px; font-weight: 600;
+  font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 600;
   letter-spacing: var(--track-label); color: var(--accent-bright);
   line-height: 1;
 }
@@ -2600,25 +2530,14 @@ html, body {
 
 /* Annual passengers, as a length. Replaces a per-row tier badge that repeated
    the filter above the list and read the same on every row. */
-.cli-load { display: flex; align-items: center; gap: 8px; margin: 0 10px 0 8px; }
-.cli-load-bar {
-  width: 46px; height: 2px; border-radius: 1px;
-  background: rgba(var(--text-rgb), 0.13);
-  overflow: hidden;
-}
-.cli-load-bar i {
-  display: block; height: 100%;
-  background: rgba(var(--text-rgb), 0.45);
-  transition: background 0.15s ease;
-}
-.city-list-item:hover .cli-load-bar i,
-.city-list-item.active .cli-load-bar i { background: var(--accent); }
 
 /* Pax count in list */
 .cli-pax {
-  font-family: var(--font-mono); font-size: var(--fs-label);
-  color: var(--text-3); min-width: 34px; text-align: right;
-  letter-spacing: 0; font-variant-numeric: tabular-nums;
+  /* The figure alone. The bar beside it was scaled against the busiest
+     airport in the world, so on a list sorted by traffic every bar was a
+     little shorter than the last: a ramp, drawn seven hundred times. */
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--text-3);
+  min-width: 44px; margin: 0 8px 0 10px; text-align: right; font-variant-numeric: tabular-nums;
 }
 
 .cli-chevron {
@@ -3042,7 +2961,7 @@ html, body {
   font-size: var(--fs-value); font-weight: 400;
   color: rgba(248,244,234,0.95);
   font-variant-numeric: tabular-nums; line-height: 1.2;
-  letter-spacing: -0.5px;
+  letter-spacing: var(--track-tight);
   text-shadow: 0 0 18px rgba(var(--accent-rgb), 0.06);
 }
 
@@ -3939,8 +3858,8 @@ html, body {
   background: var(--c); opacity: 0.4; text-decoration: none;
 }
 .radio-stationmark em {
-  font-style: normal; font-family: var(--font-mono); font-size: 8px;
-  letter-spacing: 0.06em; color: rgba(var(--text-rgb), 0.32);
+  font-style: normal; font-family: var(--font-mono); font-size: var(--fs-micro);
+  letter-spacing: var(--track-label); color: rgba(var(--text-rgb), 0.32);
   white-space: nowrap;
 }
 .radio-stationmark:hover u, .radio-stationmark:hover em { opacity: 0.8; color: rgba(var(--text-rgb), 0.7); }
@@ -4437,7 +4356,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 .school-head { display: flex; align-items: center; justify-content: space-between; }
 .school-kicker { font-family: var(--font-sans); font-size: var(--fs-label); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-3); }
-.school-x { background: none; border: none; color: var(--text-3); font-size: 16px; cursor: pointer; padding: 0 2px; }
+.school-x { background: none; border: none; color: var(--text-3); font-size: var(--fs-value); cursor: pointer; padding: 0 2px; }
 .school-title { font-family: var(--font-display); font-size: var(--fs-value); font-weight: 600; color: var(--text); margin: 6px 0 4px; }
 .school-body { font-family: var(--font-sans); font-size: var(--fs-body); line-height: 1.5; color: var(--text-2); }
 .school-body em { color: var(--text-3); font-style: normal; }
@@ -4512,7 +4431,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: none; border: 1px solid var(--hairline); border-radius: var(--r-sm);
   padding: 5px 10px; cursor: pointer;
   font-family: var(--font-display); font-size: var(--fs-body);
-  color: var(--text-2); letter-spacing: 0.01em; text-transform: lowercase;
+  color: var(--text-2); letter-spacing: 0; text-transform: lowercase;
   transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
 }
 .commons-word:hover:not(:disabled) { color: var(--accent-bright); border-color: var(--border-accent); }
@@ -4533,7 +4452,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    row you cannot fully read tells you why in the slot the others use for
    their model. */
 .tk-tag {
-  font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: var(--fs-micro); letter-spacing: var(--track-label); text-transform: uppercase;
   color: rgba(var(--text-rgb), 0.45);
   border: 1px solid rgba(var(--text-rgb), 0.16);
   border-radius: 3px; padding: 1px 4px;
@@ -4594,7 +4513,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .radio-panel.is-ducked .radio-header-label::after {
   content: ' · TOWER';
   color: var(--accent);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-label);
 }
 
 /* ── Signal strength ──
@@ -4723,7 +4642,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod-value {
   font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400;
   color: var(--text-2); font-variant-numeric: tabular-nums;
-  line-height: 1; letter-spacing: -0.02em;
+  line-height: 1; letter-spacing: var(--track-tight);
 }
 .hud-mod-label {
   font-family: var(--font-sans); font-size: var(--fs-label);
@@ -4875,12 +4794,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 .hud-atc-code {
   font-family: var(--font-mono); font-size: var(--fs-value); font-weight: 500;
-  color: var(--text); letter-spacing: 0.02em; line-height: 1.1;
+  color: var(--text); letter-spacing: 0; line-height: 1.1;
 }
 #hud-atc .hud-atc-btn:hover .hud-atc-code { color: var(--accent-bright); }
 .hud-atc-kind {
-  font-family: var(--font-sans); font-size: 9px;
-  letter-spacing: 0.07em; color: var(--text-3);
+  font-family: var(--font-sans); font-size: var(--fs-micro);
+  letter-spacing: var(--track-label); color: var(--text-3);
 }
 .hud-atc-status { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
 .hud-atc-state {
@@ -4925,7 +4844,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod--act { cursor: pointer; }
 .hud-mod-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .hud-mod-cue {
-  font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.08em;
+  font-family: var(--font-mono); font-size: var(--fs-micro); letter-spacing: var(--track-label);
   color: var(--text-3);
   border: 1px solid rgba(var(--text-rgb), 0.14);
   border-radius: 3px; padding: 1px 4px; line-height: 1.4;
@@ -4935,7 +4854,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .ghost-mode .hud-mod--hero .hud-mod-cue {
   color: var(--accent-bright); border-color: rgba(var(--accent-rgb), 0.4);
 }
-.hud-mod-cue--inline { border: none; padding: 0 0 0 4px; font-size: 9px; }
+.hud-mod-cue--inline { border: none; padding: 0 0 0 4px; font-size: var(--fs-micro); }
 .hud-clock:hover .hud-mod-cue--inline { color: var(--text-2); }
 
 /* Pressable tiles obey the relief contract the buttons already set: they lift
@@ -5016,11 +4935,11 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod-value {
   font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400;
   color: var(--text); font-variant-numeric: tabular-nums;
-  line-height: 1.05; letter-spacing: -0.02em; margin-top: 4px;
+  line-height: 1.05; letter-spacing: var(--track-tight); margin-top: 4px;
 }
 .hud-mod-label {
-  font-family: var(--font-sans); font-size: 9px;
-  letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-sans); font-size: var(--fs-micro);
+  letter-spacing: var(--track-label); text-transform: uppercase;
   color: var(--text-3); line-height: 1;
 }
 .hud-mod-sub {
@@ -5270,8 +5189,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* ── Tighter, and the important thing bigger ── */
 #hud.glass-panel { width: 330px; padding: 10px; gap: 6px; }
 .hud-mod { padding: 8px 9px; }
-.hud-mod-value { font-size: 32px; margin-top: 2px; }
-.hud-mod-label { font-size: 8.5px; letter-spacing: 0.11em; }
+.hud-mod-value { font-size: var(--fs-hero); margin-top: 2px; }
+.hud-mod-label { font-size: var(--fs-micro); letter-spacing: var(--track-label); }
 
 /* One baseline grid: every caption and sub line shares a line box, so the
    tiles stop looking like they were each set by a different hand. */
@@ -5391,7 +5310,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    icon was sitting next to the number, which made the number look like a
    caption for a symbol; it belongs with the words it qualifies. */
 #hud-weather .hud-wx-line { display: block; }
-#hud-weather .hud-wx-temp { font-size: 40px; line-height: 1; letter-spacing: -0.03em; }
+#hud-weather .hud-wx-temp { font-size: var(--fs-hero); line-height: 1; letter-spacing: var(--track-tight); }
 #hud-weather .hud-wx-icon { display: none; }
 #hud-weather .hud-wx-sub { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; }
 #hud-weather .hud-wx-desc::before {
@@ -5476,10 +5395,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-mod-top, #hud-atc .hud-mod-top { display: flex; align-items: center; justify-content: space-between; height: 13px; }
 .hud-mod-value {
   display: flex; align-items: flex-end; height: 34px;
-  font-size: 30px; margin: 0; line-height: 1;
+  font-size: var(--fs-hero); margin: 0; line-height: 1;
 }
-#hud-weather .hud-wx-temp { font-size: 34px; }
-.hud-atc-code { font-size: 27px; letter-spacing: 0.01em; }
+#hud-weather .hud-wx-temp { font-size: var(--fs-hero); }
+.hud-atc-code { font-size: var(--fs-hero); letter-spacing: 0; }
 .hud-mod-sub { margin-top: 5px; }
 
 /* Anything that follows the detail line is pinned to the tile's floor, which
@@ -5525,7 +5444,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   background: var(--accent-bright);
   box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.6);
 }
-.hud-mod-cue--inline { width: auto; height: auto; background: none; box-shadow: none; font-size: 9px; }
+.hud-mod-cue--inline { width: auto; height: auto; background: none; box-shadow: none; font-size: var(--fs-micro); }
 .hud-mod-cue--inline::after { content: none; }
 
 /* The footer chevron joins them. */
@@ -5534,7 +5453,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   width: 22px; height: 22px; border-radius: 50%;
   background: rgba(255, 255, 255, 0.07);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
-  color: var(--text-3); font-size: 13px; line-height: 1;
+  color: var(--text-3); font-size: var(--fs-body); line-height: 1;
 }
 .hud-meta.hud-mod:hover .hud-city-chevron { color: var(--text); background: rgba(255,255,255,0.12); }
 .hud-meta.hud-mod { grid-template-rows: none; display: flex; padding: 8px 10px; min-height: 0; }
@@ -5592,7 +5511,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    optically centred: the chevron's own mass sits left of its box, so it needs
    a pixel of padding on the left to look centred rather than to be centred. */
 .hud-meta.hud-mod .hud-city-chevron {
-  width: 30px; height: 30px; font-size: 19px;
+  width: 30px; height: 30px; font-size: var(--fs-value);
   padding-left: 2px; color: var(--text-2);
 }
 .hud-meta.hud-mod:hover .hud-city-chevron {
@@ -6043,12 +5962,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 
 .rt-dial { display: flex; align-items: baseline; gap: 3px; }
 .rt-freq {
-  font-family: var(--font-mono); font-size: 13px; font-weight: 500;
-  font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+  font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500;
+  font-variant-numeric: tabular-nums; letter-spacing: 0;
   color: var(--text); line-height: 1;
 }
 .rt-band {
-  font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em;
+  font-family: var(--font-mono); font-size: var(--fs-micro); letter-spacing: var(--track-label);
   color: var(--text-3); line-height: 1;
 }
 /* Three bars, each on its own beat, in the station's colour. Not a level
@@ -6155,7 +6074,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 .radio-panel .radio-header-freq {
   font-family: var(--font-mono);
-  font-size: 15px; font-weight: 500; letter-spacing: 0.01em;
+  font-size: var(--fs-body); font-weight: 500; letter-spacing: 0;
   line-height: 1; opacity: 1; padding: 0; background: none; box-shadow: none;
   font-variant-numeric: tabular-nums;
   color: var(--rd-color, var(--text));
@@ -6179,14 +6098,14 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .radio-panel.is-ducked .radio-window::after {
   content: 'TOWER';
   position: absolute; right: 8px; bottom: 6px;
-  font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em;
+  font-family: var(--font-mono); font-size: var(--fs-micro); letter-spacing: var(--track-label);
   color: var(--accent-bright);
   text-shadow: 0 0 7px rgba(var(--accent-rgb), 0.45);
 }
 
 .radio-idents { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
 .radio-panel .radio-station-name {
-  font-size: 9px; letter-spacing: 0.12em; margin: 0;
+  font-size: var(--fs-micro); letter-spacing: var(--track-label); margin: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .radio-panel .radio-now-playing { min-width: 0; margin: 0; min-height: 0; }
@@ -6195,7 +6114,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .radio-panel .radio-track-artist {
-  font-size: 10px; margin: 0;
+  font-size: var(--fs-label); margin: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .radio-close-btn {
@@ -6231,7 +6150,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   display: flex; align-items: center; gap: 8px; padding: 0; margin: 0;
 }
 .radio-panel .radio-progress-bar { flex: 1; }
-.radio-panel .radio-time { font-size: 9px; flex-shrink: 0; }
+.radio-panel .radio-time { font-size: var(--fs-micro); flex-shrink: 0; }
 /* Measured at 189 tall on the first build; the dial and the progress row were
    carrying padding from when they lived in a taller panel. */
 .radio-panel .radio-dial { padding: 0; margin: 0; }
@@ -6249,7 +6168,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .radio-panel { gap: 7px; padding: 10px 12px 9px; }
 .radio-top { gap: 10px; }
 .radio-window { padding: 5px 8px 4px; gap: 3px; border-radius: 7px; }
-.radio-panel .radio-header-freq { font-size: 14px; }
+.radio-panel .radio-header-freq { font-size: var(--fs-body); }
 
 /* The dial is a trough with the band lying in it. It had been a transparent
    region with ticks floating over the panel face — the one place the object
@@ -6297,7 +6216,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 .radio-panel .radio-progress-wrap { gap: 7px; }
-.radio-panel .radio-time { font-size: 9px; letter-spacing: 0.02em; }
+.radio-panel .radio-time { font-size: var(--fs-micro); letter-spacing: 0; }
 
 /* ── The HUD, on the radio's measurements ─────────────────────────────────
    Two panels in one corner each with its own spacing scale is two designs.
@@ -6308,9 +6227,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 #hud.glass-panel { gap: 7px; padding: 12px; width: 330px; }
 .hud-title { margin-bottom: 8px; }
 .hud-mod { padding: 8px 9px 7px; grid-template-rows: 12px 30px auto 1fr; }
-.hud-mod-value { height: 30px; font-size: 27px; }
-#hud-weather .hud-wx-temp { font-size: 30px; }
-.hud-atc-code { font-size: 24px; }
+.hud-mod-value { height: 30px; font-size: var(--fs-hero); }
+#hud-weather .hud-wx-temp { font-size: var(--fs-hero); }
+.hud-atc-code { font-size: var(--fs-hero); }
 .hud-mod-sub { margin-top: 4px; }
 .hud-mod--traffic, .hud-mod--hero, #hud-atc.hud-mod, #hud-weather.hud-mod {
   min-height: 108px;
@@ -6343,7 +6262,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    category carrying only its colour. */
 .hud-wx-cat {
   font-family: var(--font-sans); font-size: var(--fs-label); font-weight: 600;
-  letter-spacing: 0.02em; line-height: inherit;
+  letter-spacing: 0; line-height: inherit;
   padding: 0; border: none; background: none; border-radius: 0;
 }
 .hud-wx-cat:not(:empty)::before {
@@ -6360,7 +6279,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .hud-wx-range {
   display: flex; align-items: center; gap: 6px;
   margin-top: 4px;
-  font-family: var(--font-mono); font-size: 10px;
+  font-family: var(--font-mono); font-size: var(--fs-label);
   font-variant-numeric: tabular-nums;
   color: var(--text-3);
 }
@@ -6414,7 +6333,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
    the numbers say when, this says how much is left. */
 .hud-wx-sun-note {
   flex-basis: 100%;
-  font-family: var(--font-sans); font-size: 10px;
+  font-family: var(--font-sans); font-size: var(--fs-label);
   color: var(--text-3); letter-spacing: 0;
   margin-top: 5px;
 }
@@ -6694,7 +6613,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .wx-card .hud-mod-label { display: block; }
 .wx-card-v {
   font-family: var(--font-mono); font-size: var(--fs-value); font-weight: 500;
-  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums; letter-spacing: var(--track-tight);
   color: var(--text); line-height: 1.15;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -6705,7 +6624,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .wx-card-s:empty { display: none; }
-.wx-cat { font-weight: 600; letter-spacing: 0.02em; }
+.wx-cat { font-weight: 600; letter-spacing: 0; }
 
 .wx-section { margin: 12px 0 4px; }
 .wx-section .hud-mod-label { display: block; }
@@ -6799,12 +6718,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .aw-cell .hud-mod-label { display: block; }
 .aw-big {
   font-family: var(--font-mono); font-size: var(--fs-hero); font-weight: 400;
-  letter-spacing: -0.02em; line-height: 1; color: var(--text);
+  letter-spacing: var(--track-tight); line-height: 1; color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .aw-val {
   font-family: var(--font-mono); font-size: var(--fs-body); font-weight: 500;
-  color: var(--text); letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
+  color: var(--text); letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 .aw-val small { font-size: var(--fs-label); font-weight: 400; color: var(--text-3); letter-spacing: 0; }

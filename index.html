@@ -605,39 +605,34 @@
           <!-- Airport detail pane — shown when airport is focused -->
           <div id="city-detail-pane" class="city-detail-pane hidden">
             <div class="cdp-topbar">
-              <button type="button" id="cdp-back" class="cdp-back-btn">← ALL AIRPORTS</button>
+              <button type="button" id="cdp-back" class="cdp-back-btn">&larr; All airports</button>
             </div>
+            <!-- The same grammar as the airport card over the map: code and name, one
+                 line of context, six facts as two-up cells with the label above the
+                 value, the fact, the nearest fields. The tier is a word in the context
+                 line rather than a badge, and the city blurb that used to clamp to two
+                 lines and end in an ellipsis is gone. -->
             <div class="cdp-hero">
-              <div id="cdp-iata" class="cdp-iata">---</div>
+              <div class="cdp-codes">
+                <span id="cdp-iata" class="cdp-iata">---</span>
+                <span id="cdp-icao" class="cdp-icao"></span>
+              </div>
               <div id="cdp-name" class="cdp-name">--</div>
-              <div id="cdp-country-region" class="cdp-country-region">--</div>
-              <div id="cdp-tier" class="cdp-tier">--</div>
+              <div id="cdp-context" class="cdp-context"></div>
             </div>
-            <div class="hud-divider"></div>
-            <div class="cdp-stats-grid">
-              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-icao">--</div><div class="cdp-stat-lbl">ICAO</div></div>
-              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-elev">--</div><div class="cdp-stat-lbl">ELEVATION</div></div>
-              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-rwys">--</div><div class="cdp-stat-lbl">RUNWAYS</div></div>
-              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-tz">--</div><div class="cdp-stat-lbl">TIMEZONE</div></div>
-            </div>
-            <div class="cdp-stats-grid cdp-stats-ext">
-              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-pax">--</div><div class="cdp-stat-lbl">PAX</div></div>
-              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-terminals">--</div><div class="cdp-stat-lbl">TERMINALS</div></div>
-              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-rwylen">--</div><div class="cdp-stat-lbl">LONGEST RWY</div></div>
-              <div class="cdp-stat"><div class="cdp-stat-val" id="cdp-hub">--</div><div class="cdp-stat-lbl">HUB FOR</div></div>
-            </div>
-            <div class="hud-divider"></div>
-            <div class="cdp-coord-row">
-              <span class="cdp-coord-label">COORD</span>
-              <span id="cdp-coord" class="cdp-coord-val">--</span>
+            <div class="cdp-grid">
+              <div class="cdp-cell"><span class="hud-mod-label">elevation</span><span id="cdp-elev" class="cdp-val">--</span></div>
+              <div class="cdp-cell"><span class="hud-mod-label">runways</span><span id="cdp-rwys" class="cdp-val">--</span></div>
+              <div class="cdp-cell"><span class="hud-mod-label">passengers</span><span id="cdp-pax" class="cdp-val">--</span></div>
+              <div class="cdp-cell"><span class="hud-mod-label">hub</span><span id="cdp-hub" class="cdp-val">--</span></div>
+              <div class="cdp-cell"><span class="hud-mod-label">longest runway</span><span id="cdp-rwylen" class="cdp-val">--</span></div>
+              <div class="cdp-cell"><span class="hud-mod-label">timezone</span><span id="cdp-tz" class="cdp-val">--</span></div>
             </div>
             <div id="cdp-fact" class="cdp-fact hidden"></div>
-            <div id="cdp-desc" class="cdp-desc hidden"></div>
-            <div class="hud-divider"></div>
-            <div class="cdp-nearby-title">NEAREST AIRPORTS</div>
+            <div class="hud-mod-label cdp-section-label">nearest</div>
             <div id="cdp-nearby" class="cdp-nearby"></div>
             <div class="cdp-cta-wrap">
-              <button type="button" id="cdp-select-btn" class="cdp-select-btn">SELECT AIRSPACE ›</button>
+              <button type="button" id="cdp-select-btn" class="cdp-select-btn">Select airspace &rsaquo;</button>
             </div>
           </div>
         </div>
