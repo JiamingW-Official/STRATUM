@@ -3,6 +3,11 @@
 # /assets/ asks for a year immutable in worker.js and arrives as
 # "max-age=0, must-revalidate". This file is the layer that actually applies.
 #
+# Vercel ignores this file entirely — it reads vercel.json. The same policy
+# is mirrored into the "headers" block there, and the two have to be changed
+# together. This one applies on Cloudflare Pages; that one applies on the
+# deployment anybody is actually looking at.
+#
 # index.html is deliberately absent: it names the hashed bundle, and a visitor
 # was once three deployments behind because a copy of it came back from disk.
 

@@ -96,6 +96,30 @@ async function hashText(text) {
 }
 
 // ── Cache API helpers ──
+
+/**
+ * The execution context of the request being served, so a cache write can
+ * outlive the response.
+ *
+ * Thirteen of the twenty-one cachePut calls in this file are fire-and-forget
+ * — the promise is never awaited, because waiting for a cache write before
+ * answering is latency the caller pays for nothing. That is the right shape
+ * and it needs ctx.waitUntil to actually work: a Worker may be torn down as
+ * soon as it returns, and un-awaited work that nothing is holding is
+ * cancelled. Measured before this was added: three identical calls to
+ * /api/weather, 0.1-degree rounded to the same key, came back X-Cache MISS
+ * every time at about two seconds each. A fifteen-minute edge cache that has
+ * never once been read from.
+ *
+ * Module-scoped rather than threaded through twenty-one signatures. An
+ * isolate serves requests concurrently, so this can be a *different* live
+ * request's context by the time a write finishes — which is harmless here,
+ * because all waitUntil does is keep the isolate alive long enough, and any
+ * live context does that equally well. If it is null the behaviour is
+ * exactly what it is today.
+ */
+let CTX = null;
+
 async function cacheGet(cacheKey) {
   const cache = caches.default;
   return cache.match(cacheKey);
@@ -110,7 +134,9 @@ async function cachePut(cacheKey, response, ttl, swr = 0) {
       : `public, max-age=${ttl}`;
   cached.headers.set("Cache-Control", cc);
   cached.headers.set("X-Cache-TTL", String(ttl));
-  return cache.put(cacheKey, cached);
+  const write = cache.put(cacheKey, cached);
+  CTX?.waitUntil?.(write);
+  return write;
 }
 
 // ── Security + perf headers applied to all responses ──
@@ -1320,6 +1346,11 @@ async function handleWeather(url) {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
         "X-Cache": "MISS",
+        // The copy going into the edge cache below is given this; the copy
+        // going to the caller was given nothing, so every browser and every
+        // proxy in between re-asked for a reading that is good for fifteen
+        // minutes.
+        "Cache-Control": "public, max-age=900, stale-while-revalidate=300",
       },
     });
 
@@ -2111,7 +2142,8 @@ export default {
     }
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
+    CTX = ctx;
     const url = new URL(request.url);
 
     // CORS preflight
