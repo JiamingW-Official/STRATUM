@@ -317,6 +317,7 @@ const SCREENS = {
     dining: "Dining",
     shop: "Duty free",
     info: "Flight information",
+    weather: "Weather",
     chat: "Seat messages",
   },
   简体中文: {
@@ -326,6 +327,7 @@ const SCREENS = {
     dining: "餐食",
     shop: "免税购物",
     info: "航班信息",
+    weather: "天气",
     chat: "座位消息",
   },
 } as const;

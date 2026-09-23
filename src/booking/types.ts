@@ -130,7 +130,7 @@ export type Passenger = {
  * or the security code — see profile.ts.
  */
 export type SavedCard = {
-  brand: "Visa" | "Mastercard" | "Amex" | "Card";
+  brand: "Visa" | "Mastercard" | "Amex" | "Club" | "Card";
   last4: string;
   /** MM/YY, as it is printed on the card. */
   expiry: string;
@@ -178,7 +178,13 @@ export type Step =
   | "today"
   | "trip"
   | "checkin"
-  | "boarding";
+  | "boarding"
+  /* The club, and the four rooms off it. */
+  | "club-status"
+  | "club-card"
+  | "club-miles"
+  | "club-earn"
+  | "club-activity";
 
 /**
  * A way of getting there: one flight, or two with a change in the middle.

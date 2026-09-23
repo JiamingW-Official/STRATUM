@@ -673,7 +673,14 @@ test.describe("IFE bench", () => {
     // grey type at the right edge was the one thing on this panel you had to
     // lean in to read, on the panel that exists so you do not have to.
     await expect(menu.locator(".ife-drawer-row-note")).toHaveCount(0);
-    for (const label of ["Movies", "Music", "Games", "Dining", "Seat messages"]) {
+    for (const label of [
+      "Movies",
+      "Music",
+      "Games",
+      "Dining",
+      "Weather",
+      "Seat messages",
+    ]) {
       await expect(menu.getByRole("button", { name: label })).toHaveCount(1);
     }
 
@@ -681,7 +688,7 @@ test.describe("IFE bench", () => {
     // call and the screen switch were here too, and all three are placards
     // on the rail below — a panel that mixes doors with switches makes you
     // read each row to find out which kind it is.
-    await expect(menu.locator(".ife-drawer-row")).toHaveCount(9);
+    await expect(menu.locator(".ife-drawer-row")).toHaveCount(10);
     for (const label of ["Reading light", "Call attendant", "Screen off"]) {
       await expect(menu.getByRole("button", { name: label })).toHaveCount(0);
       await expect(rail(page, label)).toHaveCount(1);

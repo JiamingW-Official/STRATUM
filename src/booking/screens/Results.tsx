@@ -20,7 +20,7 @@ import {
   searchItineraries,
   serviceFor,
 } from "../schedule";
-import { milesFor, tierOf, zoneBumpFor } from "../member";
+import { cardBumpFor, milesFor, tierOf, zoneBumpFor } from "../member";
 import {
   itDepartureUtc,
   itFrom,
@@ -566,7 +566,11 @@ export function Results() {
                             </div>
 
                             <div className="bk-fare-terms">
-                              <FareTerms cabinClass={cabinClass} family={f.id} />
+                              <FareTerms
+                                cabinClass={cabinClass}
+                                family={f.id}
+                                cardBag={Boolean(member?.cardHolder)}
+                              />
                             </div>
 
                             <div className="bk-fare-earn">
@@ -576,7 +580,11 @@ export function Results() {
                               </span>
                               <span>
                                 Boards group{" "}
-                                {boardingGroup(cabinClass, f.id, zoneBumpFor(tier))}
+                                {boardingGroup(
+                                  cabinClass,
+                                  f.id,
+                                  zoneBumpFor(tier) + cardBumpFor(member),
+                                )}
                               </span>
                             </div>
 

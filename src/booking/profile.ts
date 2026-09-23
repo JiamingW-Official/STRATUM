@@ -1,5 +1,7 @@
 import type { SavedCard } from "./types";
 import type { Member } from "./member";
+import type { CabinClass } from "../flight-state/types";
+import type { FareFamily } from "./schedule";
 import type { TripQuery } from "./types";
 
 // What this surface remembers between visits.
@@ -64,6 +66,13 @@ export type Earned = {
   miles: number;
   /** Flights, not journeys: a connection is two, and a card counts both. */
   segments: number;
+  /** What it was flown in, which is what the multiplier came from. Rows
+   *  written before the statement carried this have neither. */
+  cabinClass?: CabinClass;
+  family?: FareFamily;
+  /** Set on a row of miles spent rather than earned: what they bought. Such
+   *  a row has negative miles, no flights and no distance. */
+  what?: string;
 };
 
 const EMPTY: Profile = {
@@ -95,7 +104,17 @@ export function loadProfile(): Profile {
       member:
         p.member && typeof p.member === "object" &&
         typeof (p.member as Member).number === "string"
-          ? { number: (p.member as Member).number, miles: Number((p.member as Member).miles) || 0 }
+          ? {
+              number: (p.member as Member).number,
+              miles: Number((p.member as Member).miles) || 0,
+              ...(typeof (p.member as Member).since === "string"
+                ? { since: (p.member as Member).since }
+                : {}),
+              ...((p.member as Member).cardHolder ? { cardHolder: true } : {}),
+              ...(Number.isFinite((p.member as Member).redeemed)
+                ? { redeemed: Number((p.member as Member).redeemed) }
+                : {}),
+            }
           : null,
       recent: Array.isArray(p.recent)
         ? (p.recent as TripQuery[]).filter(
@@ -143,7 +162,8 @@ export function repriceEarned(
   const p = loadProfile();
   let delta = 0;
   const activity = p.activity.map((e) => {
-    if (e.pnr !== pnr) return e;
+    // Miles spent on the trip are what they were; only the flights reprice.
+    if (e.pnr !== pnr || e.miles < 0) return e;
     const miles = Math.round(e.miles * factor);
     delta += miles - e.miles;
     return { ...e, miles };
@@ -170,16 +190,27 @@ export function rememberEarned(rows: Earned[]): Earned[] {
  * and a statement listing a trip that was refunded is a statement that cannot
  * be reconciled. Returns what is left and what was taken back.
  */
-export function forgetEarned(pnr: string): { activity: Earned[]; miles: number } {
+export function forgetEarned(pnr: string): {
+  activity: Earned[];
+  miles: number;
+  spent: number;
+} {
   const p = loadProfile();
   const gone = p.activity.filter((e) => e.pnr === pnr);
   const activity = p.activity.filter((e) => e.pnr !== pnr);
-  const miles = gone.reduce((n, e) => n + e.miles, 0);
+  // The flights come off the balance; what was spent on the trip goes back
+  // onto it. Both are rows on the same statement, told apart by their sign.
+  const miles = gone.filter((e) => e.miles > 0).reduce((n, e) => n + e.miles, 0);
+  const spent = gone.filter((e) => e.miles < 0).reduce((n, e) => n - e.miles, 0);
   const member = p.member
-    ? { ...p.member, miles: Math.max(0, p.member.miles - miles) }
+    ? {
+        ...p.member,
+        miles: Math.max(0, p.member.miles - miles),
+        redeemed: Math.max(0, (p.member.redeemed ?? 0) - spent),
+      }
     : null;
   saveProfile({ ...p, activity, member });
-  return { activity, miles };
+  return { activity, miles, spent };
 }
 
 /** Newest first, at most three, and never the same route twice. */
@@ -208,6 +239,8 @@ function isCard(c: unknown): c is SavedCard {
 
 /** The network, from the digits every scheme agreed to start with. */
 export function brandOf(digits: string): SavedCard["brand"] {
+  // The programme's own card, before the network it rides on.
+  if (/^5299/.test(digits)) return "Club";
   if (/^4/.test(digits)) return "Visa";
   if (/^(5[1-5]|2[2-7])/.test(digits)) return "Mastercard";
   if (/^3[47]/.test(digits)) return "Amex";

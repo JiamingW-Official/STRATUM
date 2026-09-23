@@ -104,6 +104,7 @@ export function Today() {
   const chosenFamily = useBooking((s) => s.fareFamily);
   const extraBags = useBooking((s) => s.extraBags);
   const passengers = useBooking((s) => s.passengers);
+  const member = useBooking((s) => s.member);
   const now = useMinute();
   const todays = todaysLeg(legs, now);
 
@@ -324,7 +325,7 @@ export function Today() {
   const checked = legCheckedIn(current);
   const cabinClass = segs[0].passes[0]?.cabinClass ?? "economy";
   const family = familyFor(cabinClass, chosenFamily);
-  const tags = checkedBagsFor(cabinClass, family) + extraBags;
+  const tags = checkedBagsFor(cabinClass, family, Boolean(member?.cardHolder)) + extraBags;
   const pass = segs[0].passes[0] ?? null;
   const d0 = disruptionFor(
     segs[0].option.flightNo,
@@ -450,6 +451,7 @@ export function Today() {
             p.kind === "before" ? (
               <BeforePage
                 key="b"
+                cardBag={Boolean(member?.cardHolder)}
                 leg={current}
                 now={now}
                 checked={checked}
@@ -545,6 +547,7 @@ export function Today() {
 
 /** On the sofa. No gate, no queue, no bag tracker — none of it exists yet. */
 function BeforePage({
+  cardBag,
   leg,
   now,
   checked,
@@ -552,6 +555,7 @@ function BeforePage({
   tags,
   passenger,
 }: {
+  cardBag: boolean;
   leg: LegBooking;
   now: number;
   checked: boolean;
@@ -682,7 +686,7 @@ function BeforePage({
           </li>
           <li>
             <Bag size={18} />
-            <p>{baggageFor("economy", family)}</p>
+            <p>{baggageFor("economy", family, cardBag)}</p>
           </li>
           <li data-lit={!checked}>
             <Passport size={18} />

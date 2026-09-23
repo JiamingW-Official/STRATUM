@@ -80,6 +80,7 @@ export function Seats() {
   const sitTogether = useBooking((s) => s.sitTogether);
   const member = useBooking((s) => s.member);
   const pnr = useBooking((s) => s.pnr);
+  const milesSeats = useBooking((s) => s.milesSeats);
   const paxRow = useRef<HTMLDivElement>(null);
   const paxThumb = useThumb(paxRow, [paxIndex, passengers.length]);
   const go = useBooking((s) => s.go);
@@ -125,7 +126,8 @@ export function Seats() {
   const family = familyFor(cabinClass, chosenFamily);
   const seatsFree =
     seatIncludedFor(cabinClass, family) ||
-    seatsIncludedFor(tierOf(member?.miles ?? 0));
+    seatsIncludedFor(tierOf(member?.miles ?? 0)) ||
+    milesSeats;
   const { total: perPax } = priceOf(selected, cabinClass, family);
   const surcharge = seatsFree
     ? 0

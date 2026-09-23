@@ -21,6 +21,10 @@ export type Trip = {
   back: LegBooking | null;
   cabinClass: CabinClass;
   extraBags: number;
+  /** Of the extra bags, how many were bought with miles rather than money. */
+  milesBags?: number;
+  /** Seat choice bought with miles for the whole trip. */
+  milesSeats?: boolean;
 };
 
 export function loadTrip(): Trip | null {

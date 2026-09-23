@@ -165,7 +165,10 @@ export function Home() {
     },
     {
       key: "weather",
-      screen: "flightInfo",
+      // It used to open Flight information, which carries no weather at all:
+      // the card showed a sky and a temperature and then handed you a page of
+      // ground speed and heading. Now it opens the page it was promising.
+      screen: "weather",
       cap: pick(route.to.city, lang),
       // The sky, drawn, switched by the same code that picks the words — so
       // the picture and "Overcast" can never disagree.

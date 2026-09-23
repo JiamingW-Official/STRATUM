@@ -53,10 +53,11 @@ export function Boarding() {
   const selected = segs[passSeg]?.option ?? null;
   const hasReturn = Boolean(legs.back);
   const extraBags = useBooking((s) => s.extraBags);
+  const milesBags = useBooking((s) => s.milesBags);
+  const member = useBooking((s) => s.member);
 
   const cabinClass = useBooking((s) => s.cabinClass);
   const chosenFamily = useBooking((s) => s.fareFamily);
-  const member = useBooking((s) => s.member);
   // The one thing a gate makes everybody do: hold the code up to a reader,
   // usually in sunlight, usually while somebody waits. Tapping it fills the
   // glass with it. That is a real action on a real boarding pass and it is
@@ -351,9 +352,9 @@ export function Boarding() {
             <div data-wide="true">
               <dt>Bags</dt>
               <dd>
-                {baggageFor(cabinClass, familyFor(cabinClass, chosenFamily))}
+                {baggageFor(cabinClass, familyFor(cabinClass, chosenFamily), Boolean(member?.cardHolder))}
                 {extraBags > 0 &&
-                  ` · +${extraBags} paid, ${money(extraBags * EXTRA_BAG)}`}
+                  ` · +${extraBags}${extraBags > milesBags ? ` paid, ${money((extraBags - milesBags) * EXTRA_BAG)}` : " on miles"}`}
               </dd>
             </div>
           </div>

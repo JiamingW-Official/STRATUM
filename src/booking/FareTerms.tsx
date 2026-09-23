@@ -30,13 +30,16 @@ type State = "yes" | "no" | "fee";
 export function FareTerms({
   cabinClass,
   family,
+  cardBag = false,
 }: {
   cabinClass: CabinClass;
   family: FareFamily;
+  /** The reader holds the Club Card, which puts a bag on a Light fare. */
+  cardBag?: boolean;
 }) {
   const f = fareFamily(family);
   const heavy = bagWeightFor(cabinClass);
-  const checked = checkedBagsFor(cabinClass, family);
+  const checked = checkedBagsFor(cabinClass, family, cardBag);
   // Three states, not two. A cross against "Change for a fee" says the thing
   // cannot be done, and it can — it costs money, which is a different answer
   // and the one airlines print as a fee badge.

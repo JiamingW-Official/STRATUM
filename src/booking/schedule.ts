@@ -351,10 +351,16 @@ export function seatIncludedFor(
 export function checkedBagsFor(
   cabinClass: CabinClass,
   family: FareFamily,
+  /** Holding the Club Card puts a bag on the one fare that has none. */
+  cardBag = false,
 ): number {
   if (cabinClass === "first") return 3;
   if (cabinClass === "business") return 2;
-  return fareFamily(family).checked + (cabinClass === "premium" ? 1 : 0);
+  return (
+    fareFamily(family).checked +
+    (cabinClass === "premium" ? 1 : 0) +
+    (cardBag && family === "light" ? 1 : 0)
+  );
 }
 
 /** What the cabin is called, wherever it is named. */
@@ -452,8 +458,9 @@ export function boardingGroup(
 export function baggageFor(
   cabinClass: CabinClass,
   family: FareFamily = "standard",
+  cardBag = false,
 ): string {
-  const checked = checkedBagsFor(cabinClass, family);
+  const checked = checkedBagsFor(cabinClass, family, cardBag);
   const cabin = cabinBagFor(cabinClass);
   if (checked === 0) return `${cabin} · no checked bag`;
   const each = `${bagWeightFor(cabinClass)} kg`;

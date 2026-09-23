@@ -10,6 +10,7 @@ import { Trip } from "./screens/Trip";
 import { CheckIn } from "./screens/CheckIn";
 import { Boarding } from "./screens/Boarding";
 import { Account } from "./screens/Account";
+import { ClubActivity, ClubCard, ClubMiles, ClubStatus, ClubEarn } from "./screens/Club";
 import { TabBar } from "./TabBar";
 import { DynamicIsland, StatusBar } from "./Chrome";
 import { Back, Mark } from "./icons";
@@ -35,13 +36,29 @@ const TITLES: Record<Step, string> = {
   trip: "Your trip",
   checkin: "Check in",
   boarding: "Boarding pass",
+  "club-status": "Status",
+  "club-card": "Club Card",
+  "club-miles": "Use miles",
+  "club-earn": "Earn miles",
+  "club-activity": "Activity",
 };
 
 /** The three screens that are places rather than steps. */
 // The trip is a page pushed from the Trips tab, so it keeps the tabs the way
 // a pushed screen does on a phone. The booking flow does not: a flow you are
 // halfway through is not a place.
-const TABBED = new Set<Step>(["search", "account", "booked", "today", "trip"]);
+const TABBED = new Set<Step>([
+  "search",
+  "account",
+  "booked",
+  "today",
+  "trip",
+  "club-status",
+  "club-card",
+  "club-miles",
+  "club-earn",
+  "club-activity",
+]);
 
 /** Where "back" goes. A pass that has been issued has no back. */
 const BACK: Partial<Record<Step, Step>> = {
@@ -49,6 +66,11 @@ const BACK: Partial<Record<Step, Step>> = {
   seats: "results",
   review: "seats",
   trip: "booked",
+  "club-status": "account",
+  "club-card": "account",
+  "club-miles": "account",
+  "club-earn": "account",
+  "club-activity": "account",
   checkin: "trip",
   // A pass is not the end of the app. Without this the boarding pass was a
   // dead end: the back button was disabled and the only way out was an
@@ -123,6 +145,11 @@ export function BookingApp() {
 
       {step === "search" && <Search />}
       {step === "account" && <Account />}
+      {step === "club-status" && <ClubStatus />}
+      {step === "club-card" && <ClubCard />}
+      {step === "club-miles" && <ClubMiles />}
+      {step === "club-earn" && <ClubEarn />}
+      {step === "club-activity" && <ClubActivity />}
       {step === "results" && <Results />}
       {step === "seats" && <Seats />}
       {step === "review" && <Review />}

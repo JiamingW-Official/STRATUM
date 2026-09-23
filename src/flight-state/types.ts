@@ -133,6 +133,7 @@ export type ScreenName =
   | "home"
   | "map"
   | "flightInfo"
+  | "weather"
   | "movies"
   | "music"
   | "games"

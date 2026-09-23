@@ -25,6 +25,7 @@ import { Shop } from "./screens/Shop";
 import { Idle } from "./screens/Idle";
 import { Home } from "./screens/Home";
 import { FlightInfo } from "./screens/FlightInfo";
+import { Weather } from "./screens/Weather";
 import { Music } from "./screens/Music";
 import { Movies } from "./screens/Movies";
 import { Games } from "./screens/Games";
@@ -251,6 +252,7 @@ export function IFEApp({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
           </Suspense>
         </div>
         {screen === "flightInfo" && <FlightInfo />}
+        {screen === "weather" && <Weather />}
         {screen === "music" && <Music />}
         {screen === "movies" && <Movies />}
         {screen === "games" && <Games />}

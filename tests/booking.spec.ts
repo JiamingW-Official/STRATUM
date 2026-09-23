@@ -1154,7 +1154,10 @@ test.describe("booking", () => {
       (await page.locator(".bk-member-miles").textContent())!.replace(/\D/g, ""),
     );
     expect(earned).toBeGreaterThan(0);
+    // The statement is a room of its own off the hub.
+    await page.getByRole("button", { name: /^Activity/ }).click();
     await expect(page.locator(".bk-hist-row")).toHaveCount(1);
+    await page.getByRole("button", { name: "Back" }).click();
 
     // Cancel it, and the statement no longer lists a flight that was refunded.
     await page.getByRole("button", { name: "Trips" }).click();
@@ -1165,7 +1168,9 @@ test.describe("booking", () => {
       .getByRole("button", { name: /^Cancel and refund/ })
       .click();
     await page.getByRole("button", { name: "Club" }).click();
+    await page.getByRole("button", { name: /^Activity/ }).click();
     await expect(page.locator(".bk-hist-row")).toHaveCount(0);
+    await page.getByRole("button", { name: "Back" }).click();
     // The card itself stays — it was issued, and an airline does not
     // un-issue a number. What goes is the balance it was given.
     await expect(page.locator(".bk-member-miles")).toContainText("0");
@@ -1292,11 +1297,13 @@ test.describe("booking", () => {
     // And the card earns at the cabin you actually fly in: business is twice
     // the distance rate and Flex is a quarter more again.
     await page.getByRole("button", { name: "Club" }).click();
-    const credited = Number(
-      (await page.locator(".bk-hist-miles").first().textContent())!.replace(/\D/g, ""),
-    );
     const balance = Number(
       (await page.locator(".bk-member-miles").textContent())!.replace(/\D/g, ""),
+    );
+    // The statement is a room off the hub.
+    await page.getByRole("button", { name: /^Activity/ }).click();
+    const credited = Number(
+      (await page.locator(".bk-hist-miles").first().textContent())!.replace(/\D/g, ""),
     );
     expect(credited).toBe(balance);
     expect(balance).toBeGreaterThan(0);
@@ -1827,6 +1834,81 @@ test.describe("booking", () => {
     await expect(
       page.locator(".bk-pass-facts div", { hasText: "Group" }).locator("dd"),
     ).toHaveText("3");
+  });
+
+  test("the Club Card and the miles both change the booking they touch", async ({ page }) => {
+    await openBench(page);
+    await oneWay(page);
+    // A card is issued with the first booking, so book one plainly first.
+    await toSeatMap(page);
+    await toBoardingPass(page);
+    await page.getByRole("button", { name: "Back" }).click();
+    await page.getByRole("button", { name: "Club" }).click();
+    const earned = Number(
+      (await page.locator(".bk-member-miles").textContent())!.replace(/\D/g, ""),
+    );
+
+    // The club is a hub with four rooms; the card is one of them, and
+    // holding it puts the programme's own card on file.
+    await page.getByRole("button", { name: /^Club Card/ }).click();
+    await expect(page.locator(".bk-clubcard")).toHaveAttribute("data-held", "false");
+    await page.getByRole("button", { name: /^Hold the card/ }).click();
+    await expect(page.locator(".bk-clubcard")).toHaveAttribute("data-held", "true");
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.locator(".bk-wallet")).toHaveAttribute("data-held", "true");
+    await expect(page.locator(".bk-wallet")).toContainText("Held");
+    await expect(page.locator(".bk-row", { hasText: "Club ending" })).toHaveCount(1);
+
+    // On the fare list the card shows: a Light fare now has a hold bag, and
+    // every group is one earlier than it was.
+    await page.getByRole("button", { name: "Book" }).click();
+    await page.getByRole("button", { name: "Search flights" }).click();
+    await bookable(page).first().click();
+    const light = page
+      .locator('.bk-flight-item[data-open="true"] .bk-fare')
+      .filter({ has: page.locator(".bk-fare-brand", { hasText: "Light" }) });
+    await expect(light).toContainText("1 checked bag");
+    await expect(light).toContainText("Boards group 6");
+
+    // Paid with it, the same fare earns twice.
+    await light.getByRole("button", { name: "Select" }).click();
+    await page.getByRole("button", { name: "Review and pay" }).click();
+    // The card is on file; the code is asked every time.
+    await page.getByPlaceholder("000", { exact: true }).fill("123");
+    await page.getByRole("button", { name: /^Pay / }).click();
+    await page.waitForSelector(".bk-tripmast");
+    await page.getByRole("button", { name: "Club" }).click();
+    await page.getByRole("button", { name: /^Activity/ }).click();
+    const rows = page.locator(".bk-hist-row");
+    await expect(rows).toHaveCount(2);
+    const plain = Number((await rows.nth(1).locator(".bk-hist-miles").textContent())!.replace(/\D/g, ""));
+    const doubled = Number((await rows.nth(0).locator(".bk-hist-miles").textContent())!.replace(/\D/g, ""));
+    expect(plain).toBe(earned);
+    // Light earns half of Standard; paid with the card that is doubled back.
+    // Each leg is rounded on its own, so the two can sit a mile apart.
+    expect(Math.abs(doubled - earned)).toBeLessThanOrEqual(1);
+
+    // Miles buy a bag on the trip in hand, and the check-in charges nothing
+    // for it.
+    await page.getByRole("button", { name: "Back" }).click();
+    await page.getByRole("button", { name: /^Use miles/ }).click();
+    const balance = Number((await page.locator(".bk-miles-balance").textContent())!.replace(/\D/g, ""));
+    expect(balance).toBe(earned + doubled);
+    await page.getByRole("button", { name: /^A checked bag/ }).click();
+    await expect(page.locator(".bk-miles-balance")).toContainText(
+      (balance - 2500).toLocaleString("en-US"),
+    );
+    await page.getByRole("button", { name: "Back" }).click();
+    // The statement shows what was spent, as a row with a sign.
+    await page.getByRole("button", { name: /^Activity/ }).click();
+    await expect(page.locator('.bk-hist-row[data-spent="true"]')).toHaveCount(1);
+    await expect(page.locator('.bk-hist-row[data-spent="true"]')).toContainText("−2,500");
+    await page.getByRole("button", { name: "Back" }).click();
+    await page.getByRole("button", { name: "Trips" }).click();
+    await page.locator(".bk-panel").first().click();
+    await page.getByRole("button", { name: /^Check in · / }).click();
+    await expect(page.locator('.bk-seg-b[data-on="true"]', { hasText: "+1 bag" })).toHaveCount(1);
+    await expect(page.locator(".bk-note", { hasText: "on miles" })).toContainText("nothing charged");
   });
 
 });

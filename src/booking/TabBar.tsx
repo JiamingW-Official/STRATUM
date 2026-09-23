@@ -46,7 +46,14 @@ const TABS: Array<[Step, string, string, boolean]> = [
  * capsule stayed dark where it had last been left, with a grey label sitting
  * on top of it, and the row stopped saying where you were.
  */
-const PUSHED: Partial<Record<Step, Step>> = { trip: "booked" };
+const PUSHED: Partial<Record<Step, Step>> = {
+  trip: "booked",
+  "club-status": "account",
+  "club-card": "account",
+  "club-miles": "account",
+  "club-earn": "account",
+  "club-activity": "account",
+};
 
 export function TabBar() {
   const step = useBooking((s) => s.step);

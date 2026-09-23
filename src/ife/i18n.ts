@@ -76,6 +76,10 @@ const DICT = {
   landingIn: ["Landing in", "还有"],
   arrived: ["Arrived", "已到达"],
   weather: ["Weather", "天气"],
+  weatherUnavailable: [
+    "No reading for this airport.",
+    "这个机场没有读数。",
+  ],
   feelsLike: ["Feels like", "体感"],
   wind: ["Wind", "风"],
   later: ["Later", "稍后"],

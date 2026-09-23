@@ -66,6 +66,8 @@ export function CheckIn() {
   const chosenFamily = useBooking((s) => s.fareFamily);
   const savedCard = useBooking((s) => s.savedCard);
   const extraBags = useBooking((s) => s.extraBags);
+  const milesBags = useBooking((s) => s.milesBags);
+  const member = useBooking((s) => s.member);
   const setExtraBags = useBooking((s) => s.setExtraBags);
   const forgetDocument = useBooking((s) => s.forgetPassport);
   const [declared, setDeclared] = useState<null | boolean>(null);
@@ -272,7 +274,7 @@ export function CheckIn() {
           <div className="bk-row" data-static="true" data-stack="true">
             <span className="bk-row-k">Included in your fare</span>
             <span className="bk-row-v">
-              {baggageFor(cabinClass, familyFor(cabinClass, chosenFamily))}
+              {baggageFor(cabinClass, familyFor(cabinClass, chosenFamily), Boolean(member?.cardHolder))}
             </span>
           </div>
           <div className="bk-seg" ref={bagRow}>
@@ -316,13 +318,18 @@ export function CheckIn() {
             at {selected.from.iata}.
             {bagsShut && " A bag can only go in the cabin from here."}
           </p>
-          {extraBags > 0 && (
+          {extraBags > milesBags && (
             <p className="bk-note">
-              {money(extraBags * EXTRA_BAG)} charged to{" "}
+              {money((extraBags - milesBags) * EXTRA_BAG)} charged to{" "}
               {savedCard
                 ? `${savedCard.brand} ending ${savedCard.last4}`
                 : "the card on file"}
-              . Added to this booking, not paid again at the airport.
+              {milesBags > 0 && ` · ${milesBags} on miles`}
+            </p>
+          )}
+          {extraBags > 0 && extraBags <= milesBags && (
+            <p className="bk-note">
+              {milesBags} bag{milesBags > 1 ? "s" : ""} on miles · nothing charged
             </p>
           )}
         </div>

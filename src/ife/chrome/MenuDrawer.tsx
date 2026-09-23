@@ -75,6 +75,12 @@ export function MenuDrawer() {
           current: screen === "flightInfo",
         },
         {
+          key: "weather",
+          label: t("weather"),
+          onPress: go("weather"),
+          current: screen === "weather",
+        },
+        {
           key: "sky",
           label: t("theSky"),
           href: "/",

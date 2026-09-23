@@ -5,7 +5,7 @@ import { RouteLine } from "../RouteLine";
 import { Close, Code, Go } from "../icons";
 import { useMinute } from "../clock";
 import { FareTerms } from "../FareTerms";
-import { buildCabin, findSeat } from "../cabin";
+import { buildCabin, findSeat, surchargeFor } from "../cabin";
 import { seatsIncludedFor, tierOf } from "../member";
 import {
   changeFeeFor,
@@ -307,24 +307,19 @@ export function Trip() {
                 <div className="bk-panel-acts">
                   <button
                     className="bk-row"
+                    data-go="true"
                     onClick={() => {
                       setLeg(which);
                       useBooking.setState({ segIndex: 0, paxIndex: 0 });
                       go("seats");
                     }}
                   >
-                    <span className="bk-row-k">
-                      Seats
-                      <span className="bk-row-sub">
-                        {checked
-                          ? "Move it and the pass is re-issued"
-                          : pax > 1
-                            ? "Choose again for everybody travelling"
-                            : "Choose a different seat"}
-                      </span>
-                    </span>
-                    <span className="bk-row-v bk-dim">
-                      <Go />
+                    <span className="bk-row-k">Move seat</span>
+                    <span className="bk-row-v">
+                      {seatsFree
+                        ? "Included"
+                        : `From ${money(surchargeFor("standard"))}`}
+                      <Go size={13} />
                     </span>
                   </button>
                   {/* Stays on the card after check-in, disabled, saying
@@ -332,23 +327,23 @@ export function Trip() {
                       whether it was ever there. */}
                   <button
                     className="bk-row"
+                    data-go="true"
                     disabled={checked || fee === null}
                     onClick={() => startChange(which)}
                   >
-                    <span className="bk-row-k">
-                      Change this flight
-                      <span className="bk-row-sub">
-                        {checked
-                          ? "With an agent after check-in"
-                          : fee === null
-                            ? `${rules.name} fares cannot be changed`
-                            : fee === 0
-                              ? "No fee · fare difference applies"
-                              : `${money(fee)} fee · fare difference applies`}
-                      </span>
-                    </span>
-                    <span className="bk-row-v bk-dim">
-                      <Go />
+                    <span className="bk-row-k">Change this flight</span>
+                    {/* One figure, and "from" carries the fare difference the
+                        sentence used to spell out: the fee is the floor, not
+                        the price. */}
+                    <span className="bk-row-v">
+                      {checked
+                        ? "At the airport"
+                        : fee === null
+                          ? `Not on ${rules.name}`
+                          : fee === 0
+                            ? "Fare difference"
+                            : `From ${money(fee)}`}
+                      <Go size={13} />
                     </span>
                   </button>
                 </div>
@@ -389,39 +384,41 @@ export function Trip() {
                 {passengers.map((x) => `${x.family}/${x.given}`).join(" · ")}
               </span>
             </div>
+            {/* A receipt, so one fact to a line. The fare used to be a grey
+                clause under the total and the head count a word inside it;
+                the travellers are named on the row above, which is the head
+                count told properly. */}
             <div className="bk-row" data-static="true">
-              <span className="bk-row-k">
-                Paid
-                <span className="bk-row-sub">
-                  {fareLabel(cabinClass, family)} ·{" "}
-                  {pax > 1 ? `${pax} travellers` : "1 traveller"}
-                </span>
-              </span>
+              <span className="bk-row-k">Fare</span>
+              <span className="bk-row-v">{fareLabel(cabinClass, family)}</span>
+            </div>
+            <div className="bk-row" data-static="true">
+              <span className="bk-row-k">Paid</span>
               <span className="bk-row-v">{money(fares + taxes)}</span>
             </div>
             {canUpgrade && (
-              <button className="bk-row" onClick={() => setUpgrading(true)}>
-                <span className="bk-row-k">
-                  Move to Business
-                  <span className="bk-row-sub">
-                    A bed on {booked.length > 1 ? "both flights" : "the flight"},
-                    and everything that comes with it
-                  </span>
+              <button
+                className="bk-row"
+                data-go="true"
+                onClick={() => setUpgrading(true)}
+              >
+                <span className="bk-row-k">Move to Business</span>
+                <span className="bk-row-v bk-upsell">
+                  +{money(upgrade)}
+                  <Go size={13} />
                 </span>
-                <span className="bk-row-v bk-upsell">{money(upgrade)}</span>
               </button>
             )}
-            <button className="bk-row" onClick={() => setConfirming(true)}>
-              <span className="bk-row-k">
-                Cancel the booking
-                <span className="bk-row-sub">
-                  {refund.fare > 0
-                    ? `Refundable · ${money(refund.total)} back`
-                    : `Fare is non-refundable · ${money(refund.tax)} of taxes back`}
-                </span>
-              </span>
-              <span className="bk-row-v bk-dim">
-                <Go />
+            {/* What comes back, and the sheet behind it says out of what. */}
+            <button
+              className="bk-row"
+              data-go="true"
+              onClick={() => setConfirming(true)}
+            >
+              <span className="bk-row-k">Cancel the booking</span>
+              <span className="bk-row-v">
+                {money(refund.fare > 0 ? refund.total : refund.tax)} back
+                <Go size={13} />
               </span>
             </button>
           </div>
@@ -487,12 +484,9 @@ export function Trip() {
               {seatMoney > 0 && (
                 <div className="bk-row" data-static="true">
                   <span className="bk-row-k">
-                    Seats
-                    <span className="bk-row-sub">
-                      {money(seatMoney)} paid, and a seat fee is not returned
-                    </span>
+                    Seats · {money(seatMoney)} paid
                   </span>
-                  <span className="bk-row-v">—</span>
+                  <span className="bk-row-v">Not returned</span>
                 </div>
               )}
             </div>
@@ -500,11 +494,6 @@ export function Trip() {
               <span>Back to your card</span>
               <b>{money(refund.total)}</b>
             </div>
-            <p className="bk-note">
-              {refund.fare > 0
-                ? "Fare and taxes both come back · that is what Flex buys"
-                : "Taxes come back on every fare · the fare does not"}
-            </p>
             <button className="bk-btn" onClick={() => cancelBooking(refund)}>
               Cancel and refund {money(refund.total)}
             </button>

@@ -12,6 +12,7 @@ import {
   repriceEarned,
   saveProfile,
   type Earned,
+  brandOf,
 } from "./profile";
 import {
   boardingGroup,
@@ -30,6 +31,10 @@ import {
   tierOf,
   zoneBumpFor,
   type Member,
+  REDEMPTIONS,
+  balanceOf,
+  cardBumpFor,
+  clubCardNumber,
 } from "./member";
 import { forgetTrip, loadTrip, saveTrip, type Trip } from "./trips";
 import type {
@@ -180,6 +185,10 @@ type BookingStore = {
   card: { number: string; expiry: string; cvv: string };
   remember: boolean;
   extraBags: number;
+  /** Of the extra bags, bought with miles rather than money. */
+  milesBags: number;
+  /** Seat choice on this trip, bought with miles. */
+  milesSeats: boolean;
 
   pnr: string | null;
   /** The leg whose pass is on screen. */
@@ -206,6 +215,11 @@ type BookingStore = {
   setUseSaved: (v: boolean) => void;
   setRemember: (v: boolean) => void;
   setExtraBags: (n: number) => void;
+  /** Take the programme's own card, and use it to pay. */
+  holdClubCard: () => void;
+  dropClubCard: () => void;
+  /** Spend miles on the trip in hand. */
+  redeem: (id: "bag" | "seats") => void;
   forgetSavedCard: () => void;
   forgetPassport: () => void;
   pay: () => void;
@@ -276,6 +290,8 @@ export const useBooking = create<BookingStore>((set, get) => ({
   card: { number: "", expiry: "", cvv: "" },
   remember: true,
   extraBags: trip?.extraBags ?? 0,
+  milesBags: trip?.milesBags ?? 0,
+  milesSeats: trip?.milesSeats ?? false,
 
   pnr: trip?.pnr ?? null,
   passLeg: "out",
@@ -442,6 +458,8 @@ export const useBooking = create<BookingStore>((set, get) => ({
           back: legs.back,
           cabinClass: s.cabinClass,
           extraBags: s.extraBags,
+          milesBags: s.milesBags,
+          milesSeats: s.milesSeats,
         });
       }
       return {
@@ -527,21 +545,19 @@ export const useBooking = create<BookingStore>((set, get) => ({
       : remember
         ? maskCard(card.number, card.expiry)
         : null;
+    // Paid with the programme's own card, the fare earns twice over. That is
+    // the one thing every co-branded card actually does, and it is the reason
+    // the number is checked here rather than the card merely being "held".
+    const paidWith = useSaved
+      ? savedCard?.brand
+      : brandOf(card.number.replace(/\D/g, ""));
+    const earnX = paidWith === "Club" ? 2 : 1;
     // The card is issued the first time somebody books, and every leg of the
     // trip adds to it. This is a loyalty number a browser gives itself, not a
     // sign-in: there is no password anywhere in it and there is nowhere for
     // one to go.
-    const flown = [legs.out, legs.back]
-      .filter(Boolean)
-      .flatMap((l) => l!.segments)
-      .reduce(
-        (n, sg) => n + routeKm(sg.option.from.iata, sg.option.to.iata),
-        0,
-      );
-    const earned =
-      milesFor(flown, cabinClass, get().fareFamily) * passengers.length;
-    // One row per leg, from the same distance the miles came from, so the
-    // balance on the card can be checked against what put it there.
+    // One row per leg, from the same distance the miles came from, and the
+    // balance is their sum, so the card can be checked against the statement.
     const today = new Date().toISOString().slice(0, 10);
     // Before the rows that carry it: they are keyed by the reference so that
     // a cancellation can find them again.
@@ -574,12 +590,21 @@ export const useBooking = create<BookingStore>((set, get) => ({
             ),
             cabinClass,
             get().fareFamily,
-          ) * passengers.length,
+          ) *
+          passengers.length *
+          earnX,
+        cabinClass,
+        family: familyFor(cabinClass, get().fareFamily),
       }),
     );
+    const earned = rows.reduce((n, r) => n + r.miles, 0);
     const member: Member = {
       number: get().member?.number ?? numberFor(lead.family, lead.given),
       miles: (get().member?.miles ?? 0) + earned,
+      // The day the card was issued, kept from the first booking on.
+      since: get().member?.since ?? today,
+      ...(get().member?.cardHolder ? { cardHolder: true } : {}),
+      redeemed: get().member?.redeemed ?? 0,
     };
     saveProfile({ ...toProfile(lead), card: keep, member });
     const activity = rememberEarned(rows);
@@ -590,6 +615,8 @@ export const useBooking = create<BookingStore>((set, get) => ({
       back: legs.back,
       cabinClass,
       extraBags,
+      milesBags: get().milesBags,
+      milesSeats: get().milesSeats,
     };
     saveTrip(booked);
 
@@ -659,7 +686,8 @@ export const useBooking = create<BookingStore>((set, get) => ({
           zone: boardingGroup(
             cabinClass,
             familyFor(cabinClass, get().fareFamily),
-            zoneBumpFor(tierOf(get().member?.miles ?? 0)),
+            zoneBumpFor(tierOf(get().member?.miles ?? 0)) +
+              cardBumpFor(get().member),
           ),
           // Everyone on one booking is checked in at the same desk, one after
           // the other, which is what a sequence number counts.
@@ -677,6 +705,8 @@ export const useBooking = create<BookingStore>((set, get) => ({
       back: next.back,
       cabinClass,
       extraBags,
+      milesBags: get().milesBags,
+      milesSeats: get().milesSeats,
     };
     saveTrip(saved);
     set({
@@ -723,6 +753,8 @@ export const useBooking = create<BookingStore>((set, get) => ({
       back: next.back,
       cabinClass: "business",
       extraBags: 0,
+      milesBags: 0,
+      milesSeats: false,
     };
     saveTrip(saved);
 
@@ -743,9 +775,76 @@ export const useBooking = create<BookingStore>((set, get) => ({
       paxIndex: 0,
       step: "seats",
       extraBags: 0,
+      milesBags: 0,
+      milesSeats: false,
       activity,
       ...(member ? { member: { ...member, miles: member.miles + delta } } : {}),
     });
+  },
+
+  holdClubCard: () => {
+    const { member, passengers } = get();
+    if (!member) return;
+    const held = { ...member, cardHolder: true };
+    // The card becomes the card on file, masked like any other: the number
+    // is the programme's prefix and the member's own digits, so it is
+    // recognised at payment and never has to be typed.
+    const number = clubCardNumber(member.number);
+    const card = maskCard(number, "12/30");
+    saveProfile({ ...toProfile(passengers[0]), card, member: held });
+    set({ member: held, savedCard: card, useSaved: true });
+  },
+
+  dropClubCard: () => {
+    const { member, passengers, savedCard } = get();
+    if (!member) return;
+    const { cardHolder: _, ...rest } = member;
+    const card = savedCard?.brand === "Club" ? null : savedCard;
+    saveProfile({ ...toProfile(passengers[0]), card, member: rest });
+    set({ member: rest, savedCard: card, useSaved: Boolean(card) });
+  },
+
+  redeem: (id) => {
+    const { member, passengers, pnr, legs, cabinClass, extraBags, milesBags, milesSeats } = get();
+    const offer = REDEMPTIONS.find((r) => r.id === id);
+    const price = offer?.miles ?? 0;
+    if (!member || !pnr || !legs.out || !offer || price === 0) return;
+    if (balanceOf(member) < price) return;
+    if (id === "seats" && milesSeats) return;
+    const spent = { ...member, redeemed: (member.redeemed ?? 0) + price };
+    // On the statement as a row of its own, dated the day it was spent and
+    // tied to the booking, so a cancellation hands the miles back.
+    const today = new Date().toISOString().slice(0, 10);
+    const activity = rememberEarned([
+      {
+        pnr,
+        at: today,
+        flownAt: today,
+        from: legs.out.segments[0].option.from.iata,
+        to: legs.out.segments[legs.out.segments.length - 1].option.to.iata,
+        flights: [],
+        km: 0,
+        miles: -price,
+        segments: 0,
+        what: offer.name,
+      },
+    ]);
+    const next = {
+      extraBags: id === "bag" ? extraBags + 1 : extraBags,
+      milesBags: id === "bag" ? milesBags + 1 : milesBags,
+      milesSeats: id === "seats" ? true : milesSeats,
+    };
+    saveProfile({ ...toProfile(passengers[0]), card: get().savedCard, member: spent });
+    saveTrip({
+      pnr,
+      out: legs.out,
+      back: legs.back,
+      cabinClass,
+      extraBags: next.extraBags,
+      milesBags: next.milesBags,
+      milesSeats: next.milesSeats,
+    });
+    set({ member: spent, activity, ...next });
   },
 
   startChange: (leg) => {
@@ -820,6 +919,8 @@ export const useBooking = create<BookingStore>((set, get) => ({
       back: next.back,
       cabinClass,
       extraBags,
+      milesBags: get().milesBags,
+      milesSeats: get().milesSeats,
     };
     saveTrip(saved);
     set({
@@ -846,7 +947,11 @@ export const useBooking = create<BookingStore>((set, get) => ({
       ...(undone && member
         ? {
             activity: undone.activity,
-            member: { ...member, miles: Math.max(0, member.miles - undone.miles) },
+            member: {
+              ...member,
+              miles: Math.max(0, member.miles - undone.miles),
+              redeemed: Math.max(0, (member.redeemed ?? 0) - undone.spent),
+            },
             earned: 0,
           }
         : {}),
@@ -854,6 +959,8 @@ export const useBooking = create<BookingStore>((set, get) => ({
       legs: EMPTY_LEGS,
       pnr: null,
       extraBags: 0,
+      milesBags: 0,
+      milesSeats: false,
       changing: null,
       pendingChange: null,
       cancelled: refund,
@@ -871,6 +978,8 @@ export const useBooking = create<BookingStore>((set, get) => ({
       legs: { out: t.out, back: t.back },
       cabinClass: t.cabinClass,
       extraBags: t.extraBags,
+      milesBags: t.milesBags ?? 0,
+      milesSeats: t.milesSeats ?? false,
       pnr: t.pnr,
       passLeg: leg,
       passSeg: 0,
@@ -891,6 +1000,8 @@ export const useBooking = create<BookingStore>((set, get) => ({
       legs: EMPTY_LEGS,
       pnr: null,
       extraBags: 0,
+      milesBags: 0,
+      milesSeats: false,
       step: "search",
     });
   },
