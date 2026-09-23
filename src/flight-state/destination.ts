@@ -26,7 +26,15 @@ export type Destination = {
    * megabytes. Soft is fine at that size — it is dimmed ground behind type.
    */
   thumb: string | null;
-  /** Commons file name, for the credit line. */
+  /**
+   * The Commons file, named the way a person would read it.
+   *
+   * It is the file name and not an author, which matters: most of Commons
+   * is licensed on the condition that it is *attributed*, and a file name
+   * attributes nobody. So this is presented as the source and linked to the
+   * file's own page, where the photographer and the licence are — rather
+   * than dressed up as a credit it cannot give.
+   */
   credit: string | null;
   creditHref: string | null;
   extract: string;
@@ -47,12 +55,20 @@ async function fetchDestination(title: string): Promise<Destination | null> {
   // dimmed ground behind type.
   const big: string | undefined = d.originalimage?.source;
   const thumb: string | undefined = d.thumbnail?.source;
-  const file = (big ?? thumb)?.split("/").pop()?.split("?")[0] ?? null;
+  // Only from a real URL. A data: URI has no path, so `.pop()` returns the
+  // whole base64 payload and the cabin prints a screenful of it where the
+  // source line goes — which is exactly what the visual gate's stub produced.
+  const src = (big ?? thumb) ?? "";
+  const file = /^https?:\/\//.test(src)
+    ? (src.split("/").pop()?.split("?")[0] ?? null)
+    : null;
   return {
     title: d.title ?? title,
     image: big ?? thumb ?? null,
     thumb: thumb ?? big ?? null,
-    credit: file ? decodeURIComponent(file) : null,
+    credit: file
+      ? decodeURIComponent(file).replace(/_/g, " ").replace(/\.[a-z0-9]+$/i, "")
+      : null,
     creditHref: file
       ? `https://commons.wikimedia.org/wiki/File:${file.split("?")[0]}`
       : null,

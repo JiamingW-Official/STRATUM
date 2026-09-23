@@ -3031,6 +3031,23 @@
 .ife-fi-credit {
   margin-top: 12px;
   color: var(--faint);
+  /* Whatever the file is called, it cannot push this line off the glass:
+     Commons names run long and this is the last thing on a screen that does
+     not scroll. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ife-fi-credit a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.ife-fi-credit a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .ife-profile-note {
@@ -4624,6 +4641,23 @@
 .ife-chat-address > p {
   margin: 0;
   max-width: 60ch;
+}
+
+/* The state of the pane, said at the size of a statement rather than as a
+   tag in the corner. Everything under it is the rule that explains it. */
+.ife-chat-blank-state {
+  font-size: var(--t-lead);
+  color: var(--fg);
+}
+
+/* Gaps rather than a rule: the head sets the screen, the state answers it,
+   and the note qualifies the state. */
+.ife-chat-blank {
+  gap: 12px;
+}
+
+.ife-chat-blank > .ife-head-title {
+  margin: 0 0 18px;
 }
 
 .ife-chat-address-value {

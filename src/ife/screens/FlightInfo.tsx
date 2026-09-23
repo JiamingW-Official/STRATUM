@@ -116,7 +116,15 @@ export function FlightInfo() {
 
       {dest?.credit && (
         <div className="ife-fi-credit ife-cap">
-          {t("photograph")} · Wikimedia Commons · {dest.credit}
+          {t("photograph")} ·{" "}
+          {dest.creditHref ? (
+            <a href={dest.creditHref} target="_blank" rel="noreferrer">
+              {dest.credit}
+            </a>
+          ) : (
+            dest.credit
+          )}{" "}
+          · Wikimedia Commons
         </div>
       )}
     </div>

@@ -175,11 +175,15 @@ export function Chat({ seat, bridge }: { seat: string; bridge: IFEBridge }) {
              cabin — and the column beside it said "Nothing yet. Write to a
              seat and it will appear here." at the same time. Two empty
              states, in different words, about the same emptiness. */
+          /* Not the screen head. That shape pins its status to the far
+             right, which is correct over a screen with content under it and
+             wrong over an empty one: "No messages" ended up twelve hundred
+             pixels from the sentence explaining it, with nothing in
+             between. Here the state is the subject of the pane and the rule
+             sits under it, where a reader is already looking. */
           <div className="ife-chat-blank">
-            <header className="ife-head">
-              <h2 className="ife-head-title">{t("chat")}</h2>
-              <span className="ife-head-meta ife-cap">{t("noMessages")}</span>
-            </header>
+            <h2 className="ife-head-title">{t("chat")}</h2>
+            <p className="ife-chat-blank-state">{t("noMessages")}</p>
             <p>{t("pickASeat")}</p>
           </div>
         ) : (
